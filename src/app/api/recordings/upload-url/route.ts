@@ -3,6 +3,7 @@ import { z } from "zod";
 import { nanoid } from "nanoid";
 import connectDB from "@/lib/db/client";
 import Transcript from "@/lib/db/models/transcript";
+import Meeting from "@/lib/db/models/meeting";
 import { authenticateRequest } from "@/lib/auth/middleware";
 import { getPresignedUploadUrl } from "@/lib/vultr/object-storage";
 import {
@@ -41,8 +42,10 @@ const uploadRequestSchema = z.object({
  */
 export async function POST(request: NextRequest) {
   try {
+    let userId: string;
     try {
-      await authenticateRequest(request);
+      const payload = await authenticateRequest(request);
+      userId = payload.userId;
     } catch {
       return unauthorizedResponse();
     }
@@ -60,6 +63,19 @@ export async function POST(request: NextRequest) {
 
     const { meetingId, contentType, speechSegments } = parsed.data;
 
+    // Verify user is a participant in this meeting
+    await connectDB();
+    const meeting = await Meeting.findById(meetingId);
+    if (!meeting) {
+      return errorResponse("Meeting not found.", 404);
+    }
+    const isParticipant =
+      meeting.hostId.toString() === userId ||
+      meeting.participants.some((p) => p.userId.toString() === userId);
+    if (!isParticipant) {
+      return errorResponse("You are not a participant in this meeting.", 403);
+    }
+
     // Determine file extension from content type
     const ext = contentType.includes("webm")
       ? "webm"
@@ -75,19 +91,19 @@ export async function POST(request: NextRequest) {
 
     // Store speech segments for speaker-attributed transcription
     if (speechSegments && speechSegments.length > 0) {
-      await connectDB();
       await Transcript.findOneAndUpdate(
         { meetingId },
         {
-          $set: {
-            meetingId,
-            segments: speechSegments.map((seg) => ({
-              speaker: seg.speakerName,
-              speakerId: seg.speakerId,
-              text: "", // Will be filled when audio is transcribed
-              timestamp: seg.startTime,
-              duration: seg.endTime - seg.startTime,
-            })),
+          $push: {
+            segments: {
+              $each: speechSegments.map((seg) => ({
+                speaker: seg.speakerName,
+                speakerId: seg.speakerId,
+                text: "", // Will be filled when audio is transcribed
+                timestamp: seg.startTime,
+                duration: seg.endTime - seg.startTime,
+              })),
+            },
           },
         },
         { upsert: true, new: true }

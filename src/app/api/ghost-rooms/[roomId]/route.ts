@@ -126,8 +126,8 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
         return errorResponse("Message content is required.", 400);
       }
 
-      // Get the room to find participant name
-      const room = await ephemeralStore.getRoom(roomId);
+      // Get the room to find participant name (supports both room IDs and ghost codes)
+      const room = await findRoom(roomId);
       if (!room) {
         return notFoundResponse("Ghost room not found or has expired.");
       }

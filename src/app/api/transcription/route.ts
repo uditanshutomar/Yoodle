@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { authenticateRequest } from "@/lib/auth/middleware";
 import connectDB from "@/lib/db/client";
 import Transcript from "@/lib/db/models/transcript";
+import Meeting from "@/lib/db/models/meeting";
 import mongoose from "mongoose";
 import {
   successResponse,
@@ -10,12 +11,23 @@ import {
   serverErrorResponse,
 } from "@/lib/utils/api-response";
 
+async function verifyMeetingParticipant(userId: string, meetingId: string): Promise<boolean> {
+  const meeting = await Meeting.findById(meetingId);
+  if (!meeting) return false;
+  return (
+    meeting.hostId.toString() === userId ||
+    meeting.participants.some((p) => p.userId.toString() === userId)
+  );
+}
+
 // ── POST /api/transcription ─────────────────────────────────────────
 
 export async function POST(request: NextRequest) {
   try {
+    let userId: string;
     try {
-      await authenticateRequest(request);
+      const payload = await authenticateRequest(request);
+      userId = payload.userId;
     } catch {
       return unauthorizedResponse();
     }
@@ -29,6 +41,11 @@ export async function POST(request: NextRequest) {
 
     if (!audioFile || !meetingId || !speakerName || !speakerId) {
       return errorResponse("Missing required fields: audio, meetingId, speakerName, speakerId", 400);
+    }
+
+    await connectDB();
+    if (!(await verifyMeetingParticipant(userId, meetingId))) {
+      return errorResponse("You are not a participant in this meeting.", 403);
     }
 
     const apiKey = process.env.ELEVEN_LABS_API_KEY;
@@ -91,8 +108,10 @@ export async function POST(request: NextRequest) {
 
 export async function GET(request: NextRequest) {
   try {
+    let userId: string;
     try {
-      await authenticateRequest(request);
+      const payload = await authenticateRequest(request);
+      userId = payload.userId;
     } catch {
       return unauthorizedResponse();
     }
@@ -105,6 +124,10 @@ export async function GET(request: NextRequest) {
     }
 
     await connectDB();
+
+    if (!(await verifyMeetingParticipant(userId, meetingId))) {
+      return errorResponse("You are not a participant in this meeting.", 403);
+    }
 
     const transcript = await Transcript.findOne({
       meetingId: new mongoose.Types.ObjectId(meetingId),

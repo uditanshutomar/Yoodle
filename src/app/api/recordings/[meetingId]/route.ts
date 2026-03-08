@@ -1,5 +1,7 @@
 import { NextRequest } from "next/server";
 import { authenticateRequest } from "@/lib/auth/middleware";
+import connectDB from "@/lib/db/client";
+import Meeting from "@/lib/db/models/meeting";
 import { getPresignedDownloadUrl } from "@/lib/vultr/object-storage";
 import { S3Client, ListObjectsV2Command } from "@aws-sdk/client-s3";
 import {
@@ -40,8 +42,10 @@ export async function GET(
   { params }: { params: Promise<{ meetingId: string }> }
 ) {
   try {
+    let userId: string;
     try {
-      await authenticateRequest(request);
+      const payload = await authenticateRequest(request);
+      userId = payload.userId;
     } catch {
       return unauthorizedResponse();
     }
@@ -50,6 +54,19 @@ export async function GET(
 
     if (!meetingId) {
       return errorResponse("meetingId is required.", 400);
+    }
+
+    // Verify the user is a participant or host of this meeting
+    await connectDB();
+    const meeting = await Meeting.findById(meetingId);
+    if (!meeting) {
+      return errorResponse("Meeting not found.", 404);
+    }
+    const isParticipant =
+      meeting.hostId.toString() === userId ||
+      meeting.participants.some((p) => p.userId.toString() === userId);
+    if (!isParticipant) {
+      return errorResponse("You are not a participant in this meeting.", 403);
     }
 
     const hostname = process.env.VULTR_OBJECT_STORAGE_HOSTNAME;

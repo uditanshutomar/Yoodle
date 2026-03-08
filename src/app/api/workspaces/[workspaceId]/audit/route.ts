@@ -26,8 +26,8 @@ export async function GET(request: NextRequest, context: RouteContext) {
 
     const { workspaceId } = await context.params;
     const { searchParams } = new URL(request.url);
-    const limit = Math.min(parseInt(searchParams.get("limit") || "50"), 100);
-    const page = Math.max(parseInt(searchParams.get("page") || "1"), 1);
+    const limit = Math.min(parseInt(searchParams.get("limit") || "50", 10) || 50, 100);
+    const page = Math.max(parseInt(searchParams.get("page") || "1", 10) || 1, 1);
 
     await connectDB();
 

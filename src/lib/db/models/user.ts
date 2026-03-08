@@ -148,6 +148,12 @@ const userSchema = new Schema<IUserDocument>(
     googleTokens: {
       type: googleTokensSchema,
     },
+    magicLinkToken: {
+      type: String,
+    },
+    magicLinkExpires: {
+      type: Date,
+    },
     refreshTokenHash: {
       type: String,
     },

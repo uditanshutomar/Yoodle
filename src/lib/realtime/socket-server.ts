@@ -298,6 +298,27 @@ export function setupSocketServer(io: SocketIOServer): void {
 
     // --- Media state ---
 
+    // Handle the event the client actually emits (MEDIA_STATE_CHANGED)
+    socket.on(
+      SOCKET_EVENTS.MEDIA_STATE_CHANGED,
+      (payload: MediaStatePayload) => {
+        const mapping = socketToUser.get(socket.id);
+        if (!mapping) return;
+
+        const room = rooms.get(mapping.roomId);
+        if (!room) return;
+
+        const user = room.get(mapping.userId);
+        if (user) {
+          user.isVideoEnabled = payload.isVideoEnabled;
+          user.isAudioEnabled = payload.isAudioEnabled;
+
+          socket.to(mapping.roomId).emit(SOCKET_EVENTS.MEDIA_STATE_CHANGED, payload);
+        }
+      }
+    );
+
+    // Keep TOGGLE_VIDEO/TOGGLE_AUDIO for backwards compatibility
     socket.on(
       SOCKET_EVENTS.TOGGLE_VIDEO,
       (payload: { roomId: string; isVideoEnabled: boolean }) => {

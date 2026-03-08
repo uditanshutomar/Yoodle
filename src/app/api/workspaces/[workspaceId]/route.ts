@@ -69,8 +69,10 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
       return errorResponse("Only owners and admins can update the workspace.", 403);
     }
 
-    if (body.name) workspace.name = body.name.trim();
-    if (body.description !== undefined) workspace.description = body.description.trim();
+    if (body.name && typeof body.name === "string") workspace.name = body.name.trim();
+    if (body.description !== undefined) {
+      workspace.description = typeof body.description === "string" ? body.description.trim() : "";
+    }
     if (body.settings) {
       if (body.settings.autoShutdown !== undefined)
         workspace.settings.autoShutdown = body.settings.autoShutdown;

@@ -75,6 +75,7 @@ export default function SocketProvider({ children }: SocketProviderProps) {
     socketInstance.on("disconnect", () => {
       if (!mountedRef.current) return;
       setConnectionStatus("disconnected");
+      setSocket(null);
     });
 
     socketInstance.on("connect_error", () => {

@@ -118,9 +118,9 @@ function getRoomUsers(roomId: string): RoomUser[] {
   return room ? Array.from(room.values()) : [];
 }
 
-function removeUserFromRoom(socketId: string) {
+function removeUserFromRoom(socketId: string): { roomId: string } | null {
   const mapping = socketToRoom.get(socketId);
-  if (!mapping) return;
+  if (!mapping) return null;
 
   const { roomId, userId } = mapping;
   const room = rooms.get(roomId);
@@ -131,6 +131,9 @@ function removeUserFromRoom(socketId: string) {
     // Notify remaining users
     io.to(roomId).emit(EVENTS.USER_LEFT, { userId, socketId });
 
+    // Send updated user list to remaining participants
+    io.to(roomId).emit(EVENTS.ROOM_USERS, Array.from(room.values()));
+
     // Clean up empty rooms
     if (room.size === 0) {
       rooms.delete(roomId);
@@ -138,6 +141,7 @@ function removeUserFromRoom(socketId: string) {
   }
 
   socketToRoom.delete(socketId);
+  return { roomId };
 }
 
 function cleanupSSH(socketId: string) {
@@ -206,7 +210,10 @@ io.on("connection", (socket: Socket) => {
   // ── Leave room ────────────────────────────────────────────────────
 
   socket.on(EVENTS.LEAVE_ROOM, () => {
-    removeUserFromRoom(socket.id);
+    const result = removeUserFromRoom(socket.id);
+    if (result) {
+      socket.leave(result.roomId);
+    }
   });
 
   // ── WebRTC signaling ──────────────────────────────────────────────

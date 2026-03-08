@@ -189,7 +189,6 @@ export async function POST(request: NextRequest, context: RouteContext) {
           return errorResponse("No VM provisioned.", 400);
         }
         await destroyVM(workspace.vm.vultrInstanceId);
-        workspace.vm.status = "destroyed";
         workspace.vm = undefined;
         await workspace.save();
         await AuditLog.create({
