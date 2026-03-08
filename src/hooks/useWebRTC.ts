@@ -27,6 +27,9 @@ function getIceServers(): RTCIceServer[] {
   return servers;
 }
 
+/** Timeout for stuck negotiations (ms) */
+const NEGOTIATION_TIMEOUT = 10_000;
+
 export interface UseWebRTCReturn {
   localStream: MediaStream | null;
   remoteStreams: Map<string, MediaStream>;
@@ -36,7 +39,7 @@ export interface UseWebRTCReturn {
   replaceTrack: (
     oldTrack: MediaStreamTrack,
     newTrack: MediaStreamTrack
-  ) => void;
+  ) => Promise<void>;
 }
 
 interface UseWebRTCOptions {
@@ -60,6 +63,7 @@ export function useWebRTC({
   const peersRef = useRef<Map<string, RTCPeerConnection>>(new Map());
   const remoteStreamsRef = useRef<Map<string, MediaStream>>(new Map());
   const makingOfferRef = useRef<Set<string>>(new Set());
+  const negotiationTimersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
   const pendingCandidatesRef = useRef<Map<string, RTCIceCandidateInit[]>>(
     new Map()
   );
@@ -73,12 +77,37 @@ export function useWebRTC({
     setRemoteStreams(new Map(remoteStreamsRef.current));
   }, []);
 
+  /** Clear negotiation timeout for a peer */
+  const clearNegotiationTimeout = useCallback((peerId: string) => {
+    const timer = negotiationTimersRef.current.get(peerId);
+    if (timer) {
+      clearTimeout(timer);
+      negotiationTimersRef.current.delete(peerId);
+    }
+  }, []);
+
+  /** Set negotiation timeout for a peer — auto-clears makingOfferRef on expiry */
+  const setNegotiationTimeout = useCallback((peerId: string) => {
+    clearNegotiationTimeout(peerId);
+    const timer = setTimeout(() => {
+      makingOfferRef.current.delete(peerId);
+      negotiationTimersRef.current.delete(peerId);
+      console.warn(`[WebRTC] Negotiation timeout for ${peerId}, cleared lock`);
+    }, NEGOTIATION_TIMEOUT);
+    negotiationTimersRef.current.set(peerId, timer);
+  }, [clearNegotiationTimeout]);
+
   /** Create a new RTCPeerConnection for a remote peer */
   const createPeerConnection = useCallback(
     (remotePeerId: string): RTCPeerConnection => {
       // Clean up any existing connection to this peer
       const existing = peersRef.current.get(remotePeerId);
       if (existing) {
+        existing.onicecandidate = null;
+        existing.ontrack = null;
+        existing.onnegotiationneeded = null;
+        existing.onconnectionstatechange = null;
+        existing.oniceconnectionstatechange = null;
         existing.close();
         peersRef.current.delete(remotePeerId);
       }
@@ -129,8 +158,13 @@ export function useWebRTC({
 
         try {
           makingOfferRef.current.add(remotePeerId);
+          setNegotiationTimeout(remotePeerId);
+
           const offer = await pc.createOffer();
-          if (pc.signalingState !== "stable") return;
+          // Check state after async operation
+          if (pc.signalingState !== "stable") {
+            return;
+          }
           await pc.setLocalDescription(offer);
 
           if (socket && pc.localDescription) {
@@ -147,6 +181,7 @@ export function useWebRTC({
           );
         } finally {
           makingOfferRef.current.delete(remotePeerId);
+          clearNegotiationTimeout(remotePeerId);
         }
       };
 
@@ -175,6 +210,7 @@ export function useWebRTC({
           syncRemoteStreamsToState();
           pendingCandidatesRef.current.delete(remotePeerId);
           makingOfferRef.current.delete(remotePeerId);
+          clearNegotiationTimeout(remotePeerId);
         }
       };
 
@@ -193,7 +229,7 @@ export function useWebRTC({
 
       return pc;
     },
-    [socket, userId, syncPeersToState, syncRemoteStreamsToState]
+    [socket, userId, syncPeersToState, syncRemoteStreamsToState, setNegotiationTimeout, clearNegotiationTimeout]
   );
 
   /** Clean up a peer connection */
@@ -215,8 +251,9 @@ export function useWebRTC({
       syncRemoteStreamsToState();
       pendingCandidatesRef.current.delete(peerId);
       makingOfferRef.current.delete(peerId);
+      clearNegotiationTimeout(peerId);
     },
-    [syncPeersToState, syncRemoteStreamsToState]
+    [syncPeersToState, syncRemoteStreamsToState, clearNegotiationTimeout]
   );
 
   /** Process any ICE candidates that arrived before the remote description was set */
@@ -401,20 +438,30 @@ export function useWebRTC({
 
   /** Clean up all peer connections on unmount */
   useEffect(() => {
-    const peers = peersRef.current;
-    const remoteStreams = remoteStreamsRef.current;
-    const pendingCandidates = pendingCandidatesRef.current;
-    const makingOffer = makingOfferRef.current;
+    const currentPeers = peersRef.current;
+    const currentRemoteStreams = remoteStreamsRef.current;
+    const currentPendingCandidates = pendingCandidatesRef.current;
+    const currentMakingOffer = makingOfferRef.current;
+    const currentNegotiationTimers = negotiationTimersRef.current;
     return () => {
-      for (const [peerId] of peers) {
-        cleanupPeer(peerId);
+      for (const [, pc] of currentPeers) {
+        pc.onicecandidate = null;
+        pc.ontrack = null;
+        pc.onnegotiationneeded = null;
+        pc.onconnectionstatechange = null;
+        pc.oniceconnectionstatechange = null;
+        pc.close();
       }
-      peers.clear();
-      remoteStreams.clear();
-      pendingCandidates.clear();
-      makingOffer.clear();
+      currentPeers.clear();
+      currentRemoteStreams.clear();
+      currentPendingCandidates.clear();
+      currentMakingOffer.clear();
+      for (const timer of currentNegotiationTimers.values()) {
+        clearTimeout(timer);
+      }
+      currentNegotiationTimers.clear();
     };
-  }, [cleanupPeer]);
+  }, []);
 
   /** Add local stream and attach tracks to all existing peer connections */
   const addLocalStream = useCallback(
@@ -468,7 +515,7 @@ export function useWebRTC({
 
   /** Replace a specific track across all peer connections */
   const replaceTrack = useCallback(
-    (oldTrack: MediaStreamTrack, newTrack: MediaStreamTrack) => {
+    async (oldTrack: MediaStreamTrack, newTrack: MediaStreamTrack) => {
       // Update the local stream ref
       if (localStreamRef.current) {
         localStreamRef.current.removeTrack(oldTrack);
@@ -476,19 +523,25 @@ export function useWebRTC({
       }
 
       // Replace the track in all peer connections
+      // Match by exact track ID first, then fall back to kind match only if IDs don't match
+      const replacePromises: Promise<void>[] = [];
       for (const [peerId, pc] of peersRef.current) {
-        const sender = pc
-          .getSenders()
-          .find((s) => s.track?.id === oldTrack.id || s.track?.kind === newTrack.kind);
+        const senders = pc.getSenders();
+        const sender =
+          senders.find((s) => s.track?.id === oldTrack.id) ||
+          senders.find((s) => s.track?.kind === newTrack.kind && !senders.some((other) => other !== s && other.track?.kind === newTrack.kind));
         if (sender) {
-          sender.replaceTrack(newTrack).catch((err) => {
-            console.error(
-              `[WebRTC] Error replacing track for ${peerId}:`,
-              err
-            );
-          });
+          replacePromises.push(
+            sender.replaceTrack(newTrack).catch((err) => {
+              console.error(
+                `[WebRTC] Error replacing track for ${peerId}:`,
+                err
+              );
+            })
+          );
         }
       }
+      await Promise.all(replacePromises);
     },
     []
   );

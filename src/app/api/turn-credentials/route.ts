@@ -1,13 +1,22 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
+import { authenticateRequest } from "@/lib/auth/middleware";
 
 /**
  * GET /api/turn-credentials
  *
  * Fetch TURN/STUN credentials for WebRTC NAT traversal.
+ * Requires authentication to prevent credential abuse.
  * Tries Metered.ca first, falls back to static config with Google STUN.
  */
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
+    // Require authentication — TURN credentials should not be public
+    try {
+      await authenticateRequest(request);
+    } catch {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     const apiKey = process.env.NEXT_PUBLIC_METERED_API_KEY;
     const app = process.env.NEXT_PUBLIC_METERED_APP;
 

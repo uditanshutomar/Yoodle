@@ -146,11 +146,23 @@ export default function VideoTile({
   const videoRef = useRef<HTMLVideoElement>(null);
   const px = sizeMap[size];
 
-  // Attach MediaStream to video element
+  // Attach MediaStream to video element and clean up on stream change
   useEffect(() => {
-    if (videoRef.current && stream) {
-      videoRef.current.srcObject = stream;
+    const videoEl = videoRef.current;
+    if (!videoEl) return;
+
+    if (stream) {
+      videoEl.srcObject = stream;
+    } else {
+      videoEl.srcObject = null;
     }
+
+    return () => {
+      // Clear srcObject on cleanup to release the stream reference
+      if (videoEl) {
+        videoEl.srcObject = null;
+      }
+    };
   }, [stream]);
 
   // Scale based on audio level when speaking (range 1.0 to 1.2)

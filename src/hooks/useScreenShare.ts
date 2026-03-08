@@ -10,7 +10,7 @@ export interface UseScreenShareReturn {
 }
 
 interface UseScreenShareOptions {
-  onTrackReplace?: (oldTrack: MediaStreamTrack, newTrack: MediaStreamTrack) => void;
+  onTrackReplace?: (oldTrack: MediaStreamTrack, newTrack: MediaStreamTrack) => Promise<void> | void;
   onStart?: () => void;
   onStop?: () => void;
   cameraStream?: MediaStream | null;
@@ -23,9 +23,14 @@ export function useScreenShare(options: UseScreenShareOptions = {}): UseScreenSh
 
   const screenStreamRef = useRef<MediaStream | null>(null);
   const cameraVideoTrackRef = useRef<MediaStreamTrack | null>(null);
+  const stoppingRef = useRef(false);
 
-  /** Internal stop function — defined BEFORE startScreenShare to avoid forward reference */
-  const stopScreenShareInternal = useCallback(() => {
+  /** Internal stop function */
+  const stopScreenShareInternal = useCallback(async () => {
+    // Prevent double-stop
+    if (stoppingRef.current) return;
+    stoppingRef.current = true;
+
     const currentScreenStream = screenStreamRef.current;
     const screenTrack = currentScreenStream?.getVideoTracks()[0];
 
@@ -39,14 +44,14 @@ export function useScreenShare(options: UseScreenShareOptions = {}): UseScreenSh
     }
 
     // Restore camera video track in peer connections
-    if (cameraVideoTrackRef.current && onTrackReplace) {
-      if (cameraStream) {
-        const freshCameraTrack = cameraStream.getVideoTracks()[0];
-        if (freshCameraTrack) {
-          onTrackReplace(
-            screenTrack || cameraVideoTrackRef.current,
-            freshCameraTrack
-          );
+    if (cameraVideoTrackRef.current && onTrackReplace && cameraStream) {
+      const freshCameraTrack = cameraStream.getVideoTracks()[0];
+      if (freshCameraTrack) {
+        const oldTrack = screenTrack || cameraVideoTrackRef.current;
+        try {
+          await onTrackReplace(oldTrack, freshCameraTrack);
+        } catch (err) {
+          console.error("[ScreenShare] Error restoring camera track:", err);
         }
       }
     }
@@ -54,6 +59,7 @@ export function useScreenShare(options: UseScreenShareOptions = {}): UseScreenSh
     cameraVideoTrackRef.current = null;
     setScreenStream(null);
     setIsSharing(false);
+    stoppingRef.current = false;
 
     onStop?.();
   }, [cameraStream, onTrackReplace, onStop]);
@@ -84,13 +90,19 @@ export function useScreenShare(options: UseScreenShareOptions = {}): UseScreenSh
       // Replace video track in peer connections with screen share track
       const screenTrack = stream.getVideoTracks()[0];
       if (screenTrack && cameraVideoTrackRef.current && onTrackReplace) {
-        onTrackReplace(cameraVideoTrackRef.current, screenTrack);
+        try {
+          await onTrackReplace(cameraVideoTrackRef.current, screenTrack);
+        } catch (err) {
+          console.error("[ScreenShare] Error replacing with screen track:", err);
+        }
       }
 
       // Handle the browser's native "Stop sharing" button
-      screenTrack.onended = () => {
-        stopScreenShareInternal();
-      };
+      if (screenTrack) {
+        screenTrack.onended = () => {
+          stopScreenShareInternal();
+        };
+      }
 
       onStart?.();
     } catch (err) {

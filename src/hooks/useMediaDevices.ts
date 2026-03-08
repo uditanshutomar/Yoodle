@@ -186,7 +186,9 @@ export function useMediaDevices(): UseMediaDevicesReturn {
     async (deviceId: string) => {
       setSelectedVideoDeviceState(deviceId);
 
-      if (!streamRef.current) return;
+      // Use ref to access current stream (avoids stale closure)
+      const currentStream = streamRef.current;
+      if (!currentStream) return;
 
       try {
         // Get a new video stream from the selected device
@@ -203,15 +205,15 @@ export function useMediaDevices(): UseMediaDevicesReturn {
         if (!newVideoTrack) return;
 
         // Stop the old video track
-        const oldVideoTrack = streamRef.current.getVideoTracks()[0];
+        const oldVideoTrack = currentStream.getVideoTracks()[0];
         if (oldVideoTrack) {
-          streamRef.current.removeTrack(oldVideoTrack);
+          currentStream.removeTrack(oldVideoTrack);
           oldVideoTrack.stop();
         }
 
         // Add the new track to the existing stream
-        streamRef.current.addTrack(newVideoTrack);
-        setStream(new MediaStream(streamRef.current.getTracks()));
+        currentStream.addTrack(newVideoTrack);
+        setStream(new MediaStream(currentStream.getTracks()));
         setIsVideoEnabled(true);
         setError(null);
       } catch (err) {
@@ -220,7 +222,7 @@ export function useMediaDevices(): UseMediaDevicesReturn {
         console.error("[MediaDevices] Error switching video device:", message);
       }
     },
-    []
+    [] // streamRef is stable — no stale closure issue
   );
 
   /** Switch audio device mid-call */
@@ -228,7 +230,9 @@ export function useMediaDevices(): UseMediaDevicesReturn {
     async (deviceId: string) => {
       setSelectedAudioDeviceState(deviceId);
 
-      if (!streamRef.current) return;
+      // Use ref to access current stream (avoids stale closure)
+      const currentStream = streamRef.current;
+      if (!currentStream) return;
 
       try {
         const newStream = await navigator.mediaDevices.getUserMedia({
@@ -244,15 +248,15 @@ export function useMediaDevices(): UseMediaDevicesReturn {
         if (!newAudioTrack) return;
 
         // Stop the old audio track
-        const oldAudioTrack = streamRef.current.getAudioTracks()[0];
+        const oldAudioTrack = currentStream.getAudioTracks()[0];
         if (oldAudioTrack) {
-          streamRef.current.removeTrack(oldAudioTrack);
+          currentStream.removeTrack(oldAudioTrack);
           oldAudioTrack.stop();
         }
 
         // Add the new track to the existing stream
-        streamRef.current.addTrack(newAudioTrack);
-        setStream(new MediaStream(streamRef.current.getTracks()));
+        currentStream.addTrack(newAudioTrack);
+        setStream(new MediaStream(currentStream.getTracks()));
         setIsAudioEnabled(true);
         setError(null);
       } catch (err) {
@@ -261,7 +265,7 @@ export function useMediaDevices(): UseMediaDevicesReturn {
         console.error("[MediaDevices] Error switching audio device:", message);
       }
     },
-    []
+    [] // streamRef is stable — no stale closure issue
   );
 
   /** Clean up on unmount */
