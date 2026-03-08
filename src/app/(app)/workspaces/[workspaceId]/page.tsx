@@ -89,9 +89,14 @@ export default function WorkspaceDetailPage() {
         credentials: "include",
         body: JSON.stringify({ action }),
       });
-      const data = await res.json();
-      if (!data.success) {
-        setActionError(data.error || `Failed to ${action} VM.`);
+      const contentType = res.headers.get("content-type") || "";
+      if (!contentType.includes("application/json")) {
+        setActionError(`Server error (${res.status}). Try again in a moment.`);
+      } else {
+        const data = await res.json();
+        if (!data.success) {
+          setActionError(data.error || `Failed to ${action} VM.`);
+        }
       }
       await fetchWorkspace();
       await fetchAudit();
