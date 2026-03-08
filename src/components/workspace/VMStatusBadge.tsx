@@ -28,7 +28,7 @@ export default function VMStatusBadge({ status }: VMStatusBadgeProps) {
       <motion.div
         className="w-2 h-2 rounded-full"
         style={{ backgroundColor: config.color }}
-        animate={status === "running" ? { opacity: [1, 0.3, 1] } : {}}
+        animate={status === "running" || status === "provisioning" ? { opacity: [1, 0.3, 1] } : {}}
         transition={{ duration: 1.5, repeat: Infinity }}
       />
       {config.label}

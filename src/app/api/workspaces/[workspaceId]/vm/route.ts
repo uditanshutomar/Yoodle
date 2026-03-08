@@ -12,6 +12,22 @@ import {
   serverErrorResponse,
 } from "@/lib/utils/api-response";
 
+// Map Vultr instance statuses to our app-level VM statuses
+function mapVultrStatus(vultrStatus: string): "provisioning" | "running" | "stopped" | "destroyed" {
+  switch (vultrStatus) {
+    case "active":
+      return "running";
+    case "halted":
+    case "stopped":
+      return "stopped";
+    case "pending":
+    case "installing":
+      return "provisioning";
+    default:
+      return "provisioning";
+  }
+}
+
 // Extend Vercel serverless function timeout (default 10s is too short for cold start + Vultr API)
 export const maxDuration = 30;
 
@@ -45,7 +61,18 @@ export async function GET(request: NextRequest, context: RouteContext) {
 
     try {
       const status = await getVMStatus(workspace.vm.vultrInstanceId);
-      return successResponse({ provisioned: true, ...status });
+
+      // Sync Vultr status back to DB so the workspace reflects reality
+      const mappedStatus = mapVultrStatus(status.status);
+      if (workspace.vm.status !== mappedStatus || workspace.vm.ipAddress !== status.ipAddress) {
+        workspace.vm.status = mappedStatus;
+        if (status.ipAddress && status.ipAddress !== "0.0.0.0") {
+          workspace.vm.ipAddress = status.ipAddress;
+        }
+        await workspace.save();
+      }
+
+      return successResponse({ provisioned: true, ...status, appStatus: mappedStatus });
     } catch {
       return successResponse({
         provisioned: true,
@@ -162,7 +189,6 @@ export async function POST(request: NextRequest, context: RouteContext) {
           return errorResponse("No VM provisioned.", 400);
         }
         await destroyVM(workspace.vm.vultrInstanceId);
-        workspace.vm.status = "destroyed";
         workspace.vm = undefined;
         await workspace.save();
         await AuditLog.create({

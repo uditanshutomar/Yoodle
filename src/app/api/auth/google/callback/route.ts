@@ -108,7 +108,11 @@ export async function GET(request: NextRequest) {
     await User.findByIdAndUpdate(user._id, { refreshTokenHash });
 
     // Redirect to the requested page (or dashboard)
-    const redirectTo = state || "/dashboard";
+    // Validate that the redirect target is a relative path to prevent open redirect attacks
+    let redirectTo = state || "/dashboard";
+    if (!redirectTo.startsWith("/") || redirectTo.startsWith("//")) {
+      redirectTo = "/dashboard";
+    }
     const redirectUrl = new URL(redirectTo, request.url);
     const response = NextResponse.redirect(redirectUrl);
 

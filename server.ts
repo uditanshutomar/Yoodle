@@ -1,3 +1,4 @@
+import "dotenv/config";
 import { createServer } from "http";
 import { parse } from "url";
 import next from "next";
@@ -20,15 +21,22 @@ app.prepare().then(() => {
     handle(req, res, parsedUrl);
   });
 
+  const allowedOrigins = dev
+    ? ["http://localhost:3000"]
+    : (process.env.ALLOWED_ORIGINS || process.env.NEXT_PUBLIC_APP_URL || "")
+        .split(",")
+        .map((s) => s.trim())
+        .filter(Boolean);
+
   const io = new SocketIOServer(httpServer, {
     cors: {
-      origin: dev ? "http://localhost:3000" : process.env.NEXT_PUBLIC_APP_URL,
+      origin: allowedOrigins.length > 0 ? allowedOrigins : false,
       methods: ["GET", "POST"],
     },
     path: "/api/socketio",
     transports: ["websocket", "polling"],
     pingInterval: 25000,
-    pingTimeout: 20000,
+    pingTimeout: 60000,
     maxHttpBufferSize: 1e7, // 10 MB for larger payloads
   });
 

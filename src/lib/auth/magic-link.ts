@@ -21,13 +21,17 @@ export async function generateMagicLink(email: string): Promise<string> {
     Date.now() + MAGIC_LINK_EXPIRY_MINUTES * 60 * 1000
   );
 
-  await User.findOneAndUpdate(
+  const user = await User.findOneAndUpdate(
     { email: email.toLowerCase().trim() },
     {
       magicLinkToken: hashedToken,
       magicLinkExpires: expiry,
     }
   );
+
+  if (!user) {
+    throw new Error("No account found with that email address.");
+  }
 
   const appUrl =
     process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
