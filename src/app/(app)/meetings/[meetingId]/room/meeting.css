@@ -1,0 +1,174 @@
+/* Meeting Room — Scribbly Doodle Theme (matches landing page) */
+
+.meeting-root {
+  position: fixed;
+  inset: 0;
+  background: var(--background, #FAFAF8);
+  overflow: hidden;
+  font-family: var(--font-body), system-ui, sans-serif;
+}
+
+/* Doodle texture overlay — same as landing page hero */
+.meeting-root::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: url('/yoodle-banner.png') center / cover no-repeat;
+  opacity: 0.18;
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* Active speaker glow — yellow doodle style */
+@keyframes speaker-glow {
+
+  0%,
+  100% {
+    box-shadow:
+      0 0 0 3px #FFE600,
+      0 0 15px 4px rgba(255, 230, 0, 0.3),
+      0 0 30px 8px rgba(255, 230, 0, 0.1);
+  }
+
+  50% {
+    box-shadow:
+      0 0 0 4px #FFE600,
+      0 0 25px 8px rgba(255, 230, 0, 0.4),
+      0 0 45px 16px rgba(255, 230, 0, 0.15);
+  }
+}
+
+.speaker-ring {
+  animation: speaker-glow 2s ease-in-out infinite;
+}
+
+/* Idle bubble */
+.bubble-idle {
+  box-shadow: 4px 4px 0 #0A0A0A;
+}
+
+/* Controls bar — white card style like landing page */
+.controls-bar {
+  background: white;
+  border: 2px solid #0A0A0A;
+  box-shadow: 5px 5px 0 #0A0A0A;
+}
+
+/* Chat panel — white card style */
+.chat-panel {
+  background: #FAFAF8;
+  border-left: 2px solid #0A0A0A;
+  box-shadow: -4px 0 0 #0A0A0A;
+}
+
+/* Meeting header bar */
+.meeting-header {
+  background: rgba(250, 250, 248, 0.75);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-bottom: 2px solid #0A0A0A;
+}
+
+/* Chat scrollbar */
+.chat-messages::-webkit-scrollbar {
+  width: 4px;
+}
+
+.chat-messages::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.chat-messages::-webkit-scrollbar-thumb {
+  background: #d4d4d4;
+  border-radius: 2px;
+}
+
+.chat-messages::-webkit-scrollbar-thumb:hover {
+  background: #a3a3a3;
+}
+
+/* Reaction float */
+@keyframes float-up {
+  0% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+
+  70% {
+    opacity: 1;
+    transform: translateY(-120px) scale(1.3);
+  }
+
+  100% {
+    opacity: 0;
+    transform: translateY(-180px) scale(0.8);
+  }
+}
+
+.reaction-float {
+  animation: float-up 2s ease-out forwards;
+}
+
+/* Name badge — scribbly style */
+.name-badge {
+  background: white;
+  border: 2px solid #0A0A0A;
+  box-shadow: 3px 3px 0 #0A0A0A;
+}
+
+/* Emoji picker popover */
+.emoji-picker {
+  background: white;
+  border: 2px solid #0A0A0A;
+  box-shadow: 4px 4px 0 #0A0A0A;
+}
+
+/* Control button base */
+.control-btn {
+  background: white;
+  border: 2px solid #0A0A0A;
+  box-shadow: 3px 3px 0 #0A0A0A;
+  color: #0A0A0A;
+  transition: all 0.15s ease;
+}
+
+.control-btn:hover {
+  box-shadow: 1px 1px 0 #0A0A0A;
+  transform: translate(2px, 2px);
+}
+
+.control-btn:active {
+  box-shadow: 0 0 0 #0A0A0A;
+  transform: translate(3px, 3px);
+}
+
+.control-btn.active {
+  background: #FFE600;
+  color: #0A0A0A;
+}
+
+.control-btn.danger {
+  background: #FF6B6B;
+  border-color: #0A0A0A;
+  color: white;
+}
+
+.control-btn.danger:hover {
+  background: #ff5252;
+}
+
+/* Yellow pill button — same as landing page CTA */
+.yellow-btn {
+  background: #FFE600;
+  border: 2px solid #0A0A0A;
+  box-shadow: 4px 4px 0 #0A0A0A;
+  color: #0A0A0A;
+  font-family: var(--font-heading);
+  font-weight: 700;
+  transition: all 0.15s ease;
+}
+
+.yellow-btn:hover {
+  box-shadow: 2px 2px 0 #0A0A0A;
+  transform: translate(2px, 2px);
+}

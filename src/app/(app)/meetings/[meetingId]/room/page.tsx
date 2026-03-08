@@ -3,12 +3,16 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
-import { MessageSquare, Users, X, Wifi, WifiOff } from "lucide-react";
-import VideoGrid from "@/components/meeting/VideoGrid";
+import { WifiOff } from "lucide-react";
+import BubbleLayout from "@/components/meeting/BubbleLayout";
 import MeetingControls from "@/components/meeting/MeetingControls";
-import MeetingChat from "@/components/meeting/MeetingChat";
+import ChatPanel from "@/components/meeting/ChatPanel";
+import ScreenShareView from "@/components/meeting/ScreenShareView";
 import ParticipantList from "@/components/meeting/ParticipantList";
 import ReactionOverlay from "@/components/meeting/ReactionOverlay";
+import { toParticipant } from "@/components/meeting/adapters";
+import { DoodleStar, DoodleSparkles } from "@/components/Doodles";
+import "./meeting.css";
 import { useMediaDevices } from "@/hooks/useMediaDevices";
 import { useVoiceActivity, type SpeechSegment } from "@/hooks/useVoiceActivity";
 import { useAuth } from "@/hooks/useAuth";
@@ -90,6 +94,36 @@ export default function MeetingRoomPage() {
   const [isScreenSharing, setIsScreenSharing] = useState(false);
   const reactionRef = useRef<((emoji: string, userName: string) => void) | null>(null);
   const [chatMessages, setChatMessages] = useState<ChatMessagePayload[]>([]);
+
+  // ── Bubble layout container measurement ─────────────────────────────
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [containerSize, setContainerSize] = useState({ width: 0, height: 0 });
+  const joinTimeRef = useRef(Date.now());
+  const [elapsedTime, setElapsedTime] = useState(0);
+
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const observer = new ResizeObserver((entries) => {
+      const { width, height } = entries[0].contentRect;
+      setContainerSize({ width, height });
+    });
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setElapsedTime(Math.floor((Date.now() - joinTimeRef.current) / 1000));
+    }, 1000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const formatTime = (seconds: number) => {
+    const m = Math.floor(seconds / 60);
+    const s = seconds % 60;
+    return `${m}:${s.toString().padStart(2, "0")}`;
+  };
 
   // ── WebRTC state ─────────────────────────────────────────────────────
   const [remoteParticipants, setRemoteParticipants] = useState<RoomUser[]>([]);
@@ -924,140 +958,148 @@ export default function MeetingRoomPage() {
     };
   }, []);
 
+  // ── Build bubble participants via adapter ─────────────────────────
+
+  const bubbleParticipants = participants.map((p) =>
+    toParticipant(p, {
+      isSpeaking: speakingPeers.has(p.id),
+      stream:
+        p.id === localUser.id
+          ? (isScreenSharing ? screenStreamRef.current : localStream)
+          : remoteStreams.get(p.id) || null,
+    })
+  );
+
   // ── Render ───────────────────────────────────────────────────────
 
   return (
-    <div className="fixed inset-0 z-50 bg-[#0A0A0A] flex flex-col">
-      {/* Meeting header */}
-      <div className="flex items-center justify-between px-4 py-2 bg-[#0A0A0A]/90 border-b border-white/10">
-        <div className="flex items-center gap-3">
-          <span
-            className="text-sm text-white/60 font-mono"
-            style={{ fontFamily: "var(--font-body)" }}
-          >
-            Meeting: {meetingId.slice(0, 8)}...
-          </span>
-          <span className="flex items-center gap-1">
-            {isConnected ? (
-              <Wifi size={14} className="text-green-400" />
-            ) : (
-              <WifiOff size={14} className="text-red-400" />
-            )}
-            <span className={`text-xs ${isConnected ? "text-green-400" : "text-red-400"}`}>
-              {isConnected ? "Connected" : "Reconnecting..."}
-            </span>
-          </span>
-        </div>
-        <div className="flex items-center gap-2">
-          <span className="text-xs text-white/40 mr-2">
-            {participants.length} participant{participants.length !== 1 ? "s" : ""}
-          </span>
-          <button
-            onClick={() => {
-              setShowChat(!showChat);
-              setShowParticipants(false);
-            }}
-            className={`p-2 rounded-lg transition-colors cursor-pointer ${
-              showChat
-                ? "bg-[#FFE600] text-[#0A0A0A]"
-                : "text-white/60 hover:text-white hover:bg-white/10"
-            }`}
-          >
-            <MessageSquare size={18} />
-          </button>
-          <button
-            onClick={() => {
-              setShowParticipants(!showParticipants);
-              setShowChat(false);
-            }}
-            className={`p-2 rounded-lg transition-colors cursor-pointer ${
-              showParticipants
-                ? "bg-[#FFE600] text-[#0A0A0A]"
-                : "text-white/60 hover:text-white hover:bg-white/10"
-            }`}
-          >
-            <Users size={18} />
-          </button>
-        </div>
+    <div className="meeting-root z-50 flex flex-col">
+      {/* Doodle decorations */}
+      <div className="pointer-events-none fixed inset-0 z-[1]">
+        <DoodleStar className="absolute top-24 left-[8%] opacity-30" color="#FFE600" size={18} />
+        <DoodleSparkles className="absolute bottom-40 right-[12%] opacity-20" />
       </div>
 
-      {/* Main content */}
-      <div className="flex-1 flex overflow-hidden">
-        {/* Video grid */}
-        <div className="flex-1 p-4">
-          <VideoGrid
-            localStream={isScreenSharing ? screenStreamRef.current : localStream}
-            remoteStreams={remoteStreams}
-            participants={participants}
-            speakingPeers={speakingPeers}
-            audioLevels={audioLevels}
-            localUser={localUser}
-            isLocalMuted={!isAudioEnabled}
-            isLocalVideoOff={!isVideoEnabled}
-          />
+      {/* ─── Header bar ─── */}
+      <motion.header
+        className="meeting-header relative z-20 flex items-center justify-between px-6 py-3"
+        initial={{ y: -50, opacity: 0 }}
+        animate={{ y: 0, opacity: 1 }}
+        transition={{ type: "spring", stiffness: 200, damping: 25 }}
+      >
+        {/* Left: LIVE badge + timer */}
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 rounded-full border-2 border-[#0A0A0A] bg-[#FF6B6B] px-3 py-1 shadow-[2px_2px_0_#0A0A0A]">
+            <span className="relative flex h-2 w-2">
+              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-white opacity-75" />
+              <span className="relative inline-flex h-2 w-2 rounded-full bg-white" />
+            </span>
+            <span className="text-[11px] font-bold text-white" style={{ fontFamily: "var(--font-heading)" }}>LIVE</span>
+          </div>
+          <span className="text-sm font-mono text-[#0A0A0A]/40">{formatTime(elapsedTime)}</span>
+          {!isConnected && (
+            <span className="flex items-center gap-1 text-xs text-[#FF6B6B]">
+              <WifiOff size={12} /> Reconnecting...
+            </span>
+          )}
         </div>
 
-        {/* Side panel */}
-        <AnimatePresence>
-          {(showChat || showParticipants) && (
+        {/* Center: meeting code */}
+        <span className="text-xs font-mono text-[#0A0A0A]/25">{meetingId.slice(0, 8)}</span>
+
+        {/* Right: participant count + recording indicator */}
+        <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5 rounded-full border border-[#0A0A0A]/15 px-3 py-1">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#0A0A0A" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="opacity-40">
+              <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M23 21v-2a4 4 0 0 0-3-3.87" /><path d="M16 3.13a4 4 0 0 1 0 7.75" />
+            </svg>
+            <span className="text-xs font-bold text-[#0A0A0A]/50" style={{ fontFamily: "var(--font-heading)" }}>
+              {participants.length}
+            </span>
+          </div>
+          {isRecording && (
             <motion.div
-              initial={{ width: 0, opacity: 0 }}
-              animate={{ width: 360, opacity: 1 }}
-              exit={{ width: 0, opacity: 0 }}
-              className="border-l border-white/10 bg-[#111] overflow-hidden flex flex-col"
+              className="flex items-center gap-1.5 rounded-full border-2 border-[#FF6B6B] bg-[#FF6B6B]/10 px-3 py-1"
+              animate={{ opacity: [1, 0.5, 1] }}
+              transition={{ duration: 1.5, repeat: Infinity }}
             >
-              <div className="flex items-center justify-between p-3 border-b border-white/10">
-                <span
-                  className="text-sm font-bold text-white"
-                  style={{ fontFamily: "var(--font-heading)" }}
-                >
-                  {showChat ? "Chat" : "Participants"}
-                </span>
-                <button
-                  onClick={() => {
-                    setShowChat(false);
-                    setShowParticipants(false);
-                  }}
-                  className="text-white/40 hover:text-white cursor-pointer"
-                >
-                  <X size={16} />
-                </button>
-              </div>
-              <div className="flex-1 overflow-y-auto">
-                {showChat && (
-                  <MeetingChat
-                    isOpen={showChat}
-                    onClose={() => setShowChat(false)}
-                    messages={chatMessages}
-                    onSendMessage={handleSendMessage}
-                    currentUserId={user?.id || "local"}
-                  />
-                )}
-                {showParticipants && (
-                  <ParticipantList
-                    isOpen={showParticipants}
-                    onClose={() => setShowParticipants(false)}
-                    participants={participants.map((p) => ({
-                      id: p.id,
-                      name: p.name,
-                      displayName: p.displayName,
-                      avatar: p.avatar,
-                      isVideoEnabled: p.isVideoEnabled,
-                      isAudioEnabled: p.isAudioEnabled,
-                      isScreenSharing: p.isScreenSharing,
-                      isHost: p.id === localUser.id,
-                    }))}
-                    speakingPeers={speakingPeers}
-                    localUserId={user?.id || "local"}
-                  />
-                )}
-              </div>
+              <span className="h-2 w-2 rounded-full bg-[#FF6B6B]" />
+              <span className="text-[10px] font-bold text-[#FF6B6B]" style={{ fontFamily: "var(--font-heading)" }}>REC</span>
+            </motion.div>
+          )}
+        </div>
+      </motion.header>
+
+      {/* ─── Main content area ─── */}
+      <div ref={containerRef} className="relative z-10 flex-1 overflow-hidden">
+        {/* Bubble layout or screen share */}
+        <AnimatePresence mode="wait">
+          {isScreenSharing ? (
+            <ScreenShareView
+              key="screenshare"
+              presenter={toParticipant(participants[0], {
+                isSpeaking: isLocalSpeaking,
+                stream: localStream,
+              })}
+              participants={bubbleParticipants}
+              selfId={localUser.id}
+              onStopSharing={handleToggleScreenShare}
+              screenStream={screenStreamRef.current}
+            />
+          ) : (
+            containerSize.width > 0 && (
+              <BubbleLayout
+                key="bubbles"
+                participants={bubbleParticipants}
+                containerWidth={containerSize.width}
+                containerHeight={containerSize.height}
+                selfId={localUser.id}
+              />
+            )
+          )}
+        </AnimatePresence>
+
+        {/* Chat panel — slides in from right */}
+        <ChatPanel
+          isOpen={showChat}
+          onClose={() => setShowChat(false)}
+          messages={chatMessages}
+          onSendMessage={handleSendMessage}
+          currentUserId={user?.id || "local"}
+        />
+
+        {/* Participants panel */}
+        <AnimatePresence>
+          {showParticipants && (
+            <motion.div
+              initial={{ x: 300, opacity: 0 }}
+              animate={{ x: 0, opacity: 1 }}
+              exit={{ x: 300, opacity: 0 }}
+              transition={{ type: "spring", stiffness: 200, damping: 28 }}
+              className="absolute right-0 top-0 bottom-0 z-30 w-[300px] border-l-2 border-[#0A0A0A] bg-[#FAFAF8] shadow-[-4px_0_0_#0A0A0A] overflow-y-auto"
+            >
+              <ParticipantList
+                isOpen={showParticipants}
+                onClose={() => setShowParticipants(false)}
+                participants={participants.map((p) => ({
+                  id: p.id,
+                  name: p.name,
+                  displayName: p.displayName,
+                  avatar: p.avatar,
+                  isVideoEnabled: p.isVideoEnabled,
+                  isAudioEnabled: p.isAudioEnabled,
+                  isScreenSharing: p.isScreenSharing,
+                  isHost: p.id === localUser.id,
+                }))}
+                speakingPeers={speakingPeers}
+                localUserId={user?.id || "local"}
+              />
             </motion.div>
           )}
         </AnimatePresence>
       </div>
 
-      {/* Reactions */}
+      {/* Reactions overlay */}
       <ReactionOverlay onReactionRef={reactionRef} />
 
       {/* Controls */}
