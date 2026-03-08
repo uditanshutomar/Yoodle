@@ -159,6 +159,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
     }
   } catch (error) {
     console.error("[VM POST Error]", error);
-    return serverErrorResponse("Failed to manage VM.");
+    const message = error instanceof Error ? error.message : "Unknown error";
+    return serverErrorResponse(`Failed to manage VM: ${message}`);
   }
 }
