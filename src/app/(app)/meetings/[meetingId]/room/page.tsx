@@ -22,6 +22,8 @@ import {
   type MediaStatePayload,
   type ChatMessagePayload,
   type ReactionPayload,
+  type ScreenSharePayload,
+  type RecordingStatusPayload,
 } from "@/lib/realtime/socket-events";
 
 // ── Types ──────────────────────────────────────────────────────────────
@@ -482,8 +484,32 @@ export default function MeetingRoomPage() {
       setChatMessages((prev) => [...prev, msg]);
     };
 
+    const handleChatHistory = (history: ChatMessagePayload[]) => {
+      setChatMessages(history);
+    };
+
     const handleReaction = (payload: ReactionPayload) => {
       reactionRef.current?.(payload.emoji, payload.userName);
+    };
+
+    const handleScreenShareStart = (payload: ScreenSharePayload) => {
+      setRemoteParticipants((prev) =>
+        prev.map((p) =>
+          p.id === payload.userId ? { ...p, isScreenSharing: true } : p
+        )
+      );
+    };
+
+    const handleScreenShareStop = (payload: ScreenSharePayload) => {
+      setRemoteParticipants((prev) =>
+        prev.map((p) =>
+          p.id === payload.userId ? { ...p, isScreenSharing: false } : p
+        )
+      );
+    };
+
+    const handleRecordingStatus = (payload: RecordingStatusPayload) => {
+      setIsRecording(payload.isRecording);
     };
 
     // ── Register event listeners ────────────────────────────────────
@@ -496,7 +522,11 @@ export default function MeetingRoomPage() {
     socket.on(SOCKET_EVENTS.ICE_CANDIDATE, handleIceCandidate);
     socket.on(SOCKET_EVENTS.MEDIA_STATE_CHANGED, handleMediaState);
     socket.on(SOCKET_EVENTS.CHAT_MESSAGE, handleChatMessage);
+    socket.on(SOCKET_EVENTS.CHAT_HISTORY, handleChatHistory);
     socket.on(SOCKET_EVENTS.REACTION_RECEIVED, handleReaction);
+    socket.on(SOCKET_EVENTS.SCREEN_SHARE_START, handleScreenShareStart);
+    socket.on(SOCKET_EVENTS.SCREEN_SHARE_STOP, handleScreenShareStop);
+    socket.on(SOCKET_EVENTS.RECORDING_STATUS, handleRecordingStatus);
 
     return () => {
       socket.off(SOCKET_EVENTS.ROOM_USERS, handleRoomUsers);
@@ -507,7 +537,11 @@ export default function MeetingRoomPage() {
       socket.off(SOCKET_EVENTS.ICE_CANDIDATE, handleIceCandidate);
       socket.off(SOCKET_EVENTS.MEDIA_STATE_CHANGED, handleMediaState);
       socket.off(SOCKET_EVENTS.CHAT_MESSAGE, handleChatMessage);
+      socket.off(SOCKET_EVENTS.CHAT_HISTORY, handleChatHistory);
       socket.off(SOCKET_EVENTS.REACTION_RECEIVED, handleReaction);
+      socket.off(SOCKET_EVENTS.SCREEN_SHARE_START, handleScreenShareStart);
+      socket.off(SOCKET_EVENTS.SCREEN_SHARE_STOP, handleScreenShareStop);
+      socket.off(SOCKET_EVENTS.RECORDING_STATUS, handleRecordingStatus);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [socket, isConnected, user]);

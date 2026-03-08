@@ -416,7 +416,8 @@ export function setupSocketServer(io: SocketIOServer): void {
         };
 
         addChatMessage(mapping.roomId, message);
-        io.to(mapping.roomId).emit(SOCKET_EVENTS.CHAT_MESSAGE, message);
+        // Use socket.to() to exclude the sender (client adds it optimistically)
+        socket.to(mapping.roomId).emit(SOCKET_EVENTS.CHAT_MESSAGE, message);
       }
     );
 
