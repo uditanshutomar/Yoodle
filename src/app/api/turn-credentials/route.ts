@@ -33,7 +33,7 @@ export async function GET() {
     const turnUser = process.env.TURN_USERNAME || process.env.METERED_TURN_USERNAME;
     const turnPass = process.env.TURN_CREDENTIAL || process.env.METERED_TURN_PASSWORD;
 
-    if (turnUrl && turnUser && turnPass) {
+    if (turnUrl && !turnUrl.includes("localhost") && turnUser && turnPass) {
       fallbackServers.push({
         urls: turnUrl,
         username: turnUser,
