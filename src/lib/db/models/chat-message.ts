@@ -11,6 +11,7 @@ export interface IChatMessage {
   type: MessageType;
   replyTo?: Types.ObjectId;
   createdAt: Date;
+  updatedAt: Date;
 }
 
 export interface IChatMessageDocument extends IChatMessage, Document {
@@ -46,13 +47,10 @@ const chatMessageSchema = new Schema<IChatMessageDocument>(
       type: Schema.Types.ObjectId,
       ref: "ChatMessage",
     },
-    createdAt: {
-      type: Date,
-      default: Date.now,
-    },
   },
   {
     collection: "chat_messages",
+    timestamps: true,
   }
 );
 

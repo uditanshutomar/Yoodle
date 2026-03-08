@@ -8,7 +8,7 @@ export const PROCESSING_STATUSES = [
 ] as const;
 export type ProcessingStatus = (typeof PROCESSING_STATUSES)[number];
 
-export interface ITranscriptSegment {
+export interface IRecordingTranscriptSegment {
   speakerId: Types.ObjectId;
   speakerName: string;
   text: string;
@@ -16,9 +16,9 @@ export interface ITranscriptSegment {
   endTime: number;
 }
 
-export interface ITranscript {
+export interface IRecordingTranscript {
   status: ProcessingStatus;
-  segments: ITranscriptSegment[];
+  segments: IRecordingTranscriptSegment[];
   fullText: string;
   processedAt?: Date;
 }
@@ -43,16 +43,17 @@ export interface IRecording {
   fileUrl: string;
   fileSize: number;
   mimeType: string;
-  transcript: ITranscript;
+  transcript: IRecordingTranscript;
   aiMinutes: IAIMinutes;
   createdAt: Date;
+  updatedAt: Date;
 }
 
 export interface IRecordingDocument extends IRecording, Document {
   _id: Types.ObjectId;
 }
 
-const transcriptSegmentSchema = new Schema<ITranscriptSegment>(
+const transcriptSegmentSchema = new Schema<IRecordingTranscriptSegment>(
   {
     speakerId: {
       type: Schema.Types.ObjectId,
@@ -79,7 +80,7 @@ const transcriptSegmentSchema = new Schema<ITranscriptSegment>(
   { _id: false }
 );
 
-const transcriptSchema = new Schema<ITranscript>(
+const transcriptSchema = new Schema<IRecordingTranscript>(
   {
     status: {
       type: String,
@@ -188,13 +189,10 @@ const recordingSchema = new Schema<IRecordingDocument>(
         actionItems: [],
       }),
     },
-    createdAt: {
-      type: Date,
-      default: Date.now,
-    },
   },
   {
     collection: "recordings",
+    timestamps: true,
   }
 );
 

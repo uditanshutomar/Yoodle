@@ -19,6 +19,10 @@ const ENV_VARS: EnvVar[] = [
   { key: "JWT_SECRET", required: true, description: "JWT signing secret (64+ chars)" },
   { key: "MAGIC_LINK_SECRET", required: true, description: "Magic link signing secret" },
 
+  // Google OAuth
+  { key: "GOOGLE_CLIENT_ID", required: false, description: "Google OAuth client ID" },
+  { key: "GOOGLE_CLIENT_SECRET", required: false, description: "Google OAuth client secret" },
+
   // App
   { key: "NEXT_PUBLIC_APP_URL", required: true, description: "Public-facing app URL" },
 
@@ -49,7 +53,7 @@ const ENV_VARS: EnvVar[] = [
   { key: "VULTR_OBJECT_STORAGE_BUCKET", required: true, description: "Object storage bucket name" },
 
   // Email
-  { key: "RESEND_API_KEY", required: true, description: "Resend API key for emails" },
+  { key: "RESEND_API_KEY", required: false, description: "Resend API key for emails (falls back to console logging)" },
   { key: "EMAIL_FROM", required: false, description: "Sender email address" },
 
   // TURN (WebRTC)

@@ -13,6 +13,9 @@ import {
   type ReactionPayload,
   type ScreenSharePayload,
   type RecordingStatusPayload,
+  type AgentCollabInvitePayload,
+  type AgentCollabMessagePayload,
+  type AgentCollabClosedPayload,
 } from "./socket-events";
 
 /** In-memory storage for rooms and their users */
@@ -603,6 +606,43 @@ export function setupSocketServer(io: SocketIOServer): void {
     socket.on(SOCKET_EVENTS.TERMINAL_DISCONNECT, () => {
       cleanupSSH(socket.id);
     });
+
+    // --- Agent collaboration ---
+
+    socket.on(
+      SOCKET_EVENTS.AGENT_COLLAB_INVITE,
+      (payload: AgentCollabInvitePayload) => {
+        const mapping = socketToUser.get(socket.id);
+        if (!mapping) return;
+
+        // Find target user's socket and send invite directly
+        const targetSocketId = findSocketIdByUserId(payload.toUserId);
+        if (targetSocketId) {
+          io.to(targetSocketId).emit(SOCKET_EVENTS.AGENT_COLLAB_INVITE, payload);
+        }
+      }
+    );
+
+    socket.on(
+      SOCKET_EVENTS.AGENT_COLLAB_MESSAGE,
+      (payload: AgentCollabMessagePayload) => {
+        const mapping = socketToUser.get(socket.id);
+        if (!mapping) return;
+
+        // Broadcast to the channel (use channelId as a room)
+        socket.to(payload.channelId).emit(SOCKET_EVENTS.AGENT_COLLAB_MESSAGE, payload);
+      }
+    );
+
+    socket.on(
+      SOCKET_EVENTS.AGENT_COLLAB_CLOSED,
+      (payload: AgentCollabClosedPayload) => {
+        const mapping = socketToUser.get(socket.id);
+        if (!mapping) return;
+
+        io.to(payload.channelId).emit(SOCKET_EVENTS.AGENT_COLLAB_CLOSED, payload);
+      }
+    );
 
     // --- Disconnect ---
 
