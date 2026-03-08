@@ -140,6 +140,7 @@ export default function MeetingRoomPage() {
   const iceServersRef = useRef<RTCIceServer[]>([]);
   const localStreamRef = useRef<MediaStream | null>(null);
   const joinedRef = useRef(false);
+  const mediaStartedRef = useRef(false);
   const screenStreamRef = useRef<MediaStream | null>(null);
   const makingOfferRef = useRef<Set<string>>(new Set());
   const earlyCandidatesRef = useRef<Map<string, RTCIceCandidateInit[]>>(new Map());
@@ -341,6 +342,19 @@ export default function MeetingRoomPage() {
     [createPeerConnection, socket, localUser.id]
   );
 
+  // ── Start media immediately on mount (don't wait for socket) ────────
+
+  useEffect(() => {
+    if (mediaStartedRef.current) return;
+    mediaStartedRef.current = true;
+    // Fire and forget — start camera/mic right away so video shows instantly
+    startMedia(true, true);
+    // Pre-fetch ICE servers in parallel
+    getIceServers().then((servers) => {
+      iceServersRef.current = servers;
+    });
+  }, [startMedia]);
+
   // ── Socket event setup (handles initial join AND reconnection) ──────
 
   useEffect(() => {
@@ -354,14 +368,9 @@ export default function MeetingRoomPage() {
     };
 
     if (!joinedRef.current) {
-      // ── First time: fetch ICE servers, start media, join ──────────
-      const init = async () => {
-        iceServersRef.current = await getIceServers();
-        await startMedia(true, true);
-        socket.emit(SOCKET_EVENTS.JOIN_ROOM, { roomId: meetingId, user: roomUser });
-        joinedRef.current = true;
-      };
-      init();
+      // ── First time: join room (media already starting above) ──────
+      socket.emit(SOCKET_EVENTS.JOIN_ROOM, { roomId: meetingId, user: roomUser });
+      joinedRef.current = true;
     } else {
       // ── Reconnection: tear down stale peers, re-join room ────────
       console.log("[WebRTC] Socket reconnected — re-joining room");

@@ -47,9 +47,9 @@ export default function Dashboard() {
     };
 
     return (
-        <div className="dashboard-root min-h-screen relative overflow-hidden">
+        <div className="dashboard-root relative overflow-hidden" style={{ minHeight: "calc(100vh - 56px)" }}>
             {/* Doodle decorations — very subtle background flair */}
-            <div className="pointer-events-none fixed inset-0 z-[1]">
+            <div className="pointer-events-none absolute inset-0 z-[1]">
                 <DoodleStar className="absolute top-20 left-[30%] opacity-40" color="#FFE600" size={20} />
                 <DoodleStar className="absolute bottom-32 left-[15%] opacity-30" color="#0A0A0A" size={14} />
                 <DoodleSparkles className="absolute top-40 right-[42%] opacity-20" />
@@ -57,7 +57,7 @@ export default function Dashboard() {
             </div>
 
             {/* ─── MAIN LAYOUT: center-left action + right planning ─── */}
-            <div className="relative z-10 flex px-8 gap-8 mt-2" style={{ minHeight: "calc(100vh - 80px)" }}>
+            <div className="relative z-10 flex px-8 gap-6 mt-2" style={{ minHeight: "calc(100vh - 136px)" }}>
 
                 {/* ═══ LEFT: Main action area ═══ */}
                 <div className="flex-1 flex flex-col justify-center pb-32 max-w-[640px]">
@@ -182,7 +182,7 @@ export default function Dashboard() {
                 </div>
 
                 {/* ═══ RIGHT: Planning column ═══ */}
-                <div className="w-[680px] flex-shrink-0 py-2 overflow-y-auto" style={{ maxHeight: "calc(100vh - 80px)" }}>
+                <div className="w-[380px] flex-shrink-0 py-2 overflow-y-auto" style={{ maxHeight: "calc(100vh - 136px)" }}>
                     <CalendarPanel />
                     <div className="mt-4">
                         <ProjectTracker />
@@ -191,15 +191,13 @@ export default function Dashboard() {
             </div>
 
             {/* ─── MASCOT: bottom-left speech bubble companion ─── */}
-            <div className="fixed bottom-6 left-8 z-50 flex items-end gap-3">
+            <div className="fixed bottom-6 left-[280px] z-50 flex items-end gap-3">
                 {/* Mascot avatar */}
                 <motion.button
                     whileHover={{ scale: 1.1, rotate: -5 }}
                     whileTap={{ scale: 0.9 }}
-                    animate={{ width: !showMascotChat ? 68 : 40, height: !showMascotChat ? 68 : 40 }}
-                    transition={{ type: "spring", stiffness: 300, damping: 25 }}
                     onClick={() => setShowMascotChat(!showMascotChat)}
-                    className="flex items-center justify-center rounded-full bg-[#FFE600] border-2 border-[#0A0A0A] shadow-[3px_3px_0_#0A0A0A] flex-shrink-0 overflow-hidden"
+                    className={`flex items-center justify-center rounded-full bg-[#FFE600] border-2 border-[#0A0A0A] shadow-[3px_3px_0_#0A0A0A] flex-shrink-0 overflow-hidden ${!showMascotChat ? "w-[68px] h-[68px]" : "w-10 h-10"}`}
                 >
                     {mode === "lockin" ? (
                         <img src="/mascot-lockin.png" alt="Lock in mascot" className="h-full w-full object-cover" />

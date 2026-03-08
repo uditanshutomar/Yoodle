@@ -19,7 +19,9 @@ export default function BubbleLayout({
     const positions = useMemo(() => {
         const centerX = containerWidth / 2;
         const centerY = containerHeight / 2;
-        const speakerIdx = participants.findIndex((p) => p.isSpeaking);
+        // If someone is speaking, feature them; otherwise default to first participant (self)
+        let speakerIdx = participants.findIndex((p) => p.isSpeaking);
+        if (speakerIdx === -1) speakerIdx = 0;
         const minDim = Math.min(containerWidth, containerHeight);
 
         // Speaker size scales with viewport
