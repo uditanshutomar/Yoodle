@@ -50,7 +50,7 @@ export default function CTA() {
 
           <motion.div className="mt-10 flex flex-col items-center gap-4 sm:flex-row sm:justify-center">
             <motion.a
-              href="#"
+              href="/login"
               whileHover={{ scale: 1.05, y: -2 }}
               whileTap={{ scale: 0.97 }}
               className="inline-flex items-center gap-2 rounded-full bg-[#FFE600] px-10 py-4 text-lg font-bold text-[#0A0A0A] shadow-[5px_5px_0_rgba(255,230,0,0.3)] transition-all hover:shadow-[3px_3px_0_rgba(255,230,0,0.3)]"

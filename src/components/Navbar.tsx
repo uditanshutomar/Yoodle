@@ -2,6 +2,7 @@
 
 import { motion } from "framer-motion";
 import { useState, useEffect } from "react";
+import Link from "next/link";
 import { YoodleMascotSmall } from "./YoodleMascot";
 
 export default function Navbar() {
@@ -24,7 +25,7 @@ export default function Navbar() {
     >
       <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-4 lg:px-8">
         {/* Logo */}
-        <a href="#" className="flex items-center gap-2">
+        <Link href="/" className="flex items-center gap-2">
           <span className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-full bg-[#FFE600] border-2 border-[#0A0A0A]">
             <YoodleMascotSmall className="h-9 w-9 mix-blend-multiply" />
           </span>
@@ -38,7 +39,7 @@ export default function Navbar() {
           >
             Yoodle
           </span>
-        </a>
+        </Link>
 
         {/* Nav links */}
         <div className="hidden items-center gap-8 md:flex">
@@ -56,7 +57,7 @@ export default function Navbar() {
 
         {/* CTA */}
         <motion.a
-          href="#cta"
+          href="/login"
           whileHover={{ scale: 1.05, y: -1 }}
           whileTap={{ scale: 0.97 }}
           className="rounded-full bg-[#FFE600] px-6 py-2.5 text-sm font-bold text-[#0A0A0A] shadow-[4px_4px_0_#0A0A0A] transition-shadow hover:shadow-[2px_2px_0_#0A0A0A]"

@@ -1,0 +1,13 @@
+services:
+  - type: web
+    name: yoodle-signaling
+    runtime: node
+    rootDir: server
+    buildCommand: npm install && npm run build
+    startCommand: npm start
+    envVars:
+      - key: PORT
+        value: "3001"
+      - key: ALLOWED_ORIGINS
+        value: "https://yoodle.vercel.app,http://localhost:3000"
+    healthCheckPath: /health

@@ -1,13 +1,14 @@
 "use client";
 
 import { motion } from "framer-motion";
+import Link from "next/link";
 
 export default function Footer() {
   return (
     <footer className="border-t-2 border-[#0A0A0A]/10 px-6 py-12 lg:px-8">
       <div className="mx-auto flex max-w-7xl flex-col items-center justify-between gap-6 sm:flex-row">
         {/* Logo */}
-        <a href="#" className="flex items-center gap-1">
+        <Link href="/" className="flex items-center gap-1">
           <span
             className="text-2xl font-black tracking-tight"
             style={{
@@ -18,7 +19,7 @@ export default function Footer() {
           >
             Yoodle
           </span>
-        </a>
+        </Link>
 
         {/* Tagline */}
         <p

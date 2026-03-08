@@ -1,0 +1,446 @@
+import { Server as SocketIOServer, Socket } from "socket.io";
+import {
+  SOCKET_EVENTS,
+  type RoomUser,
+  type ChatMessagePayload,
+  type JoinRoomPayload,
+  type SignalOfferPayload,
+  type SignalAnswerPayload,
+  type SignalIceCandidatePayload,
+  type MediaStatePayload,
+  type VoiceActivityPayload,
+  type ReactionPayload,
+  type ScreenSharePayload,
+  type RecordingStatusPayload,
+} from "./socket-events";
+
+/** In-memory storage for rooms and their users */
+const rooms = new Map<string, Map<string, RoomUser>>();
+
+/** In-memory chat history per room (capped at 500 messages) */
+const chatHistory = new Map<string, ChatMessagePayload[]>();
+
+/** Recording status per room */
+const recordingStatus = new Map<string, RecordingStatusPayload>();
+
+/** Socket ID to user mapping for quick disconnect cleanup */
+const socketToUser = new Map<string, { roomId: string; userId: string }>();
+
+const MAX_CHAT_HISTORY = 500;
+
+function getRoomUsers(roomId: string): RoomUser[] {
+  const room = rooms.get(roomId);
+  if (!room) return [];
+  return Array.from(room.values());
+}
+
+function addUserToRoom(roomId: string, user: RoomUser): void {
+  if (!rooms.has(roomId)) {
+    rooms.set(roomId, new Map());
+  }
+  rooms.get(roomId)!.set(user.id, user);
+  socketToUser.set(user.socketId, { roomId, userId: user.id });
+}
+
+function removeUserFromRoom(roomId: string, userId: string): RoomUser | null {
+  const room = rooms.get(roomId);
+  if (!room) return null;
+
+  const user = room.get(userId);
+  if (!user) return null;
+
+  room.delete(userId);
+  socketToUser.delete(user.socketId);
+
+  // Clean up empty rooms
+  if (room.size === 0) {
+    rooms.delete(roomId);
+    chatHistory.delete(roomId);
+    recordingStatus.delete(roomId);
+  }
+
+  return user;
+}
+
+function removeUserBySocketId(socketId: string): {
+  roomId: string;
+  user: RoomUser;
+} | null {
+  const mapping = socketToUser.get(socketId);
+  if (!mapping) return null;
+
+  const { roomId, userId } = mapping;
+  const user = removeUserFromRoom(roomId, userId);
+  if (!user) return null;
+
+  return { roomId, user };
+}
+
+function addChatMessage(roomId: string, message: ChatMessagePayload): void {
+  if (!chatHistory.has(roomId)) {
+    chatHistory.set(roomId, []);
+  }
+  const history = chatHistory.get(roomId)!;
+  history.push(message);
+
+  // Cap at MAX_CHAT_HISTORY messages
+  if (history.length > MAX_CHAT_HISTORY) {
+    history.splice(0, history.length - MAX_CHAT_HISTORY);
+  }
+}
+
+/**
+ * Sets up all Socket.io event handlers on the given server instance.
+ * Call this once when the HTTP server is created.
+ */
+export function setupSocketServer(io: SocketIOServer): void {
+  io.on("connection", (socket: Socket) => {
+    console.log(`[Socket] Client connected: ${socket.id}`);
+
+    // --- Room management ---
+
+    socket.on(
+      SOCKET_EVENTS.JOIN_ROOM,
+      (payload: JoinRoomPayload, callback?: (data: { users: RoomUser[] }) => void) => {
+        const { roomId, user } = payload;
+
+        const roomUser: RoomUser = {
+          id: user.id,
+          socketId: socket.id,
+          name: user.name,
+          displayName: user.displayName,
+          avatar: user.avatar ?? null,
+          isVideoEnabled: false,
+          isAudioEnabled: false,
+          isScreenSharing: false,
+        };
+
+        // If user is already in a different room, leave it first
+        const existing = socketToUser.get(socket.id);
+        if (existing && existing.roomId !== roomId) {
+          const removed = removeUserFromRoom(existing.roomId, existing.userId);
+          if (removed) {
+            socket.leave(existing.roomId);
+            io.to(existing.roomId).emit(SOCKET_EVENTS.USER_LEFT, {
+              userId: removed.id,
+              socketId: removed.socketId,
+            });
+            io.to(existing.roomId).emit(
+              SOCKET_EVENTS.ROOM_USERS,
+              getRoomUsers(existing.roomId)
+            );
+          }
+        }
+
+        // Join the socket room
+        socket.join(roomId);
+        addUserToRoom(roomId, roomUser);
+
+        const currentUsers = getRoomUsers(roomId);
+
+        // Notify existing users about the new user
+        socket.to(roomId).emit(SOCKET_EVENTS.USER_JOINED, roomUser);
+
+        // Send current room users to everyone
+        io.to(roomId).emit(SOCKET_EVENTS.ROOM_USERS, currentUsers);
+
+        // Send chat history to the joining user
+        const history = chatHistory.get(roomId) || [];
+        socket.emit(SOCKET_EVENTS.CHAT_HISTORY, history);
+
+        // Send recording status if active
+        const recording = recordingStatus.get(roomId);
+        if (recording && recording.isRecording) {
+          socket.emit(SOCKET_EVENTS.RECORDING_STATUS, recording);
+        }
+
+        // Acknowledge with current user list
+        if (callback) {
+          callback({ users: currentUsers });
+        }
+
+        console.log(
+          `[Socket] User ${user.displayName} (${user.id}) joined room ${roomId}. Room size: ${currentUsers.length}`
+        );
+      }
+    );
+
+    socket.on(SOCKET_EVENTS.LEAVE_ROOM, (_roomId: string) => {
+      const result = removeUserBySocketId(socket.id);
+      if (result) {
+        socket.leave(result.roomId);
+        io.to(result.roomId).emit(SOCKET_EVENTS.USER_LEFT, {
+          userId: result.user.id,
+          socketId: result.user.socketId,
+        });
+        io.to(result.roomId).emit(
+          SOCKET_EVENTS.ROOM_USERS,
+          getRoomUsers(result.roomId)
+        );
+        console.log(
+          `[Socket] User ${result.user.displayName} left room ${result.roomId}`
+        );
+      }
+    });
+
+    // --- WebRTC signaling ---
+
+    socket.on(SOCKET_EVENTS.OFFER, (payload: SignalOfferPayload) => {
+      const targetMapping = findSocketIdByUserId(payload.targetId);
+      if (targetMapping) {
+        io.to(targetMapping).emit(SOCKET_EVENTS.OFFER, {
+          senderId: payload.senderId,
+          offer: payload.offer,
+        });
+      }
+    });
+
+    socket.on(SOCKET_EVENTS.ANSWER, (payload: SignalAnswerPayload) => {
+      const targetMapping = findSocketIdByUserId(payload.targetId);
+      if (targetMapping) {
+        io.to(targetMapping).emit(SOCKET_EVENTS.ANSWER, {
+          senderId: payload.senderId,
+          answer: payload.answer,
+        });
+      }
+    });
+
+    socket.on(
+      SOCKET_EVENTS.ICE_CANDIDATE,
+      (payload: SignalIceCandidatePayload) => {
+        const targetMapping = findSocketIdByUserId(payload.targetId);
+        if (targetMapping) {
+          io.to(targetMapping).emit(SOCKET_EVENTS.ICE_CANDIDATE, {
+            senderId: payload.senderId,
+            candidate: payload.candidate,
+          });
+        }
+      }
+    );
+
+    // --- Media state ---
+
+    socket.on(
+      SOCKET_EVENTS.TOGGLE_VIDEO,
+      (payload: { roomId: string; isVideoEnabled: boolean }) => {
+        const mapping = socketToUser.get(socket.id);
+        if (!mapping) return;
+
+        const room = rooms.get(mapping.roomId);
+        if (!room) return;
+
+        const user = room.get(mapping.userId);
+        if (user) {
+          user.isVideoEnabled = payload.isVideoEnabled;
+
+          const mediaState: MediaStatePayload = {
+            userId: user.id,
+            isVideoEnabled: user.isVideoEnabled,
+            isAudioEnabled: user.isAudioEnabled,
+          };
+
+          socket.to(mapping.roomId).emit(SOCKET_EVENTS.MEDIA_STATE_CHANGED, mediaState);
+        }
+      }
+    );
+
+    socket.on(
+      SOCKET_EVENTS.TOGGLE_AUDIO,
+      (payload: { roomId: string; isAudioEnabled: boolean }) => {
+        const mapping = socketToUser.get(socket.id);
+        if (!mapping) return;
+
+        const room = rooms.get(mapping.roomId);
+        if (!room) return;
+
+        const user = room.get(mapping.userId);
+        if (user) {
+          user.isAudioEnabled = payload.isAudioEnabled;
+
+          const mediaState: MediaStatePayload = {
+            userId: user.id,
+            isVideoEnabled: user.isVideoEnabled,
+            isAudioEnabled: user.isAudioEnabled,
+          };
+
+          socket.to(mapping.roomId).emit(SOCKET_EVENTS.MEDIA_STATE_CHANGED, mediaState);
+        }
+      }
+    );
+
+    // --- Voice activity ---
+
+    socket.on(SOCKET_EVENTS.VOICE_ACTIVITY, (payload: VoiceActivityPayload) => {
+      const mapping = socketToUser.get(socket.id);
+      if (!mapping) return;
+
+      socket.to(mapping.roomId).emit(SOCKET_EVENTS.VOICE_ACTIVITY, payload);
+    });
+
+    socket.on(
+      SOCKET_EVENTS.SPEAKING_START,
+      (payload: { userId: string; speakerName: string; startTime: number }) => {
+        const mapping = socketToUser.get(socket.id);
+        if (!mapping) return;
+
+        socket.to(mapping.roomId).emit(SOCKET_EVENTS.SPEAKING_START, payload);
+      }
+    );
+
+    socket.on(
+      SOCKET_EVENTS.SPEAKING_STOP,
+      (payload: {
+        userId: string;
+        speakerName: string;
+        startTime: number;
+        endTime: number;
+      }) => {
+        const mapping = socketToUser.get(socket.id);
+        if (!mapping) return;
+
+        socket.to(mapping.roomId).emit(SOCKET_EVENTS.SPEAKING_STOP, payload);
+      }
+    );
+
+    // --- Chat ---
+
+    socket.on(
+      SOCKET_EVENTS.CHAT_MESSAGE,
+      (payload: Omit<ChatMessagePayload, "timestamp">) => {
+        const mapping = socketToUser.get(socket.id);
+        if (!mapping) return;
+
+        const message: ChatMessagePayload = {
+          ...payload,
+          roomId: mapping.roomId,
+          timestamp: Date.now(),
+        };
+
+        addChatMessage(mapping.roomId, message);
+        io.to(mapping.roomId).emit(SOCKET_EVENTS.CHAT_MESSAGE, message);
+      }
+    );
+
+    // --- Reactions ---
+
+    socket.on(SOCKET_EVENTS.REACTION, (payload: ReactionPayload) => {
+      const mapping = socketToUser.get(socket.id);
+      if (!mapping) return;
+
+      const reaction: ReactionPayload = {
+        ...payload,
+        timestamp: Date.now(),
+      };
+
+      io.to(mapping.roomId).emit(SOCKET_EVENTS.REACTION_RECEIVED, reaction);
+    });
+
+    // --- Screen share ---
+
+    socket.on(SOCKET_EVENTS.SCREEN_SHARE_START, () => {
+      const mapping = socketToUser.get(socket.id);
+      if (!mapping) return;
+
+      const room = rooms.get(mapping.roomId);
+      if (!room) return;
+
+      const user = room.get(mapping.userId);
+      if (user) {
+        user.isScreenSharing = true;
+
+        const payload: ScreenSharePayload = {
+          userId: user.id,
+          isSharing: true,
+        };
+
+        socket.to(mapping.roomId).emit(SOCKET_EVENTS.SCREEN_SHARE_START, payload);
+      }
+    });
+
+    socket.on(SOCKET_EVENTS.SCREEN_SHARE_STOP, () => {
+      const mapping = socketToUser.get(socket.id);
+      if (!mapping) return;
+
+      const room = rooms.get(mapping.roomId);
+      if (!room) return;
+
+      const user = room.get(mapping.userId);
+      if (user) {
+        user.isScreenSharing = false;
+
+        const payload: ScreenSharePayload = {
+          userId: user.id,
+          isSharing: false,
+        };
+
+        socket.to(mapping.roomId).emit(SOCKET_EVENTS.SCREEN_SHARE_STOP, payload);
+      }
+    });
+
+    // --- Recording ---
+
+    socket.on(SOCKET_EVENTS.RECORDING_START, (_payload: { roomId: string }) => {
+      const mapping = socketToUser.get(socket.id);
+      if (!mapping) return;
+
+      const status: RecordingStatusPayload = {
+        roomId: mapping.roomId,
+        isRecording: true,
+        startedBy: mapping.userId,
+        startedAt: Date.now(),
+      };
+
+      recordingStatus.set(mapping.roomId, status);
+      io.to(mapping.roomId).emit(SOCKET_EVENTS.RECORDING_STATUS, status);
+    });
+
+    socket.on(SOCKET_EVENTS.RECORDING_STOP, (_payload: { roomId: string }) => {
+      const mapping = socketToUser.get(socket.id);
+      if (!mapping) return;
+
+      const status: RecordingStatusPayload = {
+        roomId: mapping.roomId,
+        isRecording: false,
+      };
+
+      recordingStatus.set(mapping.roomId, status);
+      io.to(mapping.roomId).emit(SOCKET_EVENTS.RECORDING_STATUS, status);
+    });
+
+    // --- Disconnect ---
+
+    socket.on("disconnect", (reason: string) => {
+      console.log(`[Socket] Client disconnected: ${socket.id} (${reason})`);
+
+      const result = removeUserBySocketId(socket.id);
+      if (result) {
+        io.to(result.roomId).emit(SOCKET_EVENTS.USER_LEFT, {
+          userId: result.user.id,
+          socketId: result.user.socketId,
+        });
+        io.to(result.roomId).emit(
+          SOCKET_EVENTS.ROOM_USERS,
+          getRoomUsers(result.roomId)
+        );
+        console.log(
+          `[Socket] Cleaned up user ${result.user.displayName} from room ${result.roomId}`
+        );
+      }
+    });
+  });
+
+  console.log("[Socket] Socket.io server initialized");
+}
+
+/**
+ * Find a socket ID by user ID across all rooms.
+ */
+function findSocketIdByUserId(userId: string): string | null {
+  for (const room of rooms.values()) {
+    const user = room.get(userId);
+    if (user) {
+      return user.socketId;
+    }
+  }
+  return null;
+}
