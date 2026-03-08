@@ -2,6 +2,8 @@
 
 A modern video conferencing and collaboration platform built for Gen Z, featuring AI-powered meeting assistance, ephemeral brainstorming rooms, shared cloud workspaces, and deep Google Workspace integration.
 
+https://yoodle.vercel.app/
+
 ## Features
 
 ### Crystal Calls
