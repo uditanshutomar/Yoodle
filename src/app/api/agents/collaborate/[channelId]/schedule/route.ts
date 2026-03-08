@@ -1,12 +1,14 @@
 import { NextRequest } from "next/server";
 import { z } from "zod";
+import mongoose from "mongoose";
 import connectDB from "@/lib/db/client";
 import AgentChannel from "@/lib/db/models/agent-channel";
-import User from "@/lib/db/models/user";
+import Meeting from "@/lib/db/models/meeting";
 import { authenticateRequest } from "@/lib/auth/middleware";
 import { getFreeBusy, createEvent } from "@/lib/google/calendar";
 import { hasGoogleAccess } from "@/lib/google/client";
 import { findCollabSlots } from "@/lib/ai/agent-services";
+import { generateMeetingCode } from "@/lib/utils/id";
 import {
   successResponse,
   errorResponse,
@@ -132,9 +134,38 @@ export async function POST(
     if (parsed.data.autoSchedule && result.bestSlots.length > 0) {
       const bestSlot = result.bestSlots[0];
 
-      // Create events on BOTH users' calendars
-      const eventDescription = `Collaborative work session: "${parsed.data.taskTitle}"\nScheduled by Doodle via Yoodle collaboration.`;
+      // Create a Yoodle meeting room for the collaboration session
+      const meetingCode = generateMeetingCode();
+      const meeting = await Meeting.create({
+        code: meetingCode,
+        title: `[Collab] ${parsed.data.taskTitle}`,
+        description: `Collaborative work session scheduled by Doodle.\nTopic: ${channel.topic}`,
+        hostId: new mongoose.Types.ObjectId(participantA.userId.toString()),
+        type: "regular",
+        status: "scheduled",
+        scheduledAt: new Date(bestSlot.start),
+        participants: [
+          {
+            userId: new mongoose.Types.ObjectId(participantA.userId.toString()),
+            role: "host",
+            status: "invited",
+          },
+          {
+            userId: new mongoose.Types.ObjectId(participantB.userId.toString()),
+            role: "co-host",
+            status: "invited",
+          },
+        ],
+        settings: {
+          allowRecording: true,
+          allowScreenShare: true,
+        },
+      });
 
+      const yoodleRoomLink = `/meeting/${meetingCode}`;
+      const eventDescription = `Collaborative work session: "${parsed.data.taskTitle}"\nScheduled by Doodle via Yoodle collaboration.\n\nJoin Yoodle Room: ${yoodleRoomLink}`;
+
+      // Create calendar events on BOTH users' calendars (no Google Meet — use Yoodle room)
       const [eventA, eventB] = await Promise.all([
         createEvent(participantA.userId.toString(), {
           title: `[Collab] ${parsed.data.taskTitle}`,
@@ -142,7 +173,7 @@ export async function POST(
           start: bestSlot.start,
           end: bestSlot.end,
           attendees: [participantB.userName],
-          addMeetLink: true,
+          addMeetLink: false,
         }).catch((err) => {
           console.error("[Collab Schedule A Error]", err);
           return null;
@@ -153,7 +184,7 @@ export async function POST(
           start: bestSlot.start,
           end: bestSlot.end,
           attendees: [participantA.userName],
-          addMeetLink: true,
+          addMeetLink: false,
         }).catch((err) => {
           console.error("[Collab Schedule B Error]", err);
           return null;
@@ -165,7 +196,9 @@ export async function POST(
         end: bestSlot.end,
         eventIdA: eventA?.id,
         eventIdB: eventB?.id,
-        meetLink: eventA?.meetLink || eventB?.meetLink,
+        meetingCode,
+        meetingId: meeting._id.toString(),
+        yoodleRoomLink,
       };
 
       // Add a system message to the channel
@@ -173,7 +206,7 @@ export async function POST(
         fromAgentId: participantA.agentId,
         fromUserId: participantA.userId,
         fromUserName: "Doodle",
-        content: `Scheduled collaborative work: "${parsed.data.taskTitle}" at ${bestSlot.start}`,
+        content: `Scheduled collaborative work: "${parsed.data.taskTitle}" at ${bestSlot.start}\nYoodle Room: ${yoodleRoomLink}`,
         type: "system",
         timestamp: new Date(),
       });
