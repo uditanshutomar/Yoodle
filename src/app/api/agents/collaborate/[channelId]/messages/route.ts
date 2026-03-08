@@ -64,6 +64,7 @@ export async function GET(
         agentId: p.agentId.toString(),
         userId: p.userId.toString(),
         userName: p.userName,
+        userEmail: p.userEmail,
       })),
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       messages: channel.messages.map((m: any) => ({

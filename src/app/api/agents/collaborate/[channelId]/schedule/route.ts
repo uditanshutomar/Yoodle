@@ -1,6 +1,5 @@
 import { NextRequest } from "next/server";
 import { z } from "zod";
-import mongoose from "mongoose";
 import connectDB from "@/lib/db/client";
 import AgentChannel from "@/lib/db/models/agent-channel";
 import Meeting from "@/lib/db/models/meeting";
@@ -140,18 +139,18 @@ export async function POST(
         code: meetingCode,
         title: `[Collab] ${parsed.data.taskTitle}`,
         description: `Collaborative work session scheduled by Doodle.\nTopic: ${channel.topic}`,
-        hostId: new mongoose.Types.ObjectId(participantA.userId.toString()),
+        hostId: participantA.userId,
         type: "regular",
         status: "scheduled",
         scheduledAt: new Date(bestSlot.start),
         participants: [
           {
-            userId: new mongoose.Types.ObjectId(participantA.userId.toString()),
+            userId: participantA.userId,
             role: "host",
             status: "invited",
           },
           {
-            userId: new mongoose.Types.ObjectId(participantB.userId.toString()),
+            userId: participantB.userId,
             role: "co-host",
             status: "invited",
           },
@@ -165,14 +164,14 @@ export async function POST(
       const yoodleRoomLink = `/meeting/${meetingCode}`;
       const eventDescription = `Collaborative work session: "${parsed.data.taskTitle}"\nScheduled by Doodle via Yoodle collaboration.\n\nJoin Yoodle Room: ${yoodleRoomLink}`;
 
-      // Create calendar events on BOTH users' calendars (no Google Meet — use Yoodle room)
+      // Create calendar events on BOTH users' calendars using actual email addresses
       const [eventA, eventB] = await Promise.all([
         createEvent(participantA.userId.toString(), {
           title: `[Collab] ${parsed.data.taskTitle}`,
           description: eventDescription,
           start: bestSlot.start,
           end: bestSlot.end,
-          attendees: [participantB.userName],
+          attendees: [participantB.userEmail],
           addMeetLink: false,
         }).catch((err) => {
           console.error("[Collab Schedule A Error]", err);
@@ -183,7 +182,7 @@ export async function POST(
           description: eventDescription,
           start: bestSlot.start,
           end: bestSlot.end,
-          attendees: [participantA.userName],
+          attendees: [participantA.userEmail],
           addMeetLink: false,
         }).catch((err) => {
           console.error("[Collab Schedule B Error]", err);

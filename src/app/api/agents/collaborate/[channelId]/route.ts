@@ -51,6 +51,7 @@ export async function GET(
         agentId: p.agentId.toString(),
         userId: p.userId.toString(),
         userName: p.userName,
+        userEmail: p.userEmail,
       })),
       messageCount: channel.messages.length,
       createdAt: channel.createdAt,
@@ -95,36 +96,31 @@ export async function DELETE(
     }
 
     // Close the channel
+    const closingParticipant = channel.participants.find(
+      (p) => p.userId.toString() === userId
+    )!;
     channel.status = "closed";
     channel.messages.push({
-      fromAgentId: channel.participants[0].agentId,
-      fromUserId: channel.participants.find(
-        (p) => p.userId.toString() === userId
-      )!.userId,
-      fromUserName: channel.participants.find(
-        (p) => p.userId.toString() === userId
-      )!.userName,
+      fromAgentId: closingParticipant.agentId,
+      fromUserId: closingParticipant.userId,
+      fromUserName: closingParticipant.userName,
       content: "Collaboration ended.",
       type: "system",
       timestamp: new Date(),
     });
     await channel.save();
 
-    // Remove from all agents' active collaborations
+    // Remove from all agents' active collaborations and atomically
+    // set status to idle if no other collaborations remain
     const agentIds = channel.participants.map((p) => p.agentId);
     await Agent.updateMany(
       { _id: { $in: agentIds } },
       { $pull: { activeCollaborations: channel._id } }
     );
-
-    // Set agents back to idle if they have no other active collaborations
-    for (const agentId of agentIds) {
-      const agent = await Agent.findById(agentId);
-      if (agent && agent.activeCollaborations.length === 0) {
-        agent.status = "idle";
-        await agent.save();
-      }
-    }
+    await Agent.updateMany(
+      { _id: { $in: agentIds }, activeCollaborations: { $size: 0 } },
+      { $set: { status: "idle" } }
+    );
 
     return successResponse({ message: "Collaboration channel closed." });
   } catch (error) {

@@ -72,15 +72,14 @@ export async function POST(
       return errorResponse("You can't collaborate with yourself.", 400);
     }
 
-    // Find or create the target user's agent
-    let targetAgent = await Agent.findOne({ userId: targetUser._id });
-    if (!targetAgent) {
-      targetAgent = await Agent.create({
-        userId: targetUser._id,
-        name: "Doodle",
-        status: "idle",
-      });
-    }
+    // Find or create the target user's agent (atomic to avoid race conditions)
+    const targetAgent = await Agent.findOneAndUpdate(
+      { userId: targetUser._id },
+      {
+        $setOnInsert: { userId: targetUser._id, name: "Doodle", status: "idle" },
+      },
+      { upsert: true, new: true }
+    );
 
     // Get initiator user info
     const initiatorUser = await User.findById(userId);
@@ -88,7 +87,7 @@ export async function POST(
       return notFoundResponse("Initiator user not found.");
     }
 
-    // Create the collaboration channel
+    // Create the collaboration channel (include emails for calendar integration)
     const channel = await AgentChannel.create({
       topic,
       participants: [
@@ -96,11 +95,13 @@ export async function POST(
           agentId: myAgent._id,
           userId: initiatorUser._id,
           userName: initiatorUser.displayName || initiatorUser.name,
+          userEmail: initiatorUser.email,
         },
         {
           agentId: targetAgent._id,
           userId: targetUser._id,
           userName: targetUser.displayName || targetUser.name,
+          userEmail: targetUser.email,
         },
       ],
       messages: [
@@ -118,14 +119,16 @@ export async function POST(
     });
 
     // Add the channel to both agents' active collaborations
-    await Agent.findByIdAndUpdate(myAgent._id, {
-      $push: { activeCollaborations: channel._id },
-      $set: { status: "collaborating" },
-    });
-    await Agent.findByIdAndUpdate(targetAgent._id, {
-      $push: { activeCollaborations: channel._id },
-      $set: { status: "collaborating" },
-    });
+    await Promise.all([
+      Agent.findByIdAndUpdate(myAgent._id, {
+        $push: { activeCollaborations: channel._id },
+        $set: { status: "collaborating" },
+      }),
+      Agent.findByIdAndUpdate(targetAgent._id, {
+        $push: { activeCollaborations: channel._id },
+        $set: { status: "collaborating" },
+      }),
+    ]);
 
     return successResponse(
       {
@@ -135,6 +138,7 @@ export async function POST(
           agentId: p.agentId.toString(),
           userId: p.userId.toString(),
           userName: p.userName,
+          userEmail: p.userEmail,
         })),
         status: channel.status,
         createdAt: channel.createdAt,

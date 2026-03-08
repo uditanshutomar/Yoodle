@@ -1,4 +1,5 @@
 import { NextRequest } from "next/server";
+import mongoose from "mongoose";
 import connectDB from "@/lib/db/client";
 import Agent from "@/lib/db/models/agent";
 import AgentTask from "@/lib/db/models/agent-task";
@@ -12,6 +13,7 @@ import { authenticateRequest } from "@/lib/auth/middleware";
 import { analyzeTranscriptForUser } from "@/lib/ai/agent-services";
 import {
   successResponse,
+  errorResponse,
   unauthorizedResponse,
   notFoundResponse,
   serverErrorResponse,
@@ -36,6 +38,12 @@ export async function GET(
     }
 
     const { meetingId } = await params;
+
+    // Validate ObjectId format
+    if (!mongoose.Types.ObjectId.isValid(meetingId)) {
+      return errorResponse("Invalid meeting ID.", 400);
+    }
+
     await connectDB();
 
     // Check if insights already exist
@@ -97,10 +105,17 @@ export async function GET(
       return notFoundResponse("No transcript available for this meeting.");
     }
 
-    // Get user info and pending tasks
-    const [user, agent, pendingTasks] = await Promise.all([
+    // Get user info and pending tasks; create agent atomically
+    const [user, agentDoc, pendingTasks] = await Promise.all([
       User.findById(userId).lean(),
-      Agent.findOne({ userId }),
+      Agent.findOneAndUpdate(
+        { userId },
+        {
+          $setOnInsert: { userId, name: "Doodle", status: "active" },
+          $set: { lastActiveAt: new Date() },
+        },
+        { upsert: true, new: true }
+      ),
       AgentTask.find({ userId, status: { $in: ["pending", "in_progress"] } })
         .select("title")
         .lean(),
@@ -108,11 +123,6 @@ export async function GET(
 
     if (!user) {
       return notFoundResponse("User not found.");
-    }
-
-    let agentDoc = agent;
-    if (!agentDoc) {
-      agentDoc = await Agent.create({ userId, name: "Doodle", status: "active" });
     }
 
     const userName = user.displayName || user.name;
@@ -142,19 +152,18 @@ export async function GET(
       processed: true,
     });
 
-    // Auto-create tasks from action items
+    // Auto-create tasks from action items (with full metadata)
     const taskPromises = analysis.myActionItems.map((item) =>
       AgentTask.create({
         userId,
-        agentId: agentDoc!._id,
+        agentId: agentDoc._id,
         title: item.task,
+        description: `From meeting "${meeting.title}"`,
         priority: item.priority || "medium",
         source: "meeting_transcript",
         sourceMeetingId: meetingId,
         dueDate: item.deadline ? new Date(item.deadline) : undefined,
-      }).catch((err) => {
-        console.error("[Auto Task Create Error]", err);
-        return null;
+        tags: ["meeting-action-item"],
       })
     );
 
@@ -167,13 +176,18 @@ export async function GET(
         source: "meeting",
         confidence: 0.85,
         relatedMeetingId: meetingId,
-      }).catch((err) => {
-        console.error("[Memory Create Error]", err);
-        return null;
       })
     );
 
-    await Promise.all([...taskPromises, ...memoryPromises]);
+    // Use allSettled so individual failures don't block the response
+    const results = await Promise.allSettled([...taskPromises, ...memoryPromises]);
+    const failures = results.filter((r) => r.status === "rejected");
+    if (failures.length > 0) {
+      console.error(
+        `[Insights] ${failures.length} side-effect(s) failed:`,
+        failures.map((f) => (f as PromiseRejectedResult).reason)
+      );
+    }
 
     return successResponse({
       id: insight._id.toString(),

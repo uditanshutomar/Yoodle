@@ -16,6 +16,7 @@ export interface IChannelParticipant {
   agentId: Types.ObjectId;
   userId: Types.ObjectId;
   userName: string;
+  userEmail: string;
   joinedAt: Date;
 }
 
@@ -83,6 +84,10 @@ const channelParticipantSchema = new Schema<IChannelParticipant>(
       required: true,
     },
     userName: {
+      type: String,
+      required: true,
+    },
+    userEmail: {
       type: String,
       required: true,
     },

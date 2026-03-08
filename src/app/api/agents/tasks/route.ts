@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
 import { z } from "zod";
+import mongoose from "mongoose";
 import connectDB from "@/lib/db/client";
 import Agent from "@/lib/db/models/agent";
 import AgentTask from "@/lib/db/models/agent-task";
@@ -113,11 +114,14 @@ export async function POST(request: NextRequest) {
 
     await connectDB();
 
-    // Get or create the user's agent
-    let agent = await Agent.findOne({ userId });
-    if (!agent) {
-      agent = await Agent.create({ userId, name: "Doodle", status: "idle" });
-    }
+    // Get or create the user's agent (atomic to avoid race conditions)
+    const agent = await Agent.findOneAndUpdate(
+      { userId },
+      {
+        $setOnInsert: { userId, name: "Doodle", status: "idle" },
+      },
+      { upsert: true, new: true }
+    );
 
     const taskData: Record<string, unknown> = {
       userId,
@@ -191,6 +195,11 @@ export async function PATCH(request: NextRequest) {
     const taskId = searchParams.get("id");
     if (!taskId) {
       return errorResponse("Task ID required.", 400);
+    }
+
+    // Validate ObjectId format to avoid CastError
+    if (!mongoose.Types.ObjectId.isValid(taskId)) {
+      return errorResponse("Invalid task ID.", 400);
     }
 
     await connectDB();
