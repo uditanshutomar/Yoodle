@@ -106,7 +106,7 @@ export async function POST(request: NextRequest) {
     await connectDB();
 
     // Ensure the user has an agent (auto-create if not) and mark it active
-    const agent = await Agent.findOneAndUpdate(
+    await Agent.findOneAndUpdate(
       { userId },
       {
         $setOnInsert: { userId, name: "Doodle", status: "active", capabilities: ["chat", "meeting-prep", "meeting-minutes", "proofreading", "task-management", "gmail", "calendar", "drive", "docs", "sheets", "tasks", "contacts"] },

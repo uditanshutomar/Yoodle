@@ -151,9 +151,6 @@ export async function POST(
 
     channel.messages.push(userMessage);
 
-    // Now get the sender's agent to generate a response on behalf of the sender
-    const senderAgent = await Agent.findById(senderParticipant.agentId);
-
     // Build context for sender's agent
     const [senderMemories, senderWorkspace] = await Promise.all([
       AIMemory.find({ userId })
