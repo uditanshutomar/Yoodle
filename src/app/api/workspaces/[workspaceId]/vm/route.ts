@@ -12,6 +12,9 @@ import {
   serverErrorResponse,
 } from "@/lib/utils/api-response";
 
+// Extend Vercel serverless function timeout (default 10s is too short for cold start + Vultr API)
+export const maxDuration = 30;
+
 type RouteContext = { params: Promise<{ workspaceId: string }> };
 
 // GET /api/workspaces/[workspaceId]/vm — get VM status
@@ -71,6 +74,8 @@ export async function POST(request: NextRequest, context: RouteContext) {
     const body = await request.json();
     const { action, region, plan } = body;
 
+    console.log("[VM POST] action:", action, "workspaceId:", workspaceId);
+
     await connectDB();
 
     const workspace = await Workspace.findById(workspaceId);
@@ -88,26 +93,39 @@ export async function POST(request: NextRequest, context: RouteContext) {
         if (workspace.vm?.vultrInstanceId) {
           return errorResponse("VM already provisioned.", 400);
         }
+
+        console.log("[VM] Calling Vultr API to provision...");
         const result = await provisionVM({
           workspaceName: workspace.name,
           region,
           plan,
         });
+        console.log("[VM] Vultr returned instanceId:", result.instanceId);
+
+        const sshKeyId = process.env.VULTR_SSH_KEY_ID || "";
+        console.log("[VM] sshKeyId length:", sshKeyId.length);
+
         workspace.vm = {
           vultrInstanceId: result.instanceId,
           status: "provisioning",
           region: region || "ewr",
           plan: plan || "vc2-1c-1gb",
-          ipAddress: result.ipAddress,
-          sshKeyId: process.env.VULTR_SSH_KEY_ID || "",
+          ipAddress: result.ipAddress || "0.0.0.0",
+          sshKeyId,
           provisionedAt: new Date(),
         };
+
+        console.log("[VM] Saving workspace...");
         await workspace.save();
+        console.log("[VM] Workspace saved. Creating audit log...");
+
         await AuditLog.create({
           workspaceId, userId, userName: "System",
           action: "vm.provision",
           details: { instanceId: result.instanceId },
         });
+        console.log("[VM] Provision complete");
+
         return successResponse({ provisioned: true, ...result });
       }
 
