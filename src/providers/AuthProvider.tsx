@@ -9,13 +9,13 @@ export interface AuthUser {
   displayName: string;
   email: string;
   avatar?: string | null;
+  hasGoogleAccess?: boolean;
 }
 
 export interface AuthContextType {
   user: AuthUser | null;
   loading: boolean;
-  login: (email: string) => Promise<{ success: boolean; message: string }>;
-  signup: (email: string, name: string, displayName: string) => Promise<{ success: boolean; message: string }>;
+  loginWithGoogle: (redirect?: string) => Promise<{ success: boolean; url?: string; message: string }>;
   logout: () => Promise<void>;
   refreshSession: () => Promise<void>;
 }
@@ -53,6 +53,7 @@ export default function AuthProvider({ children }: { children: ReactNode }) {
             displayName: u.displayName,
             email: u.email,
             avatar: u.avatarUrl || null,
+            hasGoogleAccess: !!u.hasGoogleAccess,
           });
         } else {
           setUser(null);
@@ -71,39 +72,20 @@ export default function AuthProvider({ children }: { children: ReactNode }) {
     refreshSession();
   }, [refreshSession]);
 
-  const login = async (email: string): Promise<{ success: boolean; message: string }> => {
+  const loginWithGoogle = async (
+    redirect?: string
+  ): Promise<{ success: boolean; url?: string; message: string }> => {
     try {
-      const res = await fetch("/api/auth/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email }),
-      });
+      const redirectPath = redirect || "/dashboard";
+      const res = await fetch(
+        `/api/auth/google?redirect=${encodeURIComponent(redirectPath)}`
+      );
       const data = await res.json();
-      if (res.ok) {
-        return { success: true, message: data.message || "Magic link sent! Check your email." };
-      }
-      return { success: false, message: data.message || "Something went wrong." };
-    } catch {
-      return { success: false, message: "Network error. Try again." };
-    }
-  };
 
-  const signup = async (
-    email: string,
-    name: string,
-    displayName: string
-  ): Promise<{ success: boolean; message: string }> => {
-    try {
-      const res = await fetch("/api/auth/signup", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, name, displayName }),
-      });
-      const data = await res.json();
-      if (res.ok) {
-        return { success: true, message: data.message || "Account created! Check your email." };
+      if (res.ok && data.data?.url) {
+        return { success: true, url: data.data.url, message: "Redirecting to Google..." };
       }
-      return { success: false, message: data.message || "Something went wrong." };
+      return { success: false, message: data.message || "Failed to start Google sign-in." };
     } catch {
       return { success: false, message: "Network error. Try again." };
     }
@@ -120,7 +102,7 @@ export default function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, signup, logout, refreshSession }}>
+    <AuthContext.Provider value={{ user, loading, loginWithGoogle, logout, refreshSession }}>
       {children}
     </AuthContext.Provider>
   );

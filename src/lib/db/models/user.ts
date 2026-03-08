@@ -19,6 +19,13 @@ export interface IUserPreferences {
   theme: ThemeOption;
 }
 
+export interface IGoogleTokens {
+  accessToken: string;
+  refreshToken: string;
+  expiresAt: Date;
+  scope: string;
+}
+
 export interface IUser {
   email: string;
   name: string;
@@ -27,7 +34,11 @@ export interface IUser {
   status: UserStatus;
   location?: IUserLocation;
   preferences: IUserPreferences;
+  googleId?: string;
+  googleTokens?: IGoogleTokens;
+  /** @deprecated Use Google OAuth instead. Kept for legacy data compatibility. */
   magicLinkToken?: string;
+  /** @deprecated Use Google OAuth instead. Kept for legacy data compatibility. */
   magicLinkExpires?: Date;
   refreshTokenHash?: string;
   lastSeenAt?: Date;
@@ -79,6 +90,16 @@ const preferencesSchema = new Schema<IUserPreferences>(
   { _id: false }
 );
 
+const googleTokensSchema = new Schema<IGoogleTokens>(
+  {
+    accessToken: { type: String, required: true },
+    refreshToken: { type: String, required: true },
+    expiresAt: { type: Date, required: true },
+    scope: { type: String, required: true },
+  },
+  { _id: false }
+);
+
 const userSchema = new Schema<IUserDocument>(
   {
     email: {
@@ -118,14 +139,14 @@ const userSchema = new Schema<IUserDocument>(
         theme: "auto",
       }),
     },
-    magicLinkToken: {
+    googleId: {
       type: String,
-      index: {
-        sparse: true,
-      },
+      unique: true,
+      sparse: true,
+      index: true,
     },
-    magicLinkExpires: {
-      type: Date,
+    googleTokens: {
+      type: googleTokensSchema,
     },
     refreshTokenHash: {
       type: String,

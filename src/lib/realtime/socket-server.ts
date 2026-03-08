@@ -89,6 +89,25 @@ function addChatMessage(roomId: string, message: ChatMessagePayload): void {
   }
 }
 
+/** Validate JOIN_ROOM payload */
+function isValidJoinPayload(payload: unknown): payload is JoinRoomPayload {
+  if (!payload || typeof payload !== "object") return false;
+  const p = payload as Record<string, unknown>;
+  if (!p.roomId || typeof p.roomId !== "string") return false;
+  if (!p.user || typeof p.user !== "object") return false;
+  const u = p.user as Record<string, unknown>;
+  if (!u.id || typeof u.id !== "string") return false;
+  if (!u.name || typeof u.name !== "string") return false;
+  return true;
+}
+
+/** Validate signaling payloads */
+function isValidSignalPayload(payload: unknown): payload is { senderId: string; targetId: string } {
+  if (!payload || typeof payload !== "object") return false;
+  const p = payload as Record<string, unknown>;
+  return typeof p.senderId === "string" && typeof p.targetId === "string";
+}
+
 /**
  * Sets up all Socket.io event handlers on the given server instance.
  * Call this once when the HTTP server is created.
@@ -102,13 +121,20 @@ export function setupSocketServer(io: SocketIOServer): void {
     socket.on(
       SOCKET_EVENTS.JOIN_ROOM,
       (payload: JoinRoomPayload, callback?: (data: { users: RoomUser[] }) => void) => {
+        // Validate payload
+        if (!isValidJoinPayload(payload)) {
+          console.warn(`[Socket] Invalid JOIN_ROOM payload from ${socket.id}`);
+          if (callback) callback({ users: [] });
+          return;
+        }
+
         const { roomId, user } = payload;
 
         const roomUser: RoomUser = {
           id: user.id,
           socketId: socket.id,
           name: user.name,
-          displayName: user.displayName,
+          displayName: user.displayName || user.name,
           avatar: user.avatar ?? null,
           isVideoEnabled: false,
           isAudioEnabled: false,
@@ -160,12 +186,12 @@ export function setupSocketServer(io: SocketIOServer): void {
         }
 
         console.log(
-          `[Socket] User ${user.displayName} (${user.id}) joined room ${roomId}. Room size: ${currentUsers.length}`
+          `[Socket] User ${user.displayName || user.name} (${user.id}) joined room ${roomId}. Room size: ${currentUsers.length}`
         );
       }
     );
 
-    socket.on(SOCKET_EVENTS.LEAVE_ROOM, (_roomId: string) => {
+    socket.on(SOCKET_EVENTS.LEAVE_ROOM, () => {
       const result = removeUserBySocketId(socket.id);
       if (result) {
         socket.leave(result.roomId);
@@ -186,21 +212,45 @@ export function setupSocketServer(io: SocketIOServer): void {
     // --- WebRTC signaling ---
 
     socket.on(SOCKET_EVENTS.OFFER, (payload: SignalOfferPayload) => {
+      if (!isValidSignalPayload(payload)) return;
+
+      // Verify sender is in a room
+      const mapping = socketToUser.get(socket.id);
+      if (!mapping) return;
+
       const targetMapping = findSocketIdByUserId(payload.targetId);
       if (targetMapping) {
         io.to(targetMapping).emit(SOCKET_EVENTS.OFFER, {
           senderId: payload.senderId,
           offer: payload.offer,
         });
+      } else {
+        // Notify sender that target is not found
+        socket.emit("signal:error", {
+          type: "offer",
+          targetId: payload.targetId,
+          error: "Target user not found in room",
+        });
       }
     });
 
     socket.on(SOCKET_EVENTS.ANSWER, (payload: SignalAnswerPayload) => {
+      if (!isValidSignalPayload(payload)) return;
+
+      const mapping = socketToUser.get(socket.id);
+      if (!mapping) return;
+
       const targetMapping = findSocketIdByUserId(payload.targetId);
       if (targetMapping) {
         io.to(targetMapping).emit(SOCKET_EVENTS.ANSWER, {
           senderId: payload.senderId,
           answer: payload.answer,
+        });
+      } else {
+        socket.emit("signal:error", {
+          type: "answer",
+          targetId: payload.targetId,
+          error: "Target user not found in room",
         });
       }
     });
@@ -208,6 +258,11 @@ export function setupSocketServer(io: SocketIOServer): void {
     socket.on(
       SOCKET_EVENTS.ICE_CANDIDATE,
       (payload: SignalIceCandidatePayload) => {
+        if (!isValidSignalPayload(payload)) return;
+
+        const mapping = socketToUser.get(socket.id);
+        if (!mapping) return;
+
         const targetMapping = findSocketIdByUserId(payload.targetId);
         if (targetMapping) {
           io.to(targetMapping).emit(SOCKET_EVENTS.ICE_CANDIDATE, {
@@ -215,6 +270,7 @@ export function setupSocketServer(io: SocketIOServer): void {
             candidate: payload.candidate,
           });
         }
+        // ICE candidates are best-effort; no error needed if target is gone
       }
     );
 
@@ -379,7 +435,7 @@ export function setupSocketServer(io: SocketIOServer): void {
 
     // --- Recording ---
 
-    socket.on(SOCKET_EVENTS.RECORDING_START, (_payload: { roomId: string }) => {
+    socket.on(SOCKET_EVENTS.RECORDING_START, () => {
       const mapping = socketToUser.get(socket.id);
       if (!mapping) return;
 
@@ -394,7 +450,7 @@ export function setupSocketServer(io: SocketIOServer): void {
       io.to(mapping.roomId).emit(SOCKET_EVENTS.RECORDING_STATUS, status);
     });
 
-    socket.on(SOCKET_EVENTS.RECORDING_STOP, (_payload: { roomId: string }) => {
+    socket.on(SOCKET_EVENTS.RECORDING_STOP, () => {
       const mapping = socketToUser.get(socket.id);
       if (!mapping) return;
 

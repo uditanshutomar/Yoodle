@@ -43,6 +43,11 @@ export const SOCKET_EVENTS = {
   RECORDING_STOP: "recording:stop",
   RECORDING_STATUS: "recording:status",
 
+  // Agent collaboration
+  AGENT_COLLAB_INVITE: "agent:collab-invite",
+  AGENT_COLLAB_MESSAGE: "agent:collab-message",
+  AGENT_COLLAB_CLOSED: "agent:collab-closed",
+
   // Terminal (SSH proxy)
   TERMINAL_CONNECT: "terminal:connect",
   TERMINAL_DATA: "terminal:data",
@@ -130,6 +135,32 @@ export interface RecordingStatusPayload {
   isRecording: boolean;
   startedBy?: string;
   startedAt?: number;
+}
+
+/** Agent collaboration invite payload */
+export interface AgentCollabInvitePayload {
+  channelId: string;
+  topic: string;
+  fromUserId: string;
+  fromUserName: string;
+  toUserId: string;
+}
+
+/** Agent collaboration message payload */
+export interface AgentCollabMessagePayload {
+  channelId: string;
+  fromAgentId: string;
+  fromUserId: string;
+  fromUserName: string;
+  content: string;
+  type: "agent" | "user" | "system";
+  timestamp: number;
+}
+
+/** Agent collaboration closed payload */
+export interface AgentCollabClosedPayload {
+  channelId: string;
+  closedByUserId: string;
 }
 
 /** Room join payload */
