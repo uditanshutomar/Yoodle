@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
-import { MessageSquare, Users, X, Wifi, WifiOff, Captions, CaptionsOff } from "lucide-react";
+import { MessageSquare, Users, X, Wifi, WifiOff } from "lucide-react";
 import VideoGrid from "@/components/meeting/VideoGrid";
 import MeetingControls from "@/components/meeting/MeetingControls";
 import MeetingChat from "@/components/meeting/MeetingChat";
@@ -93,10 +93,7 @@ export default function MeetingRoomPage() {
   const mixedDestRef = useRef<MediaStreamAudioDestinationNode | null>(null);
   const recordingTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  // ── Transcription state ────────────────────────────────────────────
-  const [isTranscribing, setIsTranscribing] = useState(false);
-  const [captions, setCaptions] = useState<{ speaker: string; text: string; timestamp: number }[]>([]);
-  const transcriptionIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  // ── Transcription ref (background, automatic) ──────────────────────
   const transcriptionRecorderRef = useRef<MediaRecorder | null>(null);
 
   // Keep localStreamRef in sync
@@ -570,20 +567,26 @@ export default function MeetingRoomPage() {
     setIsRecording(false);
   }, []);
 
-  // ── Live Transcription ──────────────────────────────────────────
+  // ── Background transcription (automatic, tied to mic state) ─────
+  //
+  // Each participant captures their OWN mic in 3-second chunks and
+  // POSTs to /api/transcription with their name/ID.  The API stores
+  // every segment under the same meetingId so everyone shares one
+  // transcript afterwards.  No captions UI — just silent capture.
 
-  const startTranscription = useCallback(() => {
-    if (!localStreamRef.current || isTranscribing) return;
+  useEffect(() => {
+    if (!isConnected || !isAudioEnabled || !localStream || !user) return;
 
-    setIsTranscribing(true);
-    setCaptions([]);
+    const audioTrack = localStream.getAudioTracks()[0];
+    if (!audioTrack) return;
 
-    // Capture a 3-second audio chunk, send to API
     const captureAndSend = () => {
       const stream = localStreamRef.current;
-      if (!stream || !stream.getAudioTracks().length) return;
+      if (!stream) return;
+      const track = stream.getAudioTracks()[0];
+      if (!track || !track.enabled) return;
 
-      const audioStream = new MediaStream(stream.getAudioTracks());
+      const audioStream = new MediaStream([track]);
       const mimeType = MediaRecorder.isTypeSupported("audio/webm;codecs=opus")
         ? "audio/webm;codecs=opus"
         : "audio/webm";
@@ -598,65 +601,46 @@ export default function MeetingRoomPage() {
         if (chunks.length === 0) return;
         const blob = new Blob(chunks, { type: mimeType });
 
-        // Skip very small chunks (likely silence)
+        // Skip silent chunks (< 1 KB is essentially silence)
         if (blob.size < 1000) return;
 
         const formData = new FormData();
         formData.append("audio", blob, "chunk.webm");
         formData.append("meetingId", meetingId);
-        formData.append("speakerName", localUser.displayName || localUser.name);
-        formData.append("speakerId", localUser.id);
+        formData.append("speakerName", user.displayName || user.name);
+        formData.append("speakerId", user.id);
         formData.append("timestamp", String(Date.now()));
 
         try {
-          const res = await fetch("/api/transcription", {
+          await fetch("/api/transcription", {
             method: "POST",
             credentials: "include",
             body: formData,
           });
-          if (res.ok) {
-            const data = await res.json();
-            const text = data.data?.text;
-            if (text) {
-              setCaptions((prev) => [
-                ...prev.slice(-20), // Keep last 20 captions
-                { speaker: localUser.displayName || localUser.name, text, timestamp: Date.now() },
-              ]);
-            }
-          }
         } catch {
-          // Transcription failed silently
+          // Transcription is best-effort — silent fail
         }
       };
 
       recorder.start();
       transcriptionRecorderRef.current = recorder;
 
-      // Stop after 3 seconds to send the chunk
       setTimeout(() => {
-        if (recorder.state === "recording") {
-          recorder.stop();
-        }
+        if (recorder.state === "recording") recorder.stop();
       }, 3000);
     };
 
-    // Initial capture
+    // Start immediately, then every 3.5s (3s record + 0.5s gap)
     captureAndSend();
+    const interval = setInterval(captureAndSend, 3500);
 
-    // Then every 3.5 seconds (3s record + 0.5s gap)
-    transcriptionIntervalRef.current = setInterval(captureAndSend, 3500);
-  }, [isTranscribing, meetingId, localUser]);
-
-  const stopTranscription = useCallback(() => {
-    setIsTranscribing(false);
-    if (transcriptionIntervalRef.current) {
-      clearInterval(transcriptionIntervalRef.current);
-      transcriptionIntervalRef.current = null;
-    }
-    if (transcriptionRecorderRef.current?.state === "recording") {
-      transcriptionRecorderRef.current.stop();
-    }
-  }, []);
+    return () => {
+      clearInterval(interval);
+      if (transcriptionRecorderRef.current?.state === "recording") {
+        transcriptionRecorderRef.current.stop();
+      }
+    };
+  }, [isAudioEnabled, isConnected, localStream, user, meetingId]);
 
   // ── Chat ─────────────────────────────────────────────────────────
 
@@ -701,7 +685,6 @@ export default function MeetingRoomPage() {
     if (mediaRecorderRef.current?.state === "recording") {
       mediaRecorderRef.current.stop();
     }
-    stopTranscription();
 
     peersRef.current.forEach((peer) => peer.connection.close());
     peersRef.current.clear();
@@ -735,7 +718,6 @@ export default function MeetingRoomPage() {
       screenStreamRef.current?.getTracks().forEach((t) => t.stop());
       audioContextRef.current?.close();
       if (recordingTimerRef.current) clearInterval(recordingTimerRef.current);
-      if (transcriptionIntervalRef.current) clearInterval(transcriptionIntervalRef.current);
     };
   }, []);
 
@@ -767,17 +749,6 @@ export default function MeetingRoomPage() {
           <span className="text-xs text-white/40 mr-2">
             {participants.length} participant{participants.length !== 1 ? "s" : ""}
           </span>
-          <button
-            onClick={() => isTranscribing ? stopTranscription() : startTranscription()}
-            className={`p-2 rounded-lg transition-colors cursor-pointer ${
-              isTranscribing
-                ? "bg-[#FFE600] text-[#0A0A0A]"
-                : "text-white/60 hover:text-white hover:bg-white/10"
-            }`}
-            title={isTranscribing ? "Stop captions" : "Start captions"}
-          >
-            {isTranscribing ? <Captions size={18} /> : <CaptionsOff size={18} />}
-          </button>
           <button
             onClick={() => {
               setShowChat(!showChat);
@@ -882,22 +853,6 @@ export default function MeetingRoomPage() {
           )}
         </AnimatePresence>
       </div>
-
-      {/* Live Captions */}
-      {isTranscribing && captions.length > 0 && (
-        <div className="px-4 pb-2">
-          <div className="max-w-2xl mx-auto bg-black/80 rounded-lg px-4 py-2 backdrop-blur-sm">
-            {captions.slice(-3).map((c, i) => (
-              <p key={i} className="text-sm text-white/90" style={{ fontFamily: "var(--font-body)" }}>
-                <span className="font-bold text-[#FFE600] mr-1" style={{ fontFamily: "var(--font-heading)" }}>
-                  {c.speaker}:
-                </span>
-                {c.text}
-              </p>
-            ))}
-          </div>
-        </div>
-      )}
 
       {/* Reactions */}
       <ReactionOverlay onReactionRef={reactionRef} />
