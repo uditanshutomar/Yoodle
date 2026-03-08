@@ -44,6 +44,22 @@ export default function WorkspaceDetailPage() {
   const [activeTab, setActiveTab] = useState<"overview" | "members" | "audit">("overview");
   const [actionError, setActionError] = useState("");
   const [showTerminal, setShowTerminal] = useState(false);
+  const [liveVMStatus, setLiveVMStatus] = useState<string | null>(null);
+
+  const fetchVMStatus = useCallback(async () => {
+    if (!user || !workspaceId) return;
+    try {
+      const res = await fetch(`/api/workspaces/${workspaceId}/vm`, {
+        credentials: "include",
+      });
+      const data = await res.json();
+      if (data.success && data.data?.appStatus) {
+        setLiveVMStatus(data.data.appStatus);
+      }
+    } catch (err) {
+      console.error("[VM Status Poll]", err);
+    }
+  }, [user, workspaceId]);
 
   const fetchWorkspace = useCallback(async () => {
     if (!user || !workspaceId) return;
@@ -77,6 +93,22 @@ export default function WorkspaceDetailPage() {
     fetchWorkspace();
     fetchAudit();
   }, [fetchWorkspace, fetchAudit]);
+
+  // Poll VM status while provisioning so the UI updates once the VM is ready
+  useEffect(() => {
+    const vmStatus = liveVMStatus || workspace?.vm?.status;
+    if (vmStatus !== "provisioning") return;
+
+    // Initial fetch
+    fetchVMStatus();
+
+    const interval = setInterval(() => {
+      fetchVMStatus();
+      fetchWorkspace(); // re-fetch workspace to get synced DB status
+    }, 5000);
+
+    return () => clearInterval(interval);
+  }, [workspace?.vm?.status, liveVMStatus, fetchVMStatus, fetchWorkspace]);
 
   const handleVMAction = async (action: string) => {
     if (!user) return;
@@ -281,10 +313,22 @@ export default function WorkspaceDetailPage() {
                   <div><span className="text-[#0A0A0A]/40">Plan:</span> <span className="font-bold">{workspace.vm.plan}</span></div>
                   <div><span className="text-[#0A0A0A]/40">Status:</span> <VMStatusBadge status={workspace.vm.status} /></div>
                 </div>
+                {workspace.vm.status === "provisioning" && (
+                  <div className="flex items-center gap-2 py-2 px-3 bg-amber-50 border border-amber-200 rounded-lg">
+                    <motion.div
+                      animate={{ rotate: 360 }}
+                      transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+                      className="w-4 h-4 border-2 border-amber-500 border-t-transparent rounded-full"
+                    />
+                    <span className="text-xs text-amber-700" style={{ fontFamily: "var(--font-body)" }}>
+                      VM is provisioning. This typically takes 1–2 minutes...
+                    </span>
+                  </div>
+                )}
                 {isAdmin && (
                   <div className="flex gap-2 pt-2">
-                    {workspace.vm.status === "stopped" && (
-                      <Button variant="primary" size="sm" icon={Play} onClick={() => handleVMAction("start")} disabled={vmLoading} className="!bg-[#10B981] !border-[#0A0A0A] !text-white">Start</Button>
+                    {(workspace.vm.status === "stopped" || workspace.vm.status === "provisioning") && (
+                      <Button variant="primary" size="sm" icon={Play} onClick={() => handleVMAction("start")} disabled={vmLoading || workspace.vm.status === "provisioning"} className="!bg-[#10B981] !border-[#0A0A0A] !text-white">Start</Button>
                     )}
                     {vmIsRunning && !showTerminal && (
                       <Button variant="primary" size="sm" icon={TerminalIcon} onClick={() => setShowTerminal(true)} className="!bg-[#0A0A0A] !border-[#0A0A0A] !text-[#06B6D4]">Terminal</Button>
