@@ -11,6 +11,8 @@ import {
   serverErrorResponse,
 } from "@/lib/utils/api-response";
 
+export const maxDuration = 30;
+
 type RouteContext = { params: Promise<{ workspaceId: string }> };
 
 // GET /api/workspaces/[workspaceId]/vm/credentials
