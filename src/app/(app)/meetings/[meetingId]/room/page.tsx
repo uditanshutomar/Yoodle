@@ -39,7 +39,9 @@ async function getIceServers(): Promise<RTCIceServer[]> {
     const res = await fetch("/api/turn-credentials", { credentials: "include" });
     if (res.ok) {
       const data = await res.json();
-      return data.data?.iceServers || data.iceServers || [];
+      // API returns a flat array of ice servers
+      if (Array.isArray(data)) return data;
+      return data.data?.iceServers || data.iceServers || data;
     }
   } catch {
     // fallback
@@ -114,6 +116,9 @@ export default function MeetingRoomPage() {
   const mixedDestRef = useRef<MediaStreamAudioDestinationNode | null>(null);
   const audioSourcesRef = useRef<MediaStreamAudioSourceNode[]>([]);
   const recordingTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // ── Transcription ref (background, automatic) ──────────────────────
+  const transcriptionRecorderRef = useRef<MediaRecorder | null>(null);
 
   // Keep localStreamRef in sync and start voice monitoring
   useEffect(() => {
@@ -300,35 +305,38 @@ export default function MeetingRoomPage() {
     [createPeerConnection, socket, localUser.id]
   );
 
-  // ── Socket event setup ───────────────────────────────────────────────
+  // ── Socket event setup (handles initial join AND reconnection) ──────
 
   useEffect(() => {
-    if (!socket || !isConnected || !user || joinedRef.current) return;
+    if (!socket || !isConnected || !user) return;
 
-    const init = async () => {
-      // Fetch ICE servers
-      iceServersRef.current = await getIceServers();
-
-      // Start media
-      await startMedia(true, true);
-
-      // Join the room
-      socket.emit(SOCKET_EVENTS.JOIN_ROOM, {
-        roomId: meetingId,
-        user: {
-          id: user.id,
-          name: user.name,
-          displayName: user.displayName,
-          avatar: user.avatar,
-        },
-      });
-
-      joinedRef.current = true;
+    const roomUser = {
+      id: user.id,
+      name: user.name,
+      displayName: user.displayName,
+      avatar: user.avatar,
     };
 
-    init();
+    if (!joinedRef.current) {
+      // ── First time: fetch ICE servers, start media, join ──────────
+      const init = async () => {
+        iceServersRef.current = await getIceServers();
+        await startMedia(true, true);
+        socket.emit(SOCKET_EVENTS.JOIN_ROOM, { roomId: meetingId, user: roomUser });
+        joinedRef.current = true;
+      };
+      init();
+    } else {
+      // ── Reconnection: tear down stale peers, re-join room ────────
+      console.log("[WebRTC] Socket reconnected — re-joining room");
+      peersRef.current.forEach((peer) => peer.connection.close());
+      peersRef.current.clear();
+      setRemoteParticipants([]);
+      syncStreams();
+      socket.emit(SOCKET_EVENTS.JOIN_ROOM, { roomId: meetingId, user: roomUser });
+    }
 
-    // ── Receive existing users in room ──────────────────────────────
+    // ── Event handlers (attached on every connect/reconnect) ────────
 
     const handleRoomUsers = (users: RoomUser[]) => {
       const remoteUsers = users.filter((u) => u.id !== user.id);
@@ -342,8 +350,6 @@ export default function MeetingRoomPage() {
       });
     };
 
-    // ── New user joined -> create offer ─────────────────────────────
-
     const handleUserJoined = (roomUser: RoomUser) => {
       setRemoteParticipants((prev) => {
         if (prev.find((p) => p.id === roomUser.id)) return prev;
@@ -354,8 +360,6 @@ export default function MeetingRoomPage() {
         createOffer(roomUser.id);
       }
     };
-
-    // ── User left -> clean up ───────────────────────────────────────
 
     const handleUserLeft = ({ userId }: { userId: string }) => {
       cleanupPeer(userId);
@@ -415,8 +419,6 @@ export default function MeetingRoomPage() {
       }
     };
 
-    // ── Receive answer ──────────────────────────────────────────────
-
     const handleAnswer = async (payload: SignalAnswerPayload) => {
       const peer = peersRef.current.get(payload.senderId);
       if (!peer) return;
@@ -464,8 +466,6 @@ export default function MeetingRoomPage() {
       }
     };
 
-    // ── Media state changes from others ─────────────────────────────
-
     const handleMediaState = (payload: MediaStatePayload) => {
       setRemoteParticipants((prev) =>
         prev.map((p) =>
@@ -481,8 +481,6 @@ export default function MeetingRoomPage() {
     const handleChatMessage = (msg: ChatMessagePayload) => {
       setChatMessages((prev) => [...prev, msg]);
     };
-
-    // ── Reactions ───────────────────────────────────────────────────
 
     const handleReaction = (payload: ReactionPayload) => {
       reactionRef.current?.(payload.emoji, payload.userName);
@@ -671,12 +669,15 @@ export default function MeetingRoomPage() {
           });
 
           if (urlRes.ok) {
-            const { uploadUrl } = await urlRes.json();
-            await fetch(uploadUrl, {
-              method: "PUT",
-              headers: { "Content-Type": mimeType },
-              body: blob,
-            });
+            const urlData = await urlRes.json();
+            const uploadUrl = urlData.data?.uploadUrl || urlData.uploadUrl;
+            if (uploadUrl) {
+              await fetch(uploadUrl, {
+                method: "PUT",
+                headers: { "Content-Type": mimeType },
+                body: blob,
+              });
+            }
           } else {
             downloadRecording(blob);
           }
@@ -712,6 +713,81 @@ export default function MeetingRoomPage() {
     }
     setIsRecording(false);
   }, []);
+
+  // ── Background transcription (automatic, tied to mic state) ─────
+  //
+  // Each participant captures their OWN mic in 3-second chunks and
+  // POSTs to /api/transcription with their name/ID.  The API stores
+  // every segment under the same meetingId so everyone shares one
+  // transcript afterwards.  No captions UI — just silent capture.
+
+  useEffect(() => {
+    if (!isConnected || !isAudioEnabled || !localStream || !user) return;
+
+    const audioTrack = localStream.getAudioTracks()[0];
+    if (!audioTrack) return;
+
+    const captureAndSend = () => {
+      const stream = localStreamRef.current;
+      if (!stream) return;
+      const track = stream.getAudioTracks()[0];
+      if (!track || !track.enabled) return;
+
+      const audioStream = new MediaStream([track]);
+      const mimeType = MediaRecorder.isTypeSupported("audio/webm;codecs=opus")
+        ? "audio/webm;codecs=opus"
+        : "audio/webm";
+      const recorder = new MediaRecorder(audioStream, { mimeType });
+      const chunks: Blob[] = [];
+
+      recorder.ondataavailable = (e) => {
+        if (e.data.size > 0) chunks.push(e.data);
+      };
+
+      recorder.onstop = async () => {
+        if (chunks.length === 0) return;
+        const blob = new Blob(chunks, { type: mimeType });
+
+        // Skip silent chunks (< 1 KB is essentially silence)
+        if (blob.size < 1000) return;
+
+        const formData = new FormData();
+        formData.append("audio", blob, "chunk.webm");
+        formData.append("meetingId", meetingId);
+        formData.append("speakerName", user.displayName || user.name);
+        formData.append("speakerId", user.id);
+        formData.append("timestamp", String(Date.now()));
+
+        try {
+          await fetch("/api/transcription", {
+            method: "POST",
+            credentials: "include",
+            body: formData,
+          });
+        } catch {
+          // Transcription is best-effort — silent fail
+        }
+      };
+
+      recorder.start();
+      transcriptionRecorderRef.current = recorder;
+
+      setTimeout(() => {
+        if (recorder.state === "recording") recorder.stop();
+      }, 3000);
+    };
+
+    // Start immediately, then every 3.5s (3s record + 0.5s gap)
+    captureAndSend();
+    const interval = setInterval(captureAndSend, 3500);
+
+    return () => {
+      clearInterval(interval);
+      if (transcriptionRecorderRef.current?.state === "recording") {
+        transcriptionRecorderRef.current.stop();
+      }
+    };
+  }, [isAudioEnabled, isConnected, localStream, user, meetingId]);
 
   // ── Chat ─────────────────────────────────────────────────────────
 

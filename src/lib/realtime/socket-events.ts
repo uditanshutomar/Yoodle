@@ -47,6 +47,14 @@ export const SOCKET_EVENTS = {
   AGENT_COLLAB_INVITE: "agent:collab-invite",
   AGENT_COLLAB_MESSAGE: "agent:collab-message",
   AGENT_COLLAB_CLOSED: "agent:collab-closed",
+
+  // Terminal (SSH proxy)
+  TERMINAL_CONNECT: "terminal:connect",
+  TERMINAL_DATA: "terminal:data",
+  TERMINAL_RESIZE: "terminal:resize",
+  TERMINAL_DISCONNECT: "terminal:disconnect",
+  TERMINAL_CONNECTED: "terminal:connected",
+  TERMINAL_ERROR: "terminal:error",
 } as const;
 
 export type SocketEvent = (typeof SOCKET_EVENTS)[keyof typeof SOCKET_EVENTS];

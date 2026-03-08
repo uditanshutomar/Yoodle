@@ -42,14 +42,18 @@ export async function provisionVM(opts: {
 }): Promise<{ instanceId: string; ipAddress: string }> {
   const { workspaceName, region = "ewr", plan = "vc2-1c-1gb" } = opts;
 
-  const sshKeyId = process.env.VULTR_SSH_KEY_ID;
+  const sshKeyId = (process.env.VULTR_SSH_KEY_ID || "").trim();
   const userData = buildCloudInit(workspaceName);
+
+  // Validate UUID format before sending to Vultr
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  const validSshKey = uuidRegex.test(sshKeyId);
 
   const instance = await createInstance({
     label: `yoodle-ws-${workspaceName.toLowerCase().replace(/\s+/g, "-").slice(0, 20)}`,
     region,
     plan,
-    sshKeyIds: sshKeyId ? [sshKeyId] : undefined,
+    sshKeyIds: validSshKey ? [sshKeyId] : undefined,
     userData,
   });
 
