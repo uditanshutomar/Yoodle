@@ -46,8 +46,9 @@ export function useScreenShare(options: UseScreenShareOptions = {}): UseScreenSh
     // Restore camera video track in peer connections
     if (cameraVideoTrackRef.current && onTrackReplace && cameraStream) {
       const freshCameraTrack = cameraStream.getVideoTracks()[0];
-      if (freshCameraTrack) {
-        const oldTrack = screenTrack || cameraVideoTrackRef.current;
+      // oldTrack: prefer the screen track if it's still available, otherwise use the saved camera track
+      const oldTrack = screenTrack ?? cameraVideoTrackRef.current;
+      if (freshCameraTrack && oldTrack) {
         try {
           await onTrackReplace(oldTrack, freshCameraTrack);
         } catch (err) {

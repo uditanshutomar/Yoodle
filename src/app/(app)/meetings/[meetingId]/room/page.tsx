@@ -104,6 +104,7 @@ export default function MeetingRoomPage() {
   const joinedRef = useRef(false);
   const screenStreamRef = useRef<MediaStream | null>(null);
   const makingOfferRef = useRef<Set<string>>(new Set());
+  const earlyCandidatesRef = useRef<Map<string, RTCIceCandidateInit[]>>(new Map());
 
   // ── Recording state ──────────────────────────────────────────────────
   const [isRecording, setIsRecording] = useState(false);
@@ -213,12 +214,14 @@ export default function MeetingRoomPage() {
         iceCandidatePoolSize: 10,
       });
 
-      // Outgoing stream container
+      // Outgoing stream container — drain any early candidates
       const remoteStream = new MediaStream();
+      const earlyCandidates = earlyCandidatesRef.current.get(remoteUserId) || [];
+      earlyCandidatesRef.current.delete(remoteUserId);
       peersRef.current.set(remoteUserId, {
         connection: pc,
         stream: remoteStream,
-        pendingCandidates: [],
+        pendingCandidates: earlyCandidates,
       });
 
       // Add local tracks to the connection
@@ -440,8 +443,11 @@ export default function MeetingRoomPage() {
     const handleIceCandidate = async (payload: SignalIceCandidatePayload) => {
       const peer = peersRef.current.get(payload.senderId);
       if (!peer) {
-        // No peer yet — queue for when connection is created
-        // (will be picked up when createPeerConnection initializes pendingCandidates)
+        // No peer yet — queue in earlyCandidatesRef for when connection is created
+        if (!earlyCandidatesRef.current.has(payload.senderId)) {
+          earlyCandidatesRef.current.set(payload.senderId, []);
+        }
+        earlyCandidatesRef.current.get(payload.senderId)!.push(payload.candidate);
         return;
       }
 
