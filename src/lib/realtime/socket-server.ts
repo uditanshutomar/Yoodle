@@ -1,4 +1,5 @@
 import { Server as SocketIOServer, Socket } from "socket.io";
+import { Client as SSHClient, ClientChannel } from "ssh2";
 import {
   SOCKET_EVENTS,
   type RoomUser,
@@ -25,6 +26,27 @@ const recordingStatus = new Map<string, RecordingStatusPayload>();
 
 /** Socket ID to user mapping for quick disconnect cleanup */
 const socketToUser = new Map<string, { roomId: string; userId: string }>();
+
+/** Socket ID to SSH session mapping for terminal proxy */
+const sshSessions = new Map<
+  string,
+  { client: SSHClient; stream: ClientChannel | null }
+>();
+
+function cleanupSSH(socketId: string): void {
+  const session = sshSessions.get(socketId);
+  if (!session) return;
+
+  try {
+    if (session.stream) session.stream.close();
+    session.client.end();
+  } catch (err) {
+    console.error(`[SSH] Cleanup error for ${socketId}:`, err);
+  }
+
+  sshSessions.delete(socketId);
+  console.log(`[SSH] Session closed for ${socketId}`);
+}
 
 const MAX_CHAT_HISTORY = 500;
 
@@ -463,6 +485,103 @@ export function setupSocketServer(io: SocketIOServer): void {
       io.to(mapping.roomId).emit(SOCKET_EVENTS.RECORDING_STATUS, status);
     });
 
+    // --- Terminal (SSH proxy) ---
+
+    socket.on(
+      SOCKET_EVENTS.TERMINAL_CONNECT,
+      (payload: { host: string; password: string; cols?: number; rows?: number }) => {
+        const { host, password, cols = 80, rows = 24 } = payload;
+
+        // Clean up existing session if any
+        cleanupSSH(socket.id);
+
+        console.log(`[SSH] Connecting to ${host} for ${socket.id}`);
+
+        const sshClient = new SSHClient();
+
+        sshClient.on("ready", () => {
+          console.log(`[SSH] Authenticated to ${host} for ${socket.id}`);
+
+          sshClient.shell(
+            { cols, rows, term: "xterm-256color" },
+            (err: Error | undefined, stream: ClientChannel) => {
+              if (err) {
+                console.error("[SSH] Shell error:", err);
+                socket.emit(SOCKET_EVENTS.TERMINAL_ERROR, {
+                  message: "Failed to start shell.",
+                });
+                sshClient.end();
+                return;
+              }
+
+              sshSessions.set(socket.id, { client: sshClient, stream });
+              socket.emit(SOCKET_EVENTS.TERMINAL_CONNECTED);
+
+              stream.on("data", (data: Buffer) => {
+                socket.emit(SOCKET_EVENTS.TERMINAL_DATA, data.toString("utf-8"));
+              });
+
+              stream.stderr.on("data", (data: Buffer) => {
+                socket.emit(SOCKET_EVENTS.TERMINAL_DATA, data.toString("utf-8"));
+              });
+
+              stream.on("close", () => {
+                console.log(`[SSH] Stream closed for ${socket.id}`);
+                socket.emit(SOCKET_EVENTS.TERMINAL_ERROR, {
+                  message: "SSH session ended.",
+                });
+                cleanupSSH(socket.id);
+              });
+            }
+          );
+        });
+
+        sshClient.on("error", (err: Error) => {
+          console.error(`[SSH] Connection error for ${socket.id}:`, err.message);
+          socket.emit(SOCKET_EVENTS.TERMINAL_ERROR, {
+            message: `SSH connection failed: ${err.message}`,
+          });
+          cleanupSSH(socket.id);
+        });
+
+        sshClient.on("close", () => {
+          console.log(`[SSH] Connection closed for ${socket.id}`);
+          cleanupSSH(socket.id);
+        });
+
+        sshClient.connect({
+          host,
+          port: 22,
+          username: "root",
+          password,
+          readyTimeout: 10000,
+          keepaliveInterval: 10000,
+          keepaliveCountMax: 3,
+        });
+      }
+    );
+
+    socket.on(SOCKET_EVENTS.TERMINAL_DATA, (data: string) => {
+      const session = sshSessions.get(socket.id);
+      if (session?.stream) {
+        session.stream.write(data);
+      }
+    });
+
+    socket.on(
+      SOCKET_EVENTS.TERMINAL_RESIZE,
+      (payload: { cols: number; rows: number }) => {
+        const session = sshSessions.get(socket.id);
+        if (session?.stream) {
+          session.stream.setWindow(payload.rows, payload.cols, 0, 0);
+        }
+      }
+    );
+
+    socket.on(SOCKET_EVENTS.TERMINAL_DISCONNECT, () => {
+      cleanupSSH(socket.id);
+    });
+
     // --- Disconnect ---
 
     socket.on("disconnect", (reason: string) => {
@@ -482,6 +601,7 @@ export function setupSocketServer(io: SocketIOServer): void {
           `[Socket] Cleaned up user ${result.user.displayName} from room ${result.roomId}`
         );
       }
+      cleanupSSH(socket.id);
     });
   });
 
