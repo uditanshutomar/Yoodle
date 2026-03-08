@@ -98,7 +98,10 @@ export async function DELETE(
     // Close the channel
     const closingParticipant = channel.participants.find(
       (p) => p.userId.toString() === userId
-    )!;
+    );
+    if (!closingParticipant) {
+      return serverErrorResponse("Channel is missing participant data.");
+    }
     channel.status = "closed";
     channel.messages.push({
       fromAgentId: closingParticipant.agentId,

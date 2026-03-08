@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { z } from "zod";
 import connectDB from "@/lib/db/client";
+import Agent from "@/lib/db/models/agent";
 import AgentTask from "@/lib/db/models/agent-task";
 import { authenticateRequest } from "@/lib/auth/middleware";
 import { getFreeBusy, createEvent } from "@/lib/google/calendar";
@@ -141,6 +142,12 @@ export async function POST(request: NextRequest) {
         }
       }
     }
+
+    // Update agent activity
+    await Agent.findOneAndUpdate(
+      { userId },
+      { $set: { lastActiveAt: new Date() } }
+    );
 
     return successResponse({
       suggestions: suggestions.map((s) => ({

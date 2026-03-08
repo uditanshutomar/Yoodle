@@ -80,10 +80,14 @@ export async function POST(
     // Get both participants
     const participantA = channel.participants.find(
       (p) => p.userId.toString() === userId
-    )!;
+    );
     const participantB = channel.participants.find(
       (p) => p.userId.toString() !== userId
-    )!;
+    );
+
+    if (!participantA || !participantB) {
+      return serverErrorResponse("Channel is missing participant data.");
+    }
 
     // Check Google access for both
     const [hasAccessA, hasAccessB] = await Promise.all([
