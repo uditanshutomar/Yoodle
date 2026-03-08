@@ -205,47 +205,44 @@ export default function MeetingRoomPage() {
     [createPeerConnection, socket, localUser.id]
   );
 
-  // ── Socket event setup ───────────────────────────────────────────────
+  // ── Socket event setup (handles initial join AND reconnection) ──────
 
   useEffect(() => {
-    if (!socket || !isConnected || !user || joinedRef.current) return;
+    if (!socket || !isConnected || !user) return;
 
-    const init = async () => {
-      // Fetch ICE servers
-      iceServersRef.current = await getIceServers();
-
-      // Start media
-      await startMedia(true, true);
-
-      // Join the room
-      socket.emit(SOCKET_EVENTS.JOIN_ROOM, {
-        roomId: meetingId,
-        user: {
-          id: user.id,
-          name: user.name,
-          displayName: user.displayName,
-          avatar: user.avatar,
-        },
-      });
-
-      joinedRef.current = true;
+    const roomUser = {
+      id: user.id,
+      name: user.name,
+      displayName: user.displayName,
+      avatar: user.avatar,
     };
 
-    init();
+    if (!joinedRef.current) {
+      // ── First time: fetch ICE servers, start media, join ──────────
+      const init = async () => {
+        iceServersRef.current = await getIceServers();
+        await startMedia(true, true);
+        socket.emit(SOCKET_EVENTS.JOIN_ROOM, { roomId: meetingId, user: roomUser });
+        joinedRef.current = true;
+      };
+      init();
+    } else {
+      // ── Reconnection: tear down stale peers, re-join room ────────
+      console.log("[WebRTC] Socket reconnected — re-joining room");
+      peersRef.current.forEach((peer) => peer.connection.close());
+      peersRef.current.clear();
+      setRemoteParticipants([]);
+      syncStreams();
+      socket.emit(SOCKET_EVENTS.JOIN_ROOM, { roomId: meetingId, user: roomUser });
+    }
 
-    // ── Receive existing users in room ──────────────────────────────
+    // ── Event handlers (attached on every connect/reconnect) ────────
 
     const handleRoomUsers = (users: RoomUser[]) => {
       const remoteUsers = users.filter((u) => u.id !== user.id);
       setRemoteParticipants(remoteUsers);
-
-      // Create offers to each existing user
-      remoteUsers.forEach((u) => {
-        createOffer(u.id);
-      });
+      remoteUsers.forEach((u) => createOffer(u.id));
     };
-
-    // ── New user joined -> create offer ─────────────────────────────
 
     const handleUserJoined = (roomUser: RoomUser) => {
       setRemoteParticipants((prev) => {
@@ -254,8 +251,6 @@ export default function MeetingRoomPage() {
       });
       createOffer(roomUser.id);
     };
-
-    // ── User left -> clean up ───────────────────────────────────────
 
     const handleUserLeft = ({ userId }: { userId: string }) => {
       const peer = peersRef.current.get(userId);
@@ -271,8 +266,6 @@ export default function MeetingRoomPage() {
         return next;
       });
     };
-
-    // ── Receive offer -> create answer ──────────────────────────────
 
     const handleOffer = async (payload: SignalOfferPayload) => {
       const existing = peersRef.current.get(payload.senderId);
@@ -296,8 +289,6 @@ export default function MeetingRoomPage() {
       }
     };
 
-    // ── Receive answer ──────────────────────────────────────────────
-
     const handleAnswer = async (payload: SignalAnswerPayload) => {
       const peer = peersRef.current.get(payload.senderId);
       if (peer && peer.connection.signalingState === "have-local-offer") {
@@ -311,8 +302,6 @@ export default function MeetingRoomPage() {
       }
     };
 
-    // ── Receive ICE candidate ───────────────────────────────────────
-
     const handleIceCandidate = async (payload: SignalIceCandidatePayload) => {
       const peer = peersRef.current.get(payload.senderId);
       if (peer) {
@@ -324,8 +313,6 @@ export default function MeetingRoomPage() {
       }
     };
 
-    // ── Media state changes from others ─────────────────────────────
-
     const handleMediaState = (payload: MediaStatePayload) => {
       setRemoteParticipants((prev) =>
         prev.map((p) =>
@@ -335,8 +322,6 @@ export default function MeetingRoomPage() {
         )
       );
     };
-
-    // ── Voice activity ──────────────────────────────────────────────
 
     const handleVoiceActivity = (payload: VoiceActivityPayload) => {
       setSpeakingPeers((prev) => {
@@ -352,13 +337,9 @@ export default function MeetingRoomPage() {
       });
     };
 
-    // ── Chat messages ───────────────────────────────────────────────
-
     const handleChatMessage = (msg: ChatMessagePayload) => {
       setChatMessages((prev) => [...prev, msg]);
     };
-
-    // ── Reactions ───────────────────────────────────────────────────
 
     const handleReaction = (payload: ReactionPayload) => {
       reactionRef.current?.(payload.emoji, payload.userName);
