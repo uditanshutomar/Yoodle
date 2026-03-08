@@ -7,7 +7,7 @@ services:
     startCommand: npm start
     envVars:
       - key: PORT
-        value: "3001"
+        value: "10000"
       - key: ALLOWED_ORIGINS
         value: "https://yoodle.vercel.app,http://localhost:3000"
     healthCheckPath: /health
