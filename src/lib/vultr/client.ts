@@ -78,6 +78,7 @@ export async function getInstance(instanceId: string): Promise<{
   os: string;
   label: string;
   dateCreated: string;
+  defaultPassword: string;
 }> {
   const res = await fetch(`${VULTR_API_BASE}/instances/${instanceId}`, {
     method: "GET",
@@ -103,6 +104,7 @@ export async function getInstance(instanceId: string): Promise<{
     os: inst.os || "",
     label: inst.label || "",
     dateCreated: inst.date_created || "",
+    defaultPassword: inst.default_password || "",
   };
 }
 

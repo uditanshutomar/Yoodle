@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, lazy, Suspense } from "react";
 import { useParams } from "next/navigation";
-import { motion } from "framer-motion";
-import { Server, ArrowLeft, Play, Square, Trash2, Terminal } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
+import { Server, ArrowLeft, Play, Square, Trash2, Terminal as TerminalIcon } from "lucide-react";
 import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
 import VMStatusBadge from "@/components/workspace/VMStatusBadge";
@@ -11,6 +11,8 @@ import WorkspaceMembers from "@/components/workspace/WorkspaceMembers";
 import AuditTrail from "@/components/workspace/AuditTrail";
 import Link from "next/link";
 import { useAuth } from "@/hooks/useAuth";
+
+const WorkspaceTerminal = lazy(() => import("@/components/workspace/WorkspaceTerminal"));
 
 interface WorkspaceDetail {
   _id: string;
@@ -41,6 +43,7 @@ export default function WorkspaceDetailPage() {
   const [vmLoading, setVmLoading] = useState(false);
   const [activeTab, setActiveTab] = useState<"overview" | "members" | "audit">("overview");
   const [actionError, setActionError] = useState("");
+  const [showTerminal, setShowTerminal] = useState(false);
 
   const fetchWorkspace = useCallback(async () => {
     if (!user || !workspaceId) return;
@@ -144,6 +147,8 @@ export default function WorkspaceDetailPage() {
     return id === user?.id && (m.role === "owner" || m.role === "admin");
   }) || false;
 
+  const vmIsRunning = workspace?.vm?.status === "running";
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-20">
@@ -182,7 +187,20 @@ export default function WorkspaceDetailPage() {
             )}
           </div>
         </div>
-        {workspace.vm && <VMStatusBadge status={workspace.vm.status} />}
+        <div className="flex items-center gap-2">
+          {vmIsRunning && (
+            <Button
+              variant="primary"
+              size="md"
+              icon={TerminalIcon}
+              onClick={() => setShowTerminal(!showTerminal)}
+              className="!bg-[#0A0A0A] !border-[#0A0A0A] !text-[#06B6D4]"
+            >
+              {showTerminal ? "Hide Terminal" : "Open Terminal"}
+            </Button>
+          )}
+          {workspace.vm && <VMStatusBadge status={workspace.vm.status} />}
+        </div>
       </div>
 
       {/* Action error */}
@@ -191,6 +209,39 @@ export default function WorkspaceDetailPage() {
           {actionError}
         </div>
       )}
+
+      {/* Terminal Panel */}
+      <AnimatePresence>
+        {showTerminal && vmIsRunning && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 450 }}
+            exit={{ opacity: 0, height: 0 }}
+            transition={{ duration: 0.3 }}
+            className="overflow-hidden"
+          >
+            <Suspense
+              fallback={
+                <div className="h-[450px] bg-[#0A0A0A] rounded-xl border-2 border-[#0A0A0A] flex items-center justify-center">
+                  <div className="flex items-center gap-2 text-white/60">
+                    <motion.div
+                      animate={{ rotate: 360 }}
+                      transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+                      className="w-5 h-5 border-2 border-[#06B6D4] border-t-transparent rounded-full"
+                    />
+                    <span className="text-sm font-mono">Loading terminal...</span>
+                  </div>
+                </div>
+              }
+            >
+              <WorkspaceTerminal
+                workspaceId={workspaceId}
+                onClose={() => setShowTerminal(false)}
+              />
+            </Suspense>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Tabs */}
       <div className="flex gap-1 bg-[#0A0A0A]/5 p-1 rounded-xl w-fit">
@@ -214,7 +265,7 @@ export default function WorkspaceDetailPage() {
           {/* VM Control */}
           <Card className="!p-6 !border-[#06B6D4] !shadow-[4px_4px_0_#06B6D4]">
             <h3 className="text-base font-bold text-[#0A0A0A] mb-4 flex items-center gap-2" style={{ fontFamily: "var(--font-heading)" }}>
-              <Terminal size={16} className="text-[#06B6D4]" /> Virtual Machine
+              <TerminalIcon size={16} className="text-[#06B6D4]" /> Virtual Machine
             </h3>
 
             {workspace.vm ? (
@@ -230,7 +281,10 @@ export default function WorkspaceDetailPage() {
                     {workspace.vm.status === "stopped" && (
                       <Button variant="primary" size="sm" icon={Play} onClick={() => handleVMAction("start")} disabled={vmLoading} className="!bg-[#10B981] !border-[#0A0A0A] !text-white">Start</Button>
                     )}
-                    {workspace.vm.status === "running" && (
+                    {vmIsRunning && !showTerminal && (
+                      <Button variant="primary" size="sm" icon={TerminalIcon} onClick={() => setShowTerminal(true)} className="!bg-[#0A0A0A] !border-[#0A0A0A] !text-[#06B6D4]">Terminal</Button>
+                    )}
+                    {vmIsRunning && (
                       <Button variant="secondary" size="sm" icon={Square} onClick={() => handleVMAction("stop")} disabled={vmLoading}>Stop</Button>
                     )}
                     <Button variant="ghost" size="sm" icon={Trash2} onClick={() => handleVMAction("destroy")} disabled={vmLoading} className="!text-red-500">Destroy</Button>
@@ -242,7 +296,7 @@ export default function WorkspaceDetailPage() {
                 <p className="text-sm text-[#0A0A0A]/50 mb-4" style={{ fontFamily: "var(--font-body)" }}>No VM provisioned yet</p>
                 {isAdmin && (
                   <Button variant="primary" size="md" icon={Server} onClick={() => handleVMAction("provision")} disabled={vmLoading} className="!bg-[#06B6D4] !border-[#0A0A0A] !text-white">
-                    {vmLoading ? "Provisioning…" : "Provision VM"}
+                    {vmLoading ? "Provisioning..." : "Provision VM"}
                   </Button>
                 )}
               </div>

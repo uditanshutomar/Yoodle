@@ -42,6 +42,14 @@ export const SOCKET_EVENTS = {
   RECORDING_START: "recording:start",
   RECORDING_STOP: "recording:stop",
   RECORDING_STATUS: "recording:status",
+
+  // Terminal (SSH proxy)
+  TERMINAL_CONNECT: "terminal:connect",
+  TERMINAL_DATA: "terminal:data",
+  TERMINAL_RESIZE: "terminal:resize",
+  TERMINAL_DISCONNECT: "terminal:disconnect",
+  TERMINAL_CONNECTED: "terminal:connected",
+  TERMINAL_ERROR: "terminal:error",
 } as const;
 
 export type SocketEvent = (typeof SOCKET_EVENTS)[keyof typeof SOCKET_EVENTS];

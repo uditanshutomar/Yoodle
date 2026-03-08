@@ -3,6 +3,7 @@ import express from "express";
 import { createServer } from "http";
 import { Server, Socket } from "socket.io";
 import cors from "cors";
+import { Client as SSHClient, ClientChannel } from "ssh2";
 
 // ── Types ──────────────────────────────────────────────────────────────
 
@@ -27,6 +28,18 @@ interface JoinPayload {
   };
 }
 
+interface TerminalConnectPayload {
+  host: string;
+  password: string;
+  cols?: number;
+  rows?: number;
+}
+
+interface TerminalResizePayload {
+  cols: number;
+  rows: number;
+}
+
 // ── Socket event constants ─────────────────────────────────────────────
 
 const EVENTS = {
@@ -43,6 +56,13 @@ const EVENTS = {
   CHAT_MESSAGE: "chat:message",
   REACTION: "reaction:send",
   REACTION_RECEIVED: "reaction:received",
+  // Terminal
+  TERMINAL_CONNECT: "terminal:connect",
+  TERMINAL_DATA: "terminal:data",
+  TERMINAL_RESIZE: "terminal:resize",
+  TERMINAL_DISCONNECT: "terminal:disconnect",
+  TERMINAL_CONNECTED: "terminal:connected",
+  TERMINAL_ERROR: "terminal:error",
 } as const;
 
 // ── State ──────────────────────────────────────────────────────────────
@@ -52,6 +72,12 @@ const rooms = new Map<string, Map<string, RoomUser>>();
 
 // socketId -> { roomId, userId }
 const socketToRoom = new Map<string, { roomId: string; userId: string }>();
+
+// socketId -> SSH session
+const sshSessions = new Map<
+  string,
+  { client: SSHClient; stream: ClientChannel | null }
+>();
 
 // ── Express + Socket.io setup ──────────────────────────────────────────
 
@@ -69,6 +95,7 @@ app.get("/health", (_req, res) => {
     status: "ok",
     rooms: rooms.size,
     connections: socketToRoom.size,
+    sshSessions: sshSessions.size,
     uptime: process.uptime(),
   });
 });
@@ -81,6 +108,7 @@ const io = new Server(httpServer, {
   transports: ["websocket", "polling"],
   pingInterval: 25000,
   pingTimeout: 60000,
+  maxHttpBufferSize: 1e6, // 1MB for terminal data
 });
 
 // ── Helpers ────────────────────────────────────────────────────────────
@@ -110,6 +138,23 @@ function removeUserFromRoom(socketId: string) {
   }
 
   socketToRoom.delete(socketId);
+}
+
+function cleanupSSH(socketId: string) {
+  const session = sshSessions.get(socketId);
+  if (!session) return;
+
+  try {
+    if (session.stream) {
+      session.stream.close();
+    }
+    session.client.end();
+  } catch (err) {
+    console.error(`[SSH] Cleanup error for ${socketId}:`, err);
+  }
+
+  sshSessions.delete(socketId);
+  console.log(`[SSH] Session closed for ${socketId}`);
 }
 
 // ── Socket.io connection handler ───────────────────────────────────────
@@ -166,15 +211,13 @@ io.on("connection", (socket: Socket) => {
 
   // ── WebRTC signaling ──────────────────────────────────────────────
 
-  socket.on(EVENTS.OFFER, (data: { targetId: string; senderId: string; offer: RTCSessionDescriptionInit }) => {
-    // Find target socket
+  socket.on(EVENTS.OFFER, (data: { targetId: string; senderId: string; offer: unknown }) => {
     const mapping = socketToRoom.get(socket.id);
     if (!mapping) return;
 
     const room = rooms.get(mapping.roomId);
     if (!room) return;
 
-    // Find target user's socket
     for (const [sid, user] of room) {
       if (user.id === data.targetId) {
         io.to(sid).emit(EVENTS.OFFER, data);
@@ -183,7 +226,7 @@ io.on("connection", (socket: Socket) => {
     }
   });
 
-  socket.on(EVENTS.ANSWER, (data: { targetId: string; senderId: string; answer: RTCSessionDescriptionInit }) => {
+  socket.on(EVENTS.ANSWER, (data: { targetId: string; senderId: string; answer: unknown }) => {
     const mapping = socketToRoom.get(socket.id);
     if (!mapping) return;
 
@@ -198,7 +241,7 @@ io.on("connection", (socket: Socket) => {
     }
   });
 
-  socket.on(EVENTS.ICE_CANDIDATE, (data: { targetId: string; senderId: string; candidate: RTCIceCandidateInit }) => {
+  socket.on(EVENTS.ICE_CANDIDATE, (data: { targetId: string; senderId: string; candidate: unknown }) => {
     const mapping = socketToRoom.get(socket.id);
     if (!mapping) return;
 
@@ -222,7 +265,6 @@ io.on("connection", (socket: Socket) => {
     const room = rooms.get(mapping.roomId);
     if (!room) return;
 
-    // Update stored state
     const roomUser = room.get(socket.id);
     if (roomUser) {
       roomUser.isVideoEnabled = data.isVideoEnabled;
@@ -259,11 +301,106 @@ io.on("connection", (socket: Socket) => {
     }
   });
 
+  // ── Terminal (SSH Proxy) ──────────────────────────────────────────
+
+  socket.on(EVENTS.TERMINAL_CONNECT, (payload: TerminalConnectPayload) => {
+    const { host, password, cols = 80, rows = 24 } = payload;
+
+    // Clean up existing session if any
+    cleanupSSH(socket.id);
+
+    console.log(`[SSH] Connecting to ${host} for ${socket.id}`);
+
+    const sshClient = new SSHClient();
+
+    sshClient.on("ready", () => {
+      console.log(`[SSH] Authenticated to ${host} for ${socket.id}`);
+
+      sshClient.shell(
+        { cols, rows, term: "xterm-256color" },
+        (err: Error | undefined, stream: ClientChannel) => {
+          if (err) {
+            console.error(`[SSH] Shell error:`, err);
+            socket.emit(EVENTS.TERMINAL_ERROR, { message: "Failed to start shell." });
+            sshClient.end();
+            return;
+          }
+
+          // Store the session
+          sshSessions.set(socket.id, { client: sshClient, stream });
+
+          // Notify client that terminal is ready
+          socket.emit(EVENTS.TERMINAL_CONNECTED);
+
+          // Forward SSH output → browser
+          stream.on("data", (data: Buffer) => {
+            socket.emit(EVENTS.TERMINAL_DATA, data.toString("utf-8"));
+          });
+
+          stream.stderr.on("data", (data: Buffer) => {
+            socket.emit(EVENTS.TERMINAL_DATA, data.toString("utf-8"));
+          });
+
+          stream.on("close", () => {
+            console.log(`[SSH] Stream closed for ${socket.id}`);
+            socket.emit(EVENTS.TERMINAL_ERROR, { message: "SSH session ended." });
+            cleanupSSH(socket.id);
+          });
+        }
+      );
+    });
+
+    sshClient.on("error", (err: Error) => {
+      console.error(`[SSH] Connection error for ${socket.id}:`, err.message);
+      socket.emit(EVENTS.TERMINAL_ERROR, {
+        message: `SSH connection failed: ${err.message}`,
+      });
+      cleanupSSH(socket.id);
+    });
+
+    sshClient.on("close", () => {
+      console.log(`[SSH] Connection closed for ${socket.id}`);
+      cleanupSSH(socket.id);
+    });
+
+    sshClient.connect({
+      host,
+      port: 22,
+      username: "root",
+      password,
+      readyTimeout: 10000,
+      keepaliveInterval: 10000,
+      keepaliveCountMax: 3,
+    });
+  });
+
+  // Browser → SSH input
+  socket.on(EVENTS.TERMINAL_DATA, (data: string) => {
+    const session = sshSessions.get(socket.id);
+    if (session?.stream) {
+      session.stream.write(data);
+    }
+  });
+
+  // Terminal resize
+  socket.on(EVENTS.TERMINAL_RESIZE, (payload: TerminalResizePayload) => {
+    const session = sshSessions.get(socket.id);
+    if (session?.stream) {
+      session.stream.setWindow(payload.rows, payload.cols, 0, 0);
+    }
+  });
+
+  // Explicit terminal disconnect
+  socket.on(EVENTS.TERMINAL_DISCONNECT, () => {
+    cleanupSSH(socket.id);
+  });
+
   // ── Disconnect ────────────────────────────────────────────────────
 
   socket.on("disconnect", (reason) => {
     console.log(`[Socket] Disconnected: ${socket.id} (${reason})`);
     removeUserFromRoom(socket.id);
+    cleanupSSH(socket.id);
   });
 });
 
