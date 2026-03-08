@@ -27,7 +27,7 @@ export async function GET(request: NextRequest) {
     await connectDB();
 
     const user = await User.findById(userId).select(
-      "-magicLinkToken -magicLinkExpires -refreshTokenHash -__v"
+      "-googleTokens -refreshTokenHash -__v"
     );
 
     if (!user) {
@@ -43,6 +43,7 @@ export async function GET(request: NextRequest) {
       status: user.status,
       location: user.location,
       preferences: user.preferences,
+      hasGoogleAccess: !!user.googleId,
       lastSeenAt: user.lastSeenAt,
       createdAt: user.createdAt,
       updatedAt: user.updatedAt,

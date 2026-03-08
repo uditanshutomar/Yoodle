@@ -231,18 +231,18 @@ export async function estimateTaskTime(
 
 // ── Chat with Assistant ─────────────────────────────────────────────
 
-export async function chatWithAssistant(
-  messages: { role: "user" | "model"; content: string }[],
-  userContext?: {
-    name: string;
-    memories?: string[];
-    upcomingMeetings?: string[];
-    recentNotes?: string[];
-  }
-): Promise<string> {
-  const model = getModel();
+// ── User context type shared by chat functions ─────────────────────
 
-  // Build system instruction with user context
+interface AssistantUserContext {
+  name: string;
+  memories?: string[];
+  upcomingMeetings?: string[];
+  recentNotes?: string[];
+  workspaceContext?: string;
+}
+
+/** Build the full system instruction with user + workspace context */
+function buildSystemInstruction(userContext?: AssistantUserContext): string {
   let systemInstruction = SYSTEM_PROMPTS.ASSISTANT_CHAT;
 
   if (userContext) {
@@ -260,7 +260,22 @@ export async function chatWithAssistant(
     if (userContext.recentNotes && userContext.recentNotes.length > 0) {
       systemInstruction += `\n- Recent notes:\n  ${userContext.recentNotes.join("\n  ")}`;
     }
+
+    if (userContext.workspaceContext) {
+      systemInstruction += userContext.workspaceContext;
+    }
   }
+
+  return systemInstruction;
+}
+
+export async function chatWithAssistant(
+  messages: { role: "user" | "model"; content: string }[],
+  userContext?: AssistantUserContext
+): Promise<string> {
+  const model = getModel();
+
+  const systemInstruction = buildSystemInstruction(userContext);
 
   // Convert messages to Gemini format
   const contents = messages.map((msg) => ({
@@ -283,33 +298,11 @@ export async function chatWithAssistant(
 
 export async function* streamChatWithAssistant(
   messages: { role: "user" | "model"; content: string }[],
-  userContext?: {
-    name: string;
-    memories?: string[];
-    upcomingMeetings?: string[];
-    recentNotes?: string[];
-  }
+  userContext?: AssistantUserContext
 ): AsyncGenerator<string> {
   const model = getModel();
 
-  let systemInstruction = SYSTEM_PROMPTS.ASSISTANT_CHAT;
-
-  if (userContext) {
-    systemInstruction += `\n\nUser Context:`;
-    systemInstruction += `\n- User's name: ${userContext.name}`;
-
-    if (userContext.memories && userContext.memories.length > 0) {
-      systemInstruction += `\n- Things you remember about this user:\n  ${userContext.memories.join("\n  ")}`;
-    }
-
-    if (userContext.upcomingMeetings && userContext.upcomingMeetings.length > 0) {
-      systemInstruction += `\n- Upcoming meetings:\n  ${userContext.upcomingMeetings.join("\n  ")}`;
-    }
-
-    if (userContext.recentNotes && userContext.recentNotes.length > 0) {
-      systemInstruction += `\n- Recent notes:\n  ${userContext.recentNotes.join("\n  ")}`;
-    }
-  }
+  const systemInstruction = buildSystemInstruction(userContext);
 
   const contents = messages.map((msg) => ({
     role: msg.role === "user" ? ("user" as const) : ("model" as const),

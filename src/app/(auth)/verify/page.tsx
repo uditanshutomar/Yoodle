@@ -17,45 +17,35 @@ function VerifyContent() {
   const [errorMessage, setErrorMessage] = useState("");
 
   useEffect(() => {
-    const token = searchParams.get("token");
-
-    if (!token) {
-      // Defer state update to next tick to satisfy React strict mode
-      const timer = setTimeout(() => {
-        setStatus("error");
-        setErrorMessage("No verification token found. Try logging in again.");
-      }, 0);
-      return () => clearTimeout(timer);
-    }
-
+    // With Google OAuth, this page is mostly a redirect handler.
+    // The actual auth happens via /api/auth/google/callback.
+    // If we reach here, check if user is already authenticated.
     let cancelled = false;
 
-    const verify = async () => {
+    const checkAuth = async () => {
       try {
-        const res = await fetch(`/api/auth/verify?token=${encodeURIComponent(token)}`);
-        if (cancelled) return;
-        if (res.ok) {
+        await refreshSession();
+        if (!cancelled) {
           setStatus("success");
-          await refreshSession();
           setTimeout(() => {
             router.push("/dashboard");
           }, 1500);
-        } else {
-          const data = await res.json().catch(() => ({}));
-          setStatus("error");
-          setErrorMessage(data.message || "Verification failed. The link may have expired.");
         }
       } catch {
         if (!cancelled) {
           setStatus("error");
-          setErrorMessage("Something went wrong. Please try again.");
+          setErrorMessage("Authentication not complete. Please sign in with Google.");
         }
       }
     };
 
-    verify();
+    // Small delay to allow cookies to be set from callback redirect
+    const timer = setTimeout(checkAuth, 500);
 
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
   }, [searchParams, router, refreshSession]);
 
   return (
@@ -72,13 +62,13 @@ function VerifyContent() {
               className="text-lg font-bold text-[#0A0A0A]"
               style={{ fontFamily: "var(--font-heading)" }}
             >
-              Checking your link...
+              Verifying your session...
             </h2>
             <p
               className="text-sm text-[#0A0A0A]/60"
               style={{ fontFamily: "var(--font-body)" }}
             >
-              Hang tight, we&apos;re verifying your magic link
+              Hang tight, we&apos;re finishing up
             </p>
           </div>
         )}
@@ -151,7 +141,7 @@ function VerifyFallback() {
           className="text-lg font-bold text-[#0A0A0A]"
           style={{ fontFamily: "var(--font-heading)" }}
         >
-          Checking your link...
+          Verifying...
         </h2>
       </div>
     </Card>

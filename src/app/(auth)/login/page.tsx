@@ -2,27 +2,48 @@
 
 import { Suspense, useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { Mail, ArrowRight } from "lucide-react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import Card from "@/components/ui/Card";
-import Input from "@/components/ui/Input";
 import Button from "@/components/ui/Button";
 import { YoodleMascotSmall } from "@/components/YoodleMascot";
-import { useAuth } from "@/hooks/useAuth";
 
 const ERROR_MESSAGES: Record<string, string> = {
-  invalid_link: "That link is invalid. Please request a new one.",
-  link_expired: "Your magic link has expired. Please request a new one.",
+  invalid_link: "That link is invalid. Please try again.",
+  link_expired: "Your link has expired. Please try again.",
   verification_failed: "Verification failed. Please try again.",
+  google_denied: "Google sign-in was cancelled. Please try again.",
+  google_no_code: "Google sign-in failed. No authorization code received.",
+  google_token_failed: "Google sign-in failed. Could not exchange tokens.",
+  google_auth_failed: "Google sign-in failed. Please try again.",
 };
 
+function GoogleIcon() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+      <path
+        d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z"
+        fill="#4285F4"
+      />
+      <path
+        d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
+        fill="#34A853"
+      />
+      <path
+        d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18A10.96 10.96 0 0 0 1 12c0 1.77.42 3.45 1.18 4.93l3.66-2.84z"
+        fill="#FBBC05"
+      />
+      <path
+        d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
+        fill="#EA4335"
+      />
+    </svg>
+  );
+}
+
 function LoginContent() {
-  const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);
-  const [sent, setSent] = useState(false);
-  const { login } = useAuth();
   const searchParams = useSearchParams();
 
   useEffect(() => {
@@ -32,19 +53,22 @@ function LoginContent() {
     }
   }, [searchParams]);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!email.trim()) return;
-
+  const handleGoogleSignIn = async () => {
     setLoading(true);
-    const result = await login(email);
-    setLoading(false);
+    try {
+      const redirect = searchParams.get("redirect") || "/dashboard";
+      const res = await fetch(`/api/auth/google?redirect=${encodeURIComponent(redirect)}`);
+      const data = await res.json();
 
-    if (result.success) {
-      setSent(true);
-      toast.success(result.message);
-    } else {
-      toast.error(result.message);
+      if (res.ok && data.data?.url) {
+        window.location.href = data.data.url;
+      } else {
+        toast.error(data.message || "Failed to start Google sign-in.");
+        setLoading(false);
+      }
+    } catch {
+      toast.error("Network error. Please try again.");
+      setLoading(false);
     }
   };
 
@@ -85,64 +109,30 @@ function LoginContent() {
             </div>
           </div>
 
-          {sent ? (
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              className="text-center py-4"
+          {/* Google Sign-In */}
+          <div className="space-y-4">
+            <Button
+              type="button"
+              variant="primary"
+              size="lg"
+              loading={loading}
+              className="w-full"
+              onClick={handleGoogleSignIn}
             >
-              <motion.div
-                className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-green-100 border-2 border-[#0A0A0A]"
-                animate={{ scale: [1, 1.1, 1] }}
-                transition={{ duration: 1, repeat: Infinity, repeatDelay: 2 }}
-              >
-                <Mail size={28} className="text-green-600" />
-              </motion.div>
-              <h2
-                className="text-lg font-bold text-[#0A0A0A] mb-1"
-                style={{ fontFamily: "var(--font-heading)" }}
-              >
-                Check your inbox!
-              </h2>
-              <p
-                className="text-sm text-[#0A0A0A]/60 mb-4"
-                style={{ fontFamily: "var(--font-body)" }}
-              >
-                We sent a magic link to <strong>{email}</strong>
-              </p>
-              <button
-                onClick={() => setSent(false)}
-                className="text-sm font-medium text-[#7C3AED] hover:underline cursor-pointer"
-                style={{ fontFamily: "var(--font-heading)" }}
-              >
-                Use a different email
-              </button>
-            </motion.div>
-          ) : (
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <Input
-                label="Email"
-                type="email"
-                icon={Mail}
-                placeholder="you@email.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-                autoFocus
-              />
+              <span className="flex items-center gap-3">
+                <GoogleIcon />
+                Sign in with Google
+              </span>
+            </Button>
 
-              <Button
-                type="submit"
-                variant="primary"
-                size="lg"
-                loading={loading}
-                icon={ArrowRight}
-                className="w-full"
-              >
-                Send Magic Link
-              </Button>
-            </form>
-          )}
+            <p
+              className="text-xs text-[#0A0A0A]/40 text-center leading-relaxed"
+              style={{ fontFamily: "var(--font-body)" }}
+            >
+              We&apos;ll connect your Google Workspace so Doodle can help manage
+              your emails, calendar, drive, and more.
+            </p>
+          </div>
 
           {/* Footer */}
           <div className="mt-6 pt-4 border-t border-[#0A0A0A]/10 text-center">

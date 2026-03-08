@@ -5,6 +5,7 @@ import AIMemory from "@/lib/db/models/ai-memory";
 import { authenticateRequest } from "@/lib/auth/middleware";
 import { streamChatWithAssistant } from "@/lib/ai/gemini";
 import { createStreamingResponse } from "@/lib/ai/streaming";
+import { buildWorkspaceContext } from "@/lib/google/workspace-context";
 import {
   errorResponse,
   unauthorizedResponse,
@@ -100,13 +101,19 @@ export async function POST(request: NextRequest) {
 
     const { messages, context } = normalizeChatInput(parsed.data);
 
-    // Load user's AI memories from DB
+    // Load user's AI memories and Google Workspace context in parallel
     await connectDB();
 
-    const memories = await AIMemory.find({ userId })
-      .sort({ updatedAt: -1 })
-      .limit(50)
-      .lean();
+    const [memories, workspaceContext] = await Promise.all([
+      AIMemory.find({ userId })
+        .sort({ updatedAt: -1 })
+        .limit(50)
+        .lean(),
+      buildWorkspaceContext(userId).catch((err) => {
+        console.error("[Workspace Context Error]", err);
+        return "";
+      }),
+    ]);
 
     const memoryStrings = memories.map(
       (m) => `[${m.category}] ${m.content}`
@@ -118,6 +125,7 @@ export async function POST(request: NextRequest) {
       memories: memoryStrings.length > 0 ? memoryStrings : undefined,
       upcomingMeetings: context?.upcomingMeetings,
       recentNotes: context?.recentNotes,
+      workspaceContext: workspaceContext || undefined,
     };
 
     // Stream the response
