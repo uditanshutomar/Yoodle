@@ -56,15 +56,26 @@ export default function Navbar() {
         </div>
 
         {/* CTA */}
-        <motion.a
-          href="/login"
-          whileHover={{ scale: 1.05, y: -1 }}
-          whileTap={{ scale: 0.97 }}
-          className="rounded-full bg-[#FFE600] px-6 py-2.5 text-sm font-bold text-[#0A0A0A] shadow-[4px_4px_0_#0A0A0A] transition-shadow hover:shadow-[2px_2px_0_#0A0A0A]"
-          style={{ fontFamily: "var(--font-heading)" }}
-        >
-          Launch App
-        </motion.a>
+        <div className="flex items-center gap-3">
+          <motion.a
+            href="/waitlist"
+            whileHover={{ scale: 1.05, y: -1 }}
+            whileTap={{ scale: 0.97 }}
+            className="rounded-full border-2 border-[#0A0A0A] bg-white px-5 py-2 text-sm font-bold text-[#0A0A0A] shadow-[3px_3px_0_#0A0A0A] transition-shadow hover:shadow-[1px_1px_0_#0A0A0A]"
+            style={{ fontFamily: "var(--font-heading)" }}
+          >
+            Join Waitlist
+          </motion.a>
+          <motion.a
+            href="/login"
+            whileHover={{ scale: 1.05, y: -1 }}
+            whileTap={{ scale: 0.97 }}
+            className="rounded-full bg-[#FFE600] px-6 py-2.5 text-sm font-bold text-[#0A0A0A] shadow-[4px_4px_0_#0A0A0A] transition-shadow hover:shadow-[2px_2px_0_#0A0A0A]"
+            style={{ fontFamily: "var(--font-heading)" }}
+          >
+            Launch App
+          </motion.a>
+        </div>
       </div>
     </motion.nav>
   );

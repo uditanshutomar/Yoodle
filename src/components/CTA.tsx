@@ -56,15 +56,21 @@ export default function CTA() {
               className="inline-flex items-center gap-2 rounded-full bg-[#FFE600] px-10 py-4 text-lg font-bold text-[#0A0A0A] shadow-[5px_5px_0_rgba(255,230,0,0.3)] transition-all hover:shadow-[3px_3px_0_rgba(255,230,0,0.3)]"
               style={{ fontFamily: "var(--font-heading)" }}
             >
-              Launch Yoodle
+              Launch App
               <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
                 <path d="M5 10H15M15 10L10 5M15 10L10 15" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
               </svg>
             </motion.a>
 
-            <span className="text-sm text-white/30" style={{ fontFamily: "var(--font-body)" }}>
-              Free forever for small teams
-            </span>
+            <motion.a
+              href="/waitlist"
+              whileHover={{ scale: 1.03 }}
+              whileTap={{ scale: 0.97 }}
+              className="text-sm font-semibold text-white/60 underline decoration-[#FFE600] decoration-2 underline-offset-4 transition-colors hover:text-white"
+              style={{ fontFamily: "var(--font-heading)" }}
+            >
+              or join the waitlist
+            </motion.a>
           </motion.div>
         </motion.div>
 

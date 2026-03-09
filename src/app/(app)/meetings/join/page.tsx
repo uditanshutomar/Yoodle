@@ -1,11 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { motion } from "framer-motion";
 import { Video, ArrowRight } from "lucide-react";
 import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 
 const containerVariants = {
   hidden: { opacity: 0 },
@@ -17,11 +17,20 @@ const itemVariants = {
   visible: { opacity: 1, y: 0 },
 };
 
-export default function JoinMeetingPage() {
+function JoinMeetingContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [code, setCode] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+
+  // Pre-fill code from URL param (e.g. /meetings/join?code=yoo-abc-123)
+  useEffect(() => {
+    const codeParam = searchParams.get("code");
+    if (codeParam) {
+      setCode(codeParam.toLowerCase());
+    }
+  }, [searchParams]);
 
   const handleJoin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -117,7 +126,7 @@ export default function JoinMeetingPage() {
               disabled={loading || !code.trim()}
               className="w-full justify-center"
             >
-              {loading ? "Joining…" : "Join Meeting"}
+              {loading ? "Joining\u2026" : "Join Meeting"}
             </Button>
           </form>
 
@@ -138,5 +147,13 @@ export default function JoinMeetingPage() {
         </Card>
       </motion.div>
     </motion.div>
+  );
+}
+
+export default function JoinMeetingPage() {
+  return (
+    <Suspense>
+      <JoinMeetingContent />
+    </Suspense>
   );
 }

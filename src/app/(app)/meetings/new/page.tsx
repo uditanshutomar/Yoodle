@@ -1,15 +1,16 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
-import { Video, ArrowLeft, Clock, Shield, Mic, Monitor, Users } from "lucide-react";
+import { Video, ArrowLeft, Clock, Shield, Mic, Monitor, Users, Copy, Check, Link2 } from "lucide-react";
 import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
 import Input from "@/components/ui/Input";
 
 export default function NewMeetingPage() {
   const router = useRouter();
+  const titleInputRef = useRef<HTMLInputElement>(null);
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [scheduleMode, setScheduleMode] = useState<"now" | "later">("now");
@@ -22,15 +23,29 @@ export default function NewMeetingPage() {
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [titleError, setTitleError] = useState("");
+
+  // After creation, show meeting code for sharing before navigating
+  const [createdMeeting, setCreatedMeeting] = useState<{
+    id: string;
+    code: string;
+    title: string;
+  } | null>(null);
+  const [copied, setCopied] = useState(false);
 
   const handleCreate = async () => {
+    // Clear previous errors
+    setTitleError("");
+    setError("");
+
     if (!title.trim()) {
-      setError("Meeting title is required");
+      setTitleError("Please enter a meeting title to continue");
+      titleInputRef.current?.focus();
+      titleInputRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
       return;
     }
 
     setLoading(true);
-    setError("");
 
     try {
       const body: Record<string, unknown> = {
@@ -53,10 +68,19 @@ export default function NewMeetingPage() {
 
       const data = await res.json();
       if (data.success && data.data) {
-        const id = data.data._id || data.data.id;
-        router.push(`/meetings/${id}`);
+        const meeting = data.data;
+        const id = meeting._id || meeting.id;
+        const code = meeting.code;
+
+        if (scheduleMode === "now") {
+          // Show the meeting code/link sharing card before joining
+          setCreatedMeeting({ id, code, title: title.trim() });
+        } else {
+          // Scheduled meetings go to the meeting list
+          router.push(`/meetings`);
+        }
       } else {
-        setError(data.error || "Failed to create meeting");
+        setError(data.error || data.message || "Failed to create meeting");
       }
     } catch {
       setError("Something went wrong. Please try again.");
@@ -65,6 +89,115 @@ export default function NewMeetingPage() {
     }
   };
 
+  const copyMeetingLink = async () => {
+    if (!createdMeeting) return;
+    const link = `${window.location.origin}/meetings/join?code=${createdMeeting.code}`;
+    try {
+      await navigator.clipboard.writeText(link);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      // Fallback for older browsers
+      const textarea = document.createElement("textarea");
+      textarea.value = link;
+      document.body.appendChild(textarea);
+      textarea.select();
+      document.execCommand("copy");
+      document.body.removeChild(textarea);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }
+  };
+
+  const copyMeetingCode = async () => {
+    if (!createdMeeting) return;
+    try {
+      await navigator.clipboard.writeText(createdMeeting.code);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      /* ignore */
+    }
+  };
+
+  // ── Meeting Created — Share Screen ──────────────────────────────────
+  if (createdMeeting) {
+    return (
+      <motion.div
+        initial={{ opacity: 0, scale: 0.95 }}
+        animate={{ opacity: 1, scale: 1 }}
+        className="max-w-lg mx-auto mt-12"
+      >
+        <Card className="!p-8 text-center">
+          {/* Success animation */}
+          <motion.div
+            initial={{ scale: 0 }}
+            animate={{ scale: 1 }}
+            transition={{ type: "spring", stiffness: 400, damping: 15, delay: 0.1 }}
+            className="w-16 h-16 mx-auto mb-4 rounded-full bg-[#10B981] border-2 border-[#0A0A0A] shadow-[3px_3px_0_#0A0A0A] flex items-center justify-center"
+          >
+            <Check size={32} className="text-white" />
+          </motion.div>
+
+          <h2 className="text-2xl font-black text-[#0A0A0A] mb-1" style={{ fontFamily: "var(--font-heading)" }}>
+            Meeting Created!
+          </h2>
+          <p className="text-sm text-[#0A0A0A]/50 mb-6" style={{ fontFamily: "var(--font-body)" }}>
+            Share this code with others so they can join
+          </p>
+
+          {/* Meeting code display */}
+          <div className="bg-[#FAFAF8] border-2 border-[#0A0A0A]/15 rounded-xl p-4 mb-4">
+            <p className="text-xs font-bold text-[#0A0A0A]/40 mb-1" style={{ fontFamily: "var(--font-heading)" }}>
+              MEETING CODE
+            </p>
+            <div className="flex items-center justify-center gap-3">
+              <span
+                className="text-2xl font-black font-mono tracking-widest text-[#0A0A0A]"
+                style={{ fontFamily: "var(--font-heading)" }}
+              >
+                {createdMeeting.code}
+              </span>
+              <button
+                onClick={copyMeetingCode}
+                className="p-2 rounded-lg bg-white border-2 border-[#0A0A0A]/15 hover:border-[#0A0A0A]/30 transition-all cursor-pointer"
+                title="Copy code"
+              >
+                {copied ? <Check size={16} className="text-[#10B981]" /> : <Copy size={16} className="text-[#0A0A0A]/50" />}
+              </button>
+            </div>
+          </div>
+
+          {/* Copy full link */}
+          <button
+            onClick={copyMeetingLink}
+            className="w-full flex items-center justify-center gap-2 py-3 rounded-xl border-2 border-[#0A0A0A]/15 bg-white hover:border-[#0A0A0A]/30 transition-all cursor-pointer mb-6 text-sm font-bold text-[#0A0A0A]/70"
+            style={{ fontFamily: "var(--font-heading)" }}
+          >
+            <Link2 size={16} />
+            {copied ? "Copied!" : "Copy Meeting Link"}
+          </button>
+
+          <p className="text-xs text-[#0A0A0A]/40 mb-4" style={{ fontFamily: "var(--font-body)" }}>
+            Others can join at <span className="font-mono">/meetings/join</span> using the code above
+          </p>
+
+          {/* Join button */}
+          <Button
+            variant="primary"
+            size="lg"
+            icon={Video}
+            onClick={() => router.push(`/meetings/${createdMeeting.id}`)}
+            className="w-full"
+          >
+            Join Meeting Now
+          </Button>
+        </Card>
+      </motion.div>
+    );
+  }
+
+  // ── Create Meeting Form ─────────────────────────────────────────────
   return (
     <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="max-w-2xl mx-auto space-y-6">
       {/* Back + Header */}
@@ -81,10 +214,15 @@ export default function NewMeetingPage() {
       <Card>
         <div className="space-y-5">
           <Input
+            ref={titleInputRef}
             label="Meeting Title"
             placeholder="e.g. Weekly Standup, Design Review..."
             value={title}
-            onChange={(e) => setTitle(e.target.value)}
+            onChange={(e) => {
+              setTitle(e.target.value);
+              if (titleError) setTitleError("");
+            }}
+            error={titleError}
           />
 
           <div>
@@ -180,10 +318,17 @@ export default function NewMeetingPage() {
         </div>
       </Card>
 
+      {/* Error banner — prominent, above the button */}
       {error && (
-        <p className="text-sm text-[#FF6B6B] text-center" style={{ fontFamily: "var(--font-body)" }}>
-          {error}
-        </p>
+        <motion.div
+          initial={{ opacity: 0, y: -10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="bg-[#FF6B6B]/10 border-2 border-[#FF6B6B] rounded-xl px-4 py-3 text-center"
+        >
+          <p className="text-sm font-bold text-[#FF6B6B]" style={{ fontFamily: "var(--font-heading)" }}>
+            {error}
+          </p>
+        </motion.div>
       )}
 
       {/* Create button */}

@@ -59,7 +59,12 @@ type RouteContext = { params: Promise<{ meetingId: string }> };
 
 /**
  * Get meeting details by ObjectId or meeting code.
- * Only accessible by host or participants.
+ *
+ * Access rules:
+ *  - Any authenticated user can look up a meeting (needed for joining via code).
+ *  - Non-participants receive limited info (title, code, status, participant count)
+ *    so the pre-join lobby can render.
+ *  - Hosts and existing participants receive the full meeting document.
  */
 export async function GET(
   request: NextRequest,
@@ -89,18 +94,33 @@ export async function GET(
       return notFoundResponse("Meeting not found.");
     }
 
-    // Check access: user must be host or a participant
+    // Check if user is host or participant
     const isHost = meeting.hostId._id?.toString() === userId ||
       (meeting.hostId as unknown as mongoose.Types.ObjectId).toString() === userId;
     const isParticipant = meeting.participants.some(
       (p) => p.userId?.toString() === userId || p.userId?._id?.toString() === userId
     );
 
-    if (!isHost && !isParticipant) {
-      return forbiddenResponse("You do not have access to this meeting.");
+    if (isHost || isParticipant) {
+      // Full access — return everything
+      return successResponse(meeting);
     }
 
-    return successResponse(meeting);
+    // Non-participant: return limited info so the lobby/join page can render
+    return successResponse({
+      _id: meeting._id,
+      title: meeting.title,
+      code: meeting.code,
+      status: meeting.status,
+      type: meeting.type,
+      hostId: meeting.hostId,
+      settings: {
+        waitingRoom: meeting.settings?.waitingRoom ?? false,
+      },
+      participants: meeting.participants.map((p) => ({
+        status: p.status,
+      })),
+    });
   } catch (error) {
     console.error("[Meeting GET Error]", error);
     return serverErrorResponse("Failed to retrieve meeting.");

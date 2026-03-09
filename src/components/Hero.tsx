@@ -82,13 +82,13 @@ export default function Hero() {
                 transition={{ delay: 0.7 }}
               >
                 <motion.a
-                  href="#cta"
+                  href="/login"
                   whileHover={{ scale: 1.05, y: -2 }}
                   whileTap={{ scale: 0.97 }}
                   className="inline-flex items-center gap-2 rounded-full bg-[#FFE600] px-8 py-4 text-lg font-bold text-[#0A0A0A] shadow-[5px_5px_0_#0A0A0A] transition-all hover:shadow-[3px_3px_0_#0A0A0A]"
                   style={{ fontFamily: "var(--font-heading)" }}
                 >
-                  Get Started
+                  Launch App
                   <svg
                     width="20"
                     height="20"
@@ -106,11 +106,11 @@ export default function Hero() {
                 </motion.a>
 
                 <a
-                  href="#how-it-works"
+                  href="/waitlist"
                   className="text-sm font-semibold text-[#0A0A0A] underline decoration-[#FFE600] decoration-2 underline-offset-4 transition-colors hover:text-[#0A0A0A]"
                   style={{ fontFamily: "var(--font-heading)" }}
                 >
-                  How it works?
+                  Join Waitlist
                 </a>
               </motion.div>
 

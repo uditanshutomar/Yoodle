@@ -27,6 +27,10 @@ const createMeetingSchema = z.object({
     .min(1, "Title is required.")
     .max(200, "Title must be 200 characters or fewer.")
     .optional(),
+  description: z
+    .string()
+    .max(1000, "Description must be 1000 characters or fewer.")
+    .optional(),
   type: z.enum(["regular", "ghost"]).default("regular"),
   scheduledAt: z
     .string()
@@ -155,7 +159,7 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    const { title, type, scheduledAt, settings } = parsed.data;
+    const { title, description, type, scheduledAt, settings } = parsed.data;
 
     await connectDB();
 
@@ -164,6 +168,7 @@ export async function POST(request: NextRequest) {
     const meeting = await Meeting.create({
       code,
       title: title || "Untitled Meeting",
+      description: description || undefined,
       hostId: new mongoose.Types.ObjectId(userId),
       type,
       status: "scheduled",

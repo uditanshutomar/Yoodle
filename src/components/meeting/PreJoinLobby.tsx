@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from "react";
 import { motion } from "framer-motion";
-import { Video, VideoOff, Mic, MicOff, Monitor, Users } from "lucide-react";
+import { Video, VideoOff, Mic, MicOff, Monitor, Users, Copy, Check } from "lucide-react";
 import Button from "@/components/ui/Button";
 import { useMediaDevices } from "@/hooks/useMediaDevices";
 
@@ -38,6 +38,18 @@ export default function PreJoinLobby({
   } = useMediaDevices();
 
   const [joining, setJoining] = useState(false);
+  const [codeCopied, setCodeCopied] = useState(false);
+
+  const handleCopyCode = async () => {
+    const link = `${window.location.origin}/meetings/join?code=${meetingCode}`;
+    try {
+      await navigator.clipboard.writeText(link);
+      setCodeCopied(true);
+      setTimeout(() => setCodeCopied(false), 2000);
+    } catch {
+      /* ignore */
+    }
+  };
 
   useEffect(() => {
     startMedia(true, true);
@@ -68,12 +80,28 @@ export default function PreJoinLobby({
         >
           {meetingTitle}
         </h1>
-        <p
-          className="text-sm text-[#0A0A0A]/50 font-mono"
-          style={{ fontFamily: "var(--font-body)" }}
+        <button
+          onClick={handleCopyCode}
+          className="inline-flex items-center gap-2 mt-1 px-3 py-1 rounded-lg bg-[#0A0A0A]/5 hover:bg-[#0A0A0A]/10 transition-all cursor-pointer border border-[#0A0A0A]/10"
+          title="Click to copy meeting link"
         >
-          Code: {meetingCode}
-        </p>
+          <span
+            className="text-sm text-[#0A0A0A]/60 font-mono tracking-wider"
+            style={{ fontFamily: "var(--font-body)" }}
+          >
+            {meetingCode}
+          </span>
+          {codeCopied ? (
+            <Check size={14} className="text-[#10B981]" />
+          ) : (
+            <Copy size={14} className="text-[#0A0A0A]/40" />
+          )}
+        </button>
+        {codeCopied && (
+          <p className="text-xs text-[#10B981] mt-1" style={{ fontFamily: "var(--font-body)" }}>
+            Link copied! Share it with others
+          </p>
+        )}
         <div className="flex items-center justify-center gap-2 mt-2 text-sm text-[#0A0A0A]/60">
           <Users size={14} />
           <span style={{ fontFamily: "var(--font-body)" }}>
