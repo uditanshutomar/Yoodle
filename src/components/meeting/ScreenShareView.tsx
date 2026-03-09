@@ -35,11 +35,12 @@ export default function ScreenShareView({
     }, [screenStream]);
 
     // Attach presenter camera stream to PiP video
+    // Must depend on isVideoOff so srcObject is re-assigned when <video> remounts
     useEffect(() => {
         if (presenterVideoRef.current && presenter.stream) {
             presenterVideoRef.current.srcObject = presenter.stream;
         }
-    }, [presenter.stream]);
+    }, [presenter.stream, presenter.isVideoOff]);
 
     return (
         <motion.div

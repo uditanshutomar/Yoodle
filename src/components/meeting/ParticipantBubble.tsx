@@ -33,11 +33,13 @@ export default function ParticipantBubble({
     const videoRef = useRef<HTMLVideoElement>(null);
 
     // Attach MediaStream to video element
+    // Must depend on isVideoOff so srcObject is re-assigned when <video> remounts
+    // after being conditionally removed (toggle off → avatar → toggle on → new <video>)
     useEffect(() => {
         if (videoRef.current && stream) {
             videoRef.current.srcObject = stream;
         }
-    }, [stream]);
+    }, [stream, isVideoOff]);
 
     const showVideo = !!stream && !isVideoOff;
 
