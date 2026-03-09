@@ -1,15 +1,14 @@
 import { NextRequest } from "next/server";
+import { z } from "zod";
 import mongoose from "mongoose";
+import { withHandler } from "@/lib/api/with-handler";
+import { successResponse } from "@/lib/api/response";
+import { checkRateLimit } from "@/lib/api/rate-limit";
+import { getUserIdFromRequest } from "@/lib/auth/middleware";
+import { BadRequestError, NotFoundError } from "@/lib/api/errors";
 import connectDB from "@/lib/db/client";
 import Meeting from "@/lib/db/models/meeting";
-import { authenticateRequest } from "@/lib/auth/middleware";
-import {
-  successResponse,
-  errorResponse,
-  unauthorizedResponse,
-  notFoundResponse,
-  serverErrorResponse,
-} from "@/lib/utils/api-response";
+import { determineTransportMode } from "@/lib/transport/transport-factory";
 
 // ── Helpers ─────────────────────────────────────────────────────────
 
@@ -43,9 +42,9 @@ function getIceServers() {
   return servers;
 }
 
-// ── Route context type ──────────────────────────────────────────────
+// ── Validation ──────────────────────────────────────────────────────
 
-type RouteContext = { params: Promise<{ meetingId: string }> };
+const meetingIdSchema = z.string().min(1, "Meeting ID is required");
 
 // ── POST /api/meetings/:meetingId/join ──────────────────────────────
 
@@ -54,102 +53,91 @@ type RouteContext = { params: Promise<{ meetingId: string }> };
  * Adds the user to participants, activates the meeting if scheduled,
  * and returns ICE server configuration for WebRTC.
  */
-export async function POST(
-  request: NextRequest,
-  context: RouteContext
-) {
-  try {
-    let userId: string;
+export const POST = withHandler(async (req: NextRequest, context) => {
+  await checkRateLimit(req, "meetings");
+  const userId = await getUserIdFromRequest(req);
 
-    try {
-      const payload = await authenticateRequest(request);
-      userId = payload.userId;
-    } catch {
-      return unauthorizedResponse();
-    }
+  const { meetingId } = await context!.params;
+  meetingIdSchema.parse(meetingId);
 
-    const { meetingId } = await context.params;
+  await connectDB();
 
-    await connectDB();
+  const filter = buildMeetingFilter(meetingId);
+  const meeting = await Meeting.findOne(filter);
 
-    const filter = buildMeetingFilter(meetingId);
-    const meeting = await Meeting.findOne(filter);
-
-    if (!meeting) {
-      return notFoundResponse("Meeting not found.");
-    }
-
-    // Cannot join ended or cancelled meetings
-    if (meeting.status === "ended" || meeting.status === "cancelled") {
-      return errorResponse({
-        message: "This meeting has already ended.",
-        status: 400,
-      });
-    }
-
-    const userObjectId = new mongoose.Types.ObjectId(userId);
-
-    // Check if user is already a participant with "joined" status
-    const existingParticipant = meeting.participants.find(
-      (p) => p.userId.toString() === userId
-    );
-
-    if (existingParticipant) {
-      if (existingParticipant.status === "joined") {
-        // Already joined, just return the meeting + ICE servers
-        await meeting.populate("hostId", "name email displayName avatarUrl");
-        await meeting.populate("participants.userId", "name email displayName avatarUrl");
-
-        return successResponse({
-          meeting,
-          iceServers: getIceServers(),
-        });
-      }
-
-      // User was previously in the meeting (left/invited) - rejoin
-      existingParticipant.status = "joined";
-      existingParticipant.joinedAt = new Date();
-      existingParticipant.leftAt = undefined;
-    } else {
-      // Check maxParticipants limit
-      const activeParticipants = meeting.participants.filter(
-        (p) => p.status === "joined"
-      ).length;
-
-      if (activeParticipants >= meeting.settings.maxParticipants) {
-        return errorResponse({
-          message: "Meeting has reached the maximum number of participants.",
-          status: 400,
-        });
-      }
-
-      // Add as new participant
-      meeting.participants.push({
-        userId: userObjectId,
-        role: "participant",
-        status: "joined",
-        joinedAt: new Date(),
-      });
-    }
-
-    // Activate meeting if it's scheduled
-    if (meeting.status === "scheduled") {
-      meeting.status = "live";
-      meeting.startedAt = new Date();
-    }
-
-    await meeting.save();
-
-    // Populate for response
-    await meeting.populate("hostId", "name email displayName avatarUrl");
-    await meeting.populate("participants.userId", "name email displayName avatarUrl");
-
-    return successResponse({
-      meeting,
-      iceServers: getIceServers(),
-    });
-  } catch (error) {
-    console.error("[Meeting Join Error]", error);
-    return serverErrorResponse("Failed to join meeting.");
+  if (!meeting) {
+    throw new NotFoundError("Meeting not found.");
   }
-}
+
+  // Cannot join ended or cancelled meetings
+  if (meeting.status === "ended" || meeting.status === "cancelled") {
+    throw new BadRequestError("This meeting has already ended.");
+  }
+
+  const userObjectId = new mongoose.Types.ObjectId(userId);
+
+  // Check if user is already a participant with "joined" status
+  const existingParticipant = meeting.participants.find(
+    (p) => p.userId.toString() === userId
+  );
+
+  // Determine transport mode for this meeting
+  const effectiveTransportMode: "p2p" | "livekit" =
+    meeting.transportMode === "p2p" || meeting.transportMode === "livekit"
+      ? meeting.transportMode
+      : determineTransportMode(meeting.settings.maxParticipants);
+
+  if (existingParticipant) {
+    if (existingParticipant.status === "joined") {
+      // Already joined, just return the meeting + ICE servers
+      await meeting.populate("hostId", "name email displayName avatarUrl");
+      await meeting.populate("participants.userId", "name email displayName avatarUrl");
+
+      return successResponse({
+        meeting,
+        iceServers: getIceServers(),
+        transportMode: effectiveTransportMode,
+      });
+    }
+
+    // User was previously in the meeting (left/invited) - rejoin
+    existingParticipant.status = "joined";
+    existingParticipant.joinedAt = new Date();
+    existingParticipant.leftAt = undefined;
+  } else {
+    // Check maxParticipants limit
+    const activeParticipants = meeting.participants.filter(
+      (p) => p.status === "joined"
+    ).length;
+
+    if (activeParticipants >= meeting.settings.maxParticipants) {
+      throw new BadRequestError("Meeting has reached the maximum number of participants.");
+    }
+
+    // Add as new participant
+    meeting.participants.push({
+      userId: userObjectId,
+      role: "participant",
+      status: "joined",
+      joinedAt: new Date(),
+    });
+  }
+
+  // Activate meeting if it's scheduled
+  if (meeting.status === "scheduled") {
+    meeting.status = "live";
+    meeting.startedAt = new Date();
+  }
+
+  await meeting.save();
+
+  // Populate for response
+  await meeting.populate("hostId", "name email displayName avatarUrl");
+  await meeting.populate("participants.userId", "name email displayName avatarUrl");
+
+  return successResponse({
+    meeting,
+    iceServers: getIceServers(),
+    transportMode: effectiveTransportMode,
+  });
+});

@@ -19,7 +19,12 @@ export interface UseMediaDevicesReturn {
   error: string | null;
 }
 
-export function useMediaDevices(): UseMediaDevicesReturn {
+interface UseMediaDevicesOptions {
+  onTrackChanged?: (kind: 'video' | 'audio', track: MediaStreamTrack) => void;
+}
+
+export function useMediaDevices(options?: UseMediaDevicesOptions): UseMediaDevicesReturn {
+  const onTrackChangedRef = useRef(options?.onTrackChanged);
   const [stream, setStream] = useState<MediaStream | null>(null);
   const [videoDevices, setVideoDevices] = useState<MediaDeviceInfo[]>([]);
   const [audioDevices, setAudioDevices] = useState<MediaDeviceInfo[]>([]);
@@ -30,6 +35,11 @@ export function useMediaDevices(): UseMediaDevicesReturn {
   const [error, setError] = useState<string | null>(null);
 
   const streamRef = useRef<MediaStream | null>(null);
+
+  // Keep the callback ref in sync
+  useEffect(() => {
+    onTrackChangedRef.current = options?.onTrackChanged;
+  }, [options?.onTrackChanged]);
 
   /** Enumerate available media devices */
   const enumerateDevices = useCallback(async () => {
@@ -216,6 +226,9 @@ export function useMediaDevices(): UseMediaDevicesReturn {
         setStream(new MediaStream(currentStream.getTracks()));
         setIsVideoEnabled(true);
         setError(null);
+
+        // Notify caller so they can update peer connections
+        onTrackChangedRef.current?.('video', newVideoTrack);
       } catch (err) {
         const message = getMediaErrorMessage(err);
         setError(message);
@@ -259,6 +272,9 @@ export function useMediaDevices(): UseMediaDevicesReturn {
         setStream(new MediaStream(currentStream.getTracks()));
         setIsAudioEnabled(true);
         setError(null);
+
+        // Notify caller so they can update peer connections
+        onTrackChangedRef.current?.('audio', newAudioTrack);
       } catch (err) {
         const message = getMediaErrorMessage(err);
         setError(message);

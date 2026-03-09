@@ -1,17 +1,15 @@
 import { NextRequest } from "next/server";
 import { z } from "zod";
 import { nanoid } from "nanoid";
+import { withHandler } from "@/lib/api/with-handler";
+import { successResponse } from "@/lib/api/response";
+import { checkRateLimit } from "@/lib/api/rate-limit";
+import { getUserIdFromRequest } from "@/lib/auth/middleware";
+import { NotFoundError, ForbiddenError } from "@/lib/api/errors";
 import connectDB from "@/lib/db/client";
 import Transcript from "@/lib/db/models/transcript";
 import Meeting from "@/lib/db/models/meeting";
-import { authenticateRequest } from "@/lib/auth/middleware";
 import { getPresignedUploadUrl } from "@/lib/vultr/object-storage";
-import {
-  successResponse,
-  errorResponse,
-  unauthorizedResponse,
-  serverErrorResponse,
-} from "@/lib/utils/api-response";
 
 const speechSegmentSchema = z.object({
   speakerId: z.string(),
@@ -40,79 +38,59 @@ const uploadRequestSchema = z.object({
  * which are stored in the Transcript model for speaker attribution
  * when the audio is later transcribed to text.
  */
-export async function POST(request: NextRequest) {
-  try {
-    let userId: string;
-    try {
-      const payload = await authenticateRequest(request);
-      userId = payload.userId;
-    } catch {
-      return unauthorizedResponse();
-    }
+export const POST = withHandler(async (req: NextRequest) => {
+  await checkRateLimit(req, "general");
+  const userId = await getUserIdFromRequest(req);
 
-    const body = await request.json();
-    const parsed = uploadRequestSchema.safeParse(body);
+  const body = uploadRequestSchema.parse(await req.json());
+  const { meetingId, contentType, speechSegments } = body;
 
-    if (!parsed.success) {
-      return errorResponse({
-        message: "Validation failed.",
-        status: 400,
-        errors: parsed.error.flatten().fieldErrors,
-      });
-    }
+  // Verify user is a participant in this meeting
+  await connectDB();
+  const meeting = await Meeting.findById(meetingId);
+  if (!meeting) {
+    throw new NotFoundError("Meeting not found.");
+  }
+  const isParticipant =
+    meeting.hostId.toString() === userId ||
+    meeting.participants.some((p) => p.userId.toString() === userId);
+  if (!isParticipant) {
+    throw new ForbiddenError("You are not a participant in this meeting.");
+  }
 
-    const { meetingId, contentType, speechSegments } = parsed.data;
+  // Determine file extension from content type
+  const ext = contentType.includes("webm")
+    ? "webm"
+    : contentType.includes("mp4")
+      ? "mp4"
+      : contentType.includes("ogg")
+        ? "ogg"
+        : "webm";
 
-    // Verify user is a participant in this meeting
-    await connectDB();
-    const meeting = await Meeting.findById(meetingId);
-    if (!meeting) {
-      return errorResponse("Meeting not found.", 404);
-    }
-    const isParticipant =
-      meeting.hostId.toString() === userId ||
-      meeting.participants.some((p) => p.userId.toString() === userId);
-    if (!isParticipant) {
-      return errorResponse("You are not a participant in this meeting.", 403);
-    }
+  const key = `recordings/${meetingId}/${nanoid()}.${ext}`;
 
-    // Determine file extension from content type
-    const ext = contentType.includes("webm")
-      ? "webm"
-      : contentType.includes("mp4")
-        ? "mp4"
-        : contentType.includes("ogg")
-          ? "ogg"
-          : "webm";
+  const uploadUrl = await getPresignedUploadUrl(key, contentType, 600); // 10 min expiry
 
-    const key = `recordings/${meetingId}/${nanoid()}.${ext}`;
-
-    const uploadUrl = await getPresignedUploadUrl(key, contentType, 600); // 10 min expiry
-
-    // Store speech segments for speaker-attributed transcription
-    if (speechSegments && speechSegments.length > 0) {
-      await Transcript.findOneAndUpdate(
-        { meetingId },
-        {
-          $push: {
-            segments: {
-              $each: speechSegments.map((seg) => ({
-                speaker: seg.speakerName,
-                speakerId: seg.speakerId,
-                text: "", // Will be filled when audio is transcribed
-                timestamp: seg.startTime,
-                duration: seg.endTime - seg.startTime,
-              })),
-            },
+  // Store speech segments for speaker-attributed transcription
+  if (speechSegments && speechSegments.length > 0) {
+    await Transcript.findOneAndUpdate(
+      { meetingId },
+      {
+        $push: {
+          segments: {
+            $each: speechSegments.map((seg) => ({
+              speaker: seg.speakerName,
+              speakerId: seg.speakerId,
+              text: "", // Will be filled when audio is transcribed
+              timestamp: seg.startTime,
+              duration: seg.endTime - seg.startTime,
+            })),
           },
         },
-        { upsert: true, new: true }
-      );
-    }
-
-    return successResponse({ uploadUrl, key });
-  } catch (error) {
-    console.error("[Recording Upload URL Error]", error);
-    return serverErrorResponse("Failed to generate upload URL.");
+      },
+      { upsert: true, new: true }
+    );
   }
-}
+
+  return successResponse({ uploadUrl, key });
+});

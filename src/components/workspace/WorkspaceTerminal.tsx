@@ -129,19 +129,15 @@ export default function WorkspaceTerminal({ workspaceId, onClose }: WorkspaceTer
       // 3. Connect to signaling server for SSH proxy
       setStatus("connecting");
 
-      const signalingUrl = process.env.NEXT_PUBLIC_SIGNALING_URL || "";
-      const socket = signalingUrl
-        ? io(signalingUrl, {
-            transports: ["websocket", "polling"],
-            reconnection: false,
-            timeout: 15000,
-          })
-        : io({
-            path: "/api/socketio",
-            transports: ["websocket", "polling"],
-            reconnection: false,
-            timeout: 15000,
-          });
+      // Always connect to the embedded signaling server (same origin).
+      // The standalone server/index.ts is deprecated — all signaling is
+      // handled by the custom Next.js server (server.ts) on /api/socketio.
+      const socket = io({
+        path: "/api/socketio",
+        transports: ["websocket", "polling"],
+        reconnection: false,
+        timeout: 15000,
+      });
 
       socketRef.current = socket;
 

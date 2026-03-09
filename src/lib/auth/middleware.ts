@@ -1,4 +1,6 @@
 import { verifyAccessToken } from "@/lib/auth/jwt";
+import { tokenIsBlacklisted } from "@/lib/redis/cache";
+import { UnauthorizedError } from "@/lib/api/errors";
 
 /**
  * Authenticate an incoming API request by extracting and verifying
@@ -8,10 +10,10 @@ import { verifyAccessToken } from "@/lib/auth/jwt";
  *   3. yoodle-access-token cookie (via Cookie header parsing)
  *
  * Returns the decoded payload with userId.
- * Throws an error if no valid token is found.
+ * Throws UnauthorizedError if no valid token is found.
  */
 export async function authenticateRequest(
-  request: Request
+  request: Request,
 ): Promise<{ userId: string }> {
   let token: string | undefined;
 
@@ -42,17 +44,24 @@ export async function authenticateRequest(
   }
 
   if (!token) {
-    throw new Error("Missing authentication credentials.");
+    throw new UnauthorizedError("Missing authentication credentials.");
+  }
+
+  // Check if token has been blacklisted (e.g., on logout)
+  const blacklisted = await tokenIsBlacklisted(token);
+  if (blacklisted) {
+    throw new UnauthorizedError("Token has been revoked.");
   }
 
   try {
     const payload = await verifyAccessToken(token);
     return payload;
   } catch (error) {
+    if (error instanceof UnauthorizedError) throw error;
     if (error instanceof Error) {
-      throw new Error(`Authentication failed: ${error.message}`);
+      throw new UnauthorizedError(`Authentication failed: ${error.message}`);
     }
-    throw new Error("Authentication failed: Invalid token.");
+    throw new UnauthorizedError("Authentication failed: Invalid token.");
   }
 }
 
@@ -61,7 +70,7 @@ export async function authenticateRequest(
  * Convenience wrapper around authenticateRequest.
  */
 export async function getUserIdFromRequest(
-  request: Request
+  request: Request,
 ): Promise<string> {
   const { userId } = await authenticateRequest(request);
   return userId;

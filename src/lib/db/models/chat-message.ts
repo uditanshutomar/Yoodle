@@ -55,6 +55,7 @@ const chatMessageSchema = new Schema<IChatMessageDocument>(
 );
 
 chatMessageSchema.index({ meetingId: 1, createdAt: 1 });
+chatMessageSchema.index({ senderId: 1, createdAt: -1 });
 
 const ChatMessage: Model<IChatMessageDocument> =
   mongoose.models.ChatMessage ||

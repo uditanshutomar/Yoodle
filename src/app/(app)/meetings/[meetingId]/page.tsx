@@ -48,6 +48,15 @@ export default function MeetingLobbyPage() {
 
       const data = await res.json();
       if (data.success) {
+        sessionStorage.setItem("yoodle-lobby-passed", meetingId);
+        if (data.data?.transportMode) {
+          sessionStorage.setItem("yoodle-transport-mode", data.data.transportMode);
+        }
+        // Store host ID so room page can enable host controls
+        const hostId = data.data?.meeting?.hostId?._id || data.data?.meeting?.hostId;
+        if (hostId) {
+          sessionStorage.setItem("yoodle-host-id", String(hostId));
+        }
         router.push(`/meetings/${meetingId}/room`);
       } else {
         setError(data.error || "Failed to join meeting");

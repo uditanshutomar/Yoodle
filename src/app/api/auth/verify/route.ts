@@ -1,22 +1,36 @@
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
+import { withHandler } from "@/lib/api/with-handler";
+import { checkRateLimit } from "@/lib/api/rate-limit";
 import { verifyMagicLink } from "@/lib/auth/magic-link";
 import { signAccessToken, signRefreshToken } from "@/lib/auth/jwt";
 import bcrypt from "bcryptjs";
 import connectDB from "@/lib/db/client";
 import User from "@/lib/db/models/user";
 
-export async function GET(request: NextRequest) {
+const querySchema = z.object({
+  token: z.string().min(1),
+  email: z.string().email(),
+});
+
+export const GET = withHandler(async (req: NextRequest) => {
+  await checkRateLimit(req, "auth");
+
+  const { searchParams } = new URL(req.url);
+  const parsed = querySchema.safeParse({
+    token: searchParams.get("token"),
+    email: searchParams.get("email"),
+  });
+
+  if (!parsed.success) {
+    const errorUrl = new URL("/login", req.url);
+    errorUrl.searchParams.set("error", "invalid_link");
+    return NextResponse.redirect(errorUrl);
+  }
+
+  const { token, email } = parsed.data;
+
   try {
-    const { searchParams } = new URL(request.url);
-    const token = searchParams.get("token");
-    const email = searchParams.get("email");
-
-    if (!token || !email) {
-      const errorUrl = new URL("/login", request.url);
-      errorUrl.searchParams.set("error", "invalid_link");
-      return NextResponse.redirect(errorUrl);
-    }
-
     await connectDB();
 
     // Verify the magic link
@@ -36,7 +50,7 @@ export async function GET(request: NextRequest) {
     });
 
     // Redirect to dashboard with cookies set
-    const dashboardUrl = new URL("/dashboard", request.url);
+    const dashboardUrl = new URL("/dashboard", req.url);
     const response = NextResponse.redirect(dashboardUrl);
 
     // Set access token cookie (httpOnly for security)
@@ -59,9 +73,7 @@ export async function GET(request: NextRequest) {
 
     return response;
   } catch (error) {
-    console.error("[Verify Error]", error);
-
-    const errorUrl = new URL("/login", request.url);
+    const errorUrl = new URL("/login", req.url);
     if (error instanceof Error) {
       if (error.message.includes("expired")) {
         errorUrl.searchParams.set("error", "link_expired");
@@ -74,4 +86,4 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.redirect(errorUrl);
   }
-}
+});

@@ -1,0 +1,61 @@
+import Redis from "ioredis";
+
+let redis: Redis | null = null;
+
+export function getRedisClient(): Redis {
+  if (redis) return redis;
+
+  const url = process.env.REDIS_URL || "redis://localhost:6379";
+
+  redis = new Redis(url, {
+    maxRetriesPerRequest: 3,
+    retryStrategy(times) {
+      if (times > 10) return null; // Stop retrying after 10 attempts
+      return Math.min(times * 200, 5000); // Exponential backoff, max 5s
+    },
+    reconnectOnError(err) {
+      // Reconnect on READONLY errors (failover scenario)
+      return err.message.includes("READONLY");
+    },
+    lazyConnect: true,
+  });
+
+  redis.on("error", (err) => {
+    console.error("[Redis] Connection error:", err.message);
+  });
+
+  redis.on("connect", () => {
+    console.log("[Redis] Connected successfully");
+  });
+
+  redis.on("reconnecting", () => {
+    console.warn("[Redis] Reconnecting...");
+  });
+
+  return redis;
+}
+
+/**
+ * Gracefully close the Redis connection (call on server shutdown)
+ */
+export async function closeRedis(): Promise<void> {
+  if (redis) {
+    await redis.quit();
+    redis = null;
+  }
+}
+
+/**
+ * Check if Redis is available and connected.
+ * Returns false if Redis is not configured or unreachable — features
+ * that depend on Redis should gracefully degrade.
+ */
+export async function isRedisAvailable(): Promise<boolean> {
+  try {
+    const client = getRedisClient();
+    const pong = await client.ping();
+    return pong === "PONG";
+  } catch {
+    return false;
+  }
+}

@@ -43,6 +43,26 @@ export const SOCKET_EVENTS = {
   RECORDING_STOP: "recording:stop",
   RECORDING_STATUS: "recording:status",
 
+  // Host controls
+  HOST_MUTE: "host:mute",
+  HOST_KICK: "host:kick",
+  HOST_ADMIT: "host:admit",
+  HOST_DENY: "host:deny",
+  HOST_MUTED: "host:muted",
+  HOST_KICKED: "host:kicked",
+
+  // Waiting room
+  WAITING_JOIN: "waiting:join",
+  WAITING_LIST: "waiting:list",
+  WAITING_ADMITTED: "waiting:admitted",
+  WAITING_DENIED: "waiting:denied",
+
+  // Hand raise
+  HAND_RAISE: "hand:raise",
+  HAND_LOWER: "hand:lower",
+  HAND_RAISED: "hand:raised",
+  HAND_LOWERED: "hand:lowered",
+
   // Agent collaboration
   AGENT_COLLAB_INVITE: "agent:collab-invite",
   AGENT_COLLAB_MESSAGE: "agent:collab-message",
@@ -69,6 +89,7 @@ export interface RoomUser {
   isVideoEnabled: boolean;
   isAudioEnabled: boolean;
   isScreenSharing: boolean;
+  isHandRaised?: boolean;
 }
 
 /** Chat message payload */
@@ -172,4 +193,39 @@ export interface JoinRoomPayload {
     displayName: string;
     avatar?: string | null;
   };
+}
+
+/** Host mute payload */
+export interface HostMutePayload {
+  targetUserId: string;
+  roomId: string;
+}
+
+/** Host kick payload */
+export interface HostKickPayload {
+  targetUserId: string;
+  roomId: string;
+  reason?: string;
+}
+
+/** Waiting room user */
+export interface WaitingRoomUser {
+  id: string;
+  name: string;
+  displayName: string;
+  avatar?: string | null;
+  joinedWaitingAt: number;
+}
+
+/** Waiting room admit/deny payload */
+export interface WaitingRoomActionPayload {
+  userId: string;
+  roomId: string;
+}
+
+/** Hand raise payload */
+export interface HandRaisePayload {
+  userId: string;
+  userName: string;
+  timestamp: number;
 }

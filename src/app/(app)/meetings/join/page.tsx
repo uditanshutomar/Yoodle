@@ -123,10 +123,10 @@ function JoinMeetingContent() {
               variant="primary"
               size="lg"
               icon={ArrowRight}
-              disabled={loading || !code.trim()}
+              loading={loading}
               className="w-full justify-center"
             >
-              {loading ? "Joining\u2026" : "Join Meeting"}
+              Join Meeting
             </Button>
           </form>
 

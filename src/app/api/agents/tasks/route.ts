@@ -1,18 +1,16 @@
 import { NextRequest } from "next/server";
 import { z } from "zod";
 import mongoose from "mongoose";
+import { withHandler } from "@/lib/api/with-handler";
+import { successResponse } from "@/lib/api/response";
+import { checkRateLimit } from "@/lib/api/rate-limit";
+import { getUserIdFromRequest } from "@/lib/auth/middleware";
+import { BadRequestError, NotFoundError } from "@/lib/api/errors";
 import connectDB from "@/lib/db/client";
 import Agent from "@/lib/db/models/agent";
 import AgentTask from "@/lib/db/models/agent-task";
-import { authenticateRequest } from "@/lib/auth/middleware";
 import { createTask as createGoogleTask } from "@/lib/google/tasks";
 import { hasGoogleAccess } from "@/lib/google/client";
-import {
-  successResponse,
-  errorResponse,
-  unauthorizedResponse,
-  serverErrorResponse,
-} from "@/lib/utils/api-response";
 
 const createTaskSchema = z.object({
   title: z.string().min(1).max(500),
@@ -28,219 +26,193 @@ const createTaskSchema = z.object({
   syncToGoogle: z.boolean().optional().default(false),
 });
 
+const updateTaskSchema = z.object({
+  title: z.string().min(1).max(500).optional(),
+  description: z.string().max(2000).optional(),
+  status: z.enum(["pending", "in_progress", "completed", "cancelled"]).optional(),
+  priority: z.enum(["high", "medium", "low"]).optional(),
+  dueDate: z.string().optional(),
+  scheduledStart: z.string().optional(),
+  scheduledEnd: z.string().optional(),
+  tags: z.array(z.string()).optional(),
+  estimatedMinutes: z.number().min(1).optional(),
+});
+
 /**
  * GET /api/agents/tasks
  * List the authenticated user's agent-tracked tasks.
  */
-export async function GET(request: NextRequest) {
-  try {
-    let userId: string;
-    try {
-      const payload = await authenticateRequest(request);
-      userId = payload.userId;
-    } catch {
-      return unauthorizedResponse();
-    }
+export const GET = withHandler(async (req: NextRequest) => {
+  await checkRateLimit(req, "ai");
+  const userId = await getUserIdFromRequest(req);
 
-    await connectDB();
+  await connectDB();
 
-    const { searchParams } = new URL(request.url);
-    const status = searchParams.get("status");
-    const priority = searchParams.get("priority");
-    const source = searchParams.get("source");
+  const { searchParams } = new URL(req.url);
+  const status = searchParams.get("status");
+  const priority = searchParams.get("priority");
+  const source = searchParams.get("source");
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const filter: any = { userId };
-    if (status) filter.status = status;
-    if (priority) filter.priority = priority;
-    if (source) filter.source = source;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const filter: any = { userId };
+  if (status) filter.status = status;
+  if (priority) filter.priority = priority;
+  if (source) filter.source = source;
 
-    const tasks = await AgentTask.find(filter)
-      .sort({ priority: 1, dueDate: 1, createdAt: -1 })
-      .limit(100)
-      .lean();
+  const tasks = await AgentTask.find(filter)
+    .sort({ priority: 1, dueDate: 1, createdAt: -1 })
+    .limit(100)
+    .lean();
 
-    return successResponse(
-      tasks.map((t) => ({
-        id: t._id.toString(),
-        title: t.title,
-        description: t.description,
-        status: t.status,
-        priority: t.priority,
-        source: t.source,
-        sourceMeetingId: t.sourceMeetingId?.toString(),
-        estimatedMinutes: t.estimatedMinutes,
-        scheduledStart: t.scheduledStart,
-        scheduledEnd: t.scheduledEnd,
-        dueDate: t.dueDate,
-        assignee: t.assignee,
-        tags: t.tags,
-        completedAt: t.completedAt,
-        googleTaskId: t.googleTaskId,
-        googleCalendarEventId: t.googleCalendarEventId,
-        createdAt: t.createdAt,
-        updatedAt: t.updatedAt,
-      }))
-    );
-  } catch (error) {
-    console.error("[Tasks GET Error]", error);
-    return serverErrorResponse("Failed to retrieve tasks.");
-  }
-}
+  return successResponse(
+    tasks.map((t) => ({
+      id: t._id.toString(),
+      title: t.title,
+      description: t.description,
+      status: t.status,
+      priority: t.priority,
+      source: t.source,
+      sourceMeetingId: t.sourceMeetingId?.toString(),
+      estimatedMinutes: t.estimatedMinutes,
+      scheduledStart: t.scheduledStart,
+      scheduledEnd: t.scheduledEnd,
+      dueDate: t.dueDate,
+      assignee: t.assignee,
+      tags: t.tags,
+      completedAt: t.completedAt,
+      googleTaskId: t.googleTaskId,
+      googleCalendarEventId: t.googleCalendarEventId,
+      createdAt: t.createdAt,
+      updatedAt: t.updatedAt,
+    }))
+  );
+});
 
 /**
  * POST /api/agents/tasks
  * Create a new agent-tracked task. Optionally syncs to Google Tasks.
  */
-export async function POST(request: NextRequest) {
-  try {
-    let userId: string;
-    try {
-      const payload = await authenticateRequest(request);
-      userId = payload.userId;
-    } catch {
-      return unauthorizedResponse();
-    }
+export const POST = withHandler(async (req: NextRequest) => {
+  await checkRateLimit(req, "ai");
+  const userId = await getUserIdFromRequest(req);
 
-    const body = await request.json();
-    const parsed = createTaskSchema.safeParse(body);
-    if (!parsed.success) {
-      return errorResponse({
-        message: "Validation failed.",
-        status: 400,
-        errors: parsed.error.flatten().fieldErrors,
-      });
-    }
+  const body = createTaskSchema.parse(await req.json());
 
-    await connectDB();
+  await connectDB();
 
-    // Get or create the user's agent (atomic to avoid race conditions)
-    const agent = await Agent.findOneAndUpdate(
-      { userId },
-      {
-        $setOnInsert: { userId, name: "Doodle", status: "idle" },
-      },
-      { upsert: true, new: true }
-    );
+  // Get or create the user's agent (atomic to avoid race conditions)
+  const agent = await Agent.findOneAndUpdate(
+    { userId },
+    {
+      $setOnInsert: { userId, name: "Doodle", status: "idle" },
+    },
+    { upsert: true, new: true }
+  );
 
-    const taskData: Record<string, unknown> = {
-      userId,
-      agentId: agent._id,
-      title: parsed.data.title,
-      description: parsed.data.description,
-      priority: parsed.data.priority,
-      source: parsed.data.source,
-      tags: parsed.data.tags,
-      estimatedMinutes: parsed.data.estimatedMinutes,
-    };
+  const taskData: Record<string, unknown> = {
+    userId,
+    agentId: agent._id,
+    title: body.title,
+    description: body.description,
+    priority: body.priority,
+    source: body.source,
+    tags: body.tags,
+    estimatedMinutes: body.estimatedMinutes,
+  };
 
-    if (parsed.data.dueDate) {
-      taskData.dueDate = new Date(parsed.data.dueDate);
-    }
+  if (body.dueDate) {
+    taskData.dueDate = new Date(body.dueDate);
+  }
 
-    // Optionally sync to Google Tasks
-    if (parsed.data.syncToGoogle) {
-      const hasAccess = await hasGoogleAccess(userId);
-      if (hasAccess) {
-        try {
-          const googleTask = await createGoogleTask(userId, "@default", {
-            title: parsed.data.title,
-            notes: parsed.data.description,
-            due: parsed.data.dueDate,
-          });
-          taskData.googleTaskId = googleTask.id;
-          taskData.googleTaskListId = "@default";
-        } catch (err) {
-          console.error("[Google Task Sync Error]", err);
-        }
+  // Optionally sync to Google Tasks
+  if (body.syncToGoogle) {
+    const hasAccess = await hasGoogleAccess(userId);
+    if (hasAccess) {
+      try {
+        const googleTask = await createGoogleTask(userId, "@default", {
+          title: body.title,
+          notes: body.description,
+          due: body.dueDate,
+        });
+        taskData.googleTaskId = googleTask.id;
+        taskData.googleTaskListId = "@default";
+      } catch (err) {
+        console.error("[Google Task Sync Error]", err);
       }
     }
-
-    const task = await AgentTask.create(taskData);
-
-    return successResponse(
-      {
-        id: task._id.toString(),
-        title: task.title,
-        status: task.status,
-        priority: task.priority,
-        source: task.source,
-        googleTaskId: task.googleTaskId,
-        createdAt: task.createdAt,
-      },
-      201
-    );
-  } catch (error) {
-    console.error("[Tasks POST Error]", error);
-    return serverErrorResponse("Failed to create task.");
   }
-}
+
+  const task = await AgentTask.create(taskData);
+
+  return successResponse(
+    {
+      id: task._id.toString(),
+      title: task.title,
+      status: task.status,
+      priority: task.priority,
+      source: task.source,
+      googleTaskId: task.googleTaskId,
+      createdAt: task.createdAt,
+    },
+    201
+  );
+});
 
 /**
  * PATCH /api/agents/tasks
  * Update a task (status, priority, schedule, etc.)
  * Pass task ID as query param: ?id=xxx
  */
-export async function PATCH(request: NextRequest) {
-  try {
-    let userId: string;
-    try {
-      const payload = await authenticateRequest(request);
-      userId = payload.userId;
-    } catch {
-      return unauthorizedResponse();
-    }
+export const PATCH = withHandler(async (req: NextRequest) => {
+  await checkRateLimit(req, "ai");
+  const userId = await getUserIdFromRequest(req);
 
-    const { searchParams } = new URL(request.url);
-    const taskId = searchParams.get("id");
-    if (!taskId) {
-      return errorResponse("Task ID required.", 400);
-    }
-
-    // Validate ObjectId format to avoid CastError
-    if (!mongoose.Types.ObjectId.isValid(taskId)) {
-      return errorResponse("Invalid task ID.", 400);
-    }
-
-    await connectDB();
-
-    const task = await AgentTask.findOne({ _id: taskId, userId });
-    if (!task) {
-      return errorResponse("Task not found.", 404);
-    }
-
-    const body = await request.json();
-
-    // Apply updates
-    if (body.title) task.title = body.title;
-    if (body.description !== undefined) task.description = body.description;
-    if (body.status) {
-      task.status = body.status;
-      if (body.status === "completed") {
-        task.completedAt = new Date();
-      }
-    }
-    if (body.priority) task.priority = body.priority;
-    if (body.dueDate) task.dueDate = new Date(body.dueDate);
-    if (body.scheduledStart) task.scheduledStart = new Date(body.scheduledStart);
-    if (body.scheduledEnd) task.scheduledEnd = new Date(body.scheduledEnd);
-    if (body.tags) task.tags = body.tags;
-    if (body.estimatedMinutes) task.estimatedMinutes = body.estimatedMinutes;
-
-    await task.save();
-
-    return successResponse({
-      id: task._id.toString(),
-      title: task.title,
-      status: task.status,
-      priority: task.priority,
-      completedAt: task.completedAt,
-      scheduledStart: task.scheduledStart,
-      scheduledEnd: task.scheduledEnd,
-      updatedAt: task.updatedAt,
-    });
-  } catch (error) {
-    console.error("[Tasks PATCH Error]", error);
-    return serverErrorResponse("Failed to update task.");
+  const { searchParams } = new URL(req.url);
+  const taskId = searchParams.get("id");
+  if (!taskId) {
+    throw new BadRequestError("Task ID required.");
   }
-}
+
+  // Validate ObjectId format to avoid CastError
+  if (!mongoose.Types.ObjectId.isValid(taskId)) {
+    throw new BadRequestError("Invalid task ID.");
+  }
+
+  const body = updateTaskSchema.parse(await req.json());
+
+  await connectDB();
+
+  const task = await AgentTask.findOne({ _id: taskId, userId });
+  if (!task) {
+    throw new NotFoundError("Task not found.");
+  }
+
+  // Apply updates
+  if (body.title) task.title = body.title;
+  if (body.description !== undefined) task.description = body.description;
+  if (body.status) {
+    task.status = body.status;
+    if (body.status === "completed") {
+      task.completedAt = new Date();
+    }
+  }
+  if (body.priority) task.priority = body.priority;
+  if (body.dueDate) task.dueDate = new Date(body.dueDate);
+  if (body.scheduledStart) task.scheduledStart = new Date(body.scheduledStart);
+  if (body.scheduledEnd) task.scheduledEnd = new Date(body.scheduledEnd);
+  if (body.tags) task.tags = body.tags;
+  if (body.estimatedMinutes) task.estimatedMinutes = body.estimatedMinutes;
+
+  await task.save();
+
+  return successResponse({
+    id: task._id.toString(),
+    title: task.title,
+    status: task.status,
+    priority: task.priority,
+    completedAt: task.completedAt,
+    scheduledStart: task.scheduledStart,
+    scheduledEnd: task.scheduledEnd,
+    updatedAt: task.updatedAt,
+  });
+});

@@ -1,0 +1,62 @@
+version: "3.9"
+
+services:
+  # ── Yoodle Next.js App (with embedded Socket.io signaling) ─────────
+  yoodle:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+    env_file: .env.local
+    environment:
+      - NODE_ENV=production
+      - YOODLE_EDITION=${YOODLE_EDITION:-community}
+      - MONGODB_URI=mongodb://mongo:27017/yoodle
+      - REDIS_URL=redis://redis:6379
+      - LIVEKIT_URL=ws://livekit:7880
+      - LIVEKIT_API_KEY=${LIVEKIT_API_KEY:-devkey}
+      - LIVEKIT_API_SECRET=${LIVEKIT_API_SECRET:-devsecret}
+    depends_on:
+      mongo:
+        condition: service_started
+      redis:
+        condition: service_started
+      livekit:
+        condition: service_started
+    restart: unless-stopped
+
+  # ── MongoDB ────────────────────────────────────────────────────────
+  mongo:
+    image: mongo:7
+    volumes:
+      - mongo_data:/data/db
+    ports:
+      - "27017:27017"
+    restart: unless-stopped
+
+  # ── Redis ──────────────────────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    volumes:
+      - redis_data:/data
+    ports:
+      - "6379:6379"
+    command: redis-server --appendonly yes
+    restart: unless-stopped
+
+  # ── LiveKit (dev mode) ─────────────────────────────────────────────
+  livekit:
+    image: livekit/livekit-server:latest
+    ports:
+      - "7880:7880"
+      - "7881:7881"
+      - "7882:7882/udp"
+    environment:
+      - LIVEKIT_KEYS=${LIVEKIT_API_KEY:-devkey}: ${LIVEKIT_API_SECRET:-devsecret}
+    command: --dev --bind 0.0.0.0
+    restart: unless-stopped
+
+volumes:
+  mongo_data:
+  redis_data:

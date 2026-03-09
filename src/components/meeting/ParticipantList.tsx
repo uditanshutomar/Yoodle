@@ -1,7 +1,7 @@
 "use client";
 
 import { motion, AnimatePresence } from "framer-motion";
-import { X, Mic, MicOff, Video, VideoOff, Crown, Monitor } from "lucide-react";
+import { X, Mic, MicOff, Video, VideoOff, Crown, Monitor, Hand, UserX } from "lucide-react";
 import Avatar from "@/components/ui/Avatar";
 
 interface ParticipantInfo {
@@ -13,6 +13,7 @@ interface ParticipantInfo {
   isVideoEnabled: boolean;
   isScreenSharing: boolean;
   isHost?: boolean;
+  isHandRaised?: boolean;
 }
 
 interface ParticipantListProps {
@@ -21,6 +22,10 @@ interface ParticipantListProps {
   participants: ParticipantInfo[];
   speakingPeers: Set<string>;
   localUserId: string;
+  /** Whether the local user is the host (enables mute/kick controls) */
+  isLocalHost?: boolean;
+  onMuteParticipant?: (userId: string) => void;
+  onKickParticipant?: (userId: string) => void;
 }
 
 export default function ParticipantList({
@@ -29,7 +34,19 @@ export default function ParticipantList({
   participants,
   speakingPeers,
   localUserId,
+  isLocalHost = false,
+  onMuteParticipant,
+  onKickParticipant,
 }: ParticipantListProps) {
+  // Sort: host first, then hand raised, then rest
+  const sortedParticipants = [...participants].sort((a, b) => {
+    if (a.isHost && !b.isHost) return -1;
+    if (!a.isHost && b.isHost) return 1;
+    if (a.isHandRaised && !b.isHandRaised) return -1;
+    if (!a.isHandRaised && b.isHandRaised) return 1;
+    return 0;
+  });
+
   return (
     <AnimatePresence>
       {isOpen && (
@@ -68,14 +85,14 @@ export default function ParticipantList({
 
           {/* Participant list */}
           <div className="flex-1 overflow-y-auto px-4 py-3 space-y-1">
-            {participants.map((p, i) => {
+            {sortedParticipants.map((p, i) => {
               const isSpeaking = speakingPeers.has(p.id);
               const isLocal = p.id === localUserId;
 
               return (
                 <motion.div
                   key={p.id}
-                  className={`flex items-center gap-3 rounded-xl px-3 py-2.5 transition-colors ${
+                  className={`group flex items-center gap-3 rounded-xl px-3 py-2.5 transition-colors ${
                     isSpeaking
                       ? "bg-[#FFE600]/15"
                       : "hover:bg-[#0A0A0A]/3"
@@ -124,6 +141,15 @@ export default function ParticipantList({
                           className="text-[#FFE600] fill-[#FFE600] shrink-0"
                         />
                       )}
+                      {p.isHandRaised && (
+                        <motion.span
+                          initial={{ y: 0 }}
+                          animate={{ y: [-2, 0, -2] }}
+                          transition={{ duration: 1, repeat: Infinity }}
+                        >
+                          <Hand size={12} className="text-[#FFE600] fill-[#FFE600] shrink-0" />
+                        </motion.span>
+                      )}
                     </div>
                     <span
                       className="text-xs text-[#0A0A0A]/40"
@@ -133,7 +159,7 @@ export default function ParticipantList({
                     </span>
                   </div>
 
-                  {/* Status icons */}
+                  {/* Status icons + host actions */}
                   <div className="flex items-center gap-1.5 shrink-0">
                     {p.isScreenSharing && (
                       <Monitor size={14} className="text-[#06B6D4]" />
@@ -147,6 +173,34 @@ export default function ParticipantList({
                       <Video size={14} className="text-[#0A0A0A]/40" />
                     ) : (
                       <VideoOff size={14} className="text-[#FF6B6B]" />
+                    )}
+
+                    {/* Host controls — only show for non-local participants when local is host */}
+                    {isLocalHost && !isLocal && (
+                      <div className="hidden group-hover:flex items-center gap-1 ml-1">
+                        {p.isAudioEnabled && onMuteParticipant && (
+                          <motion.button
+                            className="h-6 w-6 rounded-md border border-[#0A0A0A]/20 bg-[#0A0A0A]/5 flex items-center justify-center cursor-pointer"
+                            whileHover={{ scale: 1.15, backgroundColor: "#FF6B6B20" }}
+                            whileTap={{ scale: 0.9 }}
+                            onClick={() => onMuteParticipant(p.id)}
+                            title="Mute participant"
+                          >
+                            <MicOff size={10} className="text-[#FF6B6B]" />
+                          </motion.button>
+                        )}
+                        {onKickParticipant && (
+                          <motion.button
+                            className="h-6 w-6 rounded-md border border-[#0A0A0A]/20 bg-[#0A0A0A]/5 flex items-center justify-center cursor-pointer"
+                            whileHover={{ scale: 1.15, backgroundColor: "#FF6B6B20" }}
+                            whileTap={{ scale: 0.9 }}
+                            onClick={() => onKickParticipant(p.id)}
+                            title="Remove participant"
+                          >
+                            <UserX size={10} className="text-[#FF6B6B]" />
+                          </motion.button>
+                        )}
+                      </div>
                     )}
                   </div>
                 </motion.div>

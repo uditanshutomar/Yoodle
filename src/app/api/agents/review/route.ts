@@ -1,16 +1,14 @@
 import { NextRequest } from "next/server";
 import { z } from "zod";
+import { withHandler } from "@/lib/api/with-handler";
+import { successResponse } from "@/lib/api/response";
+import { checkRateLimit } from "@/lib/api/rate-limit";
+import { getUserIdFromRequest } from "@/lib/auth/middleware";
+import { BadRequestError } from "@/lib/api/errors";
 import connectDB from "@/lib/db/client";
-import { authenticateRequest } from "@/lib/auth/middleware";
 import { getFileContent } from "@/lib/google/drive";
 import { hasGoogleAccess } from "@/lib/google/client";
 import { reviewWork } from "@/lib/ai/agent-services";
-import {
-  successResponse,
-  errorResponse,
-  unauthorizedResponse,
-  serverErrorResponse,
-} from "@/lib/utils/api-response";
 
 const reviewSchema = z.union([
   z.object({
@@ -32,56 +30,38 @@ const reviewSchema = z.union([
  * Submit work for AI review. Accepts inline content or a Google Drive file ID.
  * Returns strengths, flaws, suggestions, and an overall assessment.
  */
-export async function POST(request: NextRequest) {
-  try {
-    let userId: string;
+export const POST = withHandler(async (req: NextRequest) => {
+  await checkRateLimit(req, "ai");
+  const userId = await getUserIdFromRequest(req);
+
+  const data = reviewSchema.parse(await req.json());
+
+  await connectDB();
+
+  let content: string;
+
+  if ("googleFileId" in data) {
+    const hasAccess = await hasGoogleAccess(userId);
+    if (!hasAccess) {
+      throw new BadRequestError("Google account required to read files.");
+    }
+
     try {
-      const payload = await authenticateRequest(request);
-      userId = payload.userId;
-    } catch {
-      return unauthorizedResponse();
+      content = await getFileContent(userId, data.googleFileId);
+    } catch (err) {
+      console.error("[File Read Error]", err);
+      throw new BadRequestError("Failed to read the file from Google Drive.");
     }
-
-    const body = await request.json();
-    const parsed = reviewSchema.safeParse(body);
-    if (!parsed.success) {
-      return errorResponse({
-        message: "Validation failed.",
-        status: 400,
-        errors: parsed.error.flatten().fieldErrors,
-      });
-    }
-
-    await connectDB();
-
-    let content: string;
-
-    if ("googleFileId" in parsed.data) {
-      const hasAccess = await hasGoogleAccess(userId);
-      if (!hasAccess) {
-        return errorResponse("Google account required to read files.", 400);
-      }
-
-      try {
-        content = await getFileContent(userId, parsed.data.googleFileId);
-      } catch (err) {
-        console.error("[File Read Error]", err);
-        return errorResponse("Failed to read the file from Google Drive.", 400);
-      }
-    } else {
-      content = parsed.data.content;
-    }
-
-    const review = await reviewWork(content, parsed.data.workType, parsed.data.context);
-
-    return successResponse({
-      strengths: review.strengths,
-      flaws: review.flaws,
-      suggestions: review.suggestions,
-      overallAssessment: review.overallAssessment,
-    });
-  } catch (error) {
-    console.error("[Review Error]", error);
-    return serverErrorResponse("Failed to review work.");
+  } else {
+    content = data.content;
   }
-}
+
+  const review = await reviewWork(content, data.workType, data.context);
+
+  return successResponse({
+    strengths: review.strengths,
+    flaws: review.flaws,
+    suggestions: review.suggestions,
+    overallAssessment: review.overallAssessment,
+  });
+});

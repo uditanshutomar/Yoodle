@@ -59,6 +59,7 @@ export function useVoiceActivity({
 
   // Refs for speaking detection state
   const isSpeakingRef = useRef(false);
+  const prevIsSpeakingRef = useRef(false);
   const speakingStartTimeRef = useRef<number | null>(null);
   const aboveThresholdSinceRef = useRef<number | null>(null);
   const lastAboveThresholdRef = useRef<number>(0);
@@ -111,7 +112,10 @@ export function useVoiceActivity({
         endTime: now,
       };
 
-      setSpeechSegments((prev) => [...prev, segment]);
+      setSpeechSegments((prev) => {
+        const next = [...prev, segment];
+        return next.length > 500 ? next.slice(-500) : next;
+      });
 
       if (socket) {
         socket.emit(SOCKET_EVENTS.SPEAKING_STOP, {
@@ -173,8 +177,11 @@ export function useVoiceActivity({
       }
     }
 
-    // Broadcast the current level periodically (handled via interval, not every frame)
-    broadcastActivity(isSpeakingRef.current, normalizedLevel);
+    // Only broadcast on speaking state change (not every analysis loop)
+    if (isSpeakingRef.current !== prevIsSpeakingRef.current) {
+      broadcastActivity(isSpeakingRef.current, normalizedLevel);
+      prevIsSpeakingRef.current = isSpeakingRef.current;
+    }
   }, [
     speakingThreshold,
     speakingStartDelay,
@@ -314,7 +321,10 @@ export function useVoiceActivity({
         endTime: payload.endTime,
       };
 
-      setSpeechSegments((prev) => [...prev, segment]);
+      setSpeechSegments((prev) => {
+        const next = [...prev, segment];
+        return next.length > 500 ? next.slice(-500) : next;
+      });
     };
 
     socket.on(SOCKET_EVENTS.VOICE_ACTIVITY, handleRemoteVoiceActivity);

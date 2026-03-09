@@ -1,17 +1,13 @@
 import { NextRequest } from "next/server";
 import { z } from "zod";
 import mongoose from "mongoose";
+import { withHandler } from "@/lib/api/with-handler";
+import { successResponse } from "@/lib/api/response";
+import { checkRateLimit } from "@/lib/api/rate-limit";
+import { getUserIdFromRequest } from "@/lib/auth/middleware";
+import { BadRequestError, NotFoundError, ForbiddenError } from "@/lib/api/errors";
 import connectDB from "@/lib/db/client";
 import Meeting from "@/lib/db/models/meeting";
-import { authenticateRequest } from "@/lib/auth/middleware";
-import {
-  successResponse,
-  errorResponse,
-  unauthorizedResponse,
-  forbiddenResponse,
-  notFoundResponse,
-  serverErrorResponse,
-} from "@/lib/utils/api-response";
 
 // ── Helpers ─────────────────────────────────────────────────────────
 
@@ -28,6 +24,8 @@ function buildMeetingFilter(meetingId: string): Record<string, unknown> {
 }
 
 // ── Validation ──────────────────────────────────────────────────────
+
+const meetingIdSchema = z.string().min(1, "Meeting ID is required");
 
 const updateMeetingSchema = z.object({
   title: z
@@ -51,10 +49,6 @@ const updateMeetingSchema = z.object({
     .optional(),
 });
 
-// ── Route context type ──────────────────────────────────────────────
-
-type RouteContext = { params: Promise<{ meetingId: string }> };
-
 // ── GET /api/meetings/:meetingId ────────────────────────────────────
 
 /**
@@ -66,66 +60,53 @@ type RouteContext = { params: Promise<{ meetingId: string }> };
  *    so the pre-join lobby can render.
  *  - Hosts and existing participants receive the full meeting document.
  */
-export async function GET(
-  request: NextRequest,
-  context: RouteContext
-) {
-  try {
-    let userId: string;
+export const GET = withHandler(async (req: NextRequest, context) => {
+  await checkRateLimit(req, "meetings");
+  const userId = await getUserIdFromRequest(req);
 
-    try {
-      const payload = await authenticateRequest(request);
-      userId = payload.userId;
-    } catch {
-      return unauthorizedResponse();
-    }
+  const { meetingId } = await context!.params;
+  meetingIdSchema.parse(meetingId);
 
-    const { meetingId } = await context.params;
+  await connectDB();
 
-    await connectDB();
+  const filter = buildMeetingFilter(meetingId);
+  const meeting = await Meeting.findOne(filter)
+    .populate("hostId", "name email displayName avatarUrl")
+    .populate("participants.userId", "name email displayName avatarUrl")
+    .lean();
 
-    const filter = buildMeetingFilter(meetingId);
-    const meeting = await Meeting.findOne(filter)
-      .populate("hostId", "name email displayName avatarUrl")
-      .populate("participants.userId", "name email displayName avatarUrl")
-      .lean();
-
-    if (!meeting) {
-      return notFoundResponse("Meeting not found.");
-    }
-
-    // Check if user is host or participant
-    const isHost = meeting.hostId._id?.toString() === userId ||
-      (meeting.hostId as unknown as mongoose.Types.ObjectId).toString() === userId;
-    const isParticipant = meeting.participants.some(
-      (p) => p.userId?.toString() === userId || p.userId?._id?.toString() === userId
-    );
-
-    if (isHost || isParticipant) {
-      // Full access — return everything
-      return successResponse(meeting);
-    }
-
-    // Non-participant: return limited info so the lobby/join page can render
-    return successResponse({
-      _id: meeting._id,
-      title: meeting.title,
-      code: meeting.code,
-      status: meeting.status,
-      type: meeting.type,
-      hostId: meeting.hostId,
-      settings: {
-        waitingRoom: meeting.settings?.waitingRoom ?? false,
-      },
-      participants: meeting.participants.map((p) => ({
-        status: p.status,
-      })),
-    });
-  } catch (error) {
-    console.error("[Meeting GET Error]", error);
-    return serverErrorResponse("Failed to retrieve meeting.");
+  if (!meeting) {
+    throw new NotFoundError("Meeting not found.");
   }
-}
+
+  // Check if user is host or participant
+  const isHost = meeting.hostId._id?.toString() === userId ||
+    (meeting.hostId as unknown as mongoose.Types.ObjectId).toString() === userId;
+  const isParticipant = meeting.participants.some(
+    (p) => p.userId?.toString() === userId || p.userId?._id?.toString() === userId
+  );
+
+  if (isHost || isParticipant) {
+    // Full access -- return everything
+    return successResponse(meeting);
+  }
+
+  // Non-participant: return limited info so the lobby/join page can render
+  return successResponse({
+    _id: meeting._id,
+    title: meeting.title,
+    code: meeting.code,
+    status: meeting.status,
+    type: meeting.type,
+    hostId: meeting.hostId,
+    settings: {
+      waitingRoom: meeting.settings?.waitingRoom ?? false,
+    },
+    participants: meeting.participants.map((p) => ({
+      status: p.status,
+    })),
+  });
+});
 
 // ── PATCH /api/meetings/:meetingId ──────────────────────────────────
 
@@ -133,101 +114,66 @@ export async function GET(
  * Update meeting details. Only the host can update.
  * Updatable fields: title, scheduledAt, settings.
  */
-export async function PATCH(
-  request: NextRequest,
-  context: RouteContext
-) {
-  try {
-    let userId: string;
+export const PATCH = withHandler(async (req: NextRequest, context) => {
+  await checkRateLimit(req, "meetings");
+  const userId = await getUserIdFromRequest(req);
 
-    try {
-      const payload = await authenticateRequest(request);
-      userId = payload.userId;
-    } catch {
-      return unauthorizedResponse();
-    }
+  const { meetingId } = await context!.params;
+  meetingIdSchema.parse(meetingId);
 
-    const { meetingId } = await context.params;
+  const updates = updateMeetingSchema.parse(await req.json());
 
-    const body = await request.json();
+  await connectDB();
 
-    const parsed = updateMeetingSchema.safeParse(body);
-    if (!parsed.success) {
-      const fieldErrors: Record<string, string[]> = {};
-      for (const issue of parsed.error.issues) {
-        const path = issue.path.join(".");
-        if (!fieldErrors[path]) {
-          fieldErrors[path] = [];
-        }
-        fieldErrors[path].push(issue.message);
-      }
-      return errorResponse({
-        message: "Validation failed.",
-        status: 400,
-        errors: fieldErrors,
-      });
-    }
+  const filter = buildMeetingFilter(meetingId);
+  const meeting = await Meeting.findOne(filter);
 
-    const updates = parsed.data;
-
-    await connectDB();
-
-    const filter = buildMeetingFilter(meetingId);
-    const meeting = await Meeting.findOne(filter);
-
-    if (!meeting) {
-      return notFoundResponse("Meeting not found.");
-    }
-
-    // Only host can update
-    if (meeting.hostId.toString() !== userId) {
-      return forbiddenResponse("Only the host can update this meeting.");
-    }
-
-    // Build update fields
-    const updateFields: Record<string, unknown> = {};
-
-    if (updates.title !== undefined) {
-      updateFields.title = updates.title;
-    }
-    if (updates.scheduledAt !== undefined) {
-      updateFields.scheduledAt = updates.scheduledAt
-        ? new Date(updates.scheduledAt)
-        : null;
-    }
-    if (updates.settings !== undefined) {
-      // Merge individual settings fields
-      for (const [key, value] of Object.entries(updates.settings)) {
-        if (value !== undefined) {
-          updateFields[`settings.${key}`] = value;
-        }
-      }
-    }
-
-    if (Object.keys(updateFields).length === 0) {
-      return errorResponse({
-        message: "No valid fields to update.",
-        status: 400,
-      });
-    }
-
-    const updatedMeeting = await Meeting.findOneAndUpdate(
-      filter,
-      { $set: updateFields },
-      { new: true, runValidators: true }
-    )
-      .populate("hostId", "name email displayName avatarUrl")
-      .populate("participants.userId", "name email displayName avatarUrl");
-
-    return successResponse({
-      data: { meeting: updatedMeeting },
-      message: "Meeting updated successfully.",
-    });
-  } catch (error) {
-    console.error("[Meeting PATCH Error]", error);
-    return serverErrorResponse("Failed to update meeting.");
+  if (!meeting) {
+    throw new NotFoundError("Meeting not found.");
   }
-}
+
+  // Only host can update
+  if (meeting.hostId.toString() !== userId) {
+    throw new ForbiddenError("Only the host can update this meeting.");
+  }
+
+  // Build update fields
+  const updateFields: Record<string, unknown> = {};
+
+  if (updates.title !== undefined) {
+    updateFields.title = updates.title;
+  }
+  if (updates.scheduledAt !== undefined) {
+    updateFields.scheduledAt = updates.scheduledAt
+      ? new Date(updates.scheduledAt)
+      : null;
+  }
+  if (updates.settings !== undefined) {
+    // Merge individual settings fields
+    for (const [key, value] of Object.entries(updates.settings)) {
+      if (value !== undefined) {
+        updateFields[`settings.${key}`] = value;
+      }
+    }
+  }
+
+  if (Object.keys(updateFields).length === 0) {
+    throw new BadRequestError("No valid fields to update.");
+  }
+
+  const updatedMeeting = await Meeting.findOneAndUpdate(
+    filter,
+    { $set: updateFields },
+    { new: true, runValidators: true }
+  )
+    .populate("hostId", "name email displayName avatarUrl")
+    .populate("participants.userId", "name email displayName avatarUrl");
+
+  return successResponse({
+    data: { meeting: updatedMeeting },
+    message: "Meeting updated successfully.",
+  });
+});
 
 // ── DELETE /api/meetings/:meetingId ─────────────────────────────────
 
@@ -235,52 +181,36 @@ export async function PATCH(
  * Cancel/delete a meeting (soft delete: sets status to "ended").
  * Only the host can delete.
  */
-export async function DELETE(
-  request: NextRequest,
-  context: RouteContext
-) {
-  try {
-    let userId: string;
+export const DELETE = withHandler(async (req: NextRequest, context) => {
+  await checkRateLimit(req, "meetings");
+  const userId = await getUserIdFromRequest(req);
 
-    try {
-      const payload = await authenticateRequest(request);
-      userId = payload.userId;
-    } catch {
-      return unauthorizedResponse();
-    }
+  const { meetingId } = await context!.params;
+  meetingIdSchema.parse(meetingId);
 
-    const { meetingId } = await context.params;
+  await connectDB();
 
-    await connectDB();
+  const filter = buildMeetingFilter(meetingId);
+  const meeting = await Meeting.findOne(filter);
 
-    const filter = buildMeetingFilter(meetingId);
-    const meeting = await Meeting.findOne(filter);
-
-    if (!meeting) {
-      return notFoundResponse("Meeting not found.");
-    }
-
-    // Only host can delete
-    if (meeting.hostId.toString() !== userId) {
-      return forbiddenResponse("Only the host can cancel this meeting.");
-    }
-
-    if (meeting.status === "ended" || meeting.status === "cancelled") {
-      return errorResponse({
-        message: "Meeting is already ended or cancelled.",
-        status: 400,
-      });
-    }
-
-    meeting.status = "cancelled";
-    meeting.endedAt = new Date();
-    await meeting.save();
-
-    return successResponse({
-      message: "Meeting cancelled successfully.",
-    });
-  } catch (error) {
-    console.error("[Meeting DELETE Error]", error);
-    return serverErrorResponse("Failed to cancel meeting.");
+  if (!meeting) {
+    throw new NotFoundError("Meeting not found.");
   }
-}
+
+  // Only host can delete
+  if (meeting.hostId.toString() !== userId) {
+    throw new ForbiddenError("Only the host can cancel this meeting.");
+  }
+
+  if (meeting.status === "ended" || meeting.status === "cancelled") {
+    throw new BadRequestError("Meeting is already ended or cancelled.");
+  }
+
+  meeting.status = "cancelled";
+  meeting.endedAt = new Date();
+  await meeting.save();
+
+  return successResponse({
+    message: "Meeting cancelled successfully.",
+  });
+});

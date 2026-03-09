@@ -73,6 +73,9 @@ const agentSchema = new Schema<IAgentDocument>(
   }
 );
 
+agentSchema.index({ userId: 1, status: 1 });
+agentSchema.index({ lastActiveAt: -1 });
+
 const Agent: Model<IAgentDocument> =
   mongoose.models.Agent || mongoose.model<IAgentDocument>("Agent", agentSchema);
 

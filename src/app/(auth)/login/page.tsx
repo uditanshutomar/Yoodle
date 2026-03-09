@@ -129,7 +129,7 @@ function LoginContent() {
               className="text-xs text-[#0A0A0A]/40 text-center leading-relaxed"
               style={{ fontFamily: "var(--font-body)" }}
             >
-              We&apos;ll connect your Google Workspace so Doodle can help manage
+              We&apos;ll connect your Google Workspace so Yoodle can help manage
               your emails, calendar, drive, and more.
             </p>
           </div>

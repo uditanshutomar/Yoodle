@@ -17,6 +17,9 @@ export type MeetingStatus = (typeof MEETING_STATUSES)[number];
 export const MEETING_TYPES = ["regular", "ghost"] as const;
 export type MeetingType = (typeof MEETING_TYPES)[number];
 
+export const TRANSPORT_MODES = ["p2p", "livekit", "auto"] as const;
+export type TransportMode = (typeof TRANSPORT_MODES)[number];
+
 export interface IMeetingParticipant {
   userId: Types.ObjectId;
   role: ParticipantRole;
@@ -45,6 +48,7 @@ export interface IMeeting {
   status: MeetingStatus;
   type: MeetingType;
   settings: IMeetingSettings;
+  transportMode?: TransportMode;
   recordingId?: Types.ObjectId;
   createdAt: Date;
   updatedAt: Date;
@@ -166,6 +170,11 @@ const meetingSchema = new Schema<IMeetingDocument>(
         muteOnJoin: false,
       }),
     },
+    transportMode: {
+      type: String,
+      enum: TRANSPORT_MODES,
+      default: "auto",
+    },
     recordingId: {
       type: Schema.Types.ObjectId,
       ref: "Recording",
@@ -179,6 +188,8 @@ const meetingSchema = new Schema<IMeetingDocument>(
 
 meetingSchema.index({ status: 1, scheduledAt: 1 });
 meetingSchema.index({ "participants.userId": 1 });
+meetingSchema.index({ hostId: 1, status: 1, createdAt: -1 });
+meetingSchema.index({ type: 1, status: 1 });
 
 const Meeting: Model<IMeetingDocument> =
   mongoose.models.Meeting ||

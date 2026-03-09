@@ -3,13 +3,17 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
-import { WifiOff } from "lucide-react";
+import { WifiOff, AlertTriangle } from "lucide-react";
 import BubbleLayout from "@/components/meeting/BubbleLayout";
+import GridLayout from "@/components/meeting/GridLayout";
 import MeetingControls from "@/components/meeting/MeetingControls";
 import ChatPanel from "@/components/meeting/ChatPanel";
 import ScreenShareView from "@/components/meeting/ScreenShareView";
 import ParticipantList from "@/components/meeting/ParticipantList";
 import ReactionOverlay from "@/components/meeting/ReactionOverlay";
+import ConnectionIndicator from "@/components/meeting/ConnectionIndicator";
+import ReconnectionOverlay from "@/components/meeting/ReconnectionOverlay";
+import WaitingRoomPanel, { type WaitingUser } from "@/components/meeting/WaitingRoomPanel";
 import { toParticipant } from "@/components/meeting/adapters";
 import { DoodleStar, DoodleSparkles } from "@/components/Doodles";
 import "./meeting.css";
@@ -17,6 +21,12 @@ import { useMediaDevices } from "@/hooks/useMediaDevices";
 import { useVoiceActivity, type SpeechSegment } from "@/hooks/useVoiceActivity";
 import { useAuth } from "@/hooks/useAuth";
 import { useSocket } from "@/hooks/useSocket";
+import { useChat } from "@/hooks/useChat";
+import { useRecording } from "@/hooks/useRecording";
+import { useTranscription } from "@/hooks/useTranscription";
+import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
+import { useMutedWarning } from "@/hooks/useMutedWarning";
+import { useConnectionQuality } from "@/hooks/useConnectionQuality";
 import {
   SOCKET_EVENTS,
   type RoomUser,
@@ -24,10 +34,13 @@ import {
   type SignalAnswerPayload,
   type SignalIceCandidatePayload,
   type MediaStatePayload,
-  type ChatMessagePayload,
   type ReactionPayload,
   type ScreenSharePayload,
-  type RecordingStatusPayload,
+  type HostMutePayload,
+  type HostKickPayload,
+  type WaitingRoomUser,
+  type WaitingRoomActionPayload,
+  type HandRaisePayload,
 } from "@/lib/realtime/socket-events";
 
 // ── Types ──────────────────────────────────────────────────────────────
@@ -45,7 +58,6 @@ async function getIceServers(): Promise<RTCIceServer[]> {
     const res = await fetch("/api/turn-credentials", { credentials: "include" });
     if (res.ok) {
       const data = await res.json();
-      // API returns a flat array of ice servers
       if (Array.isArray(data)) return data;
       return data.data?.iceServers || data.iceServers || data;
     }
@@ -64,6 +76,9 @@ export default function MeetingRoomPage() {
   const { user } = useAuth();
   const { socket, isConnected } = useSocket();
 
+  // ── Bug #6 fix: media error state ──────────────────────────────────
+  const [mediaError, setMediaError] = useState<string | null>(null);
+
   const {
     stream: localStream,
     isVideoEnabled,
@@ -72,12 +87,17 @@ export default function MeetingRoomPage() {
     toggleAudio,
     startMedia,
     stopMedia,
+    error: mediaDeviceError,
   } = useMediaDevices();
+
+  // Sync media device errors to local state for UI display
+  useEffect(() => {
+    if (mediaDeviceError) setMediaError(mediaDeviceError);
+  }, [mediaDeviceError]);
 
   // ── Voice activity (speaker detection for transcripts) ──────────────
   const {
     isSpeaking: isLocalSpeaking,
-    audioLevel: localAudioLevel,
     speechSegments,
     remoteSpeakingPeers: remoteSpeakingFromVAD,
     startMonitoring: startVoiceMonitoring,
@@ -88,12 +108,42 @@ export default function MeetingRoomPage() {
     userName: user?.displayName || user?.name || "You",
   });
 
+  // ── Transport mode ─────────────────────────────────────────────────
+  const [transportMode, setTransportMode] = useState<"p2p" | "livekit">("p2p");
+
+  // ── Lobby bypass guard ─────────────────────────────────────────────
+  useEffect(() => {
+    const lobbyPassed = sessionStorage.getItem("yoodle-lobby-passed");
+    if (lobbyPassed !== meetingId) {
+      router.push(`/meetings/${meetingId}`);
+      return;
+    }
+
+    // Read transport mode set by the lobby page after the join API response
+    const storedMode = sessionStorage.getItem("yoodle-transport-mode");
+    if (storedMode === "p2p" || storedMode === "livekit") {
+      setTransportMode(storedMode);
+    }
+
+    // Read host ID for host controls
+    const storedHostId = sessionStorage.getItem("yoodle-host-id");
+    if (storedHostId && user?.id === storedHostId) {
+      setIsLocalHost(true);
+    }
+  }, [meetingId, router, user?.id]);
+
   // ── UI state ─────────────────────────────────────────────────────────
   const [showChat, setShowChat] = useState(false);
   const [showParticipants, setShowParticipants] = useState(false);
   const [isScreenSharing, setIsScreenSharing] = useState(false);
+  const [layout, setLayout] = useState<"bubbles" | "grid">("bubbles");
+  const [isHandRaised, setIsHandRaised] = useState(false);
+  const [showWaitingRoom, setShowWaitingRoom] = useState(false);
+  const [waitingUsers, setWaitingUsers] = useState<WaitingUser[]>([]);
+  const [isLocalHost, setIsLocalHost] = useState(false);
+  const [reconnectAttempts, setReconnectAttempts] = useState(0);
+  const MAX_RECONNECT_ATTEMPTS = 5;
   const reactionRef = useRef<((emoji: string, userName: string) => void) | null>(null);
-  const [chatMessages, setChatMessages] = useState<ChatMessagePayload[]>([]);
 
   // ── Bubble layout container measurement ─────────────────────────────
   const containerRef = useRef<HTMLDivElement>(null);
@@ -125,16 +175,48 @@ export default function MeetingRoomPage() {
     return `${m}:${s.toString().padStart(2, "0")}`;
   };
 
+  // ── Local user identity ────────────────────────────────────────────
+  const localUser = user
+    ? {
+        id: user.id,
+        name: user.name,
+        displayName: user.displayName || user.name,
+        avatar: user.avatar || undefined,
+      }
+    : { id: "local", name: "You", displayName: "You", avatar: undefined };
+
+  // ── Chat hook ──────────────────────────────────────────────────────
+  const {
+    messages: chatMessages,
+    sendMessage: handleSendMessage,
+    unreadCount: chatUnreadCount,
+    markRead: markChatRead,
+  } = useChat(socket, meetingId, localUser.id, localUser.displayName);
+
+  // Mark chat as read when the panel is opened
+  useEffect(() => {
+    if (showChat) markChatRead();
+  }, [showChat, markChatRead]);
+
   // ── WebRTC state ─────────────────────────────────────────────────────
   const [remoteParticipants, setRemoteParticipants] = useState<RoomUser[]>([]);
   const [remoteStreams, setRemoteStreams] = useState<Map<string, MediaStream>>(new Map());
-  // Speaker detection is handled by useVoiceActivity — combine local + remote
+
+  // ── Transport upgrade check ───────────────────────────────────────
+  useEffect(() => {
+    if (transportMode !== "p2p") return;
+    const totalParticipants = remoteParticipants.length + 1;
+    if (totalParticipants >= 5) {
+      console.warn(
+        "[Transport] Room has 5+ participants on P2P. Consider LiveKit for better quality."
+      );
+    }
+  }, [remoteParticipants.length, transportMode]);
+
+  // Speaker detection: combine local + remote
   const speakingPeers = new Set([
     ...(isLocalSpeaking ? [user?.id || "local"] : []),
     ...remoteSpeakingFromVAD,
-  ]);
-  const audioLevels = new Map<string, number>([
-    [user?.id || "local", localAudioLevel],
   ]);
   const peersRef = useRef<Map<string, PeerData>>(new Map());
   const iceServersRef = useRef<RTCIceServer[]>([]);
@@ -145,17 +227,63 @@ export default function MeetingRoomPage() {
   const makingOfferRef = useRef<Set<string>>(new Set());
   const earlyCandidatesRef = useRef<Map<string, RTCIceCandidateInit[]>>(new Map());
 
-  // ── Recording state ──────────────────────────────────────────────────
-  const [isRecording, setIsRecording] = useState(false);
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
-  const recordedChunksRef = useRef<Blob[]>([]);
-  const audioContextRef = useRef<AudioContext | null>(null);
-  const mixedDestRef = useRef<MediaStreamAudioDestinationNode | null>(null);
-  const audioSourcesRef = useRef<MediaStreamAudioSourceNode[]>([]);
-  const recordingTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  // Track speech segments for recording (ref to avoid re-renders)
+  const speechSegmentsRef = useRef<SpeechSegment[]>([]);
+  useEffect(() => {
+    speechSegmentsRef.current = speechSegments;
+  }, [speechSegments]);
 
-  // ── Transcription ref (background, automatic) ──────────────────────
-  const transcriptionRecorderRef = useRef<MediaRecorder | null>(null);
+  // ── Recording hook ─────────────────────────────────────────────────
+  const {
+    isRecording,
+    startRecording: handleStartRecording,
+    stopRecording: handleStopRecording,
+  } = useRecording(localStream, remoteStreams, meetingId, socket, speechSegmentsRef);
+
+  // ── Transcription hook ──────────────────────────────────────────────
+  useTranscription(
+    localStream,
+    meetingId,
+    user?.id || "local",
+    user?.displayName || user?.name || "You",
+    isAudioEnabled,
+    isConnected
+  );
+
+  // ── Build full participants list ─────────────────────────────────────
+  const participants: RoomUser[] = [
+    {
+      id: localUser.id,
+      socketId: socket?.id || "",
+      name: localUser.name,
+      displayName: localUser.displayName,
+      avatar: localUser.avatar || null,
+      isVideoEnabled,
+      isAudioEnabled,
+      isScreenSharing,
+      isHandRaised,
+    },
+    ...remoteParticipants,
+  ];
+
+  // Bug #3 fix: derive activeScreenShare from ANY participant, not just local
+  const activeScreenShare = participants.some((p) => p.isScreenSharing);
+
+  // ── Muted warning (detects speaking while muted) ──────────────────
+  const showMutedWarning = useMutedWarning(localStream, isAudioEnabled);
+
+  // ── Connection quality monitoring ─────────────────────────────────
+  const { quality: connectionQuality, rtt, packetLoss } = useConnectionQuality(peersRef.current);
+
+  // ── Sync remote streams from peersRef to React state ────────────────
+
+  const syncStreams = useCallback(() => {
+    const streams = new Map<string, MediaStream>();
+    peersRef.current.forEach((peer, peerId) => {
+      streams.set(peerId, peer.stream);
+    });
+    setRemoteStreams(new Map(streams));
+  }, []);
 
   // Keep localStreamRef in sync and start voice monitoring
   useEffect(() => {
@@ -167,47 +295,6 @@ export default function MeetingRoomPage() {
       stopVoiceMonitoring();
     };
   }, [localStream, startVoiceMonitoring, stopVoiceMonitoring]);
-
-  // Track speech segments for recording (ref to avoid re-renders)
-  const speechSegmentsRef = useRef<SpeechSegment[]>([]);
-  useEffect(() => {
-    speechSegmentsRef.current = speechSegments;
-  }, [speechSegments]);
-
-  const localUser = user
-    ? {
-        id: user.id,
-        name: user.name,
-        displayName: user.displayName || user.name,
-        avatar: user.avatar || undefined,
-      }
-    : { id: "local", name: "You", displayName: "You", avatar: undefined };
-
-  // ── Build full participants list ─────────────────────────────────────
-
-  const participants: RoomUser[] = [
-    {
-      id: localUser.id,
-      socketId: socket?.id || "",
-      name: localUser.name,
-      displayName: localUser.displayName,
-      avatar: localUser.avatar || null,
-      isVideoEnabled,
-      isAudioEnabled,
-      isScreenSharing,
-    },
-    ...remoteParticipants,
-  ];
-
-  // ── Sync remote streams from peersRef to React state ─────────────────
-
-  const syncStreams = useCallback(() => {
-    const streams = new Map<string, MediaStream>();
-    peersRef.current.forEach((peer, peerId) => {
-      streams.set(peerId, peer.stream);
-    });
-    setRemoteStreams(new Map(streams));
-  }, []);
 
   // ── Process pending ICE candidates for a peer ────────────────────────
 
@@ -248,7 +335,6 @@ export default function MeetingRoomPage() {
 
   const createPeerConnection = useCallback(
     (remoteUserId: string): RTCPeerConnection => {
-      // Clean up existing connection
       cleanupPeer(remoteUserId);
 
       const pc = new RTCPeerConnection({
@@ -256,7 +342,6 @@ export default function MeetingRoomPage() {
         iceCandidatePoolSize: 10,
       });
 
-      // Outgoing stream container — drain any early candidates
       const remoteStream = new MediaStream();
       const earlyCandidates = earlyCandidatesRef.current.get(remoteUserId) || [];
       earlyCandidatesRef.current.delete(remoteUserId);
@@ -317,7 +402,6 @@ export default function MeetingRoomPage() {
 
   const createOffer = useCallback(
     async (remoteUserId: string) => {
-      // Prevent duplicate connections
       if (peersRef.current.has(remoteUserId)) return;
 
       const pc = createPeerConnection(remoteUserId);
@@ -342,13 +426,22 @@ export default function MeetingRoomPage() {
     [createPeerConnection, socket, localUser.id]
   );
 
-  // ── Start media immediately on mount (don't wait for socket) ────────
+  // ── Start media immediately on mount ────────────────────────────────
+  // Bug #6 fix: wrap in try/catch and surface error to UI
 
   useEffect(() => {
     if (mediaStartedRef.current) return;
     mediaStartedRef.current = true;
-    // Fire and forget — start camera/mic right away so video shows instantly
-    startMedia(true, true);
+
+    startMedia(true, true).catch((err) => {
+      console.error("[Media] Failed to start media:", err);
+      setMediaError(
+        err instanceof Error
+          ? err.message
+          : "Failed to access camera or microphone. Please check your permissions."
+      );
+    });
+
     // Pre-fetch ICE servers in parallel
     getIceServers().then((servers) => {
       iceServersRef.current = servers;
@@ -368,12 +461,10 @@ export default function MeetingRoomPage() {
     };
 
     if (!joinedRef.current) {
-      // ── First time: join room (media already starting above) ──────
       socket.emit(SOCKET_EVENTS.JOIN_ROOM, { roomId: meetingId, user: roomUser });
       joinedRef.current = true;
     } else {
-      // ── Reconnection: tear down stale peers, re-join room ────────
-      console.log("[WebRTC] Socket reconnected — re-joining room");
+      console.log("[WebRTC] Socket reconnected -- re-joining room");
       peersRef.current.forEach((peer) => peer.connection.close());
       peersRef.current.clear();
       setRemoteParticipants([]);
@@ -381,17 +472,13 @@ export default function MeetingRoomPage() {
       socket.emit(SOCKET_EVENTS.JOIN_ROOM, { roomId: meetingId, user: roomUser });
     }
 
-    // ── Event handlers (attached on every connect/reconnect) ────────
+    // ── Event handlers ──────────────────────────────────────────────
 
     const handleRoomUsers = (users: RoomUser[]) => {
       const remoteUsers = users.filter((u) => u.id !== user.id);
       setRemoteParticipants(remoteUsers);
-
-      // Create offers only to users we don't already have connections to
       remoteUsers.forEach((u) => {
-        if (!peersRef.current.has(u.id)) {
-          createOffer(u.id);
-        }
+        if (!peersRef.current.has(u.id)) createOffer(u.id);
       });
     };
 
@@ -400,10 +487,7 @@ export default function MeetingRoomPage() {
         if (prev.find((p) => p.id === roomUser.id)) return prev;
         return [...prev, roomUser];
       });
-      // Only create offer if we don't have a connection already
-      if (!peersRef.current.has(roomUser.id)) {
-        createOffer(roomUser.id);
-      }
+      if (!peersRef.current.has(roomUser.id)) createOffer(roomUser.id);
     };
 
     const handleUserLeft = ({ userId }: { userId: string }) => {
@@ -415,25 +499,18 @@ export default function MeetingRoomPage() {
 
     const handleOffer = async (payload: SignalOfferPayload) => {
       const { senderId } = payload;
-
-      // Glare handling: both sides sent offers simultaneously
       const isPolite = user.id < senderId;
       const existingPeer = peersRef.current.get(senderId);
       const offerCollision =
         makingOfferRef.current.has(senderId) ||
         (existingPeer && existingPeer.connection.signalingState !== "stable");
 
-      if (offerCollision && !isPolite) {
-        console.log(`[WebRTC] Ignoring offer from ${senderId} (glare, impolite)`);
-        return;
-      }
+      if (offerCollision && !isPolite) return;
 
-      // If collision and we're polite, rollback our offer
       if (offerCollision && isPolite && existingPeer) {
         try {
           await existingPeer.connection.setLocalDescription({ type: "rollback" });
         } catch {
-          // Rollback failed — recreate the connection
           cleanupPeer(senderId);
         }
       }
@@ -468,7 +545,6 @@ export default function MeetingRoomPage() {
       const peer = peersRef.current.get(payload.senderId);
       if (!peer) return;
 
-      // Accept answer in have-local-offer or have-remote-pranswer states
       const { signalingState } = peer.connection;
       if (signalingState !== "have-local-offer" && signalingState !== "have-remote-pranswer") {
         console.warn(`[WebRTC] Ignoring answer in state: ${signalingState}`);
@@ -490,7 +566,6 @@ export default function MeetingRoomPage() {
     const handleIceCandidate = async (payload: SignalIceCandidatePayload) => {
       const peer = peersRef.current.get(payload.senderId);
       if (!peer) {
-        // No peer yet — queue in earlyCandidatesRef for when connection is created
         if (!earlyCandidatesRef.current.has(payload.senderId)) {
           earlyCandidatesRef.current.set(payload.senderId, []);
         }
@@ -498,7 +573,6 @@ export default function MeetingRoomPage() {
         return;
       }
 
-      // Queue if remote description hasn't been set yet
       if (!peer.connection.remoteDescription) {
         peer.pendingCandidates.push(payload.candidate);
         return;
@@ -521,16 +595,6 @@ export default function MeetingRoomPage() {
       );
     };
 
-    // ── Chat messages ───────────────────────────────────────────────
-
-    const handleChatMessage = (msg: ChatMessagePayload) => {
-      setChatMessages((prev) => [...prev, msg]);
-    };
-
-    const handleChatHistory = (history: ChatMessagePayload[]) => {
-      setChatMessages(history);
-    };
-
     const handleReaction = (payload: ReactionPayload) => {
       reactionRef.current?.(payload.emoji, payload.userName);
     };
@@ -551,8 +615,58 @@ export default function MeetingRoomPage() {
       );
     };
 
-    const handleRecordingStatus = (payload: RecordingStatusPayload) => {
-      setIsRecording(payload.isRecording);
+    // ── Hand raise events ────────────────────────────────────────────
+    const handleHandRaised = (payload: HandRaisePayload) => {
+      setRemoteParticipants((prev) =>
+        prev.map((p) =>
+          p.id === payload.userId ? { ...p, isHandRaised: true } : p
+        )
+      );
+    };
+
+    const handleHandLowered = (payload: HandRaisePayload) => {
+      setRemoteParticipants((prev) =>
+        prev.map((p) =>
+          p.id === payload.userId ? { ...p, isHandRaised: false } : p
+        )
+      );
+    };
+
+    // ── Host control events ──────────────────────────────────────────
+    const handleHostMuted = () => {
+      // Server force-muted us
+      // The toggleAudio function will handle updating the state
+    };
+
+    const handleHostKicked = () => {
+      // We've been kicked from the room
+      router.push("/meetings?kicked=true");
+    };
+
+    // ── Waiting room events ──────────────────────────────────────────
+    const handleWaitingList = (users: WaitingRoomUser[]) => {
+      setWaitingUsers(
+        users.map((u) => ({
+          id: u.id,
+          name: u.name,
+          displayName: u.displayName,
+          avatar: u.avatar,
+          joinedWaitingAt: u.joinedWaitingAt,
+        }))
+      );
+      // Auto-show waiting room panel if there are users waiting
+      if (users.length > 0 && isLocalHost) {
+        setShowWaitingRoom(true);
+      }
+    };
+
+    // ── Reconnection tracking ────────────────────────────────────────
+    const handleDisconnect = () => {
+      setReconnectAttempts(0);
+    };
+
+    const handleReconnectAttempt = (attempt: number) => {
+      setReconnectAttempts(attempt);
     };
 
     // ── Register event listeners ────────────────────────────────────
@@ -564,12 +678,16 @@ export default function MeetingRoomPage() {
     socket.on(SOCKET_EVENTS.ANSWER, handleAnswer);
     socket.on(SOCKET_EVENTS.ICE_CANDIDATE, handleIceCandidate);
     socket.on(SOCKET_EVENTS.MEDIA_STATE_CHANGED, handleMediaState);
-    socket.on(SOCKET_EVENTS.CHAT_MESSAGE, handleChatMessage);
-    socket.on(SOCKET_EVENTS.CHAT_HISTORY, handleChatHistory);
     socket.on(SOCKET_EVENTS.REACTION_RECEIVED, handleReaction);
     socket.on(SOCKET_EVENTS.SCREEN_SHARE_START, handleScreenShareStart);
     socket.on(SOCKET_EVENTS.SCREEN_SHARE_STOP, handleScreenShareStop);
-    socket.on(SOCKET_EVENTS.RECORDING_STATUS, handleRecordingStatus);
+    socket.on(SOCKET_EVENTS.HAND_RAISED, handleHandRaised);
+    socket.on(SOCKET_EVENTS.HAND_LOWERED, handleHandLowered);
+    socket.on(SOCKET_EVENTS.HOST_MUTED, handleHostMuted);
+    socket.on(SOCKET_EVENTS.HOST_KICKED, handleHostKicked);
+    socket.on(SOCKET_EVENTS.WAITING_LIST, handleWaitingList);
+    socket.io.on("reconnect_attempt", handleReconnectAttempt);
+    socket.io.on("reconnect_failed", handleDisconnect);
 
     return () => {
       socket.off(SOCKET_EVENTS.ROOM_USERS, handleRoomUsers);
@@ -579,12 +697,16 @@ export default function MeetingRoomPage() {
       socket.off(SOCKET_EVENTS.ANSWER, handleAnswer);
       socket.off(SOCKET_EVENTS.ICE_CANDIDATE, handleIceCandidate);
       socket.off(SOCKET_EVENTS.MEDIA_STATE_CHANGED, handleMediaState);
-      socket.off(SOCKET_EVENTS.CHAT_MESSAGE, handleChatMessage);
-      socket.off(SOCKET_EVENTS.CHAT_HISTORY, handleChatHistory);
       socket.off(SOCKET_EVENTS.REACTION_RECEIVED, handleReaction);
       socket.off(SOCKET_EVENTS.SCREEN_SHARE_START, handleScreenShareStart);
       socket.off(SOCKET_EVENTS.SCREEN_SHARE_STOP, handleScreenShareStop);
-      socket.off(SOCKET_EVENTS.RECORDING_STATUS, handleRecordingStatus);
+      socket.off(SOCKET_EVENTS.HAND_RAISED, handleHandRaised);
+      socket.off(SOCKET_EVENTS.HAND_LOWERED, handleHandLowered);
+      socket.off(SOCKET_EVENTS.HOST_MUTED, handleHostMuted);
+      socket.off(SOCKET_EVENTS.HOST_KICKED, handleHostKicked);
+      socket.off(SOCKET_EVENTS.WAITING_LIST, handleWaitingList);
+      socket.io.off("reconnect_attempt", handleReconnectAttempt);
+      socket.io.off("reconnect_failed", handleDisconnect);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [socket, isConnected, user]);
@@ -621,16 +743,13 @@ export default function MeetingRoomPage() {
 
   const handleToggleScreenShare = useCallback(async () => {
     if (isScreenSharing) {
-      // Stop sharing -> revert to camera track
       screenStreamRef.current?.getTracks().forEach((t) => t.stop());
       screenStreamRef.current = null;
       setIsScreenSharing(false);
 
       if (localStreamRef.current) {
         const videoTrack = localStreamRef.current.getVideoTracks()[0];
-        if (videoTrack) {
-          await replaceVideoTrackInPeers(videoTrack);
-        }
+        if (videoTrack) await replaceVideoTrackInPeers(videoTrack);
       }
     } else {
       try {
@@ -650,241 +769,18 @@ export default function MeetingRoomPage() {
           screenStreamRef.current = null;
           if (localStreamRef.current) {
             const camTrack = localStreamRef.current.getVideoTracks()[0];
-            if (camTrack) {
-              await replaceVideoTrackInPeers(camTrack);
-            }
+            if (camTrack) await replaceVideoTrackInPeers(camTrack);
           }
         };
       } catch (err) {
         if (err instanceof DOMException && err.name === "NotAllowedError") {
-          // User cancelled — not an error
+          // User cancelled -- not an error
         } else {
           console.error("[ScreenShare] Failed:", err);
         }
       }
     }
   }, [isScreenSharing, replaceVideoTrackInPeers]);
-
-  // ── Recording (mixed audio: local + remote via Web Audio API) ────
-
-  const handleStartRecording = useCallback(() => {
-    try {
-      const audioCtx = new AudioContext();
-      const dest = audioCtx.createMediaStreamDestination();
-      audioContextRef.current = audioCtx;
-      mixedDestRef.current = dest;
-      const sources: MediaStreamAudioSourceNode[] = [];
-
-      // Add local audio
-      if (localStreamRef.current) {
-        const localAudioTracks = localStreamRef.current.getAudioTracks();
-        if (localAudioTracks.length > 0) {
-          const localSource = audioCtx.createMediaStreamSource(
-            new MediaStream(localAudioTracks)
-          );
-          localSource.connect(dest);
-          sources.push(localSource);
-        }
-      }
-
-      // Add all remote audio
-      peersRef.current.forEach((peer) => {
-        const audioTracks = peer.stream.getAudioTracks();
-        if (audioTracks.length > 0) {
-          const remoteSource = audioCtx.createMediaStreamSource(
-            new MediaStream(audioTracks)
-          );
-          remoteSource.connect(dest);
-          sources.push(remoteSource);
-        }
-      });
-
-      audioSourcesRef.current = sources;
-
-      // Combine mixed audio + local video
-      const videoTrack = localStreamRef.current?.getVideoTracks()[0];
-      const combinedStream = new MediaStream([
-        ...dest.stream.getTracks(),
-        ...(videoTrack ? [videoTrack] : []),
-      ]);
-
-      const mimeType = MediaRecorder.isTypeSupported("video/webm;codecs=vp9,opus")
-        ? "video/webm;codecs=vp9,opus"
-        : MediaRecorder.isTypeSupported("video/webm;codecs=vp8,opus")
-          ? "video/webm;codecs=vp8,opus"
-          : "video/webm";
-
-      const recorder = new MediaRecorder(combinedStream, { mimeType });
-      recordedChunksRef.current = [];
-
-      recorder.ondataavailable = (e) => {
-        if (e.data.size > 0) recordedChunksRef.current.push(e.data);
-      };
-
-      recorder.onstop = async () => {
-        const blob = new Blob(recordedChunksRef.current, { type: mimeType });
-
-        // Capture speech segments for speaker-attributed transcript
-        const segments = speechSegmentsRef.current.map((seg) => ({
-          speakerId: seg.peerId,
-          speakerName: seg.speakerName,
-          startTime: seg.startTime,
-          endTime: seg.endTime,
-        }));
-
-        // Try to upload via pre-signed URL
-        try {
-          const urlRes = await fetch("/api/recordings/upload-url", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            credentials: "include",
-            body: JSON.stringify({
-              meetingId,
-              contentType: mimeType,
-              speechSegments: segments,
-            }),
-          });
-
-          if (urlRes.ok) {
-            const urlData = await urlRes.json();
-            const uploadUrl = urlData.data?.uploadUrl || urlData.uploadUrl;
-            if (uploadUrl) {
-              await fetch(uploadUrl, {
-                method: "PUT",
-                headers: { "Content-Type": mimeType },
-                body: blob,
-              });
-            }
-          } else {
-            downloadRecording(blob);
-          }
-        } catch {
-          downloadRecording(blob);
-        }
-
-        // Clean up audio context and sources
-        for (const source of audioSourcesRef.current) {
-          try { source.disconnect(); } catch { /* already disconnected */ }
-        }
-        audioSourcesRef.current = [];
-        audioContextRef.current?.close();
-        audioContextRef.current = null;
-        mixedDestRef.current = null;
-      };
-
-      recorder.start(1000);
-      mediaRecorderRef.current = recorder;
-      setIsRecording(true);
-    } catch (err) {
-      console.error("[Recording] Failed to start:", err);
-    }
-  }, [meetingId]);
-
-  const handleStopRecording = useCallback(() => {
-    if (mediaRecorderRef.current?.state === "recording") {
-      mediaRecorderRef.current.stop();
-    }
-    if (recordingTimerRef.current) {
-      clearInterval(recordingTimerRef.current);
-      recordingTimerRef.current = null;
-    }
-    setIsRecording(false);
-  }, []);
-
-  // ── Background transcription (automatic, tied to mic state) ─────
-  //
-  // Each participant captures their OWN mic in 3-second chunks and
-  // POSTs to /api/transcription with their name/ID.  The API stores
-  // every segment under the same meetingId so everyone shares one
-  // transcript afterwards.  No captions UI — just silent capture.
-
-  useEffect(() => {
-    if (!isConnected || !isAudioEnabled || !localStream || !user) return;
-
-    const audioTrack = localStream.getAudioTracks()[0];
-    if (!audioTrack) return;
-
-    const captureAndSend = () => {
-      const stream = localStreamRef.current;
-      if (!stream) return;
-      const track = stream.getAudioTracks()[0];
-      if (!track || !track.enabled) return;
-
-      const audioStream = new MediaStream([track]);
-      const mimeType = MediaRecorder.isTypeSupported("audio/webm;codecs=opus")
-        ? "audio/webm;codecs=opus"
-        : "audio/webm";
-      const recorder = new MediaRecorder(audioStream, { mimeType });
-      const chunks: Blob[] = [];
-
-      recorder.ondataavailable = (e) => {
-        if (e.data.size > 0) chunks.push(e.data);
-      };
-
-      recorder.onstop = async () => {
-        if (chunks.length === 0) return;
-        const blob = new Blob(chunks, { type: mimeType });
-
-        // Skip silent chunks (< 1 KB is essentially silence)
-        if (blob.size < 1000) return;
-
-        const formData = new FormData();
-        formData.append("audio", blob, "chunk.webm");
-        formData.append("meetingId", meetingId);
-        formData.append("speakerName", user.displayName || user.name);
-        formData.append("speakerId", user.id);
-        formData.append("timestamp", String(Date.now()));
-
-        try {
-          await fetch("/api/transcription", {
-            method: "POST",
-            credentials: "include",
-            body: formData,
-          });
-        } catch {
-          // Transcription is best-effort — silent fail
-        }
-      };
-
-      recorder.start();
-      transcriptionRecorderRef.current = recorder;
-
-      setTimeout(() => {
-        if (recorder.state === "recording") recorder.stop();
-      }, 3000);
-    };
-
-    // Start immediately, then every 3.5s (3s record + 0.5s gap)
-    captureAndSend();
-    const interval = setInterval(captureAndSend, 3500);
-
-    return () => {
-      clearInterval(interval);
-      if (transcriptionRecorderRef.current?.state === "recording") {
-        transcriptionRecorderRef.current.stop();
-      }
-    };
-  }, [isAudioEnabled, isConnected, localStream, user, meetingId]);
-
-  // ── Chat ─────────────────────────────────────────────────────────
-
-  const handleSendMessage = useCallback(
-    (content: string) => {
-      if (!socket || !user) return;
-      const msg: ChatMessagePayload = {
-        id: Math.random().toString(36).slice(2),
-        roomId: meetingId,
-        senderId: user.id,
-        senderName: user.displayName || user.name,
-        content,
-        type: "text",
-        timestamp: Date.now(),
-      };
-      socket.emit(SOCKET_EVENTS.CHAT_MESSAGE, msg);
-      setChatMessages((prev) => [...prev, msg]);
-    },
-    [socket, user, meetingId]
-  );
 
   // ── Reactions ────────────────────────────────────────────────────
 
@@ -903,12 +799,84 @@ export default function MeetingRoomPage() {
     [socket, user]
   );
 
+  // ── Hand raise ─────────────────────────────────────────────────────
+
+  const handleToggleHandRaise = useCallback(() => {
+    if (!socket || !user) return;
+    const event = isHandRaised ? SOCKET_EVENTS.HAND_LOWER : SOCKET_EVENTS.HAND_RAISE;
+    socket.emit(event, {
+      userId: user.id,
+      userName: user.displayName || user.name,
+      timestamp: Date.now(),
+    } as HandRaisePayload);
+    setIsHandRaised(!isHandRaised);
+  }, [socket, user, isHandRaised]);
+
+  // ── Layout toggle ─────────────────────────────────────────────────
+
+  const handleToggleLayout = useCallback(() => {
+    setLayout((prev) => (prev === "bubbles" ? "grid" : "bubbles"));
+  }, []);
+
+  // ── Host controls: mute/kick ──────────────────────────────────────
+
+  const handleMuteParticipant = useCallback(
+    (targetUserId: string) => {
+      if (!socket || !isLocalHost) return;
+      socket.emit(SOCKET_EVENTS.HOST_MUTE, {
+        targetUserId,
+        roomId: meetingId,
+      } as HostMutePayload);
+    },
+    [socket, isLocalHost, meetingId]
+  );
+
+  const handleKickParticipant = useCallback(
+    (targetUserId: string) => {
+      if (!socket || !isLocalHost) return;
+      socket.emit(SOCKET_EVENTS.HOST_KICK, {
+        targetUserId,
+        roomId: meetingId,
+      } as HostKickPayload);
+    },
+    [socket, isLocalHost, meetingId]
+  );
+
+  // ── Waiting room controls ────────────────────────────────────────
+
+  const handleAdmitUser = useCallback(
+    (userId: string) => {
+      if (!socket || !isLocalHost) return;
+      socket.emit(SOCKET_EVENTS.HOST_ADMIT, {
+        userId,
+        roomId: meetingId,
+      } as WaitingRoomActionPayload);
+      setWaitingUsers((prev) => prev.filter((u) => u.id !== userId));
+    },
+    [socket, isLocalHost, meetingId]
+  );
+
+  const handleDenyUser = useCallback(
+    (userId: string) => {
+      if (!socket || !isLocalHost) return;
+      socket.emit(SOCKET_EVENTS.HOST_DENY, {
+        userId,
+        roomId: meetingId,
+      } as WaitingRoomActionPayload);
+      setWaitingUsers((prev) => prev.filter((u) => u.id !== userId));
+    },
+    [socket, isLocalHost, meetingId]
+  );
+
+  const handleAdmitAll = useCallback(() => {
+    waitingUsers.forEach((u) => handleAdmitUser(u.id));
+  }, [waitingUsers, handleAdmitUser]);
+
   // ── Leave / End call ─────────────────────────────────────────────
 
   const handleEndCall = useCallback(async () => {
-    if (mediaRecorderRef.current?.state === "recording") {
-      mediaRecorderRef.current.stop();
-    }
+    // Stop recording if active
+    if (isRecording) handleStopRecording();
 
     peersRef.current.forEach((peer) => {
       peer.connection.onicecandidate = null;
@@ -938,16 +906,32 @@ export default function MeetingRoomPage() {
     }
 
     router.push("/meetings");
-  }, [meetingId, router, stopMedia, socket]);
+  }, [meetingId, router, stopMedia, socket, isRecording, handleStopRecording]);
+
+  // ── Keyboard shortcuts ────────────────────────────────────────────
+
+  useKeyboardShortcuts({
+    toggleAudio,
+    toggleVideo,
+    toggleChat: () => {
+      setShowChat((prev) => !prev);
+      setShowParticipants(false);
+    },
+    toggleParticipants: () => {
+      setShowParticipants((prev) => !prev);
+      setShowChat(false);
+    },
+    toggleLayout: handleToggleLayout,
+    toggleRecording: isRecording ? handleStopRecording : handleStartRecording,
+    toggleHandRaise: handleToggleHandRaise,
+    leaveCall: handleEndCall,
+  });
 
   // ── Cleanup on unmount ───────────────────────────────────────────
 
   useEffect(() => {
     const peers = peersRef.current;
     const screenStream = screenStreamRef.current;
-    const sources = audioSourcesRef.current;
-    const audioCtx = audioContextRef.current;
-    const timer = recordingTimerRef.current;
     return () => {
       peers.forEach((peer) => {
         peer.connection.onicecandidate = null;
@@ -959,13 +943,17 @@ export default function MeetingRoomPage() {
       });
       peers.clear();
       screenStream?.getTracks().forEach((t) => t.stop());
-      for (const source of sources) {
-        try { source.disconnect(); } catch { /* already disconnected */ }
-      }
-      audioCtx?.close();
-      if (timer) clearInterval(timer);
     };
   }, []);
+
+  // ── Find active screen-share presenter ────────────────────────────
+  // Bug #3 fix: find the FIRST participant who is sharing, not just local
+  const screenSharePresenter = participants.find((p) => p.isScreenSharing);
+  const screenShareStream = screenSharePresenter
+    ? screenSharePresenter.id === localUser.id
+      ? screenStreamRef.current
+      : remoteStreams.get(screenSharePresenter.id) || null
+    : null;
 
   // ── Build bubble participants via adapter ─────────────────────────
 
@@ -989,7 +977,28 @@ export default function MeetingRoomPage() {
         <DoodleSparkles className="absolute bottom-40 right-[12%] opacity-20" />
       </div>
 
-      {/* ─── Header bar ─── */}
+      {/* Bug #6: Media error banner */}
+      {mediaError && (
+        <motion.div
+          className="relative z-30 mx-6 mt-2 flex items-center gap-2 rounded-xl border-2 border-[#FF6B6B] bg-[#FF6B6B]/10 px-4 py-2 text-sm text-[#FF6B6B]"
+          initial={{ opacity: 0, y: -20 }}
+          animate={{ opacity: 1, y: 0 }}
+        >
+          <AlertTriangle size={16} />
+          <span>{mediaError}</span>
+          <button
+            className="ml-auto text-xs underline hover:no-underline cursor-pointer"
+            onClick={() => {
+              setMediaError(null);
+              startMedia(true, true).catch(() => {});
+            }}
+          >
+            Retry
+          </button>
+        </motion.div>
+      )}
+
+      {/* Header bar */}
       <motion.header
         className="meeting-header relative z-20 flex items-center justify-between px-6 py-3"
         initial={{ y: -50, opacity: 0 }}
@@ -1006,6 +1015,15 @@ export default function MeetingRoomPage() {
             <span className="text-[11px] font-bold text-white" style={{ fontFamily: "var(--font-heading)" }}>LIVE</span>
           </div>
           <span className="text-sm font-mono text-[#0A0A0A]/40">{formatTime(elapsedTime)}</span>
+          {/* Transport mode indicator */}
+          <span
+            className="text-xs px-2 py-0.5 rounded-full border-2 border-black"
+            style={{
+              backgroundColor: transportMode === "livekit" ? "#FFE600" : "#E0E0E0",
+            }}
+          >
+            {transportMode === "livekit" ? "SFU" : "P2P"}
+          </span>
           {!isConnected && (
             <span className="flex items-center gap-1 text-xs text-[#FF6B6B]">
               <WifiOff size={12} /> Reconnecting...
@@ -1016,8 +1034,9 @@ export default function MeetingRoomPage() {
         {/* Center: meeting code */}
         <span className="text-xs font-mono text-[#0A0A0A]/25">{meetingId.slice(0, 8)}</span>
 
-        {/* Right: participant count + recording indicator */}
+        {/* Right: connection quality + participant count + recording indicator */}
         <div className="flex items-center gap-2">
+          <ConnectionIndicator quality={connectionQuality} rtt={rtt} packetLoss={packetLoss} />
           <div className="flex items-center gap-1.5 rounded-full border border-[#0A0A0A]/15 px-3 py-1">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#0A0A0A" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="opacity-40">
               <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M23 21v-2a4 4 0 0 0-3-3.87" /><path d="M16 3.13a4 4 0 0 1 0 7.75" />
@@ -1039,24 +1058,35 @@ export default function MeetingRoomPage() {
         </div>
       </motion.header>
 
-      {/* ─── Main content area ─── */}
+      {/* Main content area */}
       <div ref={containerRef} className="relative z-10 flex-1 overflow-hidden">
         {/* Bubble layout or screen share */}
         <AnimatePresence mode="wait">
-          {isScreenSharing ? (
+          {activeScreenShare && screenSharePresenter ? (
             <ScreenShareView
               key="screenshare"
-              presenter={toParticipant(participants[0], {
-                isSpeaking: isLocalSpeaking,
-                stream: localStream,
+              presenter={toParticipant(screenSharePresenter, {
+                isSpeaking: speakingPeers.has(screenSharePresenter.id),
+                stream:
+                  screenSharePresenter.id === localUser.id
+                    ? localStream
+                    : remoteStreams.get(screenSharePresenter.id) || null,
               })}
               participants={bubbleParticipants}
               selfId={localUser.id}
               onStopSharing={handleToggleScreenShare}
-              screenStream={screenStreamRef.current}
+              screenStream={screenShareStream}
             />
-          ) : (
-            containerSize.width > 0 && (
+          ) : containerSize.width > 0 ? (
+            layout === "grid" ? (
+              <GridLayout
+                key="grid"
+                participants={bubbleParticipants}
+                containerWidth={containerSize.width}
+                containerHeight={containerSize.height}
+                selfId={localUser.id}
+              />
+            ) : (
               <BubbleLayout
                 key="bubbles"
                 participants={bubbleParticipants}
@@ -1065,10 +1095,10 @@ export default function MeetingRoomPage() {
                 selfId={localUser.id}
               />
             )
-          )}
+          ) : null}
         </AnimatePresence>
 
-        {/* Chat panel — slides in from right */}
+        {/* Chat panel -- slides in from right */}
         <ChatPanel
           isOpen={showChat}
           onClose={() => setShowChat(false)}
@@ -1098,18 +1128,73 @@ export default function MeetingRoomPage() {
                   isVideoEnabled: p.isVideoEnabled,
                   isAudioEnabled: p.isAudioEnabled,
                   isScreenSharing: p.isScreenSharing,
-                  isHost: p.id === localUser.id,
+                  isHost: p.id === (sessionStorage.getItem("yoodle-host-id") || localUser.id),
+                  isHandRaised: p.isHandRaised,
                 }))}
                 speakingPeers={speakingPeers}
                 localUserId={user?.id || "local"}
+                isLocalHost={isLocalHost}
+                onMuteParticipant={handleMuteParticipant}
+                onKickParticipant={handleKickParticipant}
               />
             </motion.div>
           )}
         </AnimatePresence>
+
+        {/* Waiting room panel (host only) */}
+        {isLocalHost && (
+          <AnimatePresence>
+            {showWaitingRoom && (
+              <motion.div
+                initial={{ x: 300, opacity: 0 }}
+                animate={{ x: 0, opacity: 1 }}
+                exit={{ x: 300, opacity: 0 }}
+                transition={{ type: "spring", stiffness: 200, damping: 28 }}
+                className="absolute right-0 top-0 bottom-0 z-30 w-[320px]"
+              >
+                <WaitingRoomPanel
+                  isOpen={showWaitingRoom}
+                  onClose={() => setShowWaitingRoom(false)}
+                  waitingUsers={waitingUsers}
+                  onAdmit={handleAdmitUser}
+                  onDeny={handleDenyUser}
+                  onAdmitAll={handleAdmitAll}
+                />
+              </motion.div>
+            )}
+          </AnimatePresence>
+        )}
       </div>
 
       {/* Reactions overlay */}
       <ReactionOverlay onReactionRef={reactionRef} />
+
+      {/* Muted warning toast */}
+      <AnimatePresence>
+        {showMutedWarning && (
+          <motion.div
+            className="fixed bottom-28 left-1/2 z-[90] -translate-x-1/2 rounded-xl border-2 border-[#0A0A0A] bg-[#FFE600] px-4 py-2.5 shadow-[3px_3px_0_#0A0A0A]"
+            initial={{ opacity: 0, y: 20, scale: 0.9 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 20, scale: 0.9 }}
+          >
+            <span
+              className="text-sm font-bold text-[#0A0A0A]"
+              style={{ fontFamily: "var(--font-heading)" }}
+            >
+              🎤 You&apos;re muted — press D to unmute
+            </span>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Reconnection overlay */}
+      <ReconnectionOverlay
+        isDisconnected={!isConnected && reconnectAttempts > 0}
+        attemptCount={reconnectAttempts}
+        maxAttempts={MAX_RECONNECT_ATTEMPTS}
+        onLeave={handleEndCall}
+      />
 
       {/* Controls */}
       <MeetingControls
@@ -1119,6 +1204,9 @@ export default function MeetingRoomPage() {
         isRecording={isRecording}
         isChatOpen={showChat}
         isParticipantsOpen={showParticipants}
+        isHandRaised={isHandRaised}
+        layout={layout}
+        unreadChatCount={chatUnreadCount}
         onToggleVideo={toggleVideo}
         onToggleAudio={toggleAudio}
         onToggleScreenShare={handleToggleScreenShare}
@@ -1134,18 +1222,9 @@ export default function MeetingRoomPage() {
         onStopRecording={handleStopRecording}
         onReaction={handleReaction}
         onLeave={handleEndCall}
+        onToggleHandRaise={handleToggleHandRaise}
+        onToggleLayout={handleToggleLayout}
       />
     </div>
   );
-}
-
-// ── Helper: download recording blob locally ──────────────────────────
-
-function downloadRecording(blob: Blob) {
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = `yoodle-recording-${Date.now()}.webm`;
-  a.click();
-  URL.revokeObjectURL(url);
 }

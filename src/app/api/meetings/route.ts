@@ -1,16 +1,14 @@
-import { NextRequest } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import mongoose from "mongoose";
+import { withHandler } from "@/lib/api/with-handler";
+import { successResponse } from "@/lib/api/response";
+import { checkRateLimit } from "@/lib/api/rate-limit";
+import { getUserIdFromRequest } from "@/lib/auth/middleware";
 import connectDB from "@/lib/db/client";
 import Meeting from "@/lib/db/models/meeting";
-import { authenticateRequest } from "@/lib/auth/middleware";
 import { generateMeetingCode } from "@/lib/utils/id";
-import {
-  successResponse,
-  errorResponse,
-  unauthorizedResponse,
-  serverErrorResponse,
-} from "@/lib/utils/api-response";
+import { features } from "@/lib/features/flags";
 
 // ── Validation schemas ──────────────────────────────────────────────
 
@@ -53,75 +51,60 @@ const createMeetingSchema = z.object({
  * List meetings where the authenticated user is host or participant.
  * Supports filtering by status, type, and pagination via limit/offset.
  */
-export async function GET(request: NextRequest) {
-  try {
-    let userId: string;
+export const GET = withHandler(async (req: NextRequest) => {
+  await checkRateLimit(req, "meetings");
+  const userId = await getUserIdFromRequest(req);
 
-    try {
-      const payload = await authenticateRequest(request);
-      userId = payload.userId;
-    } catch {
-      return unauthorizedResponse();
-    }
+  const searchParams = req.nextUrl.searchParams;
+  const { status, type, limit, offset } = listMeetingsSchema.parse({
+    status: searchParams.get("status") ?? undefined,
+    type: searchParams.get("type") ?? undefined,
+    limit: searchParams.get("limit") ?? 20,
+    offset: searchParams.get("offset") ?? 0,
+  });
 
-    const searchParams = request.nextUrl.searchParams;
-    const parsed = listMeetingsSchema.safeParse({
-      status: searchParams.get("status") ?? undefined,
-      type: searchParams.get("type") ?? undefined,
-      limit: searchParams.get("limit") ?? 20,
-      offset: searchParams.get("offset") ?? 0,
-    });
+  await connectDB();
 
-    if (!parsed.success) {
-      const fieldErrors: Record<string, string[]> = {};
-      for (const issue of parsed.error.issues) {
-        const path = issue.path.join(".");
-        if (!fieldErrors[path]) {
-          fieldErrors[path] = [];
-        }
-        fieldErrors[path].push(issue.message);
-      }
-      return errorResponse({
-        message: "Validation failed.",
-        status: 400,
-        errors: fieldErrors,
-      });
-    }
-
-    const { status, type, limit, offset } = parsed.data;
-
-    await connectDB();
-
-    const userObjectId = new mongoose.Types.ObjectId(userId);
-
-    // Build filter: meetings where user is host OR a participant
-    const filter: Record<string, unknown> = {
+  // Auto-cleanup: end stale "live" meetings (started > 6 hours ago or created > 24h with no start)
+  const sixHoursAgo = new Date(Date.now() - 6 * 60 * 60 * 1000);
+  const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+  await Meeting.updateMany(
+    {
+      status: "live",
       $or: [
-        { hostId: userObjectId },
-        { "participants.userId": userObjectId },
+        { startedAt: { $lt: sixHoursAgo } },
+        { startedAt: null, createdAt: { $lt: twentyFourHoursAgo } },
       ],
-    };
+    },
+    { $set: { status: "ended", endedAt: new Date() } }
+  );
 
-    if (status) {
-      filter.status = status;
-    }
-    if (type) {
-      filter.type = type;
-    }
+  const userObjectId = new mongoose.Types.ObjectId(userId);
 
-    const meetings = await Meeting.find(filter)
-      .sort({ scheduledAt: -1, createdAt: -1 })
-      .skip(offset)
-      .limit(limit)
-      .populate("hostId", "name email displayName avatarUrl")
-      .lean();
+  // Build filter: meetings where user is host OR a participant
+  const filter: Record<string, unknown> = {
+    $or: [
+      { hostId: userObjectId },
+      { "participants.userId": userObjectId },
+    ],
+  };
 
-    return successResponse(meetings);
-  } catch (error) {
-    console.error("[Meetings GET Error]", error);
-    return serverErrorResponse("Failed to retrieve meetings.");
+  if (status) {
+    filter.status = status;
   }
-}
+  if (type) {
+    filter.type = type;
+  }
+
+  const meetings = await Meeting.find(filter)
+    .sort({ scheduledAt: -1, createdAt: -1 })
+    .skip(offset)
+    .limit(limit)
+    .populate("hostId", "name email displayName avatarUrl")
+    .lean();
+
+  return successResponse(meetings);
+});
 
 // ── POST /api/meetings ──────────────────────────────────────────────
 
@@ -129,75 +112,54 @@ export async function GET(request: NextRequest) {
  * Create a new meeting.
  * Auto-generates a meeting code and adds the host as the first participant.
  */
-export async function POST(request: NextRequest) {
-  try {
-    let userId: string;
+export const POST = withHandler(async (req: NextRequest) => {
+  await checkRateLimit(req, "meetings");
+  const userId = await getUserIdFromRequest(req);
 
-    try {
-      const payload = await authenticateRequest(request);
-      userId = payload.userId;
-    } catch {
-      return unauthorizedResponse();
-    }
+  const body = createMeetingSchema.parse(await req.json());
+  const { title, description, type, scheduledAt, settings } = body;
 
-    const body = await request.json();
-
-    const parsed = createMeetingSchema.safeParse(body);
-    if (!parsed.success) {
-      const fieldErrors: Record<string, string[]> = {};
-      for (const issue of parsed.error.issues) {
-        const path = issue.path.join(".");
-        if (!fieldErrors[path]) {
-          fieldErrors[path] = [];
-        }
-        fieldErrors[path].push(issue.message);
-      }
-      return errorResponse({
-        message: "Validation failed.",
-        status: 400,
-        errors: fieldErrors,
-      });
-    }
-
-    const { title, description, type, scheduledAt, settings } = parsed.data;
-
-    await connectDB();
-
-    const code = generateMeetingCode();
-
-    const meeting = await Meeting.create({
-      code,
-      title: title || "Untitled Meeting",
-      description: description || undefined,
-      hostId: new mongoose.Types.ObjectId(userId),
-      type,
-      status: "scheduled",
-      scheduledAt: scheduledAt ? new Date(scheduledAt) : undefined,
-      participants: [
-        {
-          userId: new mongoose.Types.ObjectId(userId),
-          role: "host",
-          status: "joined",
-          joinedAt: new Date(),
-        },
-      ],
-      settings: settings
-        ? {
-            maxParticipants: settings.maxParticipants ?? 25,
-            allowRecording: settings.allowRecording ?? false,
-            allowScreenShare: settings.allowScreenShare ?? true,
-            waitingRoom: settings.waitingRoom ?? false,
-            muteOnJoin: settings.muteOnJoin ?? false,
-          }
-        : undefined,
-    });
-
-    // Populate host info before returning
-    await meeting.populate("hostId", "name email displayName avatarUrl");
-
-    return successResponse(meeting, 201);
-  } catch (error) {
-    console.error("[Meetings POST Error]", error);
-    return serverErrorResponse("Failed to create meeting.");
+  // Enforce max participants from feature flags
+  if (settings?.maxParticipants && settings.maxParticipants > features.maxParticipantsPerRoom) {
+    return NextResponse.json(
+      { success: false, error: { code: "PARTICIPANT_LIMIT", message: `Maximum ${features.maxParticipantsPerRoom} participants allowed on ${features.edition} edition` } },
+      { status: 400 }
+    );
   }
-}
+
+  await connectDB();
+
+  const code = generateMeetingCode();
+
+  const meeting = await Meeting.create({
+    code,
+    title: title || "Untitled Meeting",
+    description: description || undefined,
+    hostId: new mongoose.Types.ObjectId(userId),
+    type,
+    status: "scheduled",
+    scheduledAt: scheduledAt ? new Date(scheduledAt) : undefined,
+    participants: [
+      {
+        userId: new mongoose.Types.ObjectId(userId),
+        role: "host",
+        status: "joined",
+        joinedAt: new Date(),
+      },
+    ],
+    settings: settings
+      ? {
+          maxParticipants: settings.maxParticipants ?? 25,
+          allowRecording: settings.allowRecording ?? false,
+          allowScreenShare: settings.allowScreenShare ?? true,
+          waitingRoom: settings.waitingRoom ?? false,
+          muteOnJoin: settings.muteOnJoin ?? false,
+        }
+      : undefined,
+  });
+
+  // Populate host info before returning
+  await meeting.populate("hostId", "name email displayName avatarUrl");
+
+  return successResponse(meeting, 201);
+});

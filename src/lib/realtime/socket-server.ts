@@ -16,6 +16,11 @@ import {
   type AgentCollabInvitePayload,
   type AgentCollabMessagePayload,
   type AgentCollabClosedPayload,
+  type HostMutePayload,
+  type HostKickPayload,
+  type WaitingRoomUser,
+  type WaitingRoomActionPayload,
+  type HandRaisePayload,
 } from "./socket-events";
 
 /** In-memory storage for rooms and their users */
@@ -26,6 +31,12 @@ const chatHistory = new Map<string, ChatMessagePayload[]>();
 
 /** Recording status per room */
 const recordingStatus = new Map<string, RecordingStatusPayload>();
+
+/** Waiting room per room */
+const waitingRooms = new Map<string, Map<string, WaitingRoomUser>>();
+
+/** Host user ID per room (first user who creates the room) */
+const roomHosts = new Map<string, string>();
 
 /** Socket ID to user mapping for quick disconnect cleanup */
 const socketToUser = new Map<string, { roomId: string; userId: string }>();
@@ -65,6 +76,11 @@ function addUserToRoom(roomId: string, user: RoomUser): void {
   }
   rooms.get(roomId)!.set(user.id, user);
   socketToUser.set(user.socketId, { roomId, userId: user.id });
+
+  // First user in the room is the host
+  if (!roomHosts.has(roomId)) {
+    roomHosts.set(roomId, user.id);
+  }
 }
 
 function removeUserFromRoom(roomId: string, userId: string): RoomUser | null {
@@ -82,6 +98,8 @@ function removeUserFromRoom(roomId: string, userId: string): RoomUser | null {
     rooms.delete(roomId);
     chatHistory.delete(roomId);
     recordingStatus.delete(roomId);
+    waitingRooms.delete(roomId);
+    roomHosts.delete(roomId);
   }
 
   return user;
@@ -131,6 +149,10 @@ function isValidSignalPayload(payload: unknown): payload is { senderId: string; 
   if (!payload || typeof payload !== "object") return false;
   const p = payload as Record<string, unknown>;
   return typeof p.senderId === "string" && typeof p.targetId === "string";
+}
+
+function isHost(roomId: string, userId: string): boolean {
+  return roomHosts.get(roomId) === userId;
 }
 
 /**
@@ -435,7 +457,7 @@ export function setupSocketServer(io: SocketIOServer): void {
         timestamp: Date.now(),
       };
 
-      io.to(mapping.roomId).emit(SOCKET_EVENTS.REACTION_RECEIVED, reaction);
+      socket.to(mapping.roomId).emit(SOCKET_EVENTS.REACTION_RECEIVED, reaction);
     });
 
     // --- Screen share ---
@@ -508,6 +530,156 @@ export function setupSocketServer(io: SocketIOServer): void {
 
       recordingStatus.set(mapping.roomId, status);
       io.to(mapping.roomId).emit(SOCKET_EVENTS.RECORDING_STATUS, status);
+    });
+
+    // --- Host controls ---
+
+    socket.on(SOCKET_EVENTS.HOST_MUTE, (payload: HostMutePayload) => {
+      const mapping = socketToUser.get(socket.id);
+      if (!mapping) return;
+      if (!isHost(mapping.roomId, mapping.userId)) return;
+
+      const targetSocketId = findSocketIdByUserId(payload.targetUserId);
+      if (targetSocketId) {
+        io.to(targetSocketId).emit(SOCKET_EVENTS.HOST_MUTED, {
+          by: mapping.userId,
+        });
+        // Update the user's audio state in our tracking
+        const room = rooms.get(mapping.roomId);
+        if (room) {
+          const targetUser = room.get(payload.targetUserId);
+          if (targetUser) {
+            targetUser.isAudioEnabled = false;
+            socket.to(mapping.roomId).emit(SOCKET_EVENTS.MEDIA_STATE_CHANGED, {
+              userId: payload.targetUserId,
+              isVideoEnabled: targetUser.isVideoEnabled,
+              isAudioEnabled: false,
+            });
+          }
+        }
+      }
+    });
+
+    socket.on(SOCKET_EVENTS.HOST_KICK, (payload: HostKickPayload) => {
+      const mapping = socketToUser.get(socket.id);
+      if (!mapping) return;
+      if (!isHost(mapping.roomId, mapping.userId)) return;
+
+      const targetSocketId = findSocketIdByUserId(payload.targetUserId);
+      if (targetSocketId) {
+        io.to(targetSocketId).emit(SOCKET_EVENTS.HOST_KICKED, {
+          by: mapping.userId,
+          reason: payload.reason || "Removed by host",
+        });
+        // Remove the kicked user
+        const removed = removeUserFromRoom(mapping.roomId, payload.targetUserId);
+        if (removed) {
+          io.to(mapping.roomId).emit(SOCKET_EVENTS.USER_LEFT, {
+            userId: removed.id,
+            socketId: removed.socketId,
+          });
+          io.to(mapping.roomId).emit(SOCKET_EVENTS.ROOM_USERS, getRoomUsers(mapping.roomId));
+        }
+      }
+    });
+
+    // --- Waiting room ---
+
+    socket.on(SOCKET_EVENTS.WAITING_JOIN, (payload: { roomId: string; user: WaitingRoomUser }) => {
+      const { roomId, user } = payload;
+      if (!waitingRooms.has(roomId)) {
+        waitingRooms.set(roomId, new Map());
+      }
+      waitingRooms.get(roomId)!.set(user.id, { ...user, joinedWaitingAt: Date.now() });
+
+      // Notify host
+      const hostId = roomHosts.get(roomId);
+      if (hostId) {
+        const hostSocketId = findSocketIdByUserId(hostId);
+        if (hostSocketId) {
+          const waitingList = Array.from(waitingRooms.get(roomId)!.values());
+          io.to(hostSocketId).emit(SOCKET_EVENTS.WAITING_LIST, { roomId, users: waitingList });
+        }
+      }
+    });
+
+    socket.on(SOCKET_EVENTS.HOST_ADMIT, (payload: WaitingRoomActionPayload) => {
+      const mapping = socketToUser.get(socket.id);
+      if (!mapping) return;
+      if (!isHost(mapping.roomId, mapping.userId)) return;
+
+      const waiting = waitingRooms.get(payload.roomId);
+      if (waiting) {
+        waiting.delete(payload.userId);
+      }
+
+      // Notify the admitted user
+      const targetSocketId = findSocketIdByUserId(payload.userId);
+      if (targetSocketId) {
+        io.to(targetSocketId).emit(SOCKET_EVENTS.WAITING_ADMITTED, { roomId: payload.roomId });
+      }
+
+      // Update host's waiting list
+      const waitingList = waiting ? Array.from(waiting.values()) : [];
+      socket.emit(SOCKET_EVENTS.WAITING_LIST, { roomId: payload.roomId, users: waitingList });
+    });
+
+    socket.on(SOCKET_EVENTS.HOST_DENY, (payload: WaitingRoomActionPayload) => {
+      const mapping = socketToUser.get(socket.id);
+      if (!mapping) return;
+      if (!isHost(mapping.roomId, mapping.userId)) return;
+
+      const waiting = waitingRooms.get(payload.roomId);
+      if (waiting) {
+        waiting.delete(payload.userId);
+      }
+
+      // Notify the denied user
+      const targetSocketId = findSocketIdByUserId(payload.userId);
+      if (targetSocketId) {
+        io.to(targetSocketId).emit(SOCKET_EVENTS.WAITING_DENIED, { roomId: payload.roomId });
+      }
+
+      // Update host's waiting list
+      const waitingList = waiting ? Array.from(waiting.values()) : [];
+      socket.emit(SOCKET_EVENTS.WAITING_LIST, { roomId: payload.roomId, users: waitingList });
+    });
+
+    // --- Hand raise ---
+
+    socket.on(SOCKET_EVENTS.HAND_RAISE, () => {
+      const mapping = socketToUser.get(socket.id);
+      if (!mapping) return;
+
+      const room = rooms.get(mapping.roomId);
+      if (!room) return;
+
+      const user = room.get(mapping.userId);
+      if (user) {
+        user.isHandRaised = true;
+        const payload: HandRaisePayload = {
+          userId: user.id,
+          userName: user.displayName,
+          timestamp: Date.now(),
+        };
+        socket.to(mapping.roomId).emit(SOCKET_EVENTS.HAND_RAISED, payload);
+      }
+    });
+
+    socket.on(SOCKET_EVENTS.HAND_LOWER, () => {
+      const mapping = socketToUser.get(socket.id);
+      if (!mapping) return;
+
+      const room = rooms.get(mapping.roomId);
+      if (!room) return;
+
+      const user = room.get(mapping.userId);
+      if (user) {
+        user.isHandRaised = false;
+        socket.to(mapping.roomId).emit(SOCKET_EVENTS.HAND_LOWERED, {
+          userId: user.id,
+        });
+      }
     });
 
     // --- Terminal (SSH proxy) ---

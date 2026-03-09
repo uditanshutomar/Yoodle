@@ -196,6 +196,10 @@ const recordingSchema = new Schema<IRecordingDocument>(
   }
 );
 
+recordingSchema.index({ meetingId: 1, "transcript.status": 1 });
+recordingSchema.index({ meetingId: 1, "aiMinutes.status": 1 });
+recordingSchema.index({ createdAt: -1 });
+
 const Recording: Model<IRecordingDocument> =
   mongoose.models.Recording ||
   mongoose.model<IRecordingDocument>("Recording", recordingSchema);

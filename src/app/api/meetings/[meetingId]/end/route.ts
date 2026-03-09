@@ -1,16 +1,13 @@
 import { NextRequest } from "next/server";
+import { z } from "zod";
 import mongoose from "mongoose";
+import { withHandler } from "@/lib/api/with-handler";
+import { successResponse } from "@/lib/api/response";
+import { checkRateLimit } from "@/lib/api/rate-limit";
+import { getUserIdFromRequest } from "@/lib/auth/middleware";
+import { BadRequestError, NotFoundError, ForbiddenError } from "@/lib/api/errors";
 import connectDB from "@/lib/db/client";
 import Meeting from "@/lib/db/models/meeting";
-import { authenticateRequest } from "@/lib/auth/middleware";
-import {
-  successResponse,
-  errorResponse,
-  unauthorizedResponse,
-  forbiddenResponse,
-  notFoundResponse,
-  serverErrorResponse,
-} from "@/lib/utils/api-response";
 
 // ── Helpers ─────────────────────────────────────────────────────────
 
@@ -23,9 +20,9 @@ function buildMeetingFilter(meetingId: string): Record<string, unknown> {
   return { code: meetingId.toLowerCase() };
 }
 
-// ── Route context type ──────────────────────────────────────────────
+// ── Validation ──────────────────────────────────────────────────────
 
-type RouteContext = { params: Promise<{ meetingId: string }> };
+const meetingIdSchema = z.string().min(1, "Meeting ID is required");
 
 // ── POST /api/meetings/:meetingId/end ───────────────────────────────
 
@@ -34,68 +31,52 @@ type RouteContext = { params: Promise<{ meetingId: string }> };
  * Sets status to "ended", records endedAt,
  * and marks all remaining participants as "left".
  */
-export async function POST(
-  request: NextRequest,
-  context: RouteContext
-) {
-  try {
-    let userId: string;
+export const POST = withHandler(async (req: NextRequest, context) => {
+  await checkRateLimit(req, "meetings");
+  const userId = await getUserIdFromRequest(req);
 
-    try {
-      const payload = await authenticateRequest(request);
-      userId = payload.userId;
-    } catch {
-      return unauthorizedResponse();
-    }
+  const { meetingId } = await context!.params;
+  meetingIdSchema.parse(meetingId);
 
-    const { meetingId } = await context.params;
+  await connectDB();
 
-    await connectDB();
+  const filter = buildMeetingFilter(meetingId);
+  const meeting = await Meeting.findOne(filter);
 
-    const filter = buildMeetingFilter(meetingId);
-    const meeting = await Meeting.findOne(filter);
-
-    if (!meeting) {
-      return notFoundResponse("Meeting not found.");
-    }
-
-    // Only host can end
-    if (meeting.hostId.toString() !== userId) {
-      return forbiddenResponse("Only the host can end this meeting.");
-    }
-
-    if (meeting.status === "ended" || meeting.status === "cancelled") {
-      return errorResponse({
-        message: "Meeting is already ended or cancelled.",
-        status: 400,
-      });
-    }
-
-    // End the meeting
-    meeting.status = "ended";
-    meeting.endedAt = new Date();
-
-    // Mark all remaining joined participants as "left"
-    const now = new Date();
-    for (const participant of meeting.participants) {
-      if (participant.status === "joined") {
-        participant.status = "left";
-        participant.leftAt = now;
-      }
-    }
-
-    await meeting.save();
-
-    // Populate for response
-    await meeting.populate("hostId", "name email displayName avatarUrl");
-    await meeting.populate("participants.userId", "name email displayName avatarUrl");
-
-    return successResponse({
-      data: { meeting },
-      message: "Meeting ended successfully.",
-    });
-  } catch (error) {
-    console.error("[Meeting End Error]", error);
-    return serverErrorResponse("Failed to end meeting.");
+  if (!meeting) {
+    throw new NotFoundError("Meeting not found.");
   }
-}
+
+  // Only host can end
+  if (meeting.hostId.toString() !== userId) {
+    throw new ForbiddenError("Only the host can end this meeting.");
+  }
+
+  if (meeting.status === "ended" || meeting.status === "cancelled") {
+    throw new BadRequestError("Meeting is already ended or cancelled.");
+  }
+
+  // End the meeting
+  meeting.status = "ended";
+  meeting.endedAt = new Date();
+
+  // Mark all remaining joined participants as "left"
+  const now = new Date();
+  for (const participant of meeting.participants) {
+    if (participant.status === "joined") {
+      participant.status = "left";
+      participant.leftAt = now;
+    }
+  }
+
+  await meeting.save();
+
+  // Populate for response
+  await meeting.populate("hostId", "name email displayName avatarUrl");
+  await meeting.populate("participants.userId", "name email displayName avatarUrl");
+
+  return successResponse({
+    data: { meeting },
+    message: "Meeting ended successfully.",
+  });
+});

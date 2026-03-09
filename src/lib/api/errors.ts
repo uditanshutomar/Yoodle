@@ -1,0 +1,76 @@
+/**
+ * Application-level error classes.
+ * These map to specific HTTP status codes in the error handler.
+ */
+
+export class AppError extends Error {
+  constructor(
+    message: string,
+    public readonly code: string,
+    public readonly statusCode: number,
+    public readonly details?: unknown,
+  ) {
+    super(message);
+    this.name = "AppError";
+  }
+}
+
+export class BadRequestError extends AppError {
+  constructor(message = "Bad request", details?: unknown) {
+    super(message, "BAD_REQUEST", 400, details);
+    this.name = "BadRequestError";
+  }
+}
+
+export class UnauthorizedError extends AppError {
+  constructor(message = "Unauthorized") {
+    super(message, "UNAUTHORIZED", 401);
+    this.name = "UnauthorizedError";
+  }
+}
+
+export class ForbiddenError extends AppError {
+  constructor(message = "Forbidden") {
+    super(message, "FORBIDDEN", 403);
+    this.name = "ForbiddenError";
+  }
+}
+
+export class NotFoundError extends AppError {
+  constructor(message = "Not found") {
+    super(message, "NOT_FOUND", 404);
+    this.name = "NotFoundError";
+  }
+}
+
+export class ConflictError extends AppError {
+  constructor(message = "Conflict") {
+    super(message, "CONFLICT", 409);
+    this.name = "ConflictError";
+  }
+}
+
+export class RateLimitError extends AppError {
+  constructor(
+    public readonly retryAfter?: number,
+  ) {
+    super("Too many requests", "TOO_MANY_REQUESTS", 429);
+    this.name = "RateLimitError";
+  }
+}
+
+export class UsageLimitError extends AppError {
+  constructor(
+    public readonly limitType: string,
+    public readonly current: number,
+    public readonly limit: number,
+  ) {
+    super(
+      `Usage limit exceeded for ${limitType}: ${current}/${limit}`,
+      "USAGE_LIMIT_EXCEEDED",
+      402,
+      { limitType, current, limit },
+    );
+    this.name = "UsageLimitError";
+  }
+}

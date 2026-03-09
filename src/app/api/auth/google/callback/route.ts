@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
+import { withHandler } from "@/lib/api/with-handler";
+import { checkRateLimit } from "@/lib/api/rate-limit";
 import bcrypt from "bcryptjs";
 import connectDB from "@/lib/db/client";
 import User from "@/lib/db/models/user";
@@ -10,30 +12,32 @@ import { signAccessToken, signRefreshToken } from "@/lib/auth/jwt";
  * Handles the OAuth callback from Google. Creates or updates the user,
  * stores Google tokens for Workspace API access, issues JWT session tokens.
  */
-export async function GET(request: NextRequest) {
+export const GET = withHandler(async (req: NextRequest) => {
+  await checkRateLimit(req, "auth");
+
+  const { searchParams } = new URL(req.url);
+  const code = searchParams.get("code");
+  const state = searchParams.get("state");
+  const error = searchParams.get("error");
+
+  if (error) {
+    const loginUrl = new URL("/login", req.url);
+    loginUrl.searchParams.set("error", "google_denied");
+    return NextResponse.redirect(loginUrl);
+  }
+
+  if (!code) {
+    const loginUrl = new URL("/login", req.url);
+    loginUrl.searchParams.set("error", "google_no_code");
+    return NextResponse.redirect(loginUrl);
+  }
+
   try {
-    const { searchParams } = new URL(request.url);
-    const code = searchParams.get("code");
-    const state = searchParams.get("state");
-    const error = searchParams.get("error");
-
-    if (error) {
-      const loginUrl = new URL("/login", request.url);
-      loginUrl.searchParams.set("error", "google_denied");
-      return NextResponse.redirect(loginUrl);
-    }
-
-    if (!code) {
-      const loginUrl = new URL("/login", request.url);
-      loginUrl.searchParams.set("error", "google_no_code");
-      return NextResponse.redirect(loginUrl);
-    }
-
     // Exchange the authorization code for tokens
     const tokens = await exchangeCodeForTokens(code);
 
     if (!tokens.access_token) {
-      const loginUrl = new URL("/login", request.url);
+      const loginUrl = new URL("/login", req.url);
       loginUrl.searchParams.set("error", "google_token_failed");
       return NextResponse.redirect(loginUrl);
     }
@@ -113,7 +117,7 @@ export async function GET(request: NextRequest) {
     if (!redirectTo.startsWith("/") || redirectTo.startsWith("//")) {
       redirectTo = "/dashboard";
     }
-    const redirectUrl = new URL(redirectTo, request.url);
+    const redirectUrl = new URL(redirectTo, req.url);
     const response = NextResponse.redirect(redirectUrl);
 
     // Set JWT cookies
@@ -134,11 +138,11 @@ export async function GET(request: NextRequest) {
     });
 
     return response;
-  } catch (error) {
-    console.error("[Google Callback Error]", error);
+  } catch (err) {
+    console.error("[Google Callback Error]", err);
 
-    const loginUrl = new URL("/login", request.url);
+    const loginUrl = new URL("/login", req.url);
     loginUrl.searchParams.set("error", "google_auth_failed");
     return NextResponse.redirect(loginUrl);
   }
-}
+});

@@ -14,6 +14,8 @@ import {
   Circle,
   LogOut,
   X,
+  Hand,
+  LayoutGrid,
 } from "lucide-react";
 import { useState } from "react";
 
@@ -24,6 +26,9 @@ interface MeetingControlsProps {
   isRecording: boolean;
   isChatOpen: boolean;
   isParticipantsOpen: boolean;
+  isHandRaised?: boolean;
+  layout?: "bubbles" | "grid";
+  unreadChatCount?: number;
   onToggleAudio: () => void;
   onToggleVideo: () => void;
   onToggleScreenShare: () => void;
@@ -33,6 +38,8 @@ interface MeetingControlsProps {
   onStopRecording: () => void;
   onReaction: (emoji: string) => void;
   onLeave: () => void;
+  onToggleHandRaise?: () => void;
+  onToggleLayout?: () => void;
 }
 
 const REACTIONS = ["👏", "🔥", "❤️", "😂", "🎉", "👍", "💯", "🤯"];
@@ -81,6 +88,9 @@ export default function MeetingControls({
   isRecording,
   isChatOpen,
   isParticipantsOpen,
+  isHandRaised = false,
+  layout = "bubbles",
+  unreadChatCount = 0,
   onToggleAudio,
   onToggleVideo,
   onToggleScreenShare,
@@ -90,6 +100,8 @@ export default function MeetingControls({
   onStopRecording,
   onReaction,
   onLeave,
+  onToggleHandRaise,
+  onToggleLayout,
 }: MeetingControlsProps) {
   const [showReactions, setShowReactions] = useState(false);
 
@@ -134,7 +146,7 @@ export default function MeetingControls({
         <ControlButton
           onClick={onToggleAudio}
           active={isAudioEnabled}
-          label={isAudioEnabled ? "Mute" : "Unmute"}
+          label={isAudioEnabled ? "Mute (D)" : "Unmute (D)"}
         >
           {isAudioEnabled ? (
             <Mic size={18} />
@@ -153,7 +165,7 @@ export default function MeetingControls({
         <ControlButton
           onClick={onToggleVideo}
           active={isVideoEnabled}
-          label={isVideoEnabled ? "Turn off camera" : "Turn on camera"}
+          label={isVideoEnabled ? "Turn off camera (E)" : "Turn on camera (E)"}
         >
           {isVideoEnabled ? (
             <Video size={18} />
@@ -178,6 +190,20 @@ export default function MeetingControls({
           )}
         </ControlButton>
 
+        {/* Hand raise */}
+        {onToggleHandRaise && (
+          <ControlButton
+            onClick={onToggleHandRaise}
+            active={!isHandRaised}
+            label={isHandRaised ? "Lower hand (H)" : "Raise hand (H)"}
+          >
+            <Hand
+              size={18}
+              className={isHandRaised ? "text-[#FFE600] fill-[#FFE600]" : ""}
+            />
+          </ControlButton>
+        )}
+
         {/* Reactions */}
         <ControlButton
           onClick={() => setShowReactions(!showReactions)}
@@ -191,8 +217,8 @@ export default function MeetingControls({
         <ControlButton
           onClick={onToggleChat}
           active={!isChatOpen}
-          label="Chat"
-          badge={false}
+          label="Chat (A)"
+          badge={unreadChatCount > 0}
         >
           <MessageCircle
             size={18}
@@ -204,7 +230,7 @@ export default function MeetingControls({
         <ControlButton
           onClick={onToggleParticipants}
           active={!isParticipantsOpen}
-          label="Participants"
+          label="Participants (P)"
         >
           <Users
             size={18}
@@ -212,11 +238,25 @@ export default function MeetingControls({
           />
         </ControlButton>
 
+        {/* Layout toggle */}
+        {onToggleLayout && (
+          <ControlButton
+            onClick={onToggleLayout}
+            active={layout === "bubbles"}
+            label={layout === "bubbles" ? "Grid view (L)" : "Bubble view (L)"}
+          >
+            <LayoutGrid
+              size={18}
+              className={layout === "grid" ? "text-[#A855F7]" : ""}
+            />
+          </ControlButton>
+        )}
+
         {/* Record */}
         <ControlButton
           onClick={isRecording ? onStopRecording : onStartRecording}
           active={!isRecording}
-          label={isRecording ? "Stop recording" : "Start recording"}
+          label={isRecording ? "Stop recording (R)" : "Start recording (R)"}
         >
           <Circle
             size={18}

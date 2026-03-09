@@ -1,0 +1,108 @@
+# Production override — use with:
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+
+version: "3.9"
+
+services:
+  # ── Yoodle App (production overrides) ──────────────────────────────
+  yoodle:
+    env_file: .env.production
+    environment:
+      - NODE_ENV=production
+      - YOODLE_EDITION=${YOODLE_EDITION:-community}
+      - LIVEKIT_URL=ws://livekit:7880
+      - TURN_SERVER_URL=turn://coturn:3478
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    depends_on:
+      mongo:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      livekit:
+        condition: service_started
+
+  # ── MongoDB (no exposed ports in prod) ─────────────────────────────
+  mongo:
+    ports: !reset []
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+
+  # ── Redis (no exposed ports in prod) ───────────────────────────────
+  redis:
+    ports: !reset []
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:-changeme}
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD:-changeme}", "ping"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  # ── LiveKit (production — no --dev flag) ───────────────────────────
+  livekit:
+    environment:
+      - LIVEKIT_KEYS=${LIVEKIT_API_KEY}: ${LIVEKIT_API_SECRET}
+    command: --bind 0.0.0.0
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:7880"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
+
+  # ── coturn TURN Server (WebRTC NAT traversal) ─────────────────────
+  coturn:
+    image: coturn/coturn:latest
+    ports:
+      - "3478:3478"
+      - "3478:3478/udp"
+      - "5349:5349"
+      - "5349:5349/udp"
+      - "49152-49200:49152-49200/udp"
+    command: >
+      -n
+      --realm=yoodle
+      --fingerprint
+      --lt-cred-mech
+      --user=yoodle:${TURN_SECRET:-changeme}
+      --min-port=49152
+      --max-port=49200
+      --no-tcp-relay
+      --no-multicast-peers
+      --no-cli
+    healthcheck:
+      test: ["CMD", "turnutils_uclient", "-T", "-p", "3478", "127.0.0.1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+
+  # ── Nginx Reverse Proxy (SSL termination) ──────────────────────────
+  nginx:
+    image: nginx:alpine
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./certs:/etc/nginx/certs:ro
+    depends_on:
+      yoodle:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:80/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped

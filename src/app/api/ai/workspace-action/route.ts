@@ -1,6 +1,10 @@
 import { NextRequest } from "next/server";
 import { z } from "zod";
-import { authenticateRequest } from "@/lib/auth/middleware";
+import { withHandler } from "@/lib/api/with-handler";
+import { successResponse } from "@/lib/api/response";
+import { checkRateLimit } from "@/lib/api/rate-limit";
+import { getUserIdFromRequest } from "@/lib/auth/middleware";
+import { BadRequestError, ForbiddenError, UnauthorizedError } from "@/lib/api/errors";
 import { hasGoogleAccess } from "@/lib/google/client";
 import * as gmail from "@/lib/google/gmail";
 import * as calendar from "@/lib/google/calendar";
@@ -9,22 +13,15 @@ import * as docs from "@/lib/google/docs";
 import * as sheets from "@/lib/google/sheets";
 import * as tasks from "@/lib/google/tasks";
 import * as contacts from "@/lib/google/contacts";
-import {
-  successResponse,
-  errorResponse,
-  unauthorizedResponse,
-  forbiddenResponse,
-  serverErrorResponse,
-} from "@/lib/utils/api-response";
 
-// ── Validation ──────────────────────────────────────────────────────
+// -- Validation ----------------------------------------------------------------
 
 const actionSchema = z.object({
   action: z.string().min(1, "Action is required."),
   params: z.record(z.string(), z.unknown()).optional().default({}),
 });
 
-// ── Action registry ─────────────────────────────────────────────────
+// -- Action registry -----------------------------------------------------------
 
 type ActionHandler = (
   userId: string,
@@ -152,64 +149,40 @@ const ACTIONS: Record<string, ActionHandler> = {
     contacts.searchContacts(userId, params.query as string, (params.maxResults as number) || 10),
 };
 
-// ── POST /api/ai/workspace-action ──────────────────────────────────
+// -- POST /api/ai/workspace-action ---------------------------------------------
 
-export async function POST(request: NextRequest) {
+export const POST = withHandler(async (req: NextRequest) => {
+  await checkRateLimit(req, "ai");
+  const userId = await getUserIdFromRequest(req);
+
+  // Check Google access
+  const hasAccess = await hasGoogleAccess(userId);
+  if (!hasAccess) {
+    throw new ForbiddenError(
+      "Google Workspace not connected. Please sign in with Google to enable Workspace features."
+    );
+  }
+
+  const body = actionSchema.parse(await req.json());
+  const { action, params } = body;
+
+  const handler = ACTIONS[action];
+  if (!handler) {
+    throw new BadRequestError(`Unknown action: ${action}`);
+  }
+
   try {
-    let userId: string;
-
-    try {
-      const payload = await authenticateRequest(request);
-      userId = payload.userId;
-    } catch {
-      return unauthorizedResponse();
-    }
-
-    // Check Google access
-    const hasAccess = await hasGoogleAccess(userId);
-    if (!hasAccess) {
-      return forbiddenResponse(
-        "Google Workspace not connected. Please sign in with Google to enable Workspace features."
-      );
-    }
-
-    const body = await request.json();
-    const parsed = actionSchema.safeParse(body);
-
-    if (!parsed.success) {
-      return errorResponse({
-        message: "Validation failed.",
-        status: 400,
-        errors: parsed.error.flatten().fieldErrors,
-      });
-    }
-
-    const { action, params } = parsed.data;
-
-    const handler = ACTIONS[action];
-    if (!handler) {
-      return errorResponse({
-        message: `Unknown action: ${action}`,
-        status: 400,
-      });
-    }
-
     const result = await handler(userId, params);
     return successResponse({ action, result });
   } catch (error) {
-    console.error("[Workspace Action Error]", error);
-
     // Handle Google API errors specifically
     const errorMessage =
       error instanceof Error ? error.message : "Workspace action failed.";
 
     if (errorMessage.includes("invalid_grant") || errorMessage.includes("Token has been expired")) {
-      return errorResponse({
-        message: "Google session expired. Please re-authenticate with Google.",
-        status: 401,
-      });
+      throw new UnauthorizedError("Google session expired. Please re-authenticate with Google.");
     }
 
-    return serverErrorResponse(errorMessage);
+    throw error;
   }
-}
+});

@@ -1,18 +1,25 @@
 import { NextRequest } from "next/server";
+import { z } from "zod";
+import { withHandler } from "@/lib/api/with-handler";
+import { successResponse } from "@/lib/api/response";
+import { checkRateLimit } from "@/lib/api/rate-limit";
 import { getGoogleAuthUrl } from "@/lib/auth/google";
-import { successResponse, serverErrorResponse } from "@/lib/utils/api-response";
+
+const querySchema = z.object({
+  redirect: z.string().optional().default("/dashboard"),
+});
 
 /**
  * GET /api/auth/google
  * Returns the Google OAuth consent URL for the client to redirect to.
  */
-export async function GET(request: NextRequest) {
-  try {
-    const redirect = request.nextUrl.searchParams.get("redirect") || "/dashboard";
-    const authUrl = getGoogleAuthUrl(redirect);
-    return successResponse({ url: authUrl });
-  } catch (error) {
-    console.error("[Google Auth Error]", error);
-    return serverErrorResponse("Failed to generate Google auth URL.");
-  }
-}
+export const GET = withHandler(async (req: NextRequest) => {
+  await checkRateLimit(req, "auth");
+
+  const { redirect } = querySchema.parse({
+    redirect: req.nextUrl.searchParams.get("redirect") ?? undefined,
+  });
+
+  const authUrl = getGoogleAuthUrl(redirect);
+  return successResponse({ url: authUrl });
+});

@@ -15,7 +15,7 @@ const capabilities = [
 
 export default function AIAssistant() {
   return (
-    <section className="relative overflow-hidden px-6 py-24 lg:px-8">
+    <section id="about" className="relative overflow-hidden px-6 py-24 lg:px-8">
       {/* Yellow background stripe */}
       <div className="absolute inset-0 -skew-y-2 bg-[#FFE600]" />
 

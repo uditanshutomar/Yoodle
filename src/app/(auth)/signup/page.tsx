@@ -109,7 +109,7 @@ export default function SignupPage() {
               className="text-xs text-[#0A0A0A]/40 text-center leading-relaxed"
               style={{ fontFamily: "var(--font-body)" }}
             >
-              By signing up, you&apos;ll connect your Google Workspace so Doodle
+              By signing up, you&apos;ll connect your Google Workspace so Yoodle
               can help with your emails, calendar, docs, and everything else.
             </p>
           </div>

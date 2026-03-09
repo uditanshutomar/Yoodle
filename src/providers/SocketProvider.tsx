@@ -43,28 +43,19 @@ export default function SocketProvider({ children }: SocketProviderProps) {
 
     setConnectionStatus("connecting");
 
-    const signalingUrl = process.env.NEXT_PUBLIC_SIGNALING_URL;
-
-    const socketInstance = signalingUrl
-      ? io(signalingUrl, {
-          transports: ["websocket", "polling"],
-          reconnection: true,
-          reconnectionAttempts: 10,
-          reconnectionDelay: 1000,
-          reconnectionDelayMax: 10000,
-          timeout: 20000,
-          autoConnect: true,
-        })
-      : io({
-          path: "/api/socketio",
-          transports: ["websocket", "polling"],
-          reconnection: true,
-          reconnectionAttempts: 10,
-          reconnectionDelay: 1000,
-          reconnectionDelayMax: 10000,
-          timeout: 20000,
-          autoConnect: true,
-        });
+    // Always connect to the embedded signaling server (same origin).
+    // The standalone server/index.ts is deprecated — all signaling is
+    // handled by the custom Next.js server (server.ts) on /api/socketio.
+    const socketInstance = io({
+      path: "/api/socketio",
+      transports: ["websocket", "polling"],
+      reconnection: true,
+      reconnectionAttempts: 10,
+      reconnectionDelay: 1000,
+      reconnectionDelayMax: 10000,
+      timeout: 20000,
+      autoConnect: true,
+    });
 
     socketInstance.on("connect", () => {
       if (!mountedRef.current) return;

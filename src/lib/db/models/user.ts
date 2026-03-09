@@ -6,6 +6,9 @@ export type UserStatus = (typeof USER_STATUS)[number];
 export const THEME_OPTIONS = ["light", "dark", "auto"] as const;
 export type ThemeOption = (typeof THEME_OPTIONS)[number];
 
+export const USER_ROLES = ["user", "admin"] as const;
+export type UserRole = (typeof USER_ROLES)[number];
+
 export interface IUserLocation {
   type: "Point";
   coordinates: [number, number]; // [longitude, latitude]
@@ -31,6 +34,7 @@ export interface IUser {
   name: string;
   displayName: string;
   avatarUrl?: string;
+  role?: UserRole;
   status: UserStatus;
   location?: IUserLocation;
   preferences: IUserPreferences;
@@ -122,6 +126,11 @@ const userSchema = new Schema<IUserDocument>(
     },
     avatarUrl: {
       type: String,
+    },
+    role: {
+      type: String,
+      enum: USER_ROLES,
+      default: "user",
     },
     status: {
       type: String,
