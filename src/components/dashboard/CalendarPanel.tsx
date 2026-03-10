@@ -779,6 +779,10 @@ function DayView({ dayData, events, allDayEvents, currentTimeOffset, quickAdd, q
 
 /* ─── Main Component ─── */
 export default function CalendarPanel() {
+    // Hydration guard — prevents server/client date mismatch (React error #418)
+    const [mounted, setMounted] = useState(false);
+    useEffect(() => { setMounted(true); }, []);
+
     const [weekOffset, setWeekOffset] = useState(0);
     const [view, setView] = useState<"Month" | "Week" | "Day">("Week");
     const [selectedDayIndex, setSelectedDayIndex] = useState<number | null>(null);
@@ -1012,6 +1016,24 @@ export default function CalendarPanel() {
         }
         return `${CURRENT_MONTH}, ${CURRENT_YEAR}`;
     }, [view, weekOffset, CURRENT_MONTH, CURRENT_YEAR]);
+
+    // Hydration guard: render a static placeholder until client-side mount.
+    // This prevents React error #418 caused by server/client date mismatches.
+    if (!mounted) {
+        return (
+            <div className="relative rounded-2xl border-2 border-[var(--border-strong)] bg-[var(--surface)] shadow-[var(--shadow-card)] overflow-hidden p-4"
+                style={{ maxWidth: 340, marginLeft: "auto" }}>
+                <div className="py-6 space-y-3">
+                    {[...Array(4)].map((_, i) => (
+                        <div key={i} className="flex items-center gap-2 px-1">
+                            <div className="w-10 h-3 rounded-md bg-[var(--surface-hover)] animate-pulse" />
+                            <div className="flex-1 h-8 rounded-lg bg-[var(--surface-hover)] animate-pulse" style={{ animationDelay: `${i * 100}ms` }} />
+                        </div>
+                    ))}
+                </div>
+            </div>
+        );
+    }
 
     /* ─── Collapsed card ─── */
     const collapsedVisibleDays = DAYS_OF_WEEK.filter((_, i) => COLLAPSED_INDICES.includes(i));
