@@ -20,7 +20,7 @@ export default function Modal({ open, onOpenChange, title, description, children
           <Dialog.Portal forceMount>
             <Dialog.Overlay asChild>
               <motion.div
-                className="fixed inset-0 z-50 bg-black/50"
+                className="fixed inset-0 z-[150] bg-black/50"
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
@@ -29,7 +29,7 @@ export default function Modal({ open, onOpenChange, title, description, children
             </Dialog.Overlay>
             <Dialog.Content asChild>
               <motion.div
-                className="fixed left-1/2 top-1/2 z-50 w-full max-w-lg bg-white border-2 border-[#0A0A0A] rounded-2xl shadow-[4px_4px_0_#0A0A0A] p-6"
+                className="fixed left-1/2 top-1/2 z-[150] w-full max-w-lg bg-white border-2 border-[#0A0A0A] rounded-2xl shadow-[4px_4px_0_#0A0A0A] p-6"
                 initial={{ opacity: 0, scale: 0.95, x: "-50%", y: "-50%" }}
                 animate={{ opacity: 1, scale: 1, x: "-50%", y: "-50%" }}
                 exit={{ opacity: 0, scale: 0.95, x: "-50%", y: "-50%" }}

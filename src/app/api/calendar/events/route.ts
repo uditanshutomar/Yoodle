@@ -7,6 +7,8 @@ import { getUserIdFromRequest } from "@/lib/auth/middleware";
 import { BadRequestError } from "@/lib/api/errors";
 import { listEvents, createEvent, updateEvent, deleteEvent } from "@/lib/google/calendar";
 import { hasGoogleAccess } from "@/lib/google/client";
+import connectDB from "@/lib/db/client";
+import User from "@/lib/db/models/user";
 
 // ── Validation ──────────────────────────────────────────────────────
 
@@ -23,6 +25,7 @@ const createEventSchema = z.object({
   end: z.string().min(1, "End time required."),
   location: z.string().max(500).optional(),
   attendees: z.array(z.string().email()).optional(),
+  attendeeUserIds: z.array(z.string()).optional(),
   addMeetLink: z.boolean().optional().default(false),
   timeZone: z.string().optional(),
 });
@@ -104,13 +107,26 @@ export const POST = withHandler(async (req: NextRequest) => {
 
   const body = createEventSchema.parse(await req.json());
 
+  // Resolve Yoodle user IDs to email addresses server-side (privacy-preserving)
+  let resolvedAttendees = body.attendees || [];
+  if (body.attendeeUserIds?.length) {
+    await connectDB();
+    const users = await User.find({ _id: { $in: body.attendeeUserIds } })
+      .select("email")
+      .lean();
+    const userEmails = users
+      .map((u) => u.email)
+      .filter((e): e is string => Boolean(e));
+    resolvedAttendees = [...new Set([...resolvedAttendees, ...userEmails])];
+  }
+
   const event = await createEvent(userId, {
     title: body.title,
     description: body.description,
     start: body.start,
     end: body.end,
     location: body.location,
-    attendees: body.attendees,
+    attendees: resolvedAttendees.length > 0 ? resolvedAttendees : undefined,
     addMeetLink: body.addMeetLink,
     timeZone: body.timeZone,
   });
