@@ -43,10 +43,9 @@ export default function MeetingsPage() {
   const [meetings, setMeetings] = useState<MeetingSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [retryCount, setRetryCount] = useState(0);
 
-  const fetchMeetings = () => {
-    setLoading(true);
-    setError("");
+  useEffect(() => {
     fetch("/api/meetings", { credentials: "include" })
       .then((r) => r.json())
       .then((data) => {
@@ -63,17 +62,20 @@ export default function MeetingsPage() {
               createdAt: m.createdAt as string,
             }))
           );
+          setError("");
         } else {
           setError(data.error?.message || "Failed to load meetings");
         }
       })
       .catch(() => setError("Something went wrong. Please try again."))
       .finally(() => setLoading(false));
-  };
+  }, [retryCount]);
 
-  useEffect(() => {
-    fetchMeetings();
-  }, []);
+  const handleRetry = () => {
+    setLoading(true);
+    setError("");
+    setRetryCount((c) => c + 1);
+  };
 
   return (
     <motion.div variants={containerVariants} initial="hidden" animate="visible" className="space-y-6">
@@ -102,7 +104,7 @@ export default function MeetingsPage() {
             {error}
           </p>
           <button
-            onClick={fetchMeetings}
+            onClick={handleRetry}
             className="text-sm font-bold text-[#FF6B6B] underline cursor-pointer hover:text-[#FF6B6B]/80 transition-colors"
             style={{ fontFamily: "var(--font-heading)" }}
           >
