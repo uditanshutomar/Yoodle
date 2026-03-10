@@ -30,7 +30,7 @@ export default function MeetingLobbyPage() {
         if (data.success && data.data) {
           setMeeting(data.data);
         } else {
-          setError(data.error || "Meeting not found");
+          setError(data.error?.message || "Meeting not found");
         }
       })
       .catch(() => setError("Failed to load meeting"))
@@ -59,7 +59,7 @@ export default function MeetingLobbyPage() {
         }
         router.push(`/meetings/${meetingId}/room`);
       } else {
-        setError(data.error || "Failed to join meeting");
+        setError(data.error?.message || "Failed to join meeting");
       }
     } catch {
       setError("Failed to join meeting");

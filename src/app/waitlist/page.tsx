@@ -55,7 +55,7 @@ export default function WaitlistPage() {
 
       if (!res.ok) {
         setStatus("error");
-        setErrorMsg(data.error || "Something went wrong.");
+        setErrorMsg(data.error?.message || "Something went wrong.");
         return;
       }
 

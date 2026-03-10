@@ -42,8 +42,11 @@ export default function MeetingsPage() {
   const router = useRouter();
   const [meetings, setMeetings] = useState<MeetingSummary[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
 
-  useEffect(() => {
+  const fetchMeetings = () => {
+    setLoading(true);
+    setError("");
     fetch("/api/meetings", { credentials: "include" })
       .then((r) => r.json())
       .then((data) => {
@@ -60,10 +63,16 @@ export default function MeetingsPage() {
               createdAt: m.createdAt as string,
             }))
           );
+        } else {
+          setError(data.error?.message || "Failed to load meetings");
         }
       })
-      .catch(console.error)
+      .catch(() => setError("Something went wrong. Please try again."))
       .finally(() => setLoading(false));
+  };
+
+  useEffect(() => {
+    fetchMeetings();
   }, []);
 
   return (
@@ -82,6 +91,25 @@ export default function MeetingsPage() {
           New Meeting
         </Button>
       </motion.div>
+
+      {/* Error banner */}
+      {error && (
+        <motion.div
+          variants={itemVariants}
+          className="bg-[#FF6B6B]/10 border-2 border-[#FF6B6B] rounded-xl px-4 py-3 flex items-center justify-between"
+        >
+          <p className="text-sm font-bold text-[#FF6B6B]" style={{ fontFamily: "var(--font-heading)" }}>
+            {error}
+          </p>
+          <button
+            onClick={fetchMeetings}
+            className="text-sm font-bold text-[#FF6B6B] underline cursor-pointer hover:text-[#FF6B6B]/80 transition-colors"
+            style={{ fontFamily: "var(--font-heading)" }}
+          >
+            Retry
+          </button>
+        </motion.div>
+      )}
 
       {loading ? (
         <div className="flex items-center justify-center py-20">

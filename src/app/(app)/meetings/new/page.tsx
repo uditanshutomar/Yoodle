@@ -80,7 +80,7 @@ export default function NewMeetingPage() {
           router.push(`/meetings`);
         }
       } else {
-        setError(data.error || data.message || "Failed to create meeting");
+        setError(data.error?.message || data.message || "Failed to create meeting");
       }
     } catch {
       setError("Something went wrong. Please try again.");

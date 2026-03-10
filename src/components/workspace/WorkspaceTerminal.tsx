@@ -56,7 +56,7 @@ export default function WorkspaceTerminal({ workspaceId, onClose }: WorkspaceTer
         const data = await res.json();
 
         if (!data.success) {
-          throw new Error(data.error || "Failed to get VM credentials.");
+          throw new Error(data.error?.message || "Failed to get VM credentials.");
         }
 
         ip = data.data.ip;

@@ -56,7 +56,7 @@ function JoinMeetingContent() {
         const meetingId = meeting._id || meeting.id;
         router.push(`/meetings/${meetingId}`);
       } else {
-        setError(data.error || "Meeting not found. Check the code and try again.");
+        setError(data.error?.message || "Meeting not found. Check the code and try again.");
       }
     } catch {
       setError("Something went wrong. Please try again.");

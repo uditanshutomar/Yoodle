@@ -127,7 +127,7 @@ export default function WorkspaceDetailPage() {
       } else {
         const data = await res.json();
         if (!data.success) {
-          setActionError(data.error || `Failed to ${action} VM.`);
+          setActionError(data.error?.message || `Failed to ${action} VM.`);
         }
       }
       await fetchWorkspace();
@@ -151,7 +151,7 @@ export default function WorkspaceDetailPage() {
       });
       const data = await res.json();
       if (!data.success) {
-        setActionError(data.error || "Failed to add member.");
+        setActionError(data.error?.message || "Failed to add member.");
       }
       await fetchWorkspace();
       await fetchAudit();
@@ -170,7 +170,7 @@ export default function WorkspaceDetailPage() {
       });
       const data = await res.json();
       if (!data.success) {
-        setActionError(data.error || "Failed to remove member.");
+        setActionError(data.error?.message || "Failed to remove member.");
       }
       await fetchWorkspace();
       await fetchAudit();
