@@ -3,6 +3,9 @@
 import { motion, AnimatePresence } from "framer-motion";
 import { useState, useEffect, useCallback, useRef } from "react";
 import { createPortal } from "react-dom";
+import Modal from "@/components/ui/Modal";
+import { Input, Textarea } from "@/components/ui/Input";
+import Button from "@/components/ui/Button";
 
 /* ─── Types ─── */
 
@@ -68,7 +71,7 @@ function getWeekData() {
     const days = dayNames.map((day, i) => {
         const d = new Date(sunday);
         d.setDate(sunday.getDate() + i);
-        return { day, date: d.getDate() };
+        return { day, date: d.getDate(), fullDate: new Date(d) };
     });
 
     const collapsed = [
@@ -91,8 +94,30 @@ function formatHour(h: number): string {
 
 /** Detect if a date string is date-only (all-day event) vs datetime */
 function isDateOnly(dateStr: string): boolean {
-    // Google Calendar returns "2026-03-10" for all-day, "2026-03-10T09:00:00-05:00" for timed
     return /^\d{4}-\d{2}-\d{2}$/.test(dateStr);
+}
+
+/** Convert Date + hour to datetime-local input value (YYYY-MM-DDTHH:MM) */
+function toDatetimeLocal(date: Date, hour: number): string {
+    const y = date.getFullYear();
+    const m = String(date.getMonth() + 1).padStart(2, "0");
+    const d = String(date.getDate()).padStart(2, "0");
+    const hh = String(Math.floor(hour)).padStart(2, "0");
+    const mm = String(Math.round((hour % 1) * 60)).padStart(2, "0");
+    return `${y}-${m}-${d}T${hh}:${mm}`;
+}
+
+/** Get default start time (next whole hour) */
+function getDefaultStartEnd(): { start: string; end: string } {
+    const now = new Date();
+    const nextHour = new Date(now);
+    nextHour.setHours(now.getHours() + 1, 0, 0, 0);
+    const endHour = new Date(nextHour);
+    endHour.setHours(nextHour.getHours() + 1);
+    return {
+        start: toDatetimeLocal(nextHour, nextHour.getHours()),
+        end: toDatetimeLocal(endHour, endHour.getHours()),
+    };
 }
 
 /** Convert a Google Calendar API event to our CalEvent format */
@@ -104,7 +129,6 @@ function apiEventToCalEvent(event: APICalendarEvent, index: number, weekSunday: 
         const startDate = new Date(event.start + "T00:00:00");
         const dayIndex = startDate.getDay();
 
-        // Only include events within this week
         const weekEnd = new Date(weekSunday);
         weekEnd.setDate(weekSunday.getDate() + 7);
         if (startDate < weekSunday || startDate >= weekEnd) return null;
@@ -129,16 +153,14 @@ function apiEventToCalEvent(event: APICalendarEvent, index: number, weekSunday: 
     const endDate = new Date(event.end);
     const dayIndex = startDate.getDay();
 
-    // Only include events within this week
     const weekEnd = new Date(weekSunday);
     weekEnd.setDate(weekSunday.getDate() + 7);
     if (startDate < weekSunday || startDate >= weekEnd) return null;
 
     const startHour = startDate.getHours() + startDate.getMinutes() / 60;
     const durationMs = endDate.getTime() - startDate.getTime();
-    const duration = Math.max(durationMs / (1000 * 60 * 60), 0.25); // min 15 min
+    const duration = Math.max(durationMs / (1000 * 60 * 60), 0.25);
 
-    // Clamp to visible grid range
     if (startHour >= GRID_END_HOUR || startHour + duration <= GRID_START_HOUR) return null;
 
     return {
@@ -163,7 +185,7 @@ function EventDetailPopup({
     event, daysOfWeek, currentMonth, onClose,
 }: {
     event: CalEvent;
-    daysOfWeek: { day: string; date: number }[];
+    daysOfWeek: { day: string; date: number; fullDate: Date }[];
     currentMonth: string;
     onClose: () => void;
 }) {
@@ -245,6 +267,310 @@ function EventDetailPopup({
     );
 }
 
+/* ─── Quick Add Popover ─── */
+
+function QuickAddPopover({
+    dayName,
+    timeLabel,
+    onSave,
+    onMoreOptions,
+    onClose,
+    saving,
+}: {
+    dayName: string;
+    timeLabel: string;
+    onSave: (title: string) => void;
+    onMoreOptions: (title: string) => void;
+    onClose: () => void;
+    saving: boolean;
+}) {
+    const [title, setTitle] = useState("");
+    const inputRef = useRef<HTMLInputElement>(null);
+
+    useEffect(() => {
+        // Auto-focus the input
+        setTimeout(() => inputRef.current?.focus(), 50);
+    }, []);
+
+    useEffect(() => {
+        const handleEsc = (e: KeyboardEvent) => {
+            if (e.key === "Escape") onClose();
+        };
+        document.addEventListener("keydown", handleEsc);
+        return () => document.removeEventListener("keydown", handleEsc);
+    }, [onClose]);
+
+    const handleSubmit = () => {
+        if (!title.trim()) return;
+        onSave(title.trim());
+    };
+
+    return (
+        <motion.div
+            initial={{ opacity: 0, scale: 0.9, y: 5 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.9, y: 5 }}
+            transition={{ type: "spring", stiffness: 400, damping: 28 }}
+            className="absolute z-50 w-[260px] rounded-xl border-2 border-[var(--border-strong)] bg-[var(--surface)] p-4 shadow-[var(--shadow-card)]"
+            onClick={(e) => e.stopPropagation()}
+        >
+            <input
+                ref={inputRef}
+                type="text"
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter") handleSubmit(); }}
+                placeholder="Add title"
+                className="w-full border-2 border-[var(--border-strong)] rounded-lg px-3 py-2 text-sm bg-[var(--background)] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:ring-2 focus:ring-[#FFE600] transition-all"
+                style={{ fontFamily: "var(--font-body)" }}
+                disabled={saving}
+            />
+
+            <div className="flex items-center gap-2 mt-2.5 text-[11px] text-[var(--text-secondary)]">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" /></svg>
+                <span style={{ fontFamily: "var(--font-heading)" }}>{dayName}, {timeLabel}</span>
+            </div>
+
+            <div className="flex items-center gap-2 mt-3">
+                <motion.button
+                    whileHover={{ scale: 1.03 }}
+                    whileTap={{ scale: 0.97 }}
+                    onClick={handleSubmit}
+                    disabled={!title.trim() || saving}
+                    className="flex-1 rounded-lg bg-[#FFE600] border-2 border-[var(--border-strong)] py-1.5 text-xs font-bold text-[#0A0A0A] shadow-[2px_2px_0_var(--border-strong)] disabled:opacity-40 disabled:shadow-none transition-all"
+                    style={{ fontFamily: "var(--font-heading)" }}
+                >
+                    {saving ? "Saving..." : "Save"}
+                </motion.button>
+                <button
+                    onClick={() => onMoreOptions(title)}
+                    className="flex-1 rounded-lg border border-[var(--border)] py-1.5 text-xs font-semibold text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] transition-colors"
+                    style={{ fontFamily: "var(--font-heading)" }}
+                >
+                    More options →
+                </button>
+            </div>
+        </motion.div>
+    );
+}
+
+/* ─── Create Event Modal ─── */
+
+function CreateEventModal({
+    open,
+    onClose,
+    onCreated,
+    defaultStart,
+    defaultEnd,
+    defaultTitle,
+}: {
+    open: boolean;
+    onClose: () => void;
+    onCreated: () => void;
+    defaultStart?: string;
+    defaultEnd?: string;
+    defaultTitle?: string;
+}) {
+    const defaults = getDefaultStartEnd();
+    const [title, setTitle] = useState(defaultTitle || "");
+    const [description, setDescription] = useState("");
+    const [start, setStart] = useState(defaultStart || defaults.start);
+    const [end, setEnd] = useState(defaultEnd || defaults.end);
+    const [location, setLocation] = useState("");
+    const [addMeetLink, setAddMeetLink] = useState(false);
+    const [creating, setCreating] = useState(false);
+    const [error, setError] = useState("");
+    const [titleError, setTitleError] = useState("");
+    const titleRef = useRef<HTMLInputElement>(null);
+
+    // Reset form when modal opens with new defaults
+    useEffect(() => {
+        if (open) {
+            const d = getDefaultStartEnd();
+            setTitle(defaultTitle || "");
+            setDescription("");
+            setStart(defaultStart || d.start);
+            setEnd(defaultEnd || d.end);
+            setLocation("");
+            setAddMeetLink(false);
+            setCreating(false);
+            setError("");
+            setTitleError("");
+            setTimeout(() => titleRef.current?.focus(), 100);
+        }
+    }, [open, defaultStart, defaultEnd, defaultTitle]);
+
+    const handleCreate = async () => {
+        setTitleError("");
+        setError("");
+
+        if (!title.trim()) {
+            setTitleError("Please enter an event title");
+            titleRef.current?.focus();
+            return;
+        }
+
+        if (!start || !end) {
+            setError("Start and end time are required");
+            return;
+        }
+
+        if (new Date(start) >= new Date(end)) {
+            setError("End time must be after start time");
+            return;
+        }
+
+        setCreating(true);
+        try {
+            const res = await fetch("/api/calendar/events", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                credentials: "include",
+                body: JSON.stringify({
+                    title: title.trim(),
+                    description: description.trim() || undefined,
+                    start: new Date(start).toISOString(),
+                    end: new Date(end).toISOString(),
+                    location: location.trim() || undefined,
+                    addMeetLink,
+                    timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+                }),
+            });
+
+            if (!res.ok) {
+                const data = await res.json().catch(() => ({}));
+                throw new Error(data.error?.message || data.message || "Failed to create event");
+            }
+
+            onCreated();
+            onClose();
+        } catch (err) {
+            setError(err instanceof Error ? err.message : "Something went wrong");
+        } finally {
+            setCreating(false);
+        }
+    };
+
+    return (
+        <Modal open={open} onOpenChange={(v) => { if (!v) onClose(); }} title="New Event" description="Add an event to your Google Calendar">
+            <div className="space-y-4">
+                <Input
+                    ref={titleRef}
+                    label="Event Title"
+                    placeholder="e.g. Team standup, Lunch with Alex..."
+                    value={title}
+                    onChange={(e) => { setTitle(e.target.value); if (titleError) setTitleError(""); }}
+                    error={titleError}
+                />
+
+                <div className="grid grid-cols-2 gap-3">
+                    <div className="flex flex-col gap-1.5">
+                        <label className="text-sm font-bold text-[#0A0A0A]" style={{ fontFamily: "var(--font-heading)" }}>Start</label>
+                        <input
+                            type="datetime-local"
+                            value={start}
+                            onChange={(e) => {
+                                setStart(e.target.value);
+                                // Auto-adjust end to 1 hour after new start
+                                if (e.target.value) {
+                                    const s = new Date(e.target.value);
+                                    const newEnd = new Date(s);
+                                    newEnd.setHours(s.getHours() + 1);
+                                    setEnd(toDatetimeLocal(newEnd, newEnd.getHours() + newEnd.getMinutes() / 60));
+                                }
+                            }}
+                            className="w-full border-2 border-[#0A0A0A] rounded-xl px-3 py-2.5 text-sm bg-white text-[#0A0A0A] focus:outline-none focus:ring-2 focus:ring-[#FFE600] transition-all"
+                            style={{ fontFamily: "var(--font-body)" }}
+                        />
+                    </div>
+                    <div className="flex flex-col gap-1.5">
+                        <label className="text-sm font-bold text-[#0A0A0A]" style={{ fontFamily: "var(--font-heading)" }}>End</label>
+                        <input
+                            type="datetime-local"
+                            value={end}
+                            onChange={(e) => setEnd(e.target.value)}
+                            className="w-full border-2 border-[#0A0A0A] rounded-xl px-3 py-2.5 text-sm bg-white text-[#0A0A0A] focus:outline-none focus:ring-2 focus:ring-[#FFE600] transition-all"
+                            style={{ fontFamily: "var(--font-body)" }}
+                        />
+                    </div>
+                </div>
+
+                <Textarea
+                    label="Description (optional)"
+                    placeholder="What's this event about?"
+                    value={description}
+                    onChange={(e) => setDescription(e.target.value)}
+                    rows={3}
+                />
+
+                <Input
+                    label="Location (optional)"
+                    placeholder="Office, Zoom link, coffee shop..."
+                    value={location}
+                    onChange={(e) => setLocation(e.target.value)}
+                />
+
+                {/* Meet link toggle */}
+                <label className="flex items-center justify-between py-2 cursor-pointer">
+                    <span className="flex items-center gap-2 text-sm text-[#0A0A0A]/70" style={{ fontFamily: "var(--font-heading)" }}>
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M15.6 11.6L22 7v10l-6.4-4.5v1A3 3 0 0 1 12.6 16.5H4a3 3 0 0 1-3-3v-5a3 3 0 0 1 3-3h8.6a3 3 0 0 1 3 3v2.1z" /></svg>
+                        Add Google Meet link
+                    </span>
+                    <button
+                        type="button"
+                        onClick={() => setAddMeetLink(!addMeetLink)}
+                        className={`w-11 h-6 rounded-full transition-all cursor-pointer ${addMeetLink ? "bg-[#FFE600]" : "bg-[#0A0A0A]/15"}`}
+                    >
+                        <motion.div
+                            className="w-5 h-5 rounded-full bg-white border-2 border-[#0A0A0A] shadow-sm"
+                            animate={{ x: addMeetLink ? 20 : 2 }}
+                            transition={{ type: "spring", stiffness: 500, damping: 30 }}
+                        />
+                    </button>
+                </label>
+
+                {/* Error banner */}
+                {error && (
+                    <motion.div
+                        initial={{ opacity: 0, y: -5 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className="bg-[#FF6B6B]/10 border-2 border-[#FF6B6B] rounded-xl px-4 py-2.5 text-center"
+                    >
+                        <p className="text-xs font-bold text-[#FF6B6B]" style={{ fontFamily: "var(--font-heading)" }}>{error}</p>
+                    </motion.div>
+                )}
+
+                <Button
+                    variant="primary"
+                    size="lg"
+                    loading={creating}
+                    onClick={handleCreate}
+                    className="w-full"
+                >
+                    Create Event
+                </Button>
+            </div>
+        </Modal>
+    );
+}
+
+/* ─── Plus Button ─── */
+function AddEventButton({ size = "sm", onClick }: { size?: "sm" | "md"; onClick: (e: React.MouseEvent) => void }) {
+    const isSmall = size === "sm";
+    return (
+        <motion.button
+            whileHover={{ scale: 1.1 }}
+            whileTap={{ scale: 0.9 }}
+            onClick={onClick}
+            className={`flex items-center justify-center rounded-full bg-[#FFE600] border-2 border-[var(--border-strong)] text-[#0A0A0A] shadow-[2px_2px_0_var(--border-strong)] hover:shadow-[1px_1px_0_var(--border-strong)] transition-all ${isSmall ? "h-6 w-6" : "h-7 gap-1.5 px-3"}`}
+            title="Add event"
+        >
+            <svg width={isSmall ? 12 : 13} height={isSmall ? 12 : 13} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
+            {!isSmall && <span className="text-xs font-bold" style={{ fontFamily: "var(--font-heading)" }}>New</span>}
+        </motion.button>
+    );
+}
+
 /* ─── Main Component ─── */
 export default function CalendarPanel() {
     const { days: DAYS_OF_WEEK, todayIndex: TODAY_INDEX, collapsedIndices: COLLAPSED_INDICES, month: CURRENT_MONTH, year: CURRENT_YEAR } = getWeekData();
@@ -256,6 +582,7 @@ export default function CalendarPanel() {
     const [noGoogleAccess, setNoGoogleAccess] = useState(false);
     const [portalReady, setPortalReady] = useState(false);
     const scrollRef = useRef<HTMLDivElement>(null);
+    const gridRef = useRef<HTMLDivElement>(null);
 
     // Track current time on client only to avoid hydration mismatch
     const [currentTimeOffset, setCurrentTimeOffset] = useState<number | null>(null);
@@ -277,6 +604,12 @@ export default function CalendarPanel() {
             scrollRef.current.scrollTo({ top: scrollTarget, behavior: "smooth" });
         }
     }, [expanded, currentTimeOffset]);
+
+    /* ─── Event Creation State ─── */
+    const [quickAdd, setQuickAdd] = useState<{ dayIndex: number; hour: number; top: number; left: number } | null>(null);
+    const [quickSaving, setQuickSaving] = useState(false);
+    const [showCreateModal, setShowCreateModal] = useState(false);
+    const [modalDefaults, setModalDefaults] = useState<{ start?: string; end?: string; title?: string }>({});
 
     // Fetch events from Google Calendar API
     const fetchEvents = useCallback(async () => {
@@ -325,6 +658,97 @@ export default function CalendarPanel() {
         fetchEvents();
     }, [fetchEvents]);
 
+    /* ─── Quick Add Handlers ─── */
+
+    const handleGridClick = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+        // Don't trigger if clicking on an event card
+        if ((e.target as HTMLElement).closest("[data-event-card]")) return;
+
+        const grid = gridRef.current;
+        if (!grid) return;
+
+        const rect = grid.getBoundingClientRect();
+        const scrollTop = scrollRef.current?.scrollTop || 0;
+
+        // Calculate hour from Y position
+        const relativeY = e.clientY - rect.top + scrollTop;
+        const ROW_HEIGHT = 44;
+        const clickedHour = Math.floor(relativeY / ROW_HEIGHT) + GRID_START_HOUR;
+        if (clickedHour < GRID_START_HOUR || clickedHour >= GRID_END_HOUR) return;
+
+        // Calculate day from X position (48px for hour labels, then 7 equal columns)
+        const relativeX = e.clientX - rect.left;
+        const gridWidth = rect.width;
+        const hourLabelWidth = 48;
+        const dayWidth = (gridWidth - hourLabelWidth) / 7;
+        const dayIndex = Math.floor((relativeX - hourLabelWidth) / dayWidth);
+        if (dayIndex < 0 || dayIndex > 6) return;
+
+        // Position the popover near the click
+        const topPos = (clickedHour - GRID_START_HOUR) * ROW_HEIGHT;
+        const leftPos = hourLabelWidth + dayIndex * dayWidth;
+
+        setSelectedEvent(null);
+        setQuickAdd({ dayIndex, hour: clickedHour, top: topPos, left: leftPos });
+    }, []);
+
+    const handleQuickSave = useCallback(async (title: string) => {
+        if (!quickAdd) return;
+        setQuickSaving(true);
+
+        const dayDate = DAYS_OF_WEEK[quickAdd.dayIndex]?.fullDate;
+        if (!dayDate) { setQuickSaving(false); return; }
+
+        const startStr = toDatetimeLocal(dayDate, quickAdd.hour);
+        const endDate = new Date(dayDate);
+        endDate.setHours(quickAdd.hour + 1);
+        const endStr = toDatetimeLocal(endDate, quickAdd.hour + 1);
+
+        try {
+            const res = await fetch("/api/calendar/events", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                credentials: "include",
+                body: JSON.stringify({
+                    title,
+                    start: new Date(startStr).toISOString(),
+                    end: new Date(endStr).toISOString(),
+                    timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+                }),
+            });
+
+            if (!res.ok) throw new Error("Failed to create event");
+
+            setQuickAdd(null);
+            await fetchEvents();
+        } catch (err) {
+            console.error("Quick save failed:", err);
+        } finally {
+            setQuickSaving(false);
+        }
+    }, [quickAdd, DAYS_OF_WEEK, fetchEvents]);
+
+    const handleQuickMoreOptions = useCallback((title: string) => {
+        if (!quickAdd) return;
+        const dayDate = DAYS_OF_WEEK[quickAdd.dayIndex]?.fullDate;
+        if (!dayDate) return;
+
+        const startStr = toDatetimeLocal(dayDate, quickAdd.hour);
+        const endDate = new Date(dayDate);
+        endDate.setHours(quickAdd.hour + 1);
+        const endStr = toDatetimeLocal(endDate, quickAdd.hour + 1);
+
+        setQuickAdd(null);
+        setModalDefaults({ start: startStr, end: endStr, title: title || undefined });
+        setShowCreateModal(true);
+    }, [quickAdd, DAYS_OF_WEEK]);
+
+    const openCreateModal = useCallback((e: React.MouseEvent) => {
+        e.stopPropagation();
+        setModalDefaults({});
+        setShowCreateModal(true);
+    }, []);
+
     // Separate all-day vs timed events
     const allDayEvents = events.filter((e) => e.isAllDay);
     const timedEvents = events.filter((e) => !e.isAllDay);
@@ -352,6 +776,7 @@ export default function CalendarPanel() {
                     {CURRENT_MONTH}
                 </h2>
                 <div className="flex items-center gap-2">
+                    {!noGoogleAccess && <AddEventButton size="sm" onClick={openCreateModal} />}
                     <span className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider" style={{ fontFamily: "var(--font-heading)" }}>
                         This week
                     </span>
@@ -477,7 +902,7 @@ export default function CalendarPanel() {
             exit={{ opacity: 0 }}
             transition={{ duration: 0.2 }}
             className="fixed inset-0 z-[100] flex items-start justify-center bg-black/40 backdrop-blur-sm p-6 overflow-hidden"
-            onClick={() => { setExpanded(false); setSelectedEvent(null); }}
+            onClick={() => { setExpanded(false); setSelectedEvent(null); setQuickAdd(null); }}
         >
             <motion.div
                 initial={{ y: 40, opacity: 0, scale: 0.96 }}
@@ -494,6 +919,9 @@ export default function CalendarPanel() {
                         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#7C3AED" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="inline -mt-0.5 mr-1.5"><rect x="3" y="4" width="18" height="18" rx="2" ry="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" /></svg>
                         {CURRENT_MONTH}, {CURRENT_YEAR}
                     </h2>
+
+                    {/* + New Event button */}
+                    {!noGoogleAccess && <AddEventButton size="md" onClick={openCreateModal} />}
 
                     {/* View toggle */}
                     <div className="flex items-center rounded-full border border-[var(--border)] bg-[var(--background)] p-0.5">
@@ -527,7 +955,7 @@ export default function CalendarPanel() {
                         <motion.button
                             whileHover={{ scale: 1.1 }}
                             whileTap={{ scale: 0.9 }}
-                            onClick={() => { setExpanded(false); setSelectedEvent(null); }}
+                            onClick={() => { setExpanded(false); setSelectedEvent(null); setQuickAdd(null); }}
                             className="flex h-7 w-7 items-center justify-center rounded-full border border-[var(--border)] text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] transition-colors"
                             title="Close"
                         >
@@ -582,7 +1010,7 @@ export default function CalendarPanel() {
 
                 {/* ── Scrollable timeline grid ── */}
                 <div ref={scrollRef} className="flex-1 overflow-y-auto overflow-x-hidden px-6">
-                    <div className="relative" style={{ height: totalHours * ROW_HEIGHT }}>
+                    <div ref={gridRef} className="relative cursor-crosshair" style={{ height: totalHours * ROW_HEIGHT }} onClick={handleGridClick}>
                         {/* Hour lines */}
                         {HOURS_LABELS.map((hour, i) => (
                             <div key={hour} className="absolute left-0 right-0 flex items-start" style={{ top: i * ROW_HEIGHT }}>
@@ -610,8 +1038,9 @@ export default function CalendarPanel() {
                             return (
                                 <motion.div
                                     key={event.id}
+                                    data-event-card
                                     whileHover={{ scale: 1.01, zIndex: 20 }}
-                                    onClick={() => setSelectedEvent(event)}
+                                    onClick={(e) => { e.stopPropagation(); setSelectedEvent(event); setQuickAdd(null); }}
                                     className="absolute rounded-lg px-2 py-1.5 cursor-pointer overflow-hidden transition-all hover:shadow-md border border-[var(--border)]"
                                     style={{
                                         top: topOffset,
@@ -638,10 +1067,10 @@ export default function CalendarPanel() {
 
                         {/* Empty state */}
                         {timedEvents.length === 0 && allDayEvents.length === 0 && (
-                            <div className="absolute inset-0 flex items-center justify-center">
+                            <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
                                 <div className="text-center">
                                     <p className="text-sm text-[var(--text-muted)] mb-1">No events this week</p>
-                                    <p className="text-xs text-[var(--text-muted)]">Events from your Google Calendar will appear here</p>
+                                    <p className="text-xs text-[var(--text-muted)]">Click any time slot to add an event</p>
                                 </div>
                             </div>
                         )}
@@ -656,6 +1085,22 @@ export default function CalendarPanel() {
                                 <div className="flex-1 border-t-2 border-[#FF6B6B]" />
                             </div>
                         )}
+
+                        {/* Quick-add popover */}
+                        <AnimatePresence>
+                            {quickAdd && (
+                                <div style={{ position: "absolute", top: quickAdd.top, left: Math.min(quickAdd.left, 800), zIndex: 50 }}>
+                                    <QuickAddPopover
+                                        dayName={DAYS_OF_WEEK[quickAdd.dayIndex]?.day || ""}
+                                        timeLabel={`${formatHour(quickAdd.hour)} – ${formatHour(quickAdd.hour + 1)}`}
+                                        onSave={handleQuickSave}
+                                        onMoreOptions={handleQuickMoreOptions}
+                                        onClose={() => setQuickAdd(null)}
+                                        saving={quickSaving}
+                                    />
+                                </div>
+                            )}
+                        </AnimatePresence>
                     </div>
                 </div>
 
@@ -681,6 +1126,15 @@ export default function CalendarPanel() {
                 <AnimatePresence>{expanded && expandedOverlay}</AnimatePresence>,
                 document.body
             )}
+            {/* Create Event Modal — always rendered via portal */}
+            <CreateEventModal
+                open={showCreateModal}
+                onClose={() => { setShowCreateModal(false); setModalDefaults({}); }}
+                onCreated={fetchEvents}
+                defaultStart={modalDefaults.start}
+                defaultEnd={modalDefaults.end}
+                defaultTitle={modalDefaults.title}
+            />
         </>
     );
 }
