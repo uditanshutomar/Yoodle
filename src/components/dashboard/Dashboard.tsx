@@ -8,8 +8,6 @@ import MeetingHistory from "./MeetingHistory";
 import MeetingDetail from "./MeetingDetail";
 import { MeetingRecord } from "./meetingsData";
 import { DoodleStar, DoodleSquiggle, DoodleSparkles } from "@/components/Doodles";
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-import { YoodleMascotSmall } from "@/components/YoodleMascot";
 import { useAuth } from "@/hooks/useAuth";
 import { useAIChat } from "@/hooks/useAIChat";
 import { useRouter } from "next/navigation";

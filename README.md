@@ -69,8 +69,6 @@ MONGODB_URI=mongodb://localhost:27017/yoodle
 
 # Authentication (required)
 JWT_SECRET=your-jwt-secret-minimum-64-characters-long
-MAGIC_LINK_SECRET=your-magic-link-secret
-
 # Application (required)
 NEXT_PUBLIC_APP_URL=http://localhost:3000
 
@@ -81,8 +79,8 @@ GEMINI_API_KEY=your-gemini-api-key
 GOOGLE_CLIENT_ID=your-google-client-id
 GOOGLE_CLIENT_SECRET=your-google-client-secret
 
-# Voice synthesis (optional)
-ELEVEN_LABS_API_KEY=your-elevenlabs-api-key
+# Voice / TTS (optional)
+ELEVENLABS_API_KEY=your-elevenlabs-api-key
 
 # Cloud infrastructure (optional - needed for workspaces)
 VULTR_API_KEY=your-vultr-api-key
@@ -165,7 +163,6 @@ src/
 ├── types/                      # TypeScript type definitions
 └── middleware.ts               # Edge middleware for auth protection
 server.ts                       # Main server entry (Next.js + Socket.io)
-server/                         # Standalone Socket.io server (Docker)
 ```
 
 ## API Overview
@@ -230,8 +227,6 @@ Yoodle is configured for deployment on Vercel. The `vercel.json` specifies the `
 ```bash
 vercel deploy
 ```
-
-For the Socket.io server, a standalone Docker deployment is available in the `server/` directory.
 
 ## License
 

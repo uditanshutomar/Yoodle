@@ -64,10 +64,6 @@ const nextConfig: NextConfig = {
       },
     ];
   },
-  webpack: (config) => {
-    config.externals = config.externals || [];
-    return config;
-  },
 };
 
 export default withSentryConfig(nextConfig, {
