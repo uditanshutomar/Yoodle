@@ -48,12 +48,12 @@ interface YoodleUser {
 
 /* ─── Color cycling ─── */
 const EVENT_COLORS = [
-    { color: "#3B82F6", bgColor: "#DBEAFE" },
-    { color: "#22C55E", bgColor: "#DCFCE7" },
-    { color: "#A855F7", bgColor: "#F3E8FF" },
-    { color: "#F59E0B", bgColor: "#FEF3C7" },
-    { color: "#EC4899", bgColor: "#FCE7F3" },
-    { color: "#EF4444", bgColor: "#FEE2E2" },
+    { color: "#3B82F6", bgColor: "#DBEAFE", dotColor: "#93C5FD" },
+    { color: "#22C55E", bgColor: "#DCFCE7", dotColor: "#86EFAC" },
+    { color: "#A855F7", bgColor: "#F3E8FF", dotColor: "#C4B5FD" },
+    { color: "#F59E0B", bgColor: "#FEF3C7", dotColor: "#FCD34D" },
+    { color: "#EC4899", bgColor: "#FCE7F3", dotColor: "#F9A8D4" },
+    { color: "#EF4444", bgColor: "#FEE2E2", dotColor: "#FCA5A5" },
 ];
 
 /* ─── Constants ─── */
@@ -247,64 +247,67 @@ function EventDetailPopup({ event, daysOfWeek, currentMonth, onClose }: {
 
     return (
         <motion.div
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: 10 }}
+            initial={{ opacity: 0, y: 10, scale: 0.97 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 10, scale: 0.97 }}
             transition={{ type: "spring", stiffness: 400, damping: 30 }}
-            className="absolute top-4 right-4 z-40 w-72 rounded-2xl border-2 border-[var(--border-strong)] bg-[var(--surface)] p-4 shadow-[var(--shadow-card)]"
+            className="absolute top-4 right-4 z-40 w-80 rounded-2xl border-2 border-[var(--border-strong)] bg-[var(--surface)] p-5 shadow-[var(--shadow-card)]"
         >
-            <div className="flex items-start justify-between mb-3">
+            {/* Color accent bar */}
+            <div className="absolute top-0 left-5 right-5 h-1 rounded-b-full" style={{ backgroundColor: event.color }} />
+
+            <div className="flex items-start justify-between mb-4 mt-1">
                 <div className="flex-1 min-w-0">
-                    <h3 className="font-bold text-[var(--text-primary)] text-sm truncate" style={{ fontFamily: "var(--font-heading)" }}>
+                    <h3 className="font-black text-[var(--text-primary)] text-base leading-tight truncate" style={{ fontFamily: "var(--font-heading)" }}>
                         {event.title}
                     </h3>
-                    <p className="text-xs text-[var(--text-secondary)] mt-0.5" style={{ fontFamily: "var(--font-heading)" }}>
+                    <p className="text-xs text-[var(--text-secondary)] mt-1" style={{ fontFamily: "var(--font-heading)" }}>
                         {dayInfo?.day || ""}, {currentMonth} {dayInfo?.date || ""}
                     </p>
                 </div>
                 <motion.button whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }} onClick={onClose}
-                    className="ml-2 flex h-6 w-6 items-center justify-center rounded-full hover:bg-[var(--surface-hover)] text-[var(--text-muted)]">
+                    className="ml-2 flex h-7 w-7 items-center justify-center rounded-full hover:bg-[var(--surface-hover)] text-[var(--text-muted)] transition-colors">
                     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
                 </motion.button>
             </div>
 
-            <div className="space-y-2 text-xs">
-                <div className="flex items-center gap-2 text-[var(--text-secondary)]">
-                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" /></svg>
-                    <span>{event.time}</span>
+            <div className="space-y-2.5 text-xs">
+                <div className="flex items-center gap-2.5 text-[var(--text-secondary)]">
+                    <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-[var(--surface-hover)]">
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" /></svg>
+                    </div>
+                    <span className="font-medium">{event.time}</span>
                 </div>
                 {event.location && !yoodleLink && (
-                    <div className="flex items-center gap-2 text-[var(--text-secondary)]">
-                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" /><circle cx="12" cy="10" r="3" /></svg>
-                        <span className="truncate">{event.location}</span>
+                    <div className="flex items-center gap-2.5 text-[var(--text-secondary)]">
+                        <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-[var(--surface-hover)]">
+                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" /><circle cx="12" cy="10" r="3" /></svg>
+                        </div>
+                        <span className="truncate font-medium">{event.location}</span>
                     </div>
                 )}
                 {event.attendeeCount > 0 && (
-                    <div className="flex items-center gap-2 text-[var(--text-secondary)]">
-                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M23 21v-2a4 4 0 0 0-3-3.87" /><path d="M16 3.13a4 4 0 0 1 0 7.75" /></svg>
-                        <span>{event.attendeeCount} attendee{event.attendeeCount > 1 ? "s" : ""}</span>
+                    <div className="flex items-center gap-2.5 text-[var(--text-secondary)]">
+                        <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-[var(--surface-hover)]">
+                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M23 21v-2a4 4 0 0 0-3-3.87" /><path d="M16 3.13a4 4 0 0 1 0 7.75" /></svg>
+                        </div>
+                        <span className="font-medium">{event.attendeeCount} attendee{event.attendeeCount > 1 ? "s" : ""}</span>
                     </div>
                 )}
             </div>
 
             {meetLink ? (
                 <a href={meetLink} target="_blank" rel="noopener noreferrer"
-                    className="mt-3 flex items-center justify-center gap-2 rounded-xl bg-[#FFE600] px-4 py-2 text-xs font-bold text-[#0A0A0A] border-2 border-[#0A0A0A] shadow-[2px_2px_0_#0A0A0A] hover:shadow-[1px_1px_0_#0A0A0A] hover:translate-x-[1px] hover:translate-y-[1px] transition-all"
+                    className="mt-4 flex items-center justify-center gap-2 rounded-xl bg-[#FFE600] px-4 py-2.5 text-xs font-bold text-[#0A0A0A] border-2 border-[#0A0A0A] shadow-[2px_2px_0_#0A0A0A] hover:shadow-[1px_1px_0_#0A0A0A] hover:translate-x-[1px] hover:translate-y-[1px] transition-all"
                     style={{ fontFamily: "var(--font-heading)" }}>
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polygon points="23 7 16 12 23 17 23 7" /><rect x="1" y="5" width="15" height="14" rx="2" ry="2" /></svg>
                     {yoodleLink ? "Join Yoodle" : "Join Meeting"}
                 </a>
             ) : (
-                <div className="mt-3 flex items-center justify-center gap-2 rounded-xl bg-[var(--surface-hover)] px-4 py-2 text-xs font-semibold text-[var(--text-muted)]" style={{ fontFamily: "var(--font-heading)" }}>
+                <div className="mt-4 flex items-center justify-center gap-2 rounded-xl bg-[var(--surface-hover)] px-4 py-2.5 text-xs font-semibold text-[var(--text-muted)]" style={{ fontFamily: "var(--font-heading)" }}>
                     No meeting link
                 </div>
             )}
-
-            <div className="mt-2 flex justify-end">
-                <button className="flex h-6 w-6 items-center justify-center rounded-full hover:bg-[var(--surface-hover)] text-[var(--text-muted)]">
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="1" /><circle cx="19" cy="12" r="1" /><circle cx="5" cy="12" r="1" /></svg>
-                </button>
-            </div>
         </motion.div>
     );
 }
@@ -611,9 +614,9 @@ function CreateEventModal({ open, onClose, onCreated, defaultStart, defaultEnd, 
 function AddEventButton({ size = "sm", onClick }: { size?: "sm" | "md"; onClick: (e: React.MouseEvent) => void }) {
     const isMd = size === "md";
     return (
-        <motion.button whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}
+        <motion.button whileHover={{ scale: 1.04, y: -1 }} whileTap={{ scale: 0.96 }}
             onClick={onClick}
-            className={`flex items-center justify-center gap-1.5 rounded-full bg-[#FFE600] font-bold text-[#0A0A0A] border-2 border-[#0A0A0A] shadow-[2px_2px_0_#0A0A0A] hover:shadow-[1px_1px_0_#0A0A0A] hover:translate-x-[1px] hover:translate-y-[1px] transition-all ${isMd ? "px-4 py-1.5 text-xs" : "h-6 w-6 text-xs"}`}
+            className={`flex items-center justify-center gap-1.5 rounded-xl bg-[#FFE600] font-black text-[#0A0A0A] border-2 border-[#0A0A0A] shadow-[2px_2px_0_#0A0A0A] hover:shadow-[1px_1px_0_#0A0A0A] hover:translate-x-[1px] hover:translate-y-[1px] transition-all ${isMd ? "px-4 py-1.5 text-xs" : "h-7 w-7 text-xs"}`}
             style={{ fontFamily: "var(--font-heading)" }}>
             <svg width={isMd ? 14 : 12} height={isMd ? 14 : 12} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
             {isMd && "New"}
@@ -631,38 +634,48 @@ function MonthView({ weekOffset, events, onDayClick }: {
     const today = new Date();
 
     return (
-        <div className="flex-1 overflow-y-auto px-6 py-3">
-            <div className="grid grid-cols-7 gap-px bg-[var(--border)]">
+        <div className="flex-1 overflow-y-auto px-6 py-4">
+            {/* Day headers */}
+            <div className="grid grid-cols-7 gap-1 mb-1">
                 {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map(d => (
-                    <div key={d} className="bg-[var(--surface)] py-2 text-center text-[10px] font-bold text-[var(--text-muted)]" style={{ fontFamily: "var(--font-heading)" }}>
+                    <div key={d} className="py-2 text-center text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider" style={{ fontFamily: "var(--font-heading)" }}>
                         {d}
                     </div>
                 ))}
+            </div>
+            {/* Day cells */}
+            <div className="grid grid-cols-7 gap-1">
                 {cells.map((cell, i) => {
                     const cellEvents = events.filter(e => sameDay(e.fullDate, cell.date));
                     const isToday = sameDay(cell.date, today);
                     return (
-                        <div key={i}
+                        <motion.div key={i}
+                            whileHover={{ scale: 1.02 }}
                             onClick={() => onDayClick(cell.date)}
-                            className={`bg-[var(--surface)] min-h-[80px] p-1.5 cursor-pointer hover:bg-[var(--surface-hover)] transition-colors ${!cell.isCurrentMonth ? "opacity-40" : ""}`}>
-                            <span className={`inline-flex items-center justify-center w-6 h-6 rounded-full text-xs font-bold ${isToday ? "bg-[var(--foreground)] text-white" : "text-[var(--text-primary)]"}`}
-                                style={{ fontFamily: "var(--font-heading)" }}>
+                            className={`min-h-[84px] p-2 rounded-xl cursor-pointer transition-all border ${isToday
+                                ? "border-[var(--foreground)] bg-[var(--foreground)]/[0.03]"
+                                : "border-transparent hover:border-[var(--border)] hover:bg-[var(--surface-hover)]"
+                            } ${!cell.isCurrentMonth ? "opacity-35" : ""}`}>
+                            <span className={`inline-flex items-center justify-center w-6 h-6 rounded-full text-xs font-bold transition-colors ${isToday
+                                ? "bg-[var(--foreground)] text-white shadow-sm"
+                                : "text-[var(--text-primary)]"
+                            }`} style={{ fontFamily: "var(--font-heading)" }}>
                                 {cell.dayNum}
                             </span>
-                            <div className="mt-1 space-y-0.5">
+                            <div className="mt-1.5 space-y-1">
                                 {cellEvents.slice(0, 2).map(ev => (
-                                    <div key={ev.id} className="rounded px-1 py-0.5 text-[9px] font-bold truncate"
-                                        style={{ backgroundColor: ev.bgColor, color: ev.color, fontFamily: "var(--font-heading)" }}>
+                                    <div key={ev.id} className="rounded-md px-1.5 py-0.5 text-[9px] font-bold truncate border"
+                                        style={{ backgroundColor: ev.bgColor, color: ev.color, borderColor: `${ev.color}30`, fontFamily: "var(--font-heading)" }}>
                                         {ev.title}
                                     </div>
                                 ))}
                                 {cellEvents.length > 2 && (
-                                    <p className="text-[9px] text-[var(--text-muted)] font-semibold pl-1" style={{ fontFamily: "var(--font-heading)" }}>
+                                    <p className="text-[9px] text-[var(--text-muted)] font-bold pl-1" style={{ fontFamily: "var(--font-heading)" }}>
                                         +{cellEvents.length - 2} more
                                     </p>
                                 )}
                             </div>
-                        </div>
+                        </motion.div>
                     );
                 })}
             </div>
@@ -706,15 +719,16 @@ function DayView({ dayData, events, allDayEvents, currentTimeOffset, quickAdd, q
     return (
         <div ref={scrollRef} className="flex-1 overflow-y-auto px-6">
             {allDayEvents.length > 0 && (
-                <div className="py-2 border-b border-[var(--border)]">
-                    <span className="text-[10px] text-[var(--text-muted)] font-medium" style={{ fontFamily: "var(--font-heading)" }}>All day</span>
-                    <div className="flex gap-1 mt-1">
+                <div className="py-3 border-b border-[var(--border)]">
+                    <span className="text-[10px] text-[var(--text-muted)] font-bold uppercase tracking-wider" style={{ fontFamily: "var(--font-heading)" }}>All day</span>
+                    <div className="flex flex-wrap gap-1.5 mt-1.5">
                         {allDayEvents.map(ev => (
-                            <div key={ev.id} className="rounded px-2 py-1 text-[10px] font-bold border border-[var(--border)] cursor-pointer"
-                                style={{ backgroundColor: ev.bgColor, color: ev.color, fontFamily: "var(--font-heading)" }}
+                            <motion.div key={ev.id} whileHover={{ scale: 1.03 }}
+                                className="rounded-lg px-2.5 py-1.5 text-[10px] font-bold border cursor-pointer transition-shadow hover:shadow-sm"
+                                style={{ backgroundColor: ev.bgColor, color: ev.color, borderColor: `${ev.color}30`, fontFamily: "var(--font-heading)" }}
                                 onClick={() => onSelectEvent(ev)}>
                                 {ev.title}
-                            </div>
+                            </motion.div>
                         ))}
                     </div>
                 </div>
@@ -722,7 +736,7 @@ function DayView({ dayData, events, allDayEvents, currentTimeOffset, quickAdd, q
             <div className="relative cursor-crosshair" style={{ height: totalHours * ROW_HEIGHT }} onClick={handleClick}>
                 {HOURS_LABELS.map((hour, i) => (
                     <div key={hour} className="absolute left-0 right-0 flex items-start" style={{ top: i * ROW_HEIGHT }}>
-                        <span className="w-12 flex-shrink-0 text-[10px] text-[var(--text-muted)] font-medium -mt-1.5" style={{ fontFamily: "var(--font-heading)" }}>{hour}</span>
+                        <span className="w-14 flex-shrink-0 text-[10px] text-[var(--text-muted)] font-medium -mt-1.5 pr-2 text-right" style={{ fontFamily: "var(--font-heading)" }}>{hour}</span>
                         <div className="flex-1 border-t border-[var(--border)]" />
                     </div>
                 ))}
@@ -731,26 +745,28 @@ function DayView({ dayData, events, allDayEvents, currentTimeOffset, quickAdd, q
                     const height = event.duration * ROW_HEIGHT - 4;
                     return (
                         <motion.div key={event.id} data-event-card
-                            whileHover={{ scale: 1.01, zIndex: 20 }}
+                            initial={false}
+                            whileHover={{ scale: 1.005, zIndex: 20 }}
                             onClick={(e) => { e.stopPropagation(); onSelectEvent(event); }}
-                            className="absolute rounded-lg px-3 py-2 cursor-pointer overflow-hidden transition-all hover:shadow-md border border-[var(--border)]"
-                            style={{ top: topOffset, height: Math.max(height, 26), left: 52, right: 8, backgroundColor: event.bgColor, borderLeft: `3px solid ${event.color}`, zIndex: 10 }}>
+                            className="absolute rounded-xl px-3.5 py-2.5 cursor-pointer overflow-hidden transition-all hover:shadow-lg border"
+                            style={{ top: topOffset, height: Math.max(height, 30), left: 58, right: 12, backgroundColor: event.bgColor, borderColor: `${event.color}25`, borderLeft: `4px solid ${event.color}`, zIndex: 10 }}>
                             <p className="text-sm font-bold truncate" style={{ color: event.color, fontFamily: "var(--font-heading)" }}>{event.title}</p>
-                            <p className="text-xs text-[var(--text-secondary)] mt-0.5">{event.time}</p>
-                            {event.attendeeCount > 0 && event.duration >= 1 && (
+                            {event.duration >= 0.75 && <p className="text-xs text-[var(--text-secondary)] mt-0.5">{event.time}</p>}
+                            {event.attendeeCount > 0 && event.duration >= 1.25 && (
                                 <p className="text-[10px] text-[var(--text-muted)] mt-0.5">{event.attendeeCount} attendee{event.attendeeCount > 1 ? "s" : ""}</p>
                             )}
                         </motion.div>
                     );
                 })}
                 {currentTimeOffset !== null && currentTimeOffset >= 0 && currentTimeOffset <= totalHours && (
-                    <div className="absolute left-12 right-0 z-30 flex items-center pointer-events-none" style={{ top: currentTimeOffset * ROW_HEIGHT }}>
-                        <div className="h-2.5 w-2.5 rounded-full bg-[#FF6B6B] -ml-1.5 shadow-sm" /><div className="flex-1 border-t-2 border-[#FF6B6B]" />
+                    <div className="absolute left-14 right-0 z-30 flex items-center pointer-events-none" style={{ top: currentTimeOffset * ROW_HEIGHT }}>
+                        <div className="h-3 w-3 rounded-full bg-[var(--coral)] -ml-1.5 shadow-sm ring-2 ring-[var(--coral)]/30" />
+                        <div className="flex-1 border-t-2 border-[var(--coral)]" />
                     </div>
                 )}
                 <AnimatePresence>
                     {quickAdd && (
-                        <div style={{ position: "absolute", top: quickAdd.top, left: 60, zIndex: 50 }}>
+                        <div style={{ position: "absolute", top: quickAdd.top, left: 64, zIndex: 50 }}>
                             <QuickAddPopover dayName={dayData.day} timeLabel={`${formatHour(quickAdd.hour)} – ${formatHour(quickAdd.hour + 1)}`}
                                 onSave={onQuickSave} onMoreOptions={onQuickMoreOptions} onClose={onQuickClose} saving={quickSaving} />
                         </div>
@@ -1045,19 +1061,25 @@ export default function CalendarPanel() {
 
             {noGoogleAccess ? (
                 <div className="flex flex-col items-center py-6 text-center">
-                    <div className="w-10 h-10 rounded-full bg-[var(--surface-hover)] flex items-center justify-center mb-3">
-                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" /></svg>
+                    <div className="w-11 h-11 rounded-xl bg-[#7C3AED]/10 flex items-center justify-center mb-3">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#7C3AED" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" /></svg>
                     </div>
                     <p className="text-xs font-bold text-[var(--text-primary)] mb-1" style={{ fontFamily: "var(--font-heading)" }}>Connect Google Calendar</p>
-                    <p className="text-[10px] text-[var(--text-muted)] mb-3">Sync your Google Calendar to see and manage them here.</p>
-                    <a href="/settings" className="text-xs font-bold text-[#7C3AED] hover:underline flex items-center gap-1" style={{ fontFamily: "var(--font-heading)" }}>
-                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" /></svg>
-                        Connect in Settings
+                    <p className="text-[10px] text-[var(--text-muted)] mb-3 leading-relaxed">Sync your calendar to see and<br />manage events here.</p>
+                    <a href="/settings" className="inline-flex items-center gap-1.5 text-xs font-bold text-white bg-[#7C3AED] hover:bg-[#6D28D9] px-4 py-1.5 rounded-lg transition-colors" style={{ fontFamily: "var(--font-heading)" }}>
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4" /><polyline points="10 17 15 12 10 7" /><line x1="15" y1="12" x2="3" y2="12" /></svg>
+                        Connect
                     </a>
                 </div>
             ) : loading ? (
-                <div className="flex items-center justify-center py-8">
-                    <motion.div animate={{ rotate: 360 }} transition={{ duration: 1, repeat: Infinity, ease: "linear" }} className="h-5 w-5 rounded-full border-2 border-[var(--border)] border-t-[#7C3AED]" />
+                <div className="py-6 space-y-3">
+                    {/* Skeleton loading */}
+                    {[...Array(4)].map((_, i) => (
+                        <div key={i} className="flex items-center gap-2 px-1">
+                            <div className="w-10 h-3 rounded-md bg-[var(--surface-hover)] animate-pulse" />
+                            <div className="flex-1 h-8 rounded-lg bg-[var(--surface-hover)] animate-pulse" style={{ animationDelay: `${i * 100}ms` }} />
+                        </div>
+                    ))}
                 </div>
             ) : (
                 <div className="relative" style={{ height: COLLAPSED_HOURS.length * COLLAPSED_ROW_HEIGHT }}>
@@ -1081,8 +1103,11 @@ export default function CalendarPanel() {
                         );
                     })}
                     {collapsedVisibleEvents.length === 0 && collapsedAllDay.length === 0 && (
-                        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                            <p className="text-[10px] text-[var(--text-muted)]">No events this week</p>
+                        <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+                            <div className="w-8 h-8 rounded-xl bg-[var(--surface-hover)] flex items-center justify-center mb-2">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" /></svg>
+                            </div>
+                            <p className="text-[10px] font-semibold text-[var(--text-muted)]" style={{ fontFamily: "var(--font-heading)" }}>Nothing scheduled</p>
                         </div>
                     )}
                 </div>
@@ -1110,67 +1135,88 @@ export default function CalendarPanel() {
                 onClick={(e) => e.stopPropagation()}
             >
                 {/* ── Header ── */}
-                <div className="flex items-center justify-between px-6 py-4 border-b border-[var(--border)] flex-shrink-0">
-                    <h2 className="text-xl font-black text-[var(--text-primary)]" style={{ fontFamily: "var(--font-heading)" }}>
-                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#7C3AED" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="inline -mt-0.5 mr-1.5"><rect x="3" y="4" width="18" height="18" rx="2" ry="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" /></svg>
-                        {headerText}
-                    </h2>
+                <div className="flex items-center justify-between px-6 py-3.5 border-b border-[var(--border)] flex-shrink-0">
+                    {/* Left: Title + Nav */}
+                    <div className="flex items-center gap-3">
+                        <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-[#7C3AED]/10">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#7C3AED" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" /></svg>
+                        </div>
+                        <h2 className="text-lg font-black text-[var(--text-primary)] min-w-[140px]" style={{ fontFamily: "var(--font-heading)" }}>
+                            {headerText}
+                        </h2>
+                        <div className="flex items-center gap-0.5">
+                            <button onClick={handleNavPrev} className="flex h-7 w-7 items-center justify-center rounded-lg text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] transition-colors">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6" /></svg>
+                            </button>
+                            <button onClick={handleNavToday} className="px-3 py-1 rounded-lg text-xs font-bold text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] transition-colors" style={{ fontFamily: "var(--font-heading)" }}>
+                                Today
+                            </button>
+                            <button onClick={handleNavNext} className="flex h-7 w-7 items-center justify-center rounded-lg text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] transition-colors">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6" /></svg>
+                            </button>
+                        </div>
+                    </div>
 
-                    {!noGoogleAccess && <AddEventButton size="md" onClick={openCreateModal} />}
-
-                    {/* View toggle */}
-                    <div className="flex items-center rounded-full border border-[var(--border)] bg-[var(--background)] p-0.5">
+                    {/* Center: View toggle */}
+                    <div className="flex items-center rounded-xl border border-[var(--border)] bg-[var(--background)] p-0.5">
                         {(["Month", "Week", "Day"] as const).map((v) => (
                             <button key={v} onClick={() => handleViewChange(v)}
-                                className={`px-3.5 py-1 rounded-full text-xs font-semibold transition-all ${view === v ? "bg-[#FFE600] text-[#0A0A0A] shadow-sm" : "text-[var(--text-secondary)] hover:text-[var(--text-primary)]"}`}
+                                className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${view === v
+                                    ? "bg-[#FFE600] text-[#0A0A0A] shadow-sm"
+                                    : "text-[var(--text-muted)] hover:text-[var(--text-primary)]"
+                                }`}
                                 style={{ fontFamily: "var(--font-heading)" }}>
                                 {v}
                             </button>
                         ))}
                     </div>
 
-                    {/* Nav + close */}
-                    <div className="flex items-center gap-1">
-                        <button onClick={handleNavPrev} className="flex h-7 w-7 items-center justify-center rounded-full border border-[var(--border)] text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] transition-colors">
-                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6" /></svg>
-                        </button>
-                        <button onClick={handleNavToday} className="px-3 py-1 rounded-full border border-[var(--border)] text-xs font-semibold text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] transition-colors" style={{ fontFamily: "var(--font-heading)" }}>
-                            Today
-                        </button>
-                        <button onClick={handleNavNext} className="flex h-7 w-7 items-center justify-center rounded-full border border-[var(--border)] text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] transition-colors">
-                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6" /></svg>
-                        </button>
-                        <div className="w-px h-4 bg-[var(--border)] mx-1" />
+                    {/* Right: New + Close */}
+                    <div className="flex items-center gap-2">
+                        {!noGoogleAccess && <AddEventButton size="md" onClick={openCreateModal} />}
                         <motion.button whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}
                             onClick={() => { setExpanded(false); setSelectedEvent(null); setQuickAdd(null); }}
-                            className="flex h-7 w-7 items-center justify-center rounded-full border border-[var(--border)] text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] transition-colors" title="Close">
-                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
+                            className="flex h-8 w-8 items-center justify-center rounded-xl border border-[var(--border)] text-[var(--text-muted)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)] transition-colors" title="Close">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
                         </motion.button>
                     </div>
                 </div>
 
                 {/* ── Day strip (Week/Day views only) ── */}
                 {view !== "Month" && (
-                    <div className="grid gap-1.5 px-6 py-3 border-b border-[var(--border)] flex-shrink-0" style={{ gridTemplateColumns: "48px repeat(7, 1fr)" }}>
+                    <div className="grid gap-1 px-6 py-3 border-b border-[var(--border)] flex-shrink-0" style={{ gridTemplateColumns: "56px repeat(7, 1fr)" }}>
                         <div />
-                        {DAYS_OF_WEEK.map((d, i) => (
-                            <div key={d.day}
-                                onClick={() => {
-                                    setSelectedDayIndex(i);
-                                    if (view === "Week") handleViewChange("Day");
-                                }}
-                                className={`flex flex-col items-center py-2 rounded-2xl transition-all cursor-pointer ${selectedDayIndex === i
-                                    ? "bg-[#FFE600] text-[#0A0A0A] shadow-md ring-2 ring-[#0A0A0A]"
-                                    : i === TODAY_INDEX
-                                        ? "bg-[var(--foreground)] text-white shadow-md"
-                                        : "bg-[var(--background)] text-[var(--text-secondary)] hover:bg-[var(--surface-hover)]"
+                        {DAYS_OF_WEEK.map((d, i) => {
+                            const isSelected = selectedDayIndex === i;
+                            const isToday = i === TODAY_INDEX;
+                            const hasEvents = events.some(e => e.dayIndex === i);
+                            return (
+                                <motion.div key={d.day}
+                                    whileHover={{ scale: 1.04 }}
+                                    whileTap={{ scale: 0.97 }}
+                                    onClick={() => {
+                                        setSelectedDayIndex(i);
+                                        if (view === "Week") handleViewChange("Day");
+                                    }}
+                                    className={`relative flex flex-col items-center py-2 rounded-xl transition-all cursor-pointer ${isSelected
+                                        ? "bg-[#FFE600] shadow-[2px_2px_0_#0A0A0A] border-2 border-[#0A0A0A]"
+                                        : isToday
+                                            ? "bg-[var(--foreground)] text-white shadow-md border-2 border-transparent"
+                                            : "bg-[var(--background)] text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] border-2 border-transparent"
                                     }`}>
-                                <span className="text-[10px] font-medium" style={{ fontFamily: "var(--font-heading)" }}>{d.day.slice(0, 3)}</span>
-                                <span className={`text-lg font-bold mt-0.5 ${selectedDayIndex === i ? "text-[#0A0A0A]" : i === TODAY_INDEX ? "text-white" : "text-[var(--text-primary)]"}`} style={{ fontFamily: "var(--font-heading)" }}>
-                                    {d.date}
-                                </span>
-                            </div>
-                        ))}
+                                    <span className={`text-[10px] font-bold uppercase tracking-wide ${isSelected ? "text-[#0A0A0A]/60" : isToday ? "text-white/70" : ""}`}
+                                        style={{ fontFamily: "var(--font-heading)" }}>{d.day.slice(0, 3)}</span>
+                                    <span className={`text-lg font-black mt-0.5 ${isSelected ? "text-[#0A0A0A]" : isToday ? "text-white" : "text-[var(--text-primary)]"}`}
+                                        style={{ fontFamily: "var(--font-heading)" }}>
+                                        {d.date}
+                                    </span>
+                                    {/* Event dot indicator */}
+                                    {hasEvents && !isSelected && !isToday && (
+                                        <div className="absolute bottom-1 w-1 h-1 rounded-full bg-[var(--violet)]" />
+                                    )}
+                                </motion.div>
+                            );
+                        })}
                     </div>
                 )}
 
@@ -1197,18 +1243,19 @@ export default function CalendarPanel() {
                     <>
                         {/* All-day events row */}
                         {allDayEvents.length > 0 && (
-                            <div className="grid gap-1.5 px-6 py-2 border-b border-[var(--border)] flex-shrink-0" style={{ gridTemplateColumns: "48px repeat(7, 1fr)" }}>
-                                <span className="text-[10px] text-[var(--text-muted)] font-medium pt-1" style={{ fontFamily: "var(--font-heading)" }}>All day</span>
+                            <div className="grid gap-1 px-6 py-2.5 border-b border-[var(--border)] flex-shrink-0" style={{ gridTemplateColumns: "56px repeat(7, 1fr)" }}>
+                                <span className="text-[10px] text-[var(--text-muted)] font-bold uppercase tracking-wider pt-1 pr-2 text-right" style={{ fontFamily: "var(--font-heading)" }}>All day</span>
                                 {DAYS_OF_WEEK.map((_, dayIdx) => {
                                     const dayAllDay = allDayEvents.filter((e) => e.dayIndex === dayIdx);
                                     return (
                                         <div key={dayIdx} className="space-y-1 min-h-[24px]">
                                             {dayAllDay.map((ev) => (
-                                                <div key={ev.id} className="rounded px-1.5 py-0.5 text-[10px] font-bold truncate cursor-pointer border border-[var(--border)] hover:shadow-sm transition-shadow"
-                                                    style={{ backgroundColor: ev.bgColor, color: ev.color, fontFamily: "var(--font-heading)" }}
+                                                <motion.div key={ev.id} whileHover={{ scale: 1.02 }}
+                                                    className="rounded-lg px-1.5 py-0.5 text-[10px] font-bold truncate cursor-pointer border hover:shadow-sm transition-shadow"
+                                                    style={{ backgroundColor: ev.bgColor, color: ev.color, borderColor: `${ev.color}25`, fontFamily: "var(--font-heading)" }}
                                                     onClick={() => setSelectedEvent(ev)}>
                                                     {ev.title}
-                                                </div>
+                                                </motion.div>
                                             ))}
                                         </div>
                                     );
@@ -1221,26 +1268,27 @@ export default function CalendarPanel() {
                             <div ref={gridRef} className="relative cursor-crosshair" style={{ height: totalHours * ROW_HEIGHT }} onClick={handleGridClick}>
                                 {HOURS_LABELS.map((hour, i) => (
                                     <div key={hour} className="absolute left-0 right-0 flex items-start" style={{ top: i * ROW_HEIGHT }}>
-                                        <span className="w-12 flex-shrink-0 text-[10px] text-[var(--text-muted)] font-medium -mt-1.5" style={{ fontFamily: "var(--font-heading)" }}>{hour}</span>
+                                        <span className="w-14 flex-shrink-0 text-[10px] text-[var(--text-muted)] font-medium -mt-1.5 pr-2 text-right" style={{ fontFamily: "var(--font-heading)" }}>{hour}</span>
                                         <div className="flex-1 border-t border-[var(--border)]" />
                                     </div>
                                 ))}
                                 {Array.from({ length: 6 }, (_, i) => (
-                                    <div key={`vline-${i}`} className="absolute top-0 bottom-0 border-l border-[var(--border)] opacity-30"
-                                        style={{ left: `calc(48px + ${(i + 1) * ((100 - 4.8) / 7)}%)` }} />
+                                    <div key={`vline-${i}`} className="absolute top-0 bottom-0 border-l border-[var(--border)] opacity-20"
+                                        style={{ left: `calc(56px + ${(i + 1) * ((100 - 5.6) / 7)}%)` }} />
                                 ))}
                                 {timedEvents.map((event) => {
                                     const topOffset = (event.startHour - GRID_START_HOUR) * ROW_HEIGHT + 2;
                                     const height = event.duration * ROW_HEIGHT - 4;
                                     return (
                                         <motion.div key={event.id} data-event-card
+                                            initial={false}
                                             whileHover={{ scale: 1.01, zIndex: 20 }}
                                             onClick={(e) => { e.stopPropagation(); setSelectedEvent(event); setQuickAdd(null); }}
-                                            className="absolute rounded-lg px-2 py-1.5 cursor-pointer overflow-hidden transition-all hover:shadow-md border border-[var(--border)]"
-                                            style={{ top: topOffset, height: Math.max(height, 26), left: `calc(48px + (${event.dayIndex} * ((100% - 52px) / 7)))`, width: `calc((100% - 52px) / 7 - 4px)`, backgroundColor: event.bgColor, borderLeft: `3px solid ${event.color}`, zIndex: 10 }}>
+                                            className="absolute rounded-lg px-2 py-1.5 cursor-pointer overflow-hidden transition-all hover:shadow-md border"
+                                            style={{ top: topOffset, height: Math.max(height, 26), left: `calc(56px + (${event.dayIndex} * ((100% - 60px) / 7)))`, width: `calc((100% - 60px) / 7 - 4px)`, backgroundColor: event.bgColor, borderColor: `${event.color}20`, borderLeft: `3px solid ${event.color}`, zIndex: 10 }}>
                                             <p className="text-[11px] font-bold truncate" style={{ color: event.color, fontFamily: "var(--font-heading)" }}>{event.title}</p>
-                                            <p className="text-[9px] text-[var(--text-secondary)] mt-0.5">{event.time}</p>
-                                            {event.attendeeCount > 0 && event.duration >= 1 && (
+                                            {event.duration >= 0.75 && <p className="text-[9px] text-[var(--text-secondary)] mt-0.5">{event.time}</p>}
+                                            {event.attendeeCount > 0 && event.duration >= 1.25 && (
                                                 <p className="text-[8px] text-[var(--text-muted)] mt-0.5">{event.attendeeCount} attendee{event.attendeeCount > 1 ? "s" : ""}</p>
                                             )}
                                         </motion.div>
@@ -1249,14 +1297,18 @@ export default function CalendarPanel() {
                                 {timedEvents.length === 0 && allDayEvents.length === 0 && (
                                     <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
                                         <div className="text-center">
-                                            <p className="text-sm text-[var(--text-muted)] mb-1">No events this week</p>
-                                            <p className="text-xs text-[var(--text-muted)]">Click any time slot to add an event</p>
+                                            <div className="w-12 h-12 rounded-2xl bg-[var(--surface-hover)] flex items-center justify-center mx-auto mb-3">
+                                                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" /><line x1="9" y1="16" x2="15" y2="16" /></svg>
+                                            </div>
+                                            <p className="text-sm font-bold text-[var(--text-muted)] mb-0.5" style={{ fontFamily: "var(--font-heading)" }}>No events this week</p>
+                                            <p className="text-xs text-[var(--text-muted)]">Click any time slot to add one</p>
                                         </div>
                                     </div>
                                 )}
                                 {currentTimeOffset !== null && currentTimeOffset >= 0 && currentTimeOffset <= totalHours && (
-                                    <div className="absolute left-12 right-0 z-30 flex items-center pointer-events-none" style={{ top: currentTimeOffset * ROW_HEIGHT }}>
-                                        <div className="h-2.5 w-2.5 rounded-full bg-[#FF6B6B] -ml-1.5 shadow-sm" /><div className="flex-1 border-t-2 border-[#FF6B6B]" />
+                                    <div className="absolute left-14 right-0 z-30 flex items-center pointer-events-none" style={{ top: currentTimeOffset * ROW_HEIGHT }}>
+                                        <div className="h-3 w-3 rounded-full bg-[var(--coral)] -ml-1.5 shadow-sm ring-2 ring-[var(--coral)]/30" />
+                                        <div className="flex-1 border-t-2 border-[var(--coral)]" />
                                     </div>
                                 )}
                                 <AnimatePresence>
