@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 
 export interface KeyboardShortcutActions {
   toggleAudio: () => void;
@@ -23,6 +23,12 @@ export interface KeyboardShortcutActions {
  * All shortcuts disabled when focus is in an input/textarea/contenteditable.
  */
 export function useKeyboardShortcuts(actions: KeyboardShortcutActions): void {
+  // Use a ref to always access the latest actions without re-registering the listener
+  const actionsRef = useRef(actions);
+  useEffect(() => {
+    actionsRef.current = actions;
+  });
+
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent): void {
       const tag = (e.target as HTMLElement)?.tagName?.toLowerCase();
@@ -44,7 +50,7 @@ export function useKeyboardShortcuts(actions: KeyboardShortcutActions): void {
 
       if (e.ctrlKey && e.shiftKey && key === "h") {
         e.preventDefault();
-        actions.toggleHandRaise();
+        actionsRef.current.toggleHandRaise();
         return;
       }
 
@@ -53,31 +59,31 @@ export function useKeyboardShortcuts(actions: KeyboardShortcutActions): void {
       switch (key) {
         case "d":
           e.preventDefault();
-          actions.toggleAudio();
+          actionsRef.current.toggleAudio();
           break;
         case "e":
           e.preventDefault();
-          actions.toggleVideo();
+          actionsRef.current.toggleVideo();
           break;
         case "a":
           e.preventDefault();
-          actions.toggleChat();
+          actionsRef.current.toggleChat();
           break;
         case "p":
           e.preventDefault();
-          actions.toggleParticipants();
+          actionsRef.current.toggleParticipants();
           break;
         case "l":
           e.preventDefault();
-          actions.toggleLayout();
+          actionsRef.current.toggleLayout();
           break;
         case "r":
           e.preventDefault();
-          actions.toggleRecording();
+          actionsRef.current.toggleRecording();
           break;
         case "h":
           e.preventDefault();
-          actions.toggleHandRaise();
+          actionsRef.current.toggleHandRaise();
           break;
         case "escape":
           // Close panels handled by toggleChat/toggleParticipants being called with close
@@ -87,5 +93,5 @@ export function useKeyboardShortcuts(actions: KeyboardShortcutActions): void {
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [actions]);
+  }, []); // Empty deps — listener registered once, reads latest actions via ref
 }

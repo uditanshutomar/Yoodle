@@ -35,22 +35,22 @@ export default function ChatWindow({
   };
 
   return (
-    <div className="flex flex-col h-full bg-white border-2 border-[#0A0A0A] rounded-2xl shadow-[4px_4px_0_#0A0A0A] overflow-hidden">
+    <div className="flex flex-col h-full bg-[var(--surface)] border-2 border-[var(--border-strong)] rounded-2xl shadow-[var(--shadow-card)] overflow-hidden">
       {/* Header */}
-      <div className="flex items-center justify-between px-5 py-3 border-b-2 border-[#0A0A0A]/10 bg-[#FFE600]/10">
+      <div className="flex items-center justify-between px-5 py-3 border-b-2 border-[var(--border)] bg-[#FFE600]/10">
         <div className="flex items-center gap-2">
           <motion.div
             animate={{ rotate: [0, -5, 5, 0] }}
             transition={{ duration: 3, repeat: Infinity }}
-            className="flex h-8 w-8 items-center justify-center rounded-full bg-[#FFE600] border-2 border-[#0A0A0A]"
+            className="flex h-8 w-8 items-center justify-center rounded-full bg-[#FFE600] border-2 border-[var(--border-strong)]"
           >
             <Bot size={16} className="text-[#0A0A0A]" />
           </motion.div>
           <div>
-            <h3 className="text-sm font-bold text-[#0A0A0A]" style={{ fontFamily: "var(--font-heading)" }}>
+            <h3 className="text-sm font-bold text-[var(--text-primary)]" style={{ fontFamily: "var(--font-heading)" }}>
               Doodle Poodle
             </h3>
-            <p className="text-[10px] text-[#0A0A0A]/40" style={{ fontFamily: "var(--font-body)" }}>
+            <p className="text-[10px] text-[var(--text-secondary)]" style={{ fontFamily: "var(--font-body)" }}>
               {isStreaming ? "Typing…" : "Your AI meeting buddy"}
             </p>
           </div>
@@ -58,7 +58,7 @@ export default function ChatWindow({
         {messages.length > 0 && (
           <button
             onClick={onClear}
-            className="p-1.5 text-[#0A0A0A]/30 hover:text-red-500 transition-colors"
+            className="p-1.5 text-[var(--text-muted)] hover:text-red-500 transition-colors"
             title="Clear chat"
           >
             <Trash2 size={14} />
@@ -77,10 +77,10 @@ export default function ChatWindow({
             >
               🐩
             </motion.div>
-            <h3 className="text-base font-bold text-[#0A0A0A] mb-1" style={{ fontFamily: "var(--font-heading)" }}>
+            <h3 className="text-base font-bold text-[var(--text-primary)] mb-1" style={{ fontFamily: "var(--font-heading)" }}>
               Hey there!
             </h3>
-            <p className="text-xs text-[#0A0A0A]/50 max-w-xs" style={{ fontFamily: "var(--font-body)" }}>
+            <p className="text-xs text-[var(--text-secondary)] max-w-xs" style={{ fontFamily: "var(--font-body)" }}>
               I&apos;m Doodle Poodle, your AI meeting buddy. Ask me to prep for meetings, summarize notes, or just chat!
             </p>
           </div>
@@ -99,7 +99,7 @@ export default function ChatWindow({
       </div>
 
       {/* Input */}
-      <div className="px-4 py-3 border-t-2 border-[#0A0A0A]/10">
+      <div className="px-4 py-3 border-t-2 border-[var(--border)]">
         <div className="flex items-center gap-2">
           <input
             type="text"
@@ -108,13 +108,13 @@ export default function ChatWindow({
             onKeyDown={(e) => e.key === "Enter" && handleSend()}
             placeholder="Ask Doodle Poodle anything…"
             disabled={isStreaming}
-            className="flex-1 px-4 py-2.5 text-sm border-2 border-[#0A0A0A]/10 rounded-xl bg-white focus:border-[#FFE600] focus:outline-none transition-colors disabled:opacity-50"
+            className="flex-1 px-4 py-2.5 text-sm border-2 border-[var(--border)] rounded-xl bg-[var(--surface)] focus:border-[#FFE600] focus:outline-none transition-colors disabled:opacity-50"
             style={{ fontFamily: "var(--font-body)" }}
           />
           {isStreaming ? (
             <button
               onClick={onStop}
-              className="flex items-center justify-center w-10 h-10 rounded-xl bg-red-500 text-white border-2 border-[#0A0A0A] shadow-[2px_2px_0_#0A0A0A] hover:shadow-none hover:translate-x-[2px] hover:translate-y-[2px] transition-all"
+              className="flex items-center justify-center w-10 h-10 rounded-xl bg-red-500 text-white border-2 border-[var(--border-strong)] shadow-[2px_2px_0_var(--border-strong)] hover:shadow-none hover:translate-x-[2px] hover:translate-y-[2px] transition-all"
             >
               <Square size={14} />
             </button>
@@ -122,7 +122,7 @@ export default function ChatWindow({
             <button
               onClick={handleSend}
               disabled={!input.trim()}
-              className="flex items-center justify-center w-10 h-10 rounded-xl bg-[#FFE600] text-[#0A0A0A] border-2 border-[#0A0A0A] shadow-[2px_2px_0_#0A0A0A] hover:shadow-none hover:translate-x-[2px] hover:translate-y-[2px] transition-all disabled:opacity-40 disabled:shadow-none disabled:translate-x-0 disabled:translate-y-0"
+              className="flex items-center justify-center w-10 h-10 rounded-xl bg-[#FFE600] text-[#0A0A0A] border-2 border-[var(--border-strong)] shadow-[2px_2px_0_var(--border-strong)] hover:shadow-none hover:translate-x-[2px] hover:translate-y-[2px] transition-all disabled:opacity-40 disabled:shadow-none disabled:translate-x-0 disabled:translate-y-0"
             >
               <Send size={14} />
             </button>

@@ -39,7 +39,7 @@ export default function Footer() {
           </span>
         </Link>
 
-        {/* Tagline */}
+        {/* Tagline + Legal */}
         <div className="flex flex-col items-center gap-2 sm:flex-row sm:gap-4">
           <p
             className="text-sm text-[#0A0A0A]/40"
@@ -47,6 +47,23 @@ export default function Footer() {
           >
             Made for the new workforce.
           </p>
+          <span className="text-sm text-[#0A0A0A]/25">|</span>
+          <div className="flex items-center gap-3">
+            <Link
+              href="/privacy"
+              className="text-sm text-[#0A0A0A]/40 hover:text-[#0A0A0A]/70 transition-colors"
+              style={{ fontFamily: "var(--font-body)" }}
+            >
+              Privacy
+            </Link>
+            <Link
+              href="/terms"
+              className="text-sm text-[#0A0A0A]/40 hover:text-[#0A0A0A]/70 transition-colors"
+              style={{ fontFamily: "var(--font-body)" }}
+            >
+              Terms
+            </Link>
+          </div>
           <span className="text-sm text-[#0A0A0A]/25">|</span>
           <p
             className="text-sm text-[#0A0A0A]/40"

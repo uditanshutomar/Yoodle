@@ -38,7 +38,12 @@ export function useChat(
     if (!socket) return;
 
     const handleChatMessage = (msg: ChatMessagePayload) => {
-      setMessages((prev) => [...prev, msg]);
+      setMessages((prev) => {
+        // Deduplicate: skip if a message with this ID already exists
+        // (e.g. optimistic add from sendMessage before the server broadcast)
+        if (prev.some((m) => m.id === msg.id)) return prev;
+        return [...prev, msg];
+      });
 
       // Only count as unread if the message is from someone else and
       // the chat panel is not actively being read

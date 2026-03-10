@@ -56,10 +56,24 @@ const ENV_VARS: EnvVar[] = [
   { key: "RESEND_API_KEY", required: false, description: "Resend API key for emails (falls back to console logging)" },
   { key: "EMAIL_FROM", required: false, description: "Sender email address" },
 
+  // Redis
+  { key: "REDIS_URL", required: false, description: "Redis connection URL (rate limiting, caching, token blacklist)" },
+
+  // LiveKit (SFU mode)
+  { key: "LIVEKIT_URL", required: false, description: "LiveKit server URL for SFU video" },
+  { key: "LIVEKIT_API_KEY", required: false, description: "LiveKit API key" },
+  { key: "LIVEKIT_API_SECRET", required: false, description: "LiveKit API secret" },
+
   // TURN (WebRTC)
   { key: "TURN_SERVER_URL", required: false, description: "TURN server URL for WebRTC" },
   { key: "TURN_USERNAME", required: false, description: "TURN server username" },
   { key: "TURN_CREDENTIAL", required: false, description: "TURN server credential" },
+
+  // Error Tracking (Sentry)
+  { key: "NEXT_PUBLIC_SENTRY_DSN", required: false, description: "Sentry DSN for error tracking" },
+  { key: "SENTRY_ORG", required: false, description: "Sentry organization slug (for source maps)" },
+  { key: "SENTRY_PROJECT", required: false, description: "Sentry project slug" },
+  { key: "SENTRY_AUTH_TOKEN", required: false, description: "Sentry auth token (for source map uploads in CI)" },
 ];
 
 export function validateEnv(): { valid: boolean; missing: string[]; warnings: string[] } {
@@ -76,6 +90,22 @@ export function validateEnv(): { valid: boolean; missing: string[]; warnings: st
         warnings.push(`${key} — ${description} (optional, some features disabled)`);
       }
     }
+  }
+
+  // Validate JWT_SECRET has sufficient length (minimum 48 characters)
+  const jwtSecret = process.env.JWT_SECRET;
+  if (jwtSecret && jwtSecret.length < 48) {
+    warnings.push(
+      `JWT_SECRET — Secret is ${jwtSecret.length} chars, minimum 48 recommended for HS256 security`
+    );
+  }
+
+  // Validate MAGIC_LINK_SECRET has sufficient length
+  const mlSecret = process.env.MAGIC_LINK_SECRET;
+  if (mlSecret && mlSecret.length < 32) {
+    warnings.push(
+      `MAGIC_LINK_SECRET — Secret is ${mlSecret.length} chars, minimum 32 recommended`
+    );
   }
 
   return {

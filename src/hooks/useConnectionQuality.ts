@@ -39,9 +39,11 @@ export function useConnectionQuality(
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
+    let cancelled = false;
+
     async function pollStats(): Promise<void> {
       if (peers.size === 0) {
-        setStats(UNKNOWN_STATS);
+        if (!cancelled) setStats(UNKNOWN_STATS);
         return;
       }
 
@@ -77,7 +79,7 @@ export function useConnectionQuality(
       }
 
       if (connectionCount === 0) {
-        setStats(UNKNOWN_STATS);
+        if (!cancelled) setStats(UNKNOWN_STATS);
         return;
       }
 
@@ -99,17 +101,20 @@ export function useConnectionQuality(
         quality = "good";
       }
 
-      setStats({
-        quality,
-        rtt: Math.round(avgRtt),
-        packetLoss: Math.round(avgPacketLoss * 10) / 10,
-      });
+      if (!cancelled) {
+        setStats({
+          quality,
+          rtt: Math.round(avgRtt),
+          packetLoss: Math.round(avgPacketLoss * 10) / 10,
+        });
+      }
     }
 
     pollStats();
     intervalRef.current = setInterval(pollStats, POLL_INTERVAL_MS);
 
     return () => {
+      cancelled = true;
       if (intervalRef.current) clearInterval(intervalRef.current);
     };
   }, [peers]);

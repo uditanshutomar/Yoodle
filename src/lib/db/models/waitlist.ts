@@ -44,7 +44,8 @@ const WaitlistSchema = new Schema<IWaitlist>(
   }
 );
 
-WaitlistSchema.index({ email: 1 }, { unique: true });
+// Note: email uniqueness is already enforced by the inline `unique: true` on the schema field.
+// Only additional compound/query-pattern indexes needed here.
 WaitlistSchema.index({ status: 1 });
 WaitlistSchema.index({ createdAt: -1 });
 

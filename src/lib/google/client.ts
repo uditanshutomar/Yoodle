@@ -10,7 +10,7 @@ import User, { IUserDocument } from "@/lib/db/models/user";
 export async function getGoogleClientForUser(userId: string) {
   await connectDB();
 
-  const user = await User.findById(userId);
+  const user = await User.findById(userId).select("googleTokens");
   if (!user?.googleTokens) {
     throw new Error("User has no Google tokens. Re-authentication required.");
   }

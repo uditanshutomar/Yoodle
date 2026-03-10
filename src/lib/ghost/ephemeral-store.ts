@@ -234,9 +234,10 @@ class EphemeralStore {
       id: nanoid(8),
     };
 
+    // Cap messages at 500 to prevent unbounded growth
     const result = await GhostRoom.findOneAndUpdate(
       { roomId, expiresAt: { $gt: new Date() } },
-      { $push: { messages: fullMessage } }
+      { $push: { messages: { $each: [fullMessage], $slice: -500 } } }
     );
 
     return result ? fullMessage : undefined;
@@ -287,6 +288,24 @@ class EphemeralStore {
       totalVotes,
       totalParticipants,
     };
+  }
+
+  // ── Atomic claim & destroy (prevents double-persist race) ─────────
+
+  /**
+   * Atomically claim a room for persistence by deleting it in one operation.
+   * Only succeeds if ALL participants have voted to save.
+   * Returns the room data if successfully claimed, undefined otherwise.
+   */
+  async claimAndDestroyRoom(roomId: string): Promise<GhostRoomData | undefined> {
+    await this.connect();
+    const doc = await GhostRoom.findOneAndDelete({
+      roomId,
+      "participants.votedToSave": { $not: { $elemMatch: { $eq: false } } },
+      "participants.0": { $exists: true },
+    });
+    if (!doc) return undefined;
+    return toRoomData(doc);
   }
 
   // ── Destroy ───────────────────────────────────────────────────────

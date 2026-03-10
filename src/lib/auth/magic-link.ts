@@ -55,7 +55,7 @@ export async function verifyMagicLink(
     email: email.toLowerCase().trim(),
     magicLinkToken: { $exists: true, $ne: null },
     magicLinkExpires: { $exists: true, $ne: null },
-  });
+  }).select("_id magicLinkToken magicLinkExpires");
 
   if (!user) {
     throw new Error("Invalid or expired magic link.");
@@ -81,8 +81,8 @@ export async function verifyMagicLink(
     $set: { lastSeenAt: new Date() },
   });
 
-  // Return a fresh copy of the user
-  const updatedUser = await User.findById(user._id);
+  // Return a fresh copy of the user — only _id is used by callers
+  const updatedUser = await User.findById(user._id).select("_id");
   if (!updatedUser) {
     throw new Error("User not found after verification.");
   }

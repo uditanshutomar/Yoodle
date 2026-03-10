@@ -17,18 +17,18 @@ export default function AIAssistantPage() {
     >
       {/* Header */}
       <div className="flex items-center gap-3 mb-4">
-        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#FFE600] border-2 border-[#0A0A0A]">
+        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#FFE600] border-2 border-[var(--border-strong)]">
           <Bot size={20} className="text-[#0A0A0A]" />
         </div>
         <div>
           <h1
-            className="text-2xl font-black text-[#0A0A0A]"
+            className="text-2xl font-black text-[var(--text-primary)]"
             style={{ fontFamily: "var(--font-heading)" }}
           >
             Doodle Poodle
           </h1>
           <p
-            className="text-xs text-[#0A0A0A]/50"
+            className="text-xs text-[var(--text-secondary)]"
             style={{ fontFamily: "var(--font-body)" }}
           >
             AI-powered meeting assistant — powered by Gemini
@@ -54,20 +54,20 @@ export default function AIAssistantPage() {
 
         {/* Sidebar */}
         <div className="space-y-4 overflow-y-auto">
-          <div className="bg-white border-2 border-[#0A0A0A] rounded-2xl shadow-[4px_4px_0_#0A0A0A] p-4">
+          <div className="bg-[var(--surface)] border-2 border-[var(--border-strong)] rounded-2xl shadow-[var(--shadow-card)] p-4">
             <QuickActions onAction={sendMessage} />
           </div>
 
           {/* AI info card */}
           <div className="bg-[#FFE600]/10 border-2 border-[#FFE600] rounded-2xl p-4">
             <h3
-              className="text-sm font-bold text-[#0A0A0A] mb-2"
+              className="text-sm font-bold text-[var(--text-primary)] mb-2"
               style={{ fontFamily: "var(--font-heading)" }}
             >
               What can I do?
             </h3>
             <ul
-              className="space-y-1.5 text-xs text-[#0A0A0A]/60"
+              className="space-y-1.5 text-xs text-[var(--text-secondary)]"
               style={{ fontFamily: "var(--font-body)" }}
             >
               <li>📋 Prepare you for upcoming meetings</li>

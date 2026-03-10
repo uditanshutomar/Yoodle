@@ -93,7 +93,7 @@ export default function AuthProvider({ children }: { children: ReactNode }) {
 
   const logout = async () => {
     try {
-      await fetch("/api/auth/session", { method: "DELETE", credentials: "include" });
+      await fetch("/api/auth/logout", { method: "POST", credentials: "include" });
     } catch {
       // Proceed with client-side logout even if API fails
     }

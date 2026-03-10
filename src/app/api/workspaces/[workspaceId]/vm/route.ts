@@ -7,6 +7,7 @@ import { getUserIdFromRequest } from "@/lib/auth/middleware";
 import { BadRequestError, NotFoundError, ForbiddenError } from "@/lib/api/errors";
 import connectDB from "@/lib/db/client";
 import Workspace from "@/lib/db/models/workspace";
+import User from "@/lib/db/models/user";
 import AuditLog from "@/lib/db/models/audit-log";
 import { provisionVM, getVMStatus, startVM, stopVM, destroyVM } from "@/lib/vultr/vm-manager";
 
@@ -109,6 +110,10 @@ export const POST = withHandler(async (req: NextRequest, context) => {
     throw new ForbiddenError("Only owners and admins can manage the VM.");
   }
 
+  // Look up the acting user's name for audit logs
+  const actingUser = await User.findById(userId).select("name displayName").lean();
+  const actingUserName = actingUser?.displayName || actingUser?.name || "Unknown";
+
   switch (action) {
     case "provision": {
       if (workspace.vm?.vultrInstanceId) {
@@ -141,7 +146,7 @@ export const POST = withHandler(async (req: NextRequest, context) => {
       console.log("[VM] Workspace saved. Creating audit log...");
 
       await AuditLog.create({
-        workspaceId, userId, userName: "System",
+        workspaceId, userId, userName: actingUserName,
         action: "vm.provision",
         details: { instanceId: result.instanceId },
       });
@@ -155,10 +160,12 @@ export const POST = withHandler(async (req: NextRequest, context) => {
         throw new BadRequestError("No VM provisioned.");
       }
       await startVM(workspace.vm.vultrInstanceId);
-      workspace.vm.status = "running";
+      // Don't set "running" immediately — the VM needs time to boot.
+      // Set "provisioning" and let the GET polling sync the real status from Vultr.
+      workspace.vm.status = "provisioning";
       await workspace.save();
       await AuditLog.create({
-        workspaceId, userId, userName: "System",
+        workspaceId, userId, userName: actingUserName,
         action: "vm.start",
       });
       return successResponse({ status: "running" });
@@ -172,7 +179,7 @@ export const POST = withHandler(async (req: NextRequest, context) => {
       workspace.vm.status = "stopped";
       await workspace.save();
       await AuditLog.create({
-        workspaceId, userId, userName: "System",
+        workspaceId, userId, userName: actingUserName,
         action: "vm.stop",
       });
       return successResponse({ status: "stopped" });
@@ -186,7 +193,7 @@ export const POST = withHandler(async (req: NextRequest, context) => {
       workspace.vm = undefined;
       await workspace.save();
       await AuditLog.create({
-        workspaceId, userId, userName: "System",
+        workspaceId, userId, userName: actingUserName,
         action: "vm.destroy",
       });
       return successResponse({ status: "destroyed" });

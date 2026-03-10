@@ -6,34 +6,14 @@ import { getUserIdFromRequest } from "@/lib/auth/middleware";
 import { BadRequestError, NotFoundError, ForbiddenError } from "@/lib/api/errors";
 import connectDB from "@/lib/db/client";
 import Meeting from "@/lib/db/models/meeting";
-import { getPresignedDownloadUrl } from "@/lib/vultr/object-storage";
-import { S3Client, ListObjectsV2Command } from "@aws-sdk/client-s3";
-
-function getS3Client(): S3Client {
-  const hostname = process.env.VULTR_OBJECT_STORAGE_HOSTNAME;
-  const accessKey = process.env.VULTR_OBJECT_STORAGE_ACCESS_KEY;
-  const secretKey = process.env.VULTR_OBJECT_STORAGE_SECRET_KEY;
-  const region = process.env.VULTR_OBJECT_STORAGE_REGION || "ewr1";
-
-  if (!hostname || !accessKey || !secretKey) {
-    throw new Error("Vultr Object Storage credentials not configured.");
-  }
-
-  return new S3Client({
-    region,
-    endpoint: `https://${hostname}`,
-    credentials: {
-      accessKeyId: accessKey,
-      secretAccessKey: secretKey,
-    },
-    forcePathStyle: true,
-  });
-}
+import { hasGoogleAccess } from "@/lib/google/client";
+import { listMeetingRecordings } from "@/lib/google/drive-recordings";
 
 /**
  * GET /api/recordings/[meetingId]
  *
- * Lists recordings for a meeting and returns pre-signed download URLs.
+ * Lists recordings for a meeting from the host's Google Drive.
+ * Returns file metadata and Google Drive view/download links.
  */
 export const GET = withHandler(async (req: NextRequest, context) => {
   await checkRateLimit(req, "general");
@@ -52,42 +32,53 @@ export const GET = withHandler(async (req: NextRequest, context) => {
   }
   const isParticipant =
     meeting.hostId.toString() === userId ||
-    meeting.participants.some((p) => p.userId.toString() === userId);
+    meeting.participants.some((p: { userId: { toString: () => string } }) => p.userId.toString() === userId);
   if (!isParticipant) {
     throw new ForbiddenError("You are not a participant in this meeting.");
   }
 
-  const hostname = process.env.VULTR_OBJECT_STORAGE_HOSTNAME;
-  if (!hostname) {
-    return successResponse({ recordings: [], meetingId });
-  }
-
-  const client = getS3Client();
-  const bucket =
-    process.env.VULTR_OBJECT_STORAGE_BUCKET || "yoodle-recordings";
-
-  // List all objects under recordings/{meetingId}/
-  const listResult = await client.send(
-    new ListObjectsV2Command({
-      Bucket: bucket,
-      Prefix: `recordings/${meetingId}/`,
-    })
-  );
-
-  const recordings = [];
-
-  if (listResult.Contents && listResult.Contents.length > 0) {
-    for (const obj of listResult.Contents) {
-      if (!obj.Key) continue;
-      const downloadUrl = await getPresignedDownloadUrl(obj.Key, 3600);
-      recordings.push({
-        key: obj.Key,
-        size: obj.Size,
-        lastModified: obj.LastModified?.toISOString(),
-        downloadUrl,
-      });
+  // Check if the requesting user has Google Drive access
+  const hasAccess = await hasGoogleAccess(userId);
+  if (!hasAccess) {
+    // Also try with the host's account — recordings are stored in host's Drive
+    const hostHasAccess = await hasGoogleAccess(meeting.hostId.toString());
+    if (!hostHasAccess) {
+      return successResponse({ recordings: [], meetingId });
     }
+
+    // Fetch from host's Drive
+    const recordings = await listMeetingRecordings(
+      meeting.hostId.toString(),
+      meetingId
+    );
+
+    return successResponse({
+      recordings: recordings.map((r) => ({
+        fileId: r.fileId,
+        name: r.name,
+        mimeType: r.mimeType,
+        size: r.size,
+        createdTime: r.createdTime,
+        viewUrl: r.webViewLink,
+        downloadUrl: r.webContentLink,
+      })),
+      meetingId,
+    });
   }
 
-  return successResponse({ recordings, meetingId });
+  // Fetch from the requesting user's Drive
+  const recordings = await listMeetingRecordings(userId, meetingId);
+
+  return successResponse({
+    recordings: recordings.map((r) => ({
+      fileId: r.fileId,
+      name: r.name,
+      mimeType: r.mimeType,
+      size: r.size,
+      createdTime: r.createdTime,
+      viewUrl: r.webViewLink,
+      downloadUrl: r.webContentLink,
+    })),
+    meetingId,
+  });
 });

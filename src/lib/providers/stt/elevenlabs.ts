@@ -10,9 +10,11 @@ const STT_MODEL = "scribe_v1";
 const PAUSE_THRESHOLD_SECONDS = 2;
 
 function getApiKey(): string {
-  const apiKey = process.env.STT_API_KEY;
+  const apiKey = process.env.STT_API_KEY || process.env.ELEVEN_LABS_API_KEY;
   if (!apiKey) {
-    throw new Error("STT_API_KEY not configured for ElevenLabs STT provider");
+    throw new Error(
+      "ElevenLabs STT not configured. Set STT_API_KEY or ELEVEN_LABS_API_KEY."
+    );
   }
   return apiKey;
 }

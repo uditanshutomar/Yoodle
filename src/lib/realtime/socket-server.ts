@@ -550,7 +550,8 @@ export function setupSocketServer(io: SocketIOServer): void {
           const targetUser = room.get(payload.targetUserId);
           if (targetUser) {
             targetUser.isAudioEnabled = false;
-            socket.to(mapping.roomId).emit(SOCKET_EVENTS.MEDIA_STATE_CHANGED, {
+            // Use io.to() so the host also receives the media state update
+            io.to(mapping.roomId).emit(SOCKET_EVENTS.MEDIA_STATE_CHANGED, {
               userId: payload.targetUserId,
               isVideoEnabled: targetUser.isVideoEnabled,
               isAudioEnabled: false,
@@ -586,11 +587,25 @@ export function setupSocketServer(io: SocketIOServer): void {
     // --- Waiting room ---
 
     socket.on(SOCKET_EVENTS.WAITING_JOIN, (payload: { roomId: string; user: WaitingRoomUser }) => {
+      // Validate payload
+      if (!payload || typeof payload !== "object") return;
       const { roomId, user } = payload;
+      if (!roomId || typeof roomId !== "string") return;
+      if (!user || typeof user !== "object" || !user.id || typeof user.id !== "string") return;
+      if (!user.name || typeof user.name !== "string") return;
+
       if (!waitingRooms.has(roomId)) {
         waitingRooms.set(roomId, new Map());
       }
-      waitingRooms.get(roomId)!.set(user.id, { ...user, joinedWaitingAt: Date.now() });
+
+      // Cap waiting room at 50 to prevent unbounded growth
+      const waitingRoom = waitingRooms.get(roomId)!;
+      if (waitingRoom.size >= 50) {
+        socket.emit("waiting:full", { roomId, message: "Waiting room is full" });
+        return;
+      }
+
+      waitingRoom.set(user.id, { ...user, joinedWaitingAt: Date.now() });
 
       // Notify host
       const hostId = roomHosts.get(roomId);
@@ -686,7 +701,7 @@ export function setupSocketServer(io: SocketIOServer): void {
 
     socket.on(
       SOCKET_EVENTS.TERMINAL_CONNECT,
-      (payload: { host: string; password: string; cols?: number; rows?: number }) => {
+      (payload: { host: string; password: string; username?: string; cols?: number; rows?: number }) => {
         const { host, password, cols = 80, rows = 24 } = payload;
 
         // Clean up existing session if any
@@ -749,7 +764,7 @@ export function setupSocketServer(io: SocketIOServer): void {
         sshClient.connect({
           host,
           port: 22,
-          username: "root",
+          username: payload.username || "root",
           password,
           readyTimeout: 10000,
           keepaliveInterval: 10000,

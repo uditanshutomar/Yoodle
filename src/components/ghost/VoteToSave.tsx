@@ -25,28 +25,28 @@ export default function VoteToSave({
     <motion.div
       initial={{ opacity: 0, scale: 0.95 }}
       animate={{ opacity: 1, scale: 1 }}
-      className="bg-white border-2 border-[#7C3AED] rounded-2xl shadow-[4px_4px_0_#7C3AED] p-5"
+      className="bg-[var(--surface)] border-2 border-[#7C3AED] rounded-2xl shadow-[4px_4px_0_#7C3AED] p-5"
     >
       <div className="flex items-center gap-2 mb-3">
         <Save size={18} className="text-[#7C3AED]" />
-        <h3 className="text-base font-bold text-[#0A0A0A]" style={{ fontFamily: "var(--font-heading)" }}>
+        <h3 className="text-base font-bold text-[var(--text-primary)]" style={{ fontFamily: "var(--font-heading)" }}>
           Vote to Save
         </h3>
       </div>
 
-      <p className="text-xs text-[#0A0A0A]/60 mb-4" style={{ fontFamily: "var(--font-body)" }}>
+      <p className="text-xs text-[var(--text-secondary)] mb-4" style={{ fontFamily: "var(--font-body)" }}>
         All participants must unanimously vote to save this ghost room&apos;s data. Otherwise, everything vanishes.
       </p>
 
       {/* Progress bar */}
       <div className="mb-3">
         <div className="flex items-center justify-between text-xs mb-1">
-          <span className="flex items-center gap-1 text-[#0A0A0A]/60">
+          <span className="flex items-center gap-1 text-[var(--text-secondary)]">
             <Users size={12} /> {totalVotes} of {totalParticipants}
           </span>
           <span className="font-bold text-[#7C3AED]">{percentage}%</span>
         </div>
-        <div className="h-3 bg-[#0A0A0A]/10 rounded-full overflow-hidden">
+        <div className="h-3 bg-[var(--surface-hover)] rounded-full overflow-hidden">
           <motion.div
             className="h-full bg-gradient-to-r from-[#7C3AED] to-[#9333EA] rounded-full"
             initial={{ width: 0 }}
@@ -74,7 +74,7 @@ export default function VoteToSave({
           icon={hasVoted ? Check : Save}
           onClick={onVote}
           disabled={hasVoted}
-          className={`w-full ${hasVoted ? "" : "!bg-[#7C3AED] !text-white !border-[#0A0A0A] !shadow-[4px_4px_0_#0A0A0A]"}`}
+          className={`w-full ${hasVoted ? "" : "!bg-[#7C3AED] !text-white !border-[var(--border-strong)] !shadow-[var(--shadow-card)]"}`}
         >
           {hasVoted ? "You voted ✓" : "Vote to Save"}
         </Button>

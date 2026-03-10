@@ -55,6 +55,8 @@ export function useTranscription(
       if (active) setIsTranscribing(true);
     });
 
+    let stopTimer: ReturnType<typeof setTimeout> | null = null;
+
     const captureAndSend = () => {
       const stream = localStreamRef.current;
       if (!stream) return;
@@ -109,7 +111,7 @@ export function useTranscription(
       recorder.start();
       transcriptionRecorderRef.current = recorder;
 
-      setTimeout(() => {
+      stopTimer = setTimeout(() => {
         if (recorder.state === "recording") recorder.stop();
       }, 3000);
     };
@@ -120,6 +122,7 @@ export function useTranscription(
 
     return () => {
       active = false;
+      if (stopTimer) clearTimeout(stopTimer);
       if (intervalRef.current) {
         clearInterval(intervalRef.current);
         intervalRef.current = null;

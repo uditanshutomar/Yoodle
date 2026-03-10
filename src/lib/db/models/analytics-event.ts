@@ -55,6 +55,8 @@ const analyticsEventSchema = new Schema<IAnalyticsEventDocument>(
 
 analyticsEventSchema.index({ type: 1, createdAt: -1 });
 analyticsEventSchema.index({ userId: 1, createdAt: -1 });
+// TTL index — auto-delete analytics events after 90 days
+analyticsEventSchema.index({ createdAt: 1 }, { expireAfterSeconds: 90 * 24 * 60 * 60 });
 
 const AnalyticsEvent: Model<IAnalyticsEventDocument> =
   mongoose.models.AnalyticsEvent ||

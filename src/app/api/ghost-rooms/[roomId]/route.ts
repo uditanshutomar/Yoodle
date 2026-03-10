@@ -7,6 +7,8 @@ import { getUserIdFromRequest } from "@/lib/auth/middleware";
 import { BadRequestError, NotFoundError, ForbiddenError } from "@/lib/api/errors";
 import { ephemeralStore } from "@/lib/ghost/ephemeral-store";
 import { checkConsensus, persistGhostData } from "@/lib/ghost/consensus";
+import connectDB from "@/lib/db/client";
+import User from "@/lib/db/models/user";
 
 // -- Helpers -------------------------------------------------------------------
 
@@ -48,7 +50,12 @@ export const GET = withHandler(async (req: NextRequest, context) => {
   if (!room.participants.has(userId)) {
     // Auto-join if accessing by code (for room sharing)
     if (GHOST_CODE_REGEX.test(roomId)) {
-      await ephemeralStore.addParticipant(room.roomId, userId, userId);
+      // Look up the user's real name for the participant entry
+      await connectDB();
+      const joiningUser = await User.findById(userId).select("name displayName").lean();
+      const joinerName = joiningUser?.name || "Unknown";
+      const joinerDisplayName = joiningUser?.displayName || joinerName;
+      await ephemeralStore.addParticipant(room.roomId, userId, joinerName, joinerDisplayName);
       const updatedRoom = await ephemeralStore.getRoom(room.roomId);
       if (!updatedRoom) {
         throw new NotFoundError("Ghost room not found or has expired.");
@@ -100,9 +107,18 @@ export const PATCH = withHandler(async (req: NextRequest, context) => {
   await checkRateLimit(req, "general");
   const userId = await getUserIdFromRequest(req);
 
-  const { roomId } = await context!.params;
+  const { roomId: rawRoomId } = await context!.params;
   const body = patchSchema.parse(await req.json());
   const { action } = body;
+
+  // Resolve the room first — rawRoomId could be a ghost code or an actual roomId.
+  // Always use room.roomId for subsequent store operations.
+  const room = await findRoom(rawRoomId);
+  if (!room) {
+    throw new NotFoundError("Ghost room not found or has expired.");
+  }
+
+  const resolvedRoomId = room.roomId;
 
   if (action === "addMessage") {
     const { content } = body;
@@ -110,18 +126,12 @@ export const PATCH = withHandler(async (req: NextRequest, context) => {
       throw new BadRequestError("Message content is required.");
     }
 
-    // Get the room to find participant name (supports both room IDs and ghost codes)
-    const room = await findRoom(roomId);
-    if (!room) {
-      throw new NotFoundError("Ghost room not found or has expired.");
-    }
-
     const participant = room.participants.get(userId);
     if (!participant) {
       throw new ForbiddenError("You are not a participant in this ghost room.");
     }
 
-    const message = await ephemeralStore.addMessage(roomId, {
+    const message = await ephemeralStore.addMessage(resolvedRoomId, {
       senderId: userId,
       senderName: participant.displayName || participant.name,
       content: content.trim(),
@@ -137,12 +147,17 @@ export const PATCH = withHandler(async (req: NextRequest, context) => {
   }
 
   if (action === "updateNotes") {
+    const participant = room.participants.get(userId);
+    if (!participant) {
+      throw new ForbiddenError("You are not a participant in this ghost room.");
+    }
+
     const { notes } = body;
     if (typeof notes !== "string") {
       throw new BadRequestError("Notes must be a string.");
     }
 
-    const success = await ephemeralStore.updateNotes(roomId, notes);
+    const success = await ephemeralStore.updateNotes(resolvedRoomId, notes);
     if (!success) {
       throw new NotFoundError("Ghost room not found or has expired.");
     }
@@ -151,11 +166,18 @@ export const PATCH = withHandler(async (req: NextRequest, context) => {
   }
 
   if (action === "join") {
-    const { name, displayName } = body;
+    let { name, displayName } = body;
+    // If name not provided in request body, look up from DB
+    if (!name) {
+      await connectDB();
+      const joiningUser = await User.findById(userId).select("name displayName").lean();
+      name = joiningUser?.name || "Unknown";
+      displayName = displayName || joiningUser?.displayName || name;
+    }
     const success = await ephemeralStore.addParticipant(
-      roomId,
+      resolvedRoomId,
       userId,
-      name || userId,
+      name,
       displayName
     );
 

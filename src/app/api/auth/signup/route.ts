@@ -1,8 +1,10 @@
+import { NextRequest } from "next/server";
 import { z } from "zod";
 import { Resend } from "resend";
 import connectDB from "@/lib/db/client";
 import User from "@/lib/db/models/user";
 import { generateMagicLink } from "@/lib/auth/magic-link";
+import { checkRateLimit } from "@/lib/api/rate-limit";
 import {
   successResponse,
   errorResponse,
@@ -21,8 +23,11 @@ const signupSchema = z.object({
     .max(50, "Display name must be 50 characters or fewer."),
 });
 
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
   try {
+    // Rate limit: 5 attempts per minute per IP
+    await checkRateLimit(request, "auth");
+
     const body = await request.json();
 
     const parsed = signupSchema.safeParse(body);
@@ -43,33 +48,39 @@ export async function POST(request: Request) {
     }
 
     const { email, name, displayName } = parsed.data;
+    const normalizedEmail = email.toLowerCase().trim();
 
     await connectDB();
 
-    // Check if user already exists
-    const existingUser = await User.findOne({
-      email: email.toLowerCase().trim(),
-    });
+    // Atomic check-and-create to prevent race conditions.
+    // Uses findOneAndUpdate with upsert + $setOnInsert so that:
+    //   - If user exists: returns existing doc (was created before this call)
+    //   - If user doesn't exist: atomically creates it
+    const result = await User.findOneAndUpdate(
+      { email: normalizedEmail },
+      {
+        $setOnInsert: {
+          email: normalizedEmail,
+          name,
+          displayName,
+          status: "offline",
+          preferences: {
+            notifications: true,
+            ghostModeDefault: false,
+            theme: "auto",
+          },
+        },
+      },
+      { upsert: true, new: false } // new: false returns null if doc was just created
+    );
 
-    if (existingUser) {
+    // If result is non-null, the user already existed (not a fresh upsert)
+    if (result !== null) {
       return errorResponse({
         message: "Email already registered.",
         status: 409,
       });
     }
-
-    // Create the new user
-    await User.create({
-      email: email.toLowerCase().trim(),
-      name,
-      displayName,
-      status: "offline",
-      preferences: {
-        notifications: true,
-        ghostModeDefault: false,
-        theme: "auto",
-      },
-    });
 
     // Generate magic link and send email
     const magicLink = await generateMagicLink(email);

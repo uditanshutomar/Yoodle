@@ -10,13 +10,15 @@ interface CardProps {
 }
 
 export default function Card({ children, className = "", hover = false, onClick }: CardProps) {
+  const base = `bg-[var(--surface)] border-2 border-[var(--border-strong)] rounded-2xl shadow-[var(--shadow-card)] p-6 ${className}`;
+
   if (hover) {
     return (
       <motion.div
-        className={`bg-white border-2 border-[#0A0A0A] rounded-2xl shadow-[4px_4px_0_#0A0A0A] p-6 ${className}`}
+        className={base}
         whileHover={{
           y: -4,
-          boxShadow: "2px 2px 0 #0A0A0A",
+          boxShadow: "2px 2px 0 var(--border-strong)",
           transition: { duration: 0.2 },
         }}
         transition={{ type: "spring", stiffness: 400, damping: 25 }}
@@ -28,10 +30,7 @@ export default function Card({ children, className = "", hover = false, onClick 
   }
 
   return (
-    <div
-      className={`bg-white border-2 border-[#0A0A0A] rounded-2xl shadow-[4px_4px_0_#0A0A0A] p-6 ${className}`}
-      onClick={onClick}
-    >
+    <div className={base} onClick={onClick}>
       {children}
     </div>
   );

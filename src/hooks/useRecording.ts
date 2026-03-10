@@ -127,30 +127,23 @@ export function useRecording(
           endTime: seg.endTime,
         }));
 
-        // Try to upload via pre-signed URL
+        // Upload to Google Drive via our API
         try {
-          const urlRes = await fetch("/api/recordings/upload-url", {
+          const formData = new FormData();
+          formData.append("file", blob, `recording.${mimeType.includes("webm") ? "webm" : "mp4"}`);
+          formData.append("meetingId", meetingId);
+          if (segments.length > 0) {
+            formData.append("speechSegments", JSON.stringify(segments));
+          }
+
+          const uploadRes = await fetch("/api/recordings/upload", {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
             credentials: "include",
-            body: JSON.stringify({
-              meetingId,
-              contentType: mimeType,
-              speechSegments: segments,
-            }),
+            body: formData,
           });
 
-          if (urlRes.ok) {
-            const urlData = await urlRes.json();
-            const uploadUrl = urlData.data?.uploadUrl || urlData.uploadUrl;
-            if (uploadUrl) {
-              await fetch(uploadUrl, {
-                method: "PUT",
-                headers: { "Content-Type": mimeType },
-                body: blob,
-              });
-            }
-          } else {
+          if (!uploadRes.ok) {
+            // Google Drive upload failed — fall back to local download
             downloadRecording(blob);
           }
         } catch {
@@ -218,19 +211,26 @@ export function useRecording(
   // ── Cleanup on unmount ─────────────────────────────────────────────
 
   useEffect(() => {
-    const sources = audioSourcesRef.current;
-    const audioCtx = audioContextRef.current;
-    const timer = recordingTimerRef.current;
     return () => {
-      for (const source of sources) {
+      // Read refs at cleanup time (not at mount time) to get current values
+      for (const source of audioSourcesRef.current) {
         try {
           source.disconnect();
         } catch {
           /* already disconnected */
         }
       }
-      audioCtx?.close();
-      if (timer) clearInterval(timer);
+      audioSourcesRef.current = [];
+      audioContextRef.current?.close();
+      audioContextRef.current = null;
+      mixedDestRef.current = null;
+      if (recordingTimerRef.current) {
+        clearInterval(recordingTimerRef.current);
+        recordingTimerRef.current = null;
+      }
+      if (mediaRecorderRef.current?.state === "recording") {
+        mediaRecorderRef.current.stop();
+      }
     };
   }, []);
 

@@ -28,7 +28,9 @@ const meetingIdSchema = z.string().min(1, "Meeting ID is required");
 
 /**
  * Leave a meeting.
- * Updates participant status to "left".
+ *
+ * Atomically updates the participant status to "left" using
+ * findOneAndUpdate so concurrent leave requests cannot conflict.
  * If the host leaves and no other participants remain, ends the meeting.
  */
 export const POST = withHandler(async (req: NextRequest, context) => {
@@ -41,53 +43,66 @@ export const POST = withHandler(async (req: NextRequest, context) => {
   await connectDB();
 
   const filter = buildMeetingFilter(meetingId);
-  const meeting = await Meeting.findOne(filter);
+  const userObjectId = new mongoose.Types.ObjectId(userId);
 
-  if (!meeting) {
-    throw new NotFoundError("Meeting not found.");
-  }
-
-  // Find the participant
-  const participant = meeting.participants.find(
-    (p) => p.userId.toString() === userId
+  // ── Atomically mark participant as "left" ─────────────────────────
+  const result = await Meeting.findOneAndUpdate(
+    {
+      ...filter,
+      participants: {
+        $elemMatch: { userId: userObjectId, status: "joined" },
+      },
+    },
+    {
+      $set: {
+        "participants.$.status": "left",
+        "participants.$.leftAt": new Date(),
+      },
+    },
+    { new: true },
   );
 
-  if (!participant) {
-    throw new BadRequestError("You are not a participant in this meeting.");
+  if (!result) {
+    // Determine the reason for failure
+    const meeting = await Meeting.findOne(filter);
+    if (!meeting) {
+      throw new NotFoundError("Meeting not found.");
+    }
+    const participant = meeting.participants.find(
+      (p) => p.userId.toString() === userId,
+    );
+    if (!participant) {
+      throw new BadRequestError("You are not a participant in this meeting.");
+    }
+    if (participant.status === "left") {
+      throw new BadRequestError("You have already left this meeting.");
+    }
+    throw new BadRequestError("Cannot leave this meeting.");
   }
 
-  if (participant.status === "left") {
-    throw new BadRequestError("You have already left this meeting.");
-  }
-
-  // Mark participant as left
-  participant.status = "left";
-  participant.leftAt = new Date();
-
-  // Check if host is leaving
-  const isHost = meeting.hostId.toString() === userId;
-
+  // ── End meeting if host left and nobody else remains ──────────────
+  const isHost = result.hostId.toString() === userId;
   if (isHost) {
-    // Check if any other participants are still in the meeting
-    const remainingParticipants = meeting.participants.filter(
-      (p) => p.userId.toString() !== userId && p.status === "joined"
+    const remainingParticipants = result.participants.filter(
+      (p) => p.userId.toString() !== userId && p.status === "joined",
     );
 
     if (remainingParticipants.length === 0) {
-      // No other participants, end the meeting
-      meeting.status = "ended";
-      meeting.endedAt = new Date();
+      // Atomic — only transitions if still live/scheduled (idempotent)
+      await Meeting.updateOne(
+        { _id: result._id, status: { $nin: ["ended", "cancelled"] } },
+        { $set: { status: "ended", endedAt: new Date() } },
+      );
     }
   }
 
-  await meeting.save();
-
-  // Populate for response
-  await meeting.populate("hostId", "name email displayName avatarUrl");
-  await meeting.populate("participants.userId", "name email displayName avatarUrl");
+  // Fetch final state with populated fields
+  const populated = await Meeting.findById(result._id)
+    .populate("hostId", "name email displayName avatarUrl")
+    .populate("participants.userId", "name email displayName avatarUrl");
 
   return successResponse({
-    data: { meeting },
+    data: { meeting: populated },
     message: "You have left the meeting.",
   });
 });

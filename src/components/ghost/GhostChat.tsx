@@ -35,14 +35,14 @@ export default function GhostChat({ messages, currentUserId, onSend }: GhostChat
   };
 
   return (
-    <div className="flex flex-col h-full bg-white border-2 border-[#7C3AED] rounded-2xl shadow-[4px_4px_0_#7C3AED] overflow-hidden">
+    <div className="flex flex-col h-full bg-[var(--surface)] border-2 border-[#7C3AED] rounded-2xl shadow-[4px_4px_0_#7C3AED] overflow-hidden">
       {/* Header */}
       <div className="flex items-center gap-2 px-4 py-3 border-b-2 border-[#7C3AED]/20 bg-[#7C3AED]/5">
         <Ghost size={16} className="text-[#7C3AED]" />
-        <span className="text-sm font-bold text-[#0A0A0A]" style={{ fontFamily: "var(--font-heading)" }}>
+        <span className="text-sm font-bold text-[var(--text-primary)]" style={{ fontFamily: "var(--font-heading)" }}>
           Ghost Chat
         </span>
-        <span className="text-[10px] text-[#0A0A0A]/40 ml-auto" style={{ fontFamily: "var(--font-body)" }}>
+        <span className="text-[10px] text-[var(--text-secondary)] ml-auto" style={{ fontFamily: "var(--font-body)" }}>
           vanishes when room ends
         </span>
       </div>
@@ -59,7 +59,7 @@ export default function GhostChat({ messages, currentUserId, onSend }: GhostChat
                   animate={{ opacity: 1 }}
                   className="text-center"
                 >
-                  <span className="text-[10px] text-[#0A0A0A]/40 px-3 py-1 bg-[#0A0A0A]/5 rounded-full" style={{ fontFamily: "var(--font-body)" }}>
+                  <span className="text-[10px] text-[var(--text-secondary)] px-3 py-1 bg-[var(--surface-hover)] rounded-full" style={{ fontFamily: "var(--font-body)" }}>
                     {msg.content}
                   </span>
                 </motion.div>
@@ -77,7 +77,7 @@ export default function GhostChat({ messages, currentUserId, onSend }: GhostChat
               >
                 <div className={`max-w-[75%] ${isOwn ? "items-end" : "items-start"}`}>
                   {!isOwn && (
-                    <span className="text-[10px] text-[#0A0A0A]/50 ml-1 mb-0.5 block" style={{ fontFamily: "var(--font-body)" }}>
+                    <span className="text-[10px] text-[var(--text-secondary)] ml-1 mb-0.5 block" style={{ fontFamily: "var(--font-body)" }}>
                       {msg.senderName}
                     </span>
                   )}
@@ -85,13 +85,13 @@ export default function GhostChat({ messages, currentUserId, onSend }: GhostChat
                     className={`px-3 py-2 rounded-2xl text-sm ${
                       isOwn
                         ? "bg-[#7C3AED] text-white rounded-br-md"
-                        : "bg-[#0A0A0A]/5 text-[#0A0A0A] rounded-bl-md"
+                        : "bg-[var(--surface-hover)] text-[var(--text-primary)] rounded-bl-md"
                     }`}
                     style={{ fontFamily: "var(--font-body)" }}
                   >
                     {msg.content}
                   </div>
-                  <span className="text-[9px] text-[#0A0A0A]/30 mt-0.5 block px-1">
+                  <span className="text-[9px] text-[var(--text-muted)] mt-0.5 block px-1">
                     {new Date(msg.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
                   </span>
                 </div>
@@ -111,13 +111,13 @@ export default function GhostChat({ messages, currentUserId, onSend }: GhostChat
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && handleSend()}
             placeholder="Type a ghost message…"
-            className="flex-1 px-3 py-2 text-sm border-2 border-[#0A0A0A]/10 rounded-xl bg-white focus:border-[#7C3AED] focus:outline-none transition-colors"
+            className="flex-1 px-3 py-2 text-sm border-2 border-[var(--border)] rounded-xl bg-[var(--surface)] focus:border-[#7C3AED] focus:outline-none transition-colors"
             style={{ fontFamily: "var(--font-body)" }}
           />
           <button
             onClick={handleSend}
             disabled={!input.trim()}
-            className="flex items-center justify-center w-9 h-9 rounded-xl bg-[#7C3AED] text-white border-2 border-[#0A0A0A] shadow-[2px_2px_0_#0A0A0A] hover:shadow-none hover:translate-x-[2px] hover:translate-y-[2px] transition-all disabled:opacity-40 disabled:shadow-none disabled:translate-x-0 disabled:translate-y-0"
+            className="flex items-center justify-center w-9 h-9 rounded-xl bg-[#7C3AED] text-white border-2 border-[var(--border-strong)] shadow-[2px_2px_0_var(--border-strong)] hover:shadow-none hover:translate-x-[2px] hover:translate-y-[2px] transition-all disabled:opacity-40 disabled:shadow-none disabled:translate-x-0 disabled:translate-y-0"
           >
             <Send size={14} />
           </button>

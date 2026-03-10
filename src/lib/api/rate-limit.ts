@@ -11,29 +11,75 @@ interface RateLimitConfig {
 
 /** Rate limit presets for different endpoint groups */
 export const RATE_LIMITS = {
-  auth: { limit: 5, window: 60 } as RateLimitConfig,
+  auth: { limit: 5, window: 60 } as RateLimitConfig, // login, signup, verify
+  session: { limit: 30, window: 60 } as RateLimitConfig, // session check, refresh
   ai: { limit: 20, window: 60 } as RateLimitConfig,
   voice: { limit: 10, window: 60 } as RateLimitConfig,
   meetings: { limit: 60, window: 60 } as RateLimitConfig,
+  calendar: { limit: 40, window: 60 } as RateLimitConfig,
   general: { limit: 100, window: 60 } as RateLimitConfig,
 } as const;
 
 /**
  * Extract a rate-limit key from the request.
- * Uses IP address as the identifier.
+ * On Vercel/trusted proxies, x-forwarded-for is reliable.
+ * Falls back to x-real-ip, then "unknown".
  */
 function getClientKey(req: NextRequest): string {
+  // On Vercel, x-forwarded-for is set by the platform and is trustworthy.
+  // The first IP in the chain is the client's real IP.
   const forwarded = req.headers.get("x-forwarded-for");
-  const ip = forwarded?.split(",")[0]?.trim() || "unknown";
-  return ip;
+  if (forwarded) {
+    const ip = forwarded.split(",")[0]?.trim();
+    if (ip && isValidIp(ip)) return ip;
+  }
+
+  // Fallback to x-real-ip (set by some reverse proxies)
+  const realIp = req.headers.get("x-real-ip")?.trim();
+  if (realIp && isValidIp(realIp)) return realIp;
+
+  return "unknown";
+}
+
+/** Basic IP format validation (IPv4 or IPv6) */
+function isValidIp(ip: string): boolean {
+  // IPv4: digits and dots
+  if (/^\d{1,3}(\.\d{1,3}){3}$/.test(ip)) return true;
+  // IPv6: hex digits and colons (simplified check)
+  if (/^[0-9a-fA-F:]+$/.test(ip) && ip.includes(":")) return true;
+  return false;
+}
+
+// ── In-memory fallback when Redis is unavailable ──────────────────────
+const memoryStore = new Map<string, { count: number; resetAt: number }>();
+
+// Periodically clean up expired entries
+setInterval(() => {
+  const now = Date.now();
+  for (const [key, val] of memoryStore) {
+    if (val.resetAt <= now) memoryStore.delete(key);
+  }
+}, 60_000);
+
+function checkInMemoryRateLimit(key: string, config: RateLimitConfig): void {
+  const now = Date.now();
+  const entry = memoryStore.get(key);
+
+  if (entry && entry.resetAt > now) {
+    entry.count++;
+    if (entry.count > config.limit) {
+      const retryAfter = Math.ceil((entry.resetAt - now) / 1000);
+      throw new RateLimitError(retryAfter);
+    }
+  } else {
+    memoryStore.set(key, { count: 1, resetAt: now + config.window * 1000 });
+  }
 }
 
 /**
  * Check rate limit using Redis sliding window counter.
+ * Falls back to in-memory rate limiting if Redis is unavailable.
  * Throws RateLimitError if limit exceeded.
- *
- * Usage:
- *   await checkRateLimit(req, "ai");
  */
 export async function checkRateLimit(
   req: NextRequest,
@@ -71,6 +117,9 @@ export async function checkRateLimit(
     }
   } catch (error) {
     if (error instanceof RateLimitError) throw error;
-    // If Redis is down, allow the request (fail-open)
+    // Redis unavailable — fall back to in-memory rate limiting
+    // This prevents unlimited requests when Redis is down
+    console.warn(`[RateLimit] Redis unavailable, using in-memory fallback for ${group}`);
+    checkInMemoryRateLimit(key, config);
   }
 }

@@ -7,7 +7,7 @@ import SocketProvider from "@/providers/SocketProvider";
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   return (
     <SocketProvider>
-      <div className="flex h-screen bg-[#FAFAF8]">
+      <div className="flex h-screen bg-background">
         {/* Sidebar */}
         <AppSidebar />
 

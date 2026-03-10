@@ -6,6 +6,11 @@ import { jwtVerify } from "jose";
  *
  * Protects all /(app)/* routes by requiring a valid access token cookie.
  * Allows all other routes (landing page, auth pages, API routes) through.
+ *
+ * Note: Token blacklist checks cannot run in Edge middleware (no Redis access).
+ * The API-layer authenticateRequest() in src/lib/auth/middleware.ts handles
+ * blacklist validation for all API routes. For page routes, tokens are short-lived
+ * (15 min) which limits the window after logout.
  */
 
 // Routes that require authentication (the (app) route group)
@@ -16,6 +21,7 @@ const PROTECTED_PATHS = [
   "/ghost-rooms",
   "/ai",
   "/settings",
+  "/admin",
 ];
 
 function isProtectedRoute(pathname: string): boolean {
@@ -24,20 +30,45 @@ function isProtectedRoute(pathname: string): boolean {
   );
 }
 
+function redirectToLogin(request: NextRequest, pathname: string, clearCookie = false) {
+  const loginUrl = new URL("/login", request.url);
+  loginUrl.searchParams.set("redirect", pathname);
+  const response = NextResponse.redirect(loginUrl);
+  if (clearCookie) {
+    response.cookies.delete("yoodle-access-token");
+  }
+  return applySecurityHeaders(response);
+}
+
+/** Append security headers to every response flowing through middleware. */
+function applySecurityHeaders(response: NextResponse): NextResponse {
+  response.headers.set("X-Frame-Options", "SAMEORIGIN");
+  response.headers.set("X-Content-Type-Options", "nosniff");
+  response.headers.set("X-XSS-Protection", "1; mode=block");
+  response.headers.set("Referrer-Policy", "strict-origin-when-cross-origin");
+  response.headers.set(
+    "Permissions-Policy",
+    "camera=(self), microphone=(self), geolocation=(), payment=(), usb=(), magnetometer=(), gyroscope=(), accelerometer=()",
+  );
+  response.headers.set(
+    "Strict-Transport-Security",
+    "max-age=31536000; includeSubDomains; preload",
+  );
+  return response;
+}
+
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   // Only protect app routes - let everything else through
   if (!isProtectedRoute(pathname)) {
-    return NextResponse.next();
+    return applySecurityHeaders(NextResponse.next());
   }
 
   const accessToken = request.cookies.get("yoodle-access-token")?.value;
 
   if (!accessToken) {
-    const loginUrl = new URL("/login", request.url);
-    loginUrl.searchParams.set("redirect", pathname);
-    return NextResponse.redirect(loginUrl);
+    return redirectToLogin(request, pathname);
   }
 
   try {
@@ -48,21 +79,26 @@ export async function middleware(request: NextRequest) {
 
     const encodedSecret = new TextEncoder().encode(secret);
 
-    await jwtVerify(accessToken, encodedSecret, {
+    const { payload } = await jwtVerify(accessToken, encodedSecret, {
       issuer: "yoodle",
       audience: "yoodle-app",
     });
 
-    return NextResponse.next();
+    // Verify token type is "access" (not a refresh token being misused)
+    if (payload.type !== "access") {
+      return redirectToLogin(request, pathname, true);
+    }
+
+    // Add user info to request headers for downstream use
+    const response = NextResponse.next();
+    if (payload.userId) {
+      response.headers.set("x-user-id", payload.userId as string);
+    }
+
+    return applySecurityHeaders(response);
   } catch {
     // Token is invalid or expired - redirect to login
-    const loginUrl = new URL("/login", request.url);
-    loginUrl.searchParams.set("redirect", pathname);
-
-    const response = NextResponse.redirect(loginUrl);
-    // Clear the invalid cookie
-    response.cookies.delete("yoodle-access-token");
-    return response;
+    return redirectToLogin(request, pathname, true);
   }
 }
 

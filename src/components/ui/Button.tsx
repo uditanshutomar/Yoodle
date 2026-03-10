@@ -23,13 +23,13 @@ interface ButtonBaseProps {
 
 const variantStyles: Record<ButtonVariant, string> = {
   primary:
-    "bg-[#FFE600] text-[#0A0A0A] border-2 border-[#0A0A0A] shadow-[4px_4px_0_#0A0A0A] hover:shadow-[2px_2px_0_#0A0A0A] active:shadow-[1px_1px_0_#0A0A0A]",
+    "bg-[#FFE600] text-[#0A0A0A] border-2 border-[var(--border-strong)] shadow-[var(--shadow-card)] hover:shadow-[2px_2px_0_var(--border-strong)] active:shadow-[1px_1px_0_var(--border-strong)]",
   secondary:
-    "bg-white text-[#0A0A0A] border-2 border-[#0A0A0A] shadow-[4px_4px_0_#0A0A0A] hover:shadow-[2px_2px_0_#0A0A0A] active:shadow-[1px_1px_0_#0A0A0A]",
+    "bg-[var(--surface)] text-[var(--text-primary)] border-2 border-[var(--border-strong)] shadow-[var(--shadow-card)] hover:shadow-[2px_2px_0_var(--border-strong)] active:shadow-[1px_1px_0_var(--border-strong)]",
   ghost:
-    "bg-transparent text-[#0A0A0A] border-0 shadow-none hover:bg-[#0A0A0A]/5",
+    "bg-transparent text-[var(--text-primary)] border-0 shadow-none hover:bg-[var(--surface-hover)]",
   danger:
-    "bg-[#FF6B6B] text-white border-2 border-[#0A0A0A] shadow-[4px_4px_0_#0A0A0A] hover:shadow-[2px_2px_0_#0A0A0A] active:shadow-[1px_1px_0_#0A0A0A]",
+    "bg-[#FF6B6B] text-white border-2 border-[var(--border-strong)] shadow-[var(--shadow-card)] hover:shadow-[2px_2px_0_var(--border-strong)] active:shadow-[1px_1px_0_var(--border-strong)]",
 };
 
 const sizeStyles: Record<ButtonSize, string> = {

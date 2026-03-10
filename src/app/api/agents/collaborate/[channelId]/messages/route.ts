@@ -33,7 +33,14 @@ export const GET = withHandler(async (req: NextRequest, context) => {
 
   await connectDB();
 
-  const channel = await AgentChannel.findById(channelId);
+  // Use $slice projection to only fetch the last 100 messages from DB
+  // instead of loading the entire message history into memory.
+  const channel = await AgentChannel.findById(channelId, {
+    participants: 1,
+    topic: 1,
+    status: 1,
+    messages: { $slice: -100 },
+  });
   if (!channel) {
     throw new NotFoundError("Channel not found.");
   }
@@ -106,7 +113,7 @@ export const POST = withHandler(async (req: NextRequest, context) => {
     throw new ForbiddenError("You are not a participant of this channel.");
   }
 
-  const senderUser = await User.findById(userId);
+  const senderUser = await User.findById(userId).select("_id name displayName");
   if (!senderUser) {
     throw new NotFoundError("User not found.");
   }
@@ -179,7 +186,7 @@ export const POST = withHandler(async (req: NextRequest, context) => {
   }[] = [];
 
   for (const otherParticipant of otherParticipants) {
-    const otherUser = await User.findById(otherParticipant.userId);
+    const otherUser = await User.findById(otherParticipant.userId).select("_id name displayName");
     if (!otherUser) continue;
 
     const otherAgent = await Agent.findById(otherParticipant.agentId);
@@ -228,6 +235,12 @@ export const POST = withHandler(async (req: NextRequest, context) => {
 
     channel.messages.push(otherAgentMessage);
     otherResponses.push(otherAgentMessage);
+  }
+
+  // Cap stored messages at 500 to prevent unbounded growth
+  const MAX_CHANNEL_MESSAGES = 500;
+  if (channel.messages.length > MAX_CHANNEL_MESSAGES) {
+    channel.messages = channel.messages.slice(-MAX_CHANNEL_MESSAGES);
   }
 
   await channel.save();

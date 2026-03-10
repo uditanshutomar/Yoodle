@@ -41,12 +41,12 @@ export default function AppSidebar() {
   const sidebarContent = (
     <div className="flex h-full flex-col">
       {/* Logo */}
-      <div className="flex items-center gap-2.5 px-5 py-5 border-b-2 border-[#0A0A0A]/10">
-        <span className="flex h-9 w-9 items-center justify-center overflow-hidden rounded-full bg-[#FFE600] border-2 border-[#0A0A0A]">
+      <div className="flex items-center gap-2.5 px-5 py-5 border-b-2 border-[var(--border)]">
+        <span className="flex h-9 w-9 items-center justify-center overflow-hidden rounded-full bg-[#FFE600] border-2 border-[var(--border-strong)]">
           <YoodleMascotSmall className="h-8 w-8 mix-blend-multiply" />
         </span>
         <span
-          className="text-2xl font-black tracking-tight text-[#0A0A0A]"
+          className="text-2xl font-black tracking-tight text-[var(--text-primary)]"
           style={{
             fontFamily: "var(--font-heading)",
             textShadow: "2px 2px 0 #FFE600",
@@ -67,14 +67,14 @@ export default function AppSidebar() {
               onClick={() => setMobileOpen(false)}
               className={`group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm transition-all ${
                 active
-                  ? "bg-[#FFE600]/20 text-[#0A0A0A] font-bold"
-                  : "text-[#0A0A0A]/60 hover:bg-[#0A0A0A]/5 hover:text-[#0A0A0A] font-medium"
+                  ? "bg-[#FFE600]/20 text-[var(--text-primary)] font-bold"
+                  : "text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)] font-medium"
               }`}
               style={{ fontFamily: "var(--font-heading)" }}
             >
               <item.icon
                 size={18}
-                className={active ? "text-[#0A0A0A]" : "text-[#0A0A0A]/40 group-hover:text-[#0A0A0A]"}
+                className={active ? "text-[var(--text-primary)]" : "text-[var(--text-muted)] group-hover:text-[var(--text-primary)]"}
               />
               {item.label}
               {active && (
@@ -90,7 +90,7 @@ export default function AppSidebar() {
       </nav>
 
       {/* User section */}
-      <div className="border-t-2 border-[#0A0A0A]/10 px-4 py-4">
+      <div className="border-t-2 border-[var(--border)] px-4 py-4">
         <div className="flex items-center gap-3">
           <Avatar
             src={user?.avatar}
@@ -100,13 +100,13 @@ export default function AppSidebar() {
           />
           <div className="flex-1 min-w-0">
             <p
-              className="text-sm font-bold text-[#0A0A0A] truncate"
+              className="text-sm font-bold text-[var(--text-primary)] truncate"
               style={{ fontFamily: "var(--font-heading)" }}
             >
               {user?.name || "Loading..."}
             </p>
             <p
-              className="text-xs text-[#0A0A0A]/50 truncate"
+              className="text-xs text-[var(--text-secondary)] truncate"
               style={{ fontFamily: "var(--font-body)" }}
             >
               {user?.displayName ? `@${user.displayName}` : ""}
@@ -114,7 +114,7 @@ export default function AppSidebar() {
           </div>
           <button
             onClick={logout}
-            className="rounded-lg p-1.5 text-[#0A0A0A]/40 hover:text-[#FF6B6B] hover:bg-[#FF6B6B]/10 transition-colors cursor-pointer"
+            className="rounded-lg p-1.5 text-[var(--text-muted)] hover:text-[#FF6B6B] hover:bg-[#FF6B6B]/10 transition-colors cursor-pointer"
             title="Log out"
           >
             <LogOut size={16} />
@@ -129,13 +129,13 @@ export default function AppSidebar() {
       {/* Mobile hamburger */}
       <button
         onClick={() => setMobileOpen(true)}
-        className="fixed top-4 left-4 z-50 flex h-10 w-10 items-center justify-center rounded-xl bg-white border-2 border-[#0A0A0A] shadow-[3px_3px_0_#0A0A0A] lg:hidden cursor-pointer"
+        className="fixed top-4 left-4 z-50 flex h-10 w-10 items-center justify-center rounded-xl bg-[var(--surface)] border-2 border-[var(--border-strong)] shadow-[var(--shadow-card)] lg:hidden cursor-pointer"
       >
-        <Menu size={18} />
+        <Menu size={18} className="text-[var(--text-primary)]" />
       </button>
 
       {/* Desktop sidebar */}
-      <aside className="hidden lg:flex lg:flex-col lg:w-64 lg:shrink-0 h-screen bg-white border-r-2 border-[#0A0A0A]/10 sticky top-0">
+      <aside className="hidden lg:flex lg:flex-col lg:w-64 lg:shrink-0 h-screen bg-[var(--surface)] border-r-2 border-[var(--border)] sticky top-0">
         {sidebarContent}
       </aside>
 
@@ -151,7 +151,7 @@ export default function AppSidebar() {
               onClick={() => setMobileOpen(false)}
             />
             <motion.aside
-              className="fixed left-0 top-0 z-50 h-full w-72 bg-white border-r-2 border-[#0A0A0A] shadow-[6px_0_0_#0A0A0A] lg:hidden"
+              className="fixed left-0 top-0 z-50 h-full w-72 bg-[var(--surface)] border-r-2 border-[var(--border-strong)] shadow-[6px_0_0_rgba(0,0,0,0.3)] lg:hidden"
               initial={{ x: "-100%" }}
               animate={{ x: 0 }}
               exit={{ x: "-100%" }}
@@ -159,7 +159,7 @@ export default function AppSidebar() {
             >
               <button
                 onClick={() => setMobileOpen(false)}
-                className="absolute top-4 right-4 rounded-lg p-1.5 text-[#0A0A0A]/60 hover:text-[#0A0A0A] transition-colors cursor-pointer"
+                className="absolute top-4 right-4 rounded-lg p-1.5 text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors cursor-pointer"
               >
                 <X size={18} />
               </button>

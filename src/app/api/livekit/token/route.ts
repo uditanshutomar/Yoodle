@@ -5,7 +5,9 @@ import { withHandler } from "@/lib/api/with-handler";
 import { successResponse } from "@/lib/api/response";
 import { checkRateLimit } from "@/lib/api/rate-limit";
 import { getUserIdFromRequest } from "@/lib/auth/middleware";
-import { BadRequestError } from "@/lib/api/errors";
+import { BadRequestError, NotFoundError, ForbiddenError } from "@/lib/api/errors";
+import connectDB from "@/lib/db/client";
+import Meeting from "@/lib/db/models/meeting";
 import {
   LIVEKIT_API_KEY,
   LIVEKIT_API_SECRET,
@@ -16,7 +18,6 @@ import {
 
 const tokenRequestSchema = z.object({
   roomId: z.string().min(1, "Room ID is required."),
-  identity: z.string().min(1, "Identity is required."),
   name: z.string().min(1, "Display name is required."),
 });
 
@@ -27,10 +28,13 @@ const tokenRequestSchema = z.object({
  *
  * The token includes grants for joining the specified room with
  * publish and subscribe permissions.
+ *
+ * The caller must be an authenticated participant in the meeting.
+ * Identity is enforced to match the authenticated userId.
  */
 export const POST = withHandler(async (req: NextRequest) => {
   await checkRateLimit(req, "meetings");
-  await getUserIdFromRequest(req);
+  const userId = await getUserIdFromRequest(req);
 
   if (!isLiveKitConfigured()) {
     throw new BadRequestError(
@@ -39,10 +43,28 @@ export const POST = withHandler(async (req: NextRequest) => {
   }
 
   const body = tokenRequestSchema.parse(await req.json());
-  const { roomId, identity, name } = body;
+  const { roomId, name } = body;
 
+  // Verify user is a participant in this meeting
+  await connectDB();
+  const meeting = await Meeting.findById(roomId).lean();
+  if (!meeting) {
+    throw new NotFoundError("Meeting not found.");
+  }
+
+  const isParticipant =
+    meeting.hostId.toString() === userId ||
+    meeting.participants.some(
+      (p) => p.userId.toString() === userId && p.status === "joined"
+    );
+
+  if (!isParticipant) {
+    throw new ForbiddenError("You are not a participant in this meeting.");
+  }
+
+  // Force identity to the authenticated userId — never trust caller-provided identity
   const token = new AccessToken(LIVEKIT_API_KEY, LIVEKIT_API_SECRET, {
-    identity,
+    identity: userId,
     name,
     ttl: "6h",
   });

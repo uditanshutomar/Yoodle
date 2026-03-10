@@ -56,7 +56,7 @@ export const GET = withHandler(async (req: NextRequest) => {
     id: user._id.toString(),
     name: user.name,
     displayName: user.displayName,
-    email: user.email,
+    // email deliberately excluded from public search results for privacy
     avatarUrl: user.avatarUrl || null,
     status: user.status,
   }));

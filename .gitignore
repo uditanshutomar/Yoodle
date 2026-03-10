@@ -30,8 +30,13 @@ yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
 
-# env files (can opt-in for committing if needed)
-.env*
+# env files — NEVER commit secrets
+.env
+.env.*
+.env.local
+.env.development
+.env.production
+.env.staging
 
 # vercel
 .vercel
@@ -43,3 +48,9 @@ next-env.d.ts
 # server build artifacts
 server/node_modules
 server/dist
+
+# database backups
+/backups
+
+# sentry
+.sentryclirc

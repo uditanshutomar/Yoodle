@@ -3,6 +3,8 @@ import { withHandler } from "@/lib/api/with-handler";
 import { successResponse } from "@/lib/api/response";
 import { checkRateLimit } from "@/lib/api/rate-limit";
 import { authenticateRequest, getUserIdFromRequest } from "@/lib/auth/middleware";
+import { verifyAccessToken, verifyRefreshToken } from "@/lib/auth/jwt";
+import { tokenBlacklist } from "@/lib/redis/cache";
 import { NotFoundError } from "@/lib/api/errors";
 import connectDB from "@/lib/db/client";
 import User from "@/lib/db/models/user";
@@ -12,7 +14,7 @@ import User from "@/lib/db/models/user";
  * Returns the currently authenticated user's session data.
  */
 export const GET = withHandler(async (req: NextRequest) => {
-  await checkRateLimit(req, "auth");
+  await checkRateLimit(req, "session");
   const userId = await getUserIdFromRequest(req);
 
   await connectDB();
@@ -43,21 +45,49 @@ export const GET = withHandler(async (req: NextRequest) => {
 
 /**
  * DELETE /api/auth/session
- * Logs the user out by clearing auth cookies.
+ * Logs the user out by clearing auth cookies and blacklisting tokens.
  */
 export const DELETE = withHandler(async (req: NextRequest) => {
   await checkRateLimit(req, "auth");
 
-  // Optionally clear the refresh token hash from the user doc
-  try {
-    const payload = await authenticateRequest(req);
-    await connectDB();
-    await User.findByIdAndUpdate(payload.userId, {
-      $unset: { refreshTokenHash: 1 },
-      $set: { status: "offline" },
-    });
-  } catch {
-    // Even if auth fails, we still clear cookies
+  const accessToken = req.cookies.get("yoodle-access-token")?.value;
+  const refreshToken = req.cookies.get("yoodle-refresh-token")?.value;
+
+  let userId: string | null = null;
+
+  // Blacklist the access token (remaining TTL ~15min max)
+  if (accessToken) {
+    try {
+      const payload = await verifyAccessToken(accessToken);
+      userId = payload.userId;
+      await tokenBlacklist(accessToken, 15 * 60);
+    } catch {
+      // Token already expired or invalid — no need to blacklist
+    }
+  }
+
+  // Blacklist the refresh token (remaining TTL ~7 days max)
+  if (refreshToken) {
+    try {
+      const payload = await verifyRefreshToken(refreshToken);
+      if (!userId) userId = payload.userId;
+      await tokenBlacklist(refreshToken, 7 * 24 * 60 * 60);
+    } catch {
+      // Token already expired or invalid
+    }
+  }
+
+  // Clear refresh token hash and set user offline in DB
+  if (userId) {
+    try {
+      await connectDB();
+      await User.findByIdAndUpdate(userId, {
+        $unset: { refreshTokenHash: 1 },
+        $set: { status: "offline" },
+      });
+    } catch {
+      // DB update failure shouldn't prevent logout
+    }
   }
 
   const response = successResponse({

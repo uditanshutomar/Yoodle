@@ -71,19 +71,19 @@ export default function WorkspacesPage() {
       {/* Header */}
       <motion.div variants={itemVariants} className="flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#06B6D4] border-2 border-[#0A0A0A]">
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#06B6D4] border-2 border-[var(--border-strong)]">
             <Server size={20} className="text-white" />
           </div>
           <div>
-            <h1 className="text-2xl font-black text-[#0A0A0A]" style={{ fontFamily: "var(--font-heading)" }}>
+            <h1 className="text-2xl font-black text-[var(--text-primary)]" style={{ fontFamily: "var(--font-heading)" }}>
               Workspaces
             </h1>
-            <p className="text-xs text-[#0A0A0A]/50" style={{ fontFamily: "var(--font-body)" }}>
+            <p className="text-xs text-[var(--text-muted)]" style={{ fontFamily: "var(--font-body)" }}>
               Shared cloud environments powered by Vultr
             </p>
           </div>
         </div>
-        <Button variant="primary" size="md" icon={Plus} onClick={createWorkspace} disabled={creating} className="!bg-[#06B6D4] !border-[#0A0A0A] !text-white">
+        <Button variant="primary" size="md" icon={Plus} onClick={createWorkspace} disabled={creating} className="!bg-[#06B6D4] !border-[var(--border-strong)] !text-white">
           {creating ? "Creating…" : "New Workspace"}
         </Button>
       </motion.div>

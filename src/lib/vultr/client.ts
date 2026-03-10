@@ -9,6 +9,13 @@ function getHeaders(): Record<string, string> {
   };
 }
 
+/** Log full error server-side but throw a generic message to the client */
+async function handleVultrError(res: Response, operation: string): Promise<never> {
+  const errorBody = await res.text().catch(() => "unknown");
+  console.error(`[Vultr] ${operation} failed: ${res.status} - ${errorBody}`);
+  throw new Error(`Cloud operation failed: ${operation}. Please try again later.`);
+}
+
 // ── Create Instance ─────────────────────────────────────────────────
 
 export async function createInstance(options: {
@@ -51,8 +58,7 @@ export async function createInstance(options: {
   });
 
   if (!res.ok) {
-    const errorBody = await res.text();
-    throw new Error(`Vultr API error (create): ${res.status} - ${errorBody}`);
+    await handleVultrError(res, "create instance");
   }
 
   const data = await res.json();
@@ -86,8 +92,7 @@ export async function getInstance(instanceId: string): Promise<{
   });
 
   if (!res.ok) {
-    const errorBody = await res.text();
-    throw new Error(`Vultr API error (get): ${res.status} - ${errorBody}`);
+    await handleVultrError(res, "get instance");
   }
 
   const data = await res.json();
@@ -130,8 +135,7 @@ export async function listInstances(): Promise<
   });
 
   if (!res.ok) {
-    const errorBody = await res.text();
-    throw new Error(`Vultr API error (list): ${res.status} - ${errorBody}`);
+    await handleVultrError(res, "list instances");
   }
 
   const data = await res.json();
@@ -162,8 +166,7 @@ export async function startInstance(instanceId: string): Promise<void> {
   });
 
   if (!res.ok) {
-    const errorBody = await res.text();
-    throw new Error(`Vultr API error (start): ${res.status} - ${errorBody}`);
+    await handleVultrError(res, "start instance");
   }
 }
 
@@ -176,8 +179,7 @@ export async function stopInstance(instanceId: string): Promise<void> {
   });
 
   if (!res.ok) {
-    const errorBody = await res.text();
-    throw new Error(`Vultr API error (stop): ${res.status} - ${errorBody}`);
+    await handleVultrError(res, "stop instance");
   }
 }
 
@@ -190,8 +192,7 @@ export async function rebootInstance(instanceId: string): Promise<void> {
   });
 
   if (!res.ok) {
-    const errorBody = await res.text();
-    throw new Error(`Vultr API error (reboot): ${res.status} - ${errorBody}`);
+    await handleVultrError(res, "reboot instance");
   }
 }
 
@@ -204,8 +205,7 @@ export async function deleteInstance(instanceId: string): Promise<void> {
   });
 
   if (!res.ok) {
-    const errorBody = await res.text();
-    throw new Error(`Vultr API error (delete): ${res.status} - ${errorBody}`);
+    await handleVultrError(res, "delete instance");
   }
 }
 
@@ -224,10 +224,7 @@ export async function getInstanceBandwidth(instanceId: string): Promise<{
   );
 
   if (!res.ok) {
-    const errorBody = await res.text();
-    throw new Error(
-      `Vultr API error (bandwidth): ${res.status} - ${errorBody}`
-    );
+    await handleVultrError(res, "get bandwidth");
   }
 
   const data = await res.json();

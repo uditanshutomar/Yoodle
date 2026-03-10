@@ -36,6 +36,15 @@ export interface IMeetingSettings {
   muteOnJoin: boolean;
 }
 
+export interface IGhostMessageRecord {
+  id: string;
+  senderId: string;
+  senderName: string;
+  content: string;
+  timestamp: number;
+  type: "text" | "system";
+}
+
 export interface IMeeting {
   code: string;
   title: string;
@@ -50,6 +59,8 @@ export interface IMeeting {
   settings: IMeetingSettings;
   transportMode?: TransportMode;
   recordingId?: Types.ObjectId;
+  ghostMessages?: IGhostMessageRecord[];
+  ghostNotes?: string;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -178,6 +189,23 @@ const meetingSchema = new Schema<IMeetingDocument>(
     recordingId: {
       type: Schema.Types.ObjectId,
       ref: "Recording",
+    },
+    ghostMessages: {
+      type: [
+        {
+          id: { type: String, required: true },
+          senderId: { type: String, required: true },
+          senderName: { type: String, required: true },
+          content: { type: String, required: true },
+          timestamp: { type: Number, required: true },
+          type: { type: String, enum: ["text", "system"], default: "text" },
+        },
+      ],
+      default: undefined, // Only set for ghost meetings
+    },
+    ghostNotes: {
+      type: String,
+      default: undefined, // Only set for ghost meetings
     },
   },
   {

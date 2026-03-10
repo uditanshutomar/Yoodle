@@ -30,19 +30,19 @@ export default function EmptyState({ title, description, action, className = "" 
         transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
         className="mb-4"
       >
-        <div className="flex h-20 w-20 items-center justify-center rounded-full bg-[#FFE600]/20 border-2 border-dashed border-[#0A0A0A]/20">
+        <div className="flex h-20 w-20 items-center justify-center rounded-full bg-[#FFE600]/20 border-2 border-dashed border-[var(--border)]">
           <YoodleMascotSmall className="h-12 w-12" />
         </div>
       </motion.div>
 
       <h3
-        className="text-lg font-bold text-[#0A0A0A] mb-1"
+        className="text-lg font-bold text-[var(--text-primary)] mb-1"
         style={{ fontFamily: "var(--font-heading)" }}
       >
         {title}
       </h3>
       <p
-        className="text-sm text-[#0A0A0A]/60 max-w-xs mb-5"
+        className="text-sm text-[var(--text-secondary)] max-w-xs mb-5"
         style={{ fontFamily: "var(--font-body)" }}
       >
         {description}

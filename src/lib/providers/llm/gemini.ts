@@ -16,11 +16,10 @@ import type {
 
 /** Strip markdown code-block fences and parse JSON. */
 function parseJsonResponse<T>(text: string): T {
-  const cleaned = text
-    .replace(/^```json\s*/i, "")
-    .replace(/^```\s*/i, "")
-    .replace(/\s*```$/i, "")
-    .trim();
+  // LLMs sometimes wrap JSON in markdown code blocks, possibly with surrounding text.
+  // Try to extract JSON from a code fence first; fall back to the raw text.
+  const fenceMatch = text.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
+  const cleaned = (fenceMatch ? fenceMatch[1] : text).trim();
 
   return JSON.parse(cleaned) as T;
 }
@@ -60,10 +59,16 @@ const MODEL = "gemini-2.0-flash";
 export class GeminiLLMProvider implements LLMProvider {
   readonly name = "gemini";
 
+  // Memoize the client so we don't create a new GoogleGenerativeAI
+  // instance on every API call. The client is stateless and safe to reuse.
+  private cachedClient: GoogleGenerativeAI | null = null;
+
   private getClient(): GoogleGenerativeAI {
+    if (this.cachedClient) return this.cachedClient;
     const apiKey = process.env.LLM_API_KEY;
     if (!apiKey) throw new Error("LLM_API_KEY not configured");
-    return new GoogleGenerativeAI(apiKey);
+    this.cachedClient = new GoogleGenerativeAI(apiKey);
+    return this.cachedClient;
   }
 
   private getModel() {

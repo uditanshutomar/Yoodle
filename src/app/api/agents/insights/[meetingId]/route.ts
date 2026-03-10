@@ -95,7 +95,7 @@ export const GET = withHandler(async (req: NextRequest, context) => {
 
   // Get user info and pending tasks; create agent atomically
   const [user, agentDoc, pendingTasks] = await Promise.all([
-    User.findById(userId).lean(),
+    User.findById(userId).select("_id name displayName").lean(),
     Agent.findOneAndUpdate(
       { userId },
       {

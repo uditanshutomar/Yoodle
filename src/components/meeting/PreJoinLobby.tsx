@@ -34,6 +34,7 @@ export default function PreJoinLobby({
     toggleVideo,
     toggleAudio,
     startMedia,
+    stopMedia,
     error,
   } = useMediaDevices();
 
@@ -53,7 +54,11 @@ export default function PreJoinLobby({
 
   useEffect(() => {
     startMedia(true, true);
-  }, [startMedia]);
+    // Stop media tracks on unmount to release camera/mic
+    return () => {
+      stopMedia();
+    };
+  }, [startMedia, stopMedia]);
 
   // Must depend on isVideoEnabled so srcObject is re-assigned when <video> remounts
   // after being conditionally removed (toggle off → icon → toggle on → new <video>)

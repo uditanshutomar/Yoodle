@@ -44,7 +44,7 @@ export default function QuickActions({ onAction }: QuickActionsProps) {
   return (
     <div className="space-y-3">
       <h3
-        className="text-sm font-bold text-[#0A0A0A]"
+        className="text-sm font-bold text-[var(--text-primary)]"
         style={{ fontFamily: "var(--font-heading)" }}
       >
         Quick Actions
@@ -61,16 +61,16 @@ export default function QuickActions({ onAction }: QuickActionsProps) {
               whileHover={{ x: 4 }}
               whileTap={{ scale: 0.98 }}
               onClick={() => onAction(action.prompt)}
-              className="flex items-center gap-3 w-full px-4 py-3 text-left text-sm rounded-xl border-2 border-[#0A0A0A]/10 hover:border-[#0A0A0A]/20 bg-white transition-colors"
+              className="flex items-center gap-3 w-full px-4 py-3 text-left text-sm rounded-xl border-2 border-[var(--border)] hover:border-[var(--border-strong)] bg-[var(--surface)] transition-colors"
               style={{ fontFamily: "var(--font-body)" }}
             >
               <div
-                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border-2 border-[#0A0A0A]"
+                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border-2 border-[var(--border-strong)]"
                 style={{ backgroundColor: action.color }}
               >
                 <Icon size={14} className="text-[#0A0A0A]" />
               </div>
-              <span className="font-bold text-[#0A0A0A]">{action.label}</span>
+              <span className="font-bold text-[var(--text-primary)]">{action.label}</span>
             </motion.button>
           );
         })}

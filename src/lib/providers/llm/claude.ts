@@ -22,11 +22,10 @@ function getClient(): Anthropic {
 
 /** Strip markdown code-block fences and parse JSON. */
 function parseJsonResponse<T>(text: string): T {
-  const cleaned = text
-    .replace(/^```json\s*/i, "")
-    .replace(/^```\s*/i, "")
-    .replace(/\s*```$/i, "")
-    .trim();
+  // LLMs sometimes wrap JSON in markdown code blocks, possibly with surrounding text.
+  // Try to extract JSON from a code fence first; fall back to the raw text.
+  const fenceMatch = text.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
+  const cleaned = (fenceMatch ? fenceMatch[1] : text).trim();
 
   return JSON.parse(cleaned) as T;
 }

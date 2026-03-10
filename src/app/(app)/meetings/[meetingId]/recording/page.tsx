@@ -3,7 +3,7 @@
 import { useEffect, useState, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { motion } from "framer-motion";
-import { ArrowLeft, Play, Pause, FileText, Download, Loader2, Video } from "lucide-react";
+import { ArrowLeft, Play, Pause, FileText, Download, Loader2, Video, ExternalLink } from "lucide-react";
 import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
 import Badge from "@/components/ui/Badge";
@@ -17,10 +17,13 @@ interface TranscriptSegment {
 }
 
 interface Recording {
-  key: string;
-  size: number;
-  lastModified: string;
-  downloadUrl: string;
+  fileId: string;
+  name: string;
+  mimeType: string;
+  size?: string;
+  createdTime?: string;
+  viewUrl?: string;
+  downloadUrl?: string;
 }
 
 export default function RecordingPage() {
@@ -68,7 +71,10 @@ export default function RecordingPage() {
     return `${m}:${s.toString().padStart(2, "0")}`;
   };
 
-  const formatFileSize = (bytes: number) => {
+  const formatFileSize = (sizeStr?: string) => {
+    if (!sizeStr) return "";
+    const bytes = parseInt(sizeStr, 10);
+    if (isNaN(bytes)) return "";
     if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
     return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
   };
@@ -97,7 +103,7 @@ export default function RecordingPage() {
     URL.revokeObjectURL(url);
   };
 
-  const latestRecording = recordings.length > 0 ? recordings[recordings.length - 1] : null;
+  const latestRecording = recordings.length > 0 ? recordings[0] : null;
 
   return (
     <motion.div
@@ -115,7 +121,7 @@ export default function RecordingPage() {
           Back
         </Button>
         <h1
-          className="text-2xl font-black text-[#0A0A0A]"
+          className="text-2xl font-black text-[var(--text-primary)]"
           style={{ fontFamily: "var(--font-heading)" }}
         >
           Recording & Transcript
@@ -124,7 +130,7 @@ export default function RecordingPage() {
 
       {loading ? (
         <div className="flex items-center justify-center py-24">
-          <Loader2 size={32} className="animate-spin text-[#0A0A0A]/40" />
+          <Loader2 size={32} className="animate-spin text-[var(--text-muted)]" />
         </div>
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -133,7 +139,7 @@ export default function RecordingPage() {
             <Card>
               <div className="flex items-center justify-between mb-4">
                 <h3
-                  className="text-base font-bold"
+                  className="text-base font-bold text-[var(--text-primary)]"
                   style={{ fontFamily: "var(--font-heading)" }}
                 >
                   Recording
@@ -143,43 +149,86 @@ export default function RecordingPage() {
 
               {latestRecording ? (
                 <>
-                  <div className="rounded-xl overflow-hidden bg-[#0A0A0A]">
-                    <video
-                      ref={videoRef}
-                      src={latestRecording.downloadUrl}
-                      className="w-full aspect-video"
-                      onPlay={() => setIsPlaying(true)}
-                      onPause={() => setIsPlaying(false)}
-                      onEnded={() => setIsPlaying(false)}
-                      controls
-                    />
-                  </div>
+                  {/* If we have a downloadUrl (webContentLink), use native video player */}
+                  {latestRecording.downloadUrl ? (
+                    <div className="rounded-xl overflow-hidden bg-[var(--foreground)]">
+                      <video
+                        ref={videoRef}
+                        src={latestRecording.downloadUrl}
+                        className="w-full aspect-video"
+                        onPlay={() => setIsPlaying(true)}
+                        onPause={() => setIsPlaying(false)}
+                        onEnded={() => setIsPlaying(false)}
+                        controls
+                      />
+                    </div>
+                  ) : (
+                    <div className="flex flex-col items-center justify-center h-48 bg-[var(--foreground)] rounded-xl">
+                      <Video size={28} className="text-[var(--background)]/40 mb-2" />
+                      <span
+                        className="text-sm text-[var(--background)]/60 mb-3"
+                        style={{ fontFamily: "var(--font-body)" }}
+                      >
+                        Recording stored in Google Drive
+                      </span>
+                      {latestRecording.viewUrl && (
+                        <a
+                          href={latestRecording.viewUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex items-center gap-1.5 text-xs font-bold text-[#FFE600] hover:underline"
+                          style={{ fontFamily: "var(--font-heading)" }}
+                        >
+                          <ExternalLink size={12} />
+                          Open in Google Drive
+                        </a>
+                      )}
+                    </div>
+                  )}
+
                   <div className="flex items-center justify-between mt-3">
                     <div className="flex items-center gap-2">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        icon={isPlaying ? Pause : Play}
-                        onClick={handlePlayPause}
-                      >
-                        {isPlaying ? "Pause" : "Play"}
-                      </Button>
+                      {latestRecording.downloadUrl && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          icon={isPlaying ? Pause : Play}
+                          onClick={handlePlayPause}
+                        >
+                          {isPlaying ? "Pause" : "Play"}
+                        </Button>
+                      )}
                     </div>
-                    <a
-                      href={latestRecording.downloadUrl}
-                      download
-                      className="flex items-center gap-1 text-xs text-[#0A0A0A]/60 hover:text-[#0A0A0A] transition-colors"
-                    >
-                      <Download size={14} />
-                      Download ({formatFileSize(latestRecording.size)})
-                    </a>
+                    <div className="flex items-center gap-3">
+                      {latestRecording.viewUrl && (
+                        <a
+                          href={latestRecording.viewUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex items-center gap-1 text-xs text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors"
+                        >
+                          <ExternalLink size={14} />
+                          View in Drive
+                        </a>
+                      )}
+                      {latestRecording.downloadUrl && (
+                        <a
+                          href={latestRecording.downloadUrl}
+                          download
+                          className="flex items-center gap-1 text-xs text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors"
+                        >
+                          <Download size={14} />
+                          Download {formatFileSize(latestRecording.size) && `(${formatFileSize(latestRecording.size)})`}
+                        </a>
+                      )}
+                    </div>
                   </div>
                 </>
               ) : (
-                <div className="flex flex-col items-center justify-center h-32 bg-[#0A0A0A] rounded-xl">
-                  <Video size={28} className="text-white/20 mb-2" />
+                <div className="flex flex-col items-center justify-center h-32 bg-[var(--foreground)] rounded-xl">
+                  <Video size={28} className="text-[var(--background)]/20 mb-2" />
                   <span
-                    className="text-sm text-white/40"
+                    className="text-sm text-[var(--background)]/40"
                     style={{ fontFamily: "var(--font-body)" }}
                   >
                     No recording available
@@ -188,12 +237,12 @@ export default function RecordingPage() {
               )}
 
               <p
-                className="text-xs text-[#0A0A0A]/40 mt-2 text-center"
+                className="text-xs text-[var(--text-muted)] mt-2 text-center"
                 style={{ fontFamily: "var(--font-body)" }}
               >
                 {latestRecording
-                  ? `Recorded ${new Date(latestRecording.lastModified).toLocaleDateString()}`
-                  : "Recording is saved when you record during a meeting."}
+                  ? `Recorded ${latestRecording.createdTime ? new Date(latestRecording.createdTime).toLocaleDateString() : ""}`
+                  : "Recordings are saved to your Google Drive when you record during a meeting."}
               </p>
             </Card>
 
@@ -201,28 +250,39 @@ export default function RecordingPage() {
             {recordings.length > 1 && (
               <Card>
                 <h3
-                  className="text-sm font-bold mb-3"
+                  className="text-sm font-bold text-[var(--text-primary)] mb-3"
                   style={{ fontFamily: "var(--font-heading)" }}
                 >
                   All Recordings ({recordings.length})
                 </h3>
                 <div className="space-y-2">
-                  {recordings.map((rec, i) => (
+                  {recordings.map((rec) => (
                     <a
-                      key={i}
-                      href={rec.downloadUrl}
-                      download
-                      className="flex items-center justify-between p-2 rounded-lg hover:bg-[#0A0A0A]/5 transition-colors"
+                      key={rec.fileId}
+                      href={rec.viewUrl || rec.downloadUrl || "#"}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center justify-between p-2 rounded-lg hover:bg-[var(--surface-hover)] transition-colors"
                     >
                       <div className="flex items-center gap-2">
-                        <Video size={14} className="text-[#0A0A0A]/40" />
-                        <span className="text-xs text-[#0A0A0A]/70">
-                          {new Date(rec.lastModified).toLocaleString()}
+                        <Video size={14} className="text-[var(--text-muted)]" />
+                        <span className="text-xs text-[var(--text-secondary)]">
+                          {rec.name}
                         </span>
                       </div>
-                      <span className="text-xs text-[#0A0A0A]/40">
-                        {formatFileSize(rec.size)}
-                      </span>
+                      <div className="flex items-center gap-2">
+                        {rec.createdTime && (
+                          <span className="text-[10px] text-[var(--text-muted)]">
+                            {new Date(rec.createdTime).toLocaleDateString()}
+                          </span>
+                        )}
+                        {formatFileSize(rec.size) && (
+                          <span className="text-[10px] text-[var(--text-muted)]">
+                            {formatFileSize(rec.size)}
+                          </span>
+                        )}
+                        <ExternalLink size={10} className="text-[var(--text-muted)]" />
+                      </div>
                     </a>
                   ))}
                 </div>
@@ -235,9 +295,9 @@ export default function RecordingPage() {
             <Card>
               <div className="flex items-center justify-between mb-4">
                 <div className="flex items-center gap-2">
-                  <FileText size={16} />
+                  <FileText size={16} className="text-[var(--text-primary)]" />
                   <h3
-                    className="text-base font-bold"
+                    className="text-base font-bold text-[var(--text-primary)]"
                     style={{ fontFamily: "var(--font-heading)" }}
                   >
                     Transcript
@@ -259,16 +319,16 @@ export default function RecordingPage() {
                 <div className="text-center py-12">
                   <FileText
                     size={32}
-                    className="mx-auto text-[#0A0A0A]/20 mb-3"
+                    className="mx-auto text-[var(--text-muted)] mb-3"
                   />
                   <p
-                    className="text-sm text-[#0A0A0A]/40"
+                    className="text-sm text-[var(--text-muted)]"
                     style={{ fontFamily: "var(--font-body)" }}
                   >
                     No transcript available for this meeting.
                   </p>
                   <p
-                    className="text-xs text-[#0A0A0A]/30 mt-1"
+                    className="text-xs text-[var(--text-muted)] mt-1"
                     style={{ fontFamily: "var(--font-body)" }}
                   >
                     Enable captions during a meeting to generate a transcript.
@@ -278,18 +338,18 @@ export default function RecordingPage() {
                 <div className="space-y-3 max-h-[500px] overflow-y-auto">
                   {segments.map((seg, i) => (
                     <div key={i} className="flex gap-3">
-                      <span className="text-xs text-[#0A0A0A]/40 w-10 shrink-0 pt-0.5 font-mono">
+                      <span className="text-xs text-[var(--text-muted)] w-10 shrink-0 pt-0.5 font-mono">
                         {formatTimestamp(seg.timestamp)}
                       </span>
                       <div>
                         <span
-                          className="text-xs font-bold text-[#0A0A0A]"
+                          className="text-xs font-bold text-[var(--text-primary)]"
                           style={{ fontFamily: "var(--font-heading)" }}
                         >
                           {seg.speaker}
                         </span>
                         <p
-                          className="text-sm text-[#0A0A0A]/70"
+                          className="text-sm text-[var(--text-secondary)]"
                           style={{ fontFamily: "var(--font-body)" }}
                         >
                           {seg.text}

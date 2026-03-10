@@ -1,12 +1,13 @@
+import { NextRequest } from "next/server";
 import { z } from "zod";
 import { Resend } from "resend";
 import connectDB from "@/lib/db/client";
 import User from "@/lib/db/models/user";
 import { generateMagicLink } from "@/lib/auth/magic-link";
+import { checkRateLimit } from "@/lib/api/rate-limit";
 import {
   successResponse,
   errorResponse,
-  notFoundResponse,
   serverErrorResponse,
 } from "@/lib/utils/api-response";
 
@@ -14,8 +15,11 @@ const loginSchema = z.object({
   email: z.string().email("Please enter a valid email address."),
 });
 
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
   try {
+    // Rate limit: 5 attempts per minute per IP
+    await checkRateLimit(request, "auth");
+
     const body = await request.json();
 
     const parsed = loginSchema.safeParse(body);
@@ -39,15 +43,18 @@ export async function POST(request: Request) {
 
     await connectDB();
 
-    // Check if user exists
+    // Check if user exists — only fetch fields needed for the email template
     const user = await User.findOne({
       email: email.toLowerCase().trim(),
-    });
+    }).select("_id name displayName");
 
+    // SECURITY: Return the same success message whether user exists or not
+    // to prevent user enumeration attacks. If user doesn't exist, we still
+    // pretend we sent a magic link.
     if (!user) {
-      return notFoundResponse(
-        "No account found with this email. Please sign up first."
-      );
+      return successResponse({
+        message: "Check your email for login link.",
+      });
     }
 
     // Generate magic link and send email

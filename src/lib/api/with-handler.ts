@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { ZodError } from "zod";
+import * as Sentry from "@sentry/nextjs";
 import { createLogger } from "../logger";
 import { AppError, RateLimitError } from "./errors";
 import { errorResponse, internalError } from "./response";
@@ -31,6 +32,51 @@ export function withHandler(handler: InnerHandler): NextRouteHandler {
     const requestId = crypto.randomUUID().slice(0, 8);
 
     try {
+      // CSRF protection: verify Origin header on state-changing methods
+      if (["POST", "PUT", "PATCH", "DELETE"].includes(req.method)) {
+        const origin = req.headers.get("origin");
+        if (origin) {
+          const allowedOrigins = new Set<string>();
+
+          // Allow the configured app URL origin (if set)
+          const appUrl = process.env.NEXT_PUBLIC_APP_URL;
+          if (appUrl) {
+            try {
+              allowedOrigins.add(new URL(appUrl).origin);
+            } catch {
+              log.warn({ requestId, appUrl }, "CSRF: Invalid NEXT_PUBLIC_APP_URL");
+            }
+          }
+
+          // Allow the request URL origin (handles port/protocol differences)
+          allowedOrigins.add(new URL(req.url).origin);
+
+          // Allow origin derived from Host header (most reliable in proxied setups)
+          const host = req.headers.get("host");
+          if (host) {
+            const protocol = req.headers.get("x-forwarded-proto") || "http";
+            allowedOrigins.add(`${protocol}://${host}`);
+          }
+
+          // Normalize localhost ↔ 127.0.0.1 equivalence
+          const normalizeLocalhost = (o: string) =>
+            o.replace("://localhost", "://127.0.0.1");
+          const expandedOrigins = new Set(allowedOrigins);
+          for (const o of allowedOrigins) {
+            expandedOrigins.add(normalizeLocalhost(o));
+            expandedOrigins.add(o.replace("://127.0.0.1", "://localhost"));
+          }
+
+          if (!expandedOrigins.has(origin)) {
+            log.warn(
+              { requestId, origin, allowed: [...expandedOrigins] },
+              "CSRF: Origin mismatch",
+            );
+            return errorResponse("FORBIDDEN", "Invalid request origin", 403);
+          }
+        }
+      }
+
       const response = await handler(req, context);
 
       log.info(
@@ -106,7 +152,18 @@ function handleError(
     });
   }
 
-  // Unknown errors
+  // Unknown errors — report to Sentry with request context
+  Sentry.captureException(error, {
+    tags: {
+      requestId,
+      method: req.method,
+      route: req.nextUrl.pathname,
+    },
+    extra: {
+      duration: Date.now() - startTime,
+    },
+  });
+
   log.error(
     {
       requestId,

@@ -5,6 +5,8 @@ import { successResponse } from "@/lib/api/response";
 import { checkRateLimit } from "@/lib/api/rate-limit";
 import { getUserIdFromRequest } from "@/lib/auth/middleware";
 import { ephemeralStore } from "@/lib/ghost/ephemeral-store";
+import connectDB from "@/lib/db/client";
+import User from "@/lib/db/models/user";
 
 // -- Validation ----------------------------------------------------------------
 
@@ -49,7 +51,12 @@ export const POST = withHandler(async (req: NextRequest) => {
   const parsed = createGhostRoomSchema.parse(body);
   const { title } = parsed;
 
-  const room = await ephemeralStore.createRoom(userId, userId, title);
+  // Look up the user's real name to use in ghost room
+  await connectDB();
+  const user = await User.findById(userId).select("name displayName").lean();
+  const hostName = user?.displayName || user?.name || "Unknown";
+
+  const room = await ephemeralStore.createRoom(userId, hostName, title);
 
   // Serialise the Map for the JSON response
   const participantsArray = Array.from(room.participants.values());

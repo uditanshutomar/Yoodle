@@ -68,7 +68,7 @@ const ghostRoomSchema = new Schema<IGhostRoom>(
     participants: { type: [ghostParticipantSchema], default: [] },
     messages: { type: [ghostMessageSchema], default: [] },
     notes: { type: String, default: "" },
-    expiresAt: { type: Date, required: true, index: true },
+    expiresAt: { type: Date, required: true },
   },
   {
     timestamps: true,

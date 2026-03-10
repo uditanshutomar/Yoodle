@@ -43,8 +43,9 @@ export const POST = withHandler(async (req: NextRequest, context) => {
   const body = collaborateSchema.parse(await req.json());
   const { targetUserEmail, topic } = body;
 
-  // Find the target user
-  const targetUser = await User.findOne({ email: targetUserEmail.toLowerCase() });
+  // Find the target user — only fetch fields needed for the collaboration channel
+  const targetUser = await User.findOne({ email: targetUserEmail.toLowerCase() })
+    .select("_id name displayName email");
   if (!targetUser) {
     throw new NotFoundError("Target user not found.");
   }
@@ -62,8 +63,8 @@ export const POST = withHandler(async (req: NextRequest, context) => {
     { upsert: true, new: true }
   );
 
-  // Get initiator user info
-  const initiatorUser = await User.findById(userId);
+  // Get initiator user info — only fetch fields needed for the collaboration channel
+  const initiatorUser = await User.findById(userId).select("_id name displayName email");
   if (!initiatorUser) {
     throw new NotFoundError("Initiator user not found.");
   }

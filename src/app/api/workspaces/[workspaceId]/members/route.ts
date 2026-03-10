@@ -66,7 +66,7 @@ export const POST = withHandler(async (req: NextRequest, context) => {
     throw new ForbiddenError("Only owners and admins can add members.");
   }
 
-  const userToAdd = await User.findOne({ email: email.toLowerCase() });
+  const userToAdd = await User.findOne({ email: email.toLowerCase() }).select("_id");
   if (!userToAdd) throw new NotFoundError("User not found with that email.");
 
   const alreadyMember = workspace.members.some(
@@ -81,8 +81,13 @@ export const POST = withHandler(async (req: NextRequest, context) => {
   });
 
   await workspace.save();
+
+  // Look up the acting user's name for the audit log
+  const actingUser = await User.findById(userId).select("name displayName").lean();
+  const actingUserName = actingUser?.displayName || actingUser?.name || "Unknown";
+
   await AuditLog.create({
-    workspaceId, userId, userName: "System",
+    workspaceId, userId, userName: actingUserName,
     action: "member.add",
     details: { addedUserId: userToAdd._id, email, role },
   });
@@ -104,6 +109,9 @@ export const DELETE = withHandler(async (req: NextRequest, context) => {
   const memberId = searchParams.get("memberId");
 
   if (!memberId) throw new BadRequestError("memberId is required.");
+  if (!memberId.match(/^[0-9a-fA-F]{24}$/)) {
+    throw new BadRequestError("Invalid member ID");
+  }
 
   await connectDB();
 
@@ -126,8 +134,13 @@ export const DELETE = withHandler(async (req: NextRequest, context) => {
   );
 
   await workspace.save();
+
+  // Look up the acting user's name for the audit log
+  const actingUser = await User.findById(userId).select("name displayName").lean();
+  const actingUserName = actingUser?.displayName || actingUser?.name || "Unknown";
+
   await AuditLog.create({
-    workspaceId, userId, userName: "System",
+    workspaceId, userId, userName: actingUserName,
     action: "member.remove",
     details: { removedUserId: memberId },
   });

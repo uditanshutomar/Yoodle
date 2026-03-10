@@ -29,7 +29,7 @@ const transcriptSegmentSchema = new Schema<ITranscriptSegment>(
 
 const transcriptSchema = new Schema<ITranscript>(
   {
-    meetingId: { type: Schema.Types.ObjectId, ref: "Meeting", required: true, index: true },
+    meetingId: { type: Schema.Types.ObjectId, ref: "Meeting", required: true, unique: true },
     segments: { type: [transcriptSegmentSchema], default: [] },
     language: { type: String, default: "en" },
   },

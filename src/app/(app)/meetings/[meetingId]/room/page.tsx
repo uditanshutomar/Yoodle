@@ -27,6 +27,7 @@ import { useTranscription } from "@/hooks/useTranscription";
 import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
 import { useMutedWarning } from "@/hooks/useMutedWarning";
 import { useConnectionQuality } from "@/hooks/useConnectionQuality";
+import { useTransport } from "@/hooks/useTransport";
 import {
   SOCKET_EVENTS,
   type RoomUser,
@@ -185,6 +186,34 @@ export default function MeetingRoomPage() {
       }
     : { id: "local", name: "You", displayName: "You", avatar: undefined };
 
+  // ── LiveKit transport (only active when mode is "livekit") ────────
+  const {
+    remoteStreams: livekitRemoteStreams,
+    remoteParticipants: livekitRemoteParticipants,
+    connectionState: livekitConnectionState,
+    error: livekitError,
+  } = useTransport({
+    meetingId,
+    mode: transportMode,
+    localStream,
+    user: {
+      id: localUser.id,
+      name: localUser.name,
+      avatar: localUser.avatar || undefined,
+      isAudioEnabled,
+      isVideoEnabled,
+      isScreenSharing,
+    },
+    enabled: transportMode === "livekit" && !!localStream,
+  });
+
+  // Sync LiveKit transport errors to media error state for UI display
+  useEffect(() => {
+    if (livekitError && transportMode === "livekit") {
+      setMediaError(livekitError);
+    }
+  }, [livekitError, transportMode]);
+
   // ── Chat hook ──────────────────────────────────────────────────────
   const {
     messages: chatMessages,
@@ -213,6 +242,24 @@ export default function MeetingRoomPage() {
     }
   }, [remoteParticipants.length, transportMode]);
 
+  // ── Resolve effective remote streams based on transport mode ──────
+  const effectiveRemoteStreams = transportMode === "livekit" ? livekitRemoteStreams : remoteStreams;
+
+  // For LiveKit mode, convert transport participants to RoomUser format
+  const effectiveRemoteParticipants: RoomUser[] = transportMode === "livekit"
+    ? livekitRemoteParticipants.map((p) => ({
+        id: p.id,
+        socketId: "",
+        name: p.name,
+        displayName: p.name,
+        avatar: p.avatar || null,
+        isVideoEnabled: true,
+        isAudioEnabled: true,
+        isScreenSharing: false,
+        isHandRaised: false,
+      }))
+    : remoteParticipants;
+
   // Speaker detection: combine local + remote
   const speakingPeers = new Set([
     ...(isLocalSpeaking ? [user?.id || "local"] : []),
@@ -238,7 +285,13 @@ export default function MeetingRoomPage() {
     isRecording,
     startRecording: handleStartRecording,
     stopRecording: handleStopRecording,
-  } = useRecording(localStream, remoteStreams, meetingId, socket, speechSegmentsRef);
+  } = useRecording(localStream, effectiveRemoteStreams, meetingId, socket, speechSegmentsRef);
+
+  // Keep a ref so socket handlers always see the latest recording state
+  const isRecordingRef = useRef(isRecording);
+  const handleStopRecordingRef = useRef(handleStopRecording);
+  useEffect(() => { isRecordingRef.current = isRecording; }, [isRecording]);
+  useEffect(() => { handleStopRecordingRef.current = handleStopRecording; }, [handleStopRecording]);
 
   // ── Transcription hook ──────────────────────────────────────────────
   useTranscription(
@@ -263,7 +316,7 @@ export default function MeetingRoomPage() {
       isScreenSharing,
       isHandRaised,
     },
-    ...remoteParticipants,
+    ...effectiveRemoteParticipants,
   ];
 
   // Bug #3 fix: derive activeScreenShare from ANY participant, not just local
@@ -634,17 +687,39 @@ export default function MeetingRoomPage() {
 
     // ── Host control events ──────────────────────────────────────────
     const handleHostMuted = () => {
-      // Server force-muted us
-      // The toggleAudio function will handle updating the state
+      // Server force-muted us — check actual track state to avoid stale closure
+      const audioTrack = localStreamRef.current?.getAudioTracks()[0];
+      if (audioTrack?.enabled) {
+        toggleAudio();
+      }
     };
 
     const handleHostKicked = () => {
-      // We've been kicked from the room
+      // We've been kicked — clean up resources before navigating.
+      // Use refs to avoid stale closure (this handler is created once
+      // when the socket effect runs, not re-created on isRecording change).
+      if (isRecordingRef.current) handleStopRecordingRef.current();
+
+      peersRef.current.forEach((peer) => {
+        peer.connection.onicecandidate = null;
+        peer.connection.ontrack = null;
+        peer.connection.onnegotiationneeded = null;
+        peer.connection.onconnectionstatechange = null;
+        peer.connection.oniceconnectionstatechange = null;
+        peer.connection.close();
+      });
+      peersRef.current.clear();
+
+      screenStreamRef.current?.getTracks().forEach((t) => t.stop());
+      stopMedia();
+
       router.push("/meetings?kicked=true");
     };
 
     // ── Waiting room events ──────────────────────────────────────────
-    const handleWaitingList = (users: WaitingRoomUser[]) => {
+    // Server sends { roomId, users: WaitingRoomUser[] } — extract users from payload
+    const handleWaitingList = (payload: { roomId?: string; users?: WaitingRoomUser[] } | WaitingRoomUser[]) => {
+      const users = Array.isArray(payload) ? payload : (payload.users ?? []);
       setWaitingUsers(
         users.map((u) => ({
           id: u.id,
@@ -662,7 +737,7 @@ export default function MeetingRoomPage() {
 
     // ── Reconnection tracking ────────────────────────────────────────
     const handleDisconnect = () => {
-      setReconnectAttempts(0);
+      setReconnectAttempts(MAX_RECONNECT_ATTEMPTS);
     };
 
     const handleReconnectAttempt = (attempt: number) => {
@@ -751,6 +826,11 @@ export default function MeetingRoomPage() {
         const videoTrack = localStreamRef.current.getVideoTracks()[0];
         if (videoTrack) await replaceVideoTrackInPeers(videoTrack);
       }
+
+      // Broadcast screen share stop to other participants
+      if (socket && user) {
+        socket.emit(SOCKET_EVENTS.SCREEN_SHARE_STOP);
+      }
     } else {
       try {
         const screenStream = await navigator.mediaDevices.getDisplayMedia({
@@ -763,6 +843,11 @@ export default function MeetingRoomPage() {
         const screenTrack = screenStream.getVideoTracks()[0];
         await replaceVideoTrackInPeers(screenTrack);
 
+        // Broadcast screen share start to other participants
+        if (socket && user) {
+          socket.emit(SOCKET_EVENTS.SCREEN_SHARE_START);
+        }
+
         // Handle native "stop sharing" browser button
         screenTrack.onended = async () => {
           setIsScreenSharing(false);
@@ -770,6 +855,10 @@ export default function MeetingRoomPage() {
           if (localStreamRef.current) {
             const camTrack = localStreamRef.current.getVideoTracks()[0];
             if (camTrack) await replaceVideoTrackInPeers(camTrack);
+          }
+          // Broadcast screen share stop when user clicks browser's native stop button
+          if (socket && user) {
+            socket.emit(SOCKET_EVENTS.SCREEN_SHARE_STOP);
           }
         };
       } catch (err) {
@@ -780,7 +869,7 @@ export default function MeetingRoomPage() {
         }
       }
     }
-  }, [isScreenSharing, replaceVideoTrackInPeers]);
+  }, [isScreenSharing, replaceVideoTrackInPeers, socket, user]);
 
   // ── Reactions ────────────────────────────────────────────────────
 
@@ -878,6 +967,7 @@ export default function MeetingRoomPage() {
     // Stop recording if active
     if (isRecording) handleStopRecording();
 
+    // P2P peer cleanup
     peersRef.current.forEach((peer) => {
       peer.connection.onicecandidate = null;
       peer.connection.ontrack = null;
@@ -887,6 +977,9 @@ export default function MeetingRoomPage() {
       peer.connection.close();
     });
     peersRef.current.clear();
+
+    // LiveKit transport cleanup is handled by the useTransport hook's
+    // cleanup effect (runs on unmount / when enabled becomes false).
 
     screenStreamRef.current?.getTracks().forEach((t) => t.stop());
 
@@ -952,7 +1045,7 @@ export default function MeetingRoomPage() {
   const screenShareStream = screenSharePresenter
     ? screenSharePresenter.id === localUser.id
       ? screenStreamRef.current
-      : remoteStreams.get(screenSharePresenter.id) || null
+      : effectiveRemoteStreams.get(screenSharePresenter.id) || null
     : null;
 
   // ── Build bubble participants via adapter ─────────────────────────
@@ -963,7 +1056,7 @@ export default function MeetingRoomPage() {
       stream:
         p.id === localUser.id
           ? (isScreenSharing ? screenStreamRef.current : localStream)
-          : remoteStreams.get(p.id) || null,
+          : effectiveRemoteStreams.get(p.id) || null,
     })
   );
 
@@ -1070,7 +1163,7 @@ export default function MeetingRoomPage() {
                 stream:
                   screenSharePresenter.id === localUser.id
                     ? localStream
-                    : remoteStreams.get(screenSharePresenter.id) || null,
+                    : effectiveRemoteStreams.get(screenSharePresenter.id) || null,
               })}
               participants={bubbleParticipants}
               selfId={localUser.id}

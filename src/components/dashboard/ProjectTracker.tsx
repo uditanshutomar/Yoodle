@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion } from "framer-motion";
 import Image from "next/image";
 
 type TaskCard = {
@@ -80,7 +80,6 @@ export default function ProjectTracker() {
     const [expanded, setExpanded] = useState(false);
     const todayTasks = TASKS.filter((t) => t.day === "today");
     const allDays = ["yesterday", "today", "tomorrow"] as const;
-    const visibleDays = expanded ? allDays : (["today"] as const);
 
     return (
         <motion.div
@@ -88,13 +87,13 @@ export default function ProjectTracker() {
             animate={{ y: 0, opacity: 1 }}
             transition={{ delay: 0.35, type: "spring", stiffness: 200, damping: 25 }}
             layout
-            className={`rounded-2xl border-2 border-[#0A0A0A] bg-white shadow-[4px_4px_0_#0A0A0A] overflow-hidden ${expanded ? "p-5" : "p-4"}`}
+            className={`rounded-2xl border-2 border-[var(--border-strong)] bg-[var(--surface)] shadow-[var(--shadow-card)] overflow-hidden ${expanded ? "p-5" : "p-4"}`}
             style={expanded ? {} : { maxWidth: 340, marginLeft: "auto" }}
         >
             {/* Header */}
             <div className="flex items-center justify-between mb-3">
                 <h2
-                    className={`font-bold text-[#0A0A0A] flex items-center gap-2 ${expanded ? "text-base" : "text-sm"}`}
+                    className={`font-bold text-[var(--text-primary)] flex items-center gap-2 ${expanded ? "text-base" : "text-sm"}`}
                     style={{ fontFamily: "var(--font-heading)" }}
                 >
                     <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#EC4899" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="inline -mt-0.5 mr-1"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2" /><rect x="8" y="2" width="8" height="4" rx="1" ry="1" /></svg>
@@ -102,7 +101,7 @@ export default function ProjectTracker() {
                 </h2>
                 <div className="flex items-center gap-2">
                     <span
-                        className="text-[10px] font-bold text-[#0A0A0A]/30 uppercase tracking-wider"
+                        className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider"
                         style={{ fontFamily: "var(--font-heading)" }}
                     >
                         {todayTasks.length} today
@@ -111,7 +110,7 @@ export default function ProjectTracker() {
                         whileHover={{ scale: 1.1 }}
                         whileTap={{ scale: 0.9 }}
                         onClick={() => setExpanded(!expanded)}
-                        className="flex h-6 w-6 items-center justify-center rounded-full border border-[#0A0A0A]/10 text-[#0A0A0A]/30 hover:bg-[#0A0A0A]/5 transition-colors"
+                        className="flex h-6 w-6 items-center justify-center rounded-full border border-[var(--border)] text-[var(--text-muted)] hover:bg-[var(--surface-hover)] transition-colors"
                         title={expanded ? "Collapse" : "Expand"}
                     >
                         {expanded ? (
@@ -132,12 +131,12 @@ export default function ProjectTracker() {
                         return (
                             <div key={day}>
                                 <p
-                                    className={`text-xs font-bold uppercase tracking-wider mb-3 pb-2 border-b border-[#0A0A0A]/[0.06] ${day === "today" ? "text-[#0A0A0A]" : "text-[#0A0A0A]/30"
+                                    className={`text-xs font-bold uppercase tracking-wider mb-3 pb-2 border-b border-[var(--border)] ${day === "today" ? "text-[var(--text-primary)]" : "text-[var(--text-muted)]"
                                         }`}
                                     style={{ fontFamily: "var(--font-heading)" }}
                                 >
                                     {DAY_LABELS[day]}
-                                    <span className="ml-1.5 text-[10px] font-normal text-[#0A0A0A]/20">{dayTasks.length}</span>
+                                    <span className="ml-1.5 text-[10px] font-normal text-[var(--text-muted)]">{dayTasks.length}</span>
                                 </p>
                                 <div className="space-y-2">
                                     {dayTasks.map((task, i) => (
@@ -169,7 +168,7 @@ function TaskCardItem({ task, delay }: { task: TaskCard; delay: number }) {
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay }}
             whileHover={{ x: 2 }}
-            className="rounded-xl border-[1.5px] border-[#0A0A0A]/15 p-3 cursor-pointer hover:border-[#0A0A0A]/40 hover:shadow-[2px_2px_0_rgba(10,10,10,0.08)] transition-all bg-white"
+            className="rounded-xl border-[1.5px] border-[var(--border)] p-3 cursor-pointer hover:border-[var(--text-secondary)] hover:shadow-[2px_2px_0_rgba(10,10,10,0.08)] transition-all bg-[var(--surface)]"
         >
             {/* Top row: project tag + status */}
             <div className="flex items-center justify-between mb-1.5">
@@ -196,7 +195,7 @@ function TaskCardItem({ task, delay }: { task: TaskCard; delay: number }) {
             </div>
 
             {/* Title */}
-            <p className="text-sm font-semibold text-[#0A0A0A] leading-snug mb-2">
+            <p className="text-sm font-semibold text-[var(--text-primary)] leading-snug mb-2">
                 {task.title}
             </p>
 
@@ -206,14 +205,14 @@ function TaskCardItem({ task, delay }: { task: TaskCard; delay: number }) {
                     {task.collaborators.map((c, idx) => (
                         <div
                             key={idx}
-                            className="relative h-5 w-5 rounded-full overflow-hidden border-2 border-white"
+                            className="relative h-5 w-5 rounded-full overflow-hidden border-2 border-[var(--surface)]"
                             title={c.name}
                         >
                             <Image src={c.avatar} alt={c.name} fill className="object-cover" sizes="20px" />
                         </div>
                     ))}
                 </div>
-                <span className="text-[10px] text-[#0A0A0A]/35 flex items-center gap-1">
+                <span className="text-[10px] text-[var(--text-secondary)] flex items-center gap-1">
                     <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" /></svg>
                     {task.deadline}
                 </span>

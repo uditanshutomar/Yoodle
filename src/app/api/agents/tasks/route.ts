@@ -53,11 +53,16 @@ export const GET = withHandler(async (req: NextRequest) => {
   const priority = searchParams.get("priority");
   const source = searchParams.get("source");
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const filter: any = { userId };
-  if (status) filter.status = status;
-  if (priority) filter.priority = priority;
-  if (source) filter.source = source;
+  // Validate filter params against known enums to prevent arbitrary
+  // values from being injected into the MongoDB query.
+  const VALID_STATUSES = ["pending", "in_progress", "completed", "cancelled"];
+  const VALID_PRIORITIES = ["high", "medium", "low"];
+  const VALID_SOURCES = ["meeting_transcript", "meeting_minutes", "manual", "agent_inferred", "collaboration"];
+
+  const filter: Record<string, string> = { userId };
+  if (status && VALID_STATUSES.includes(status)) filter.status = status;
+  if (priority && VALID_PRIORITIES.includes(priority)) filter.priority = priority;
+  if (source && VALID_SOURCES.includes(source)) filter.source = source;
 
   const tasks = await AgentTask.find(filter)
     .sort({ priority: 1, dueDate: 1, createdAt: -1 })

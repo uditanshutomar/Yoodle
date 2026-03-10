@@ -153,8 +153,8 @@ export default function WorkspaceDetailPage() {
       if (!data.success) {
         setActionError(data.error || "Failed to add member.");
       }
-      fetchWorkspace();
-      fetchAudit();
+      await fetchWorkspace();
+      await fetchAudit();
     } catch {
       setActionError("Failed to add member. Check your connection.");
     }
@@ -172,8 +172,8 @@ export default function WorkspaceDetailPage() {
       if (!data.success) {
         setActionError(data.error || "Failed to remove member.");
       }
-      fetchWorkspace();
-      fetchAudit();
+      await fetchWorkspace();
+      await fetchAudit();
     } catch {
       setActionError("Failed to remove member. Check your connection.");
     }
@@ -184,7 +184,9 @@ export default function WorkspaceDetailPage() {
     return id === user?.id && (m.role === "owner" || m.role === "admin");
   }) || false;
 
-  const vmIsRunning = workspace?.vm?.status === "running";
+  // Use live-polled VM status when available, falling back to workspace DB status
+  const effectiveVMStatus = liveVMStatus || workspace?.vm?.status;
+  const vmIsRunning = effectiveVMStatus === "running";
 
   if (loading) {
     return (
@@ -205,7 +207,7 @@ export default function WorkspaceDetailPage() {
 
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
-      <Link href="/workspaces" className="inline-flex items-center gap-1 text-sm text-[#0A0A0A]/50 hover:text-[#06B6D4] transition-colors" style={{ fontFamily: "var(--font-body)" }}>
+      <Link href="/workspaces" className="inline-flex items-center gap-1 text-sm text-[var(--text-muted)] hover:text-[#06B6D4] transition-colors" style={{ fontFamily: "var(--font-body)" }}>
         <ArrowLeft size={14} /> Back to Workspaces
       </Link>
 
@@ -216,11 +218,11 @@ export default function WorkspaceDetailPage() {
             <Server size={24} className="text-white" />
           </div>
           <div>
-            <h1 className="text-2xl font-black text-[#0A0A0A]" style={{ fontFamily: "var(--font-heading)" }}>
+            <h1 className="text-2xl font-black text-[var(--text-primary)]" style={{ fontFamily: "var(--font-heading)" }}>
               {workspace.name}
             </h1>
             {workspace.description && (
-              <p className="text-xs text-[#0A0A0A]/50" style={{ fontFamily: "var(--font-body)" }}>{workspace.description}</p>
+              <p className="text-xs text-[var(--text-muted)]" style={{ fontFamily: "var(--font-body)" }}>{workspace.description}</p>
             )}
           </div>
         </div>
@@ -236,7 +238,7 @@ export default function WorkspaceDetailPage() {
               {showTerminal ? "Hide Terminal" : "Open Terminal"}
             </Button>
           )}
-          {workspace.vm && <VMStatusBadge status={workspace.vm.status} />}
+          {workspace.vm && <VMStatusBadge status={effectiveVMStatus || workspace.vm.status} />}
         </div>
       </div>
 
@@ -281,13 +283,13 @@ export default function WorkspaceDetailPage() {
       </AnimatePresence>
 
       {/* Tabs */}
-      <div className="flex gap-1 bg-[#0A0A0A]/5 p-1 rounded-xl w-fit">
+      <div className="flex gap-1 bg-[var(--surface-hover)] p-1 rounded-xl w-fit">
         {(["overview", "members", "audit"] as const).map((tab) => (
           <button
             key={tab}
             onClick={() => setActiveTab(tab)}
             className={`px-4 py-2 text-sm font-bold rounded-lg transition-all ${
-              activeTab === tab ? "bg-white shadow-sm text-[#0A0A0A]" : "text-[#0A0A0A]/50 hover:text-[#0A0A0A]"
+              activeTab === tab ? "bg-[var(--surface)] shadow-sm text-[var(--text-primary)]" : "text-[var(--text-muted)] hover:text-[var(--text-primary)]"
             }`}
             style={{ fontFamily: "var(--font-heading)" }}
           >
@@ -301,19 +303,19 @@ export default function WorkspaceDetailPage() {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           {/* VM Control */}
           <Card className="!p-6 !border-[#06B6D4] !shadow-[4px_4px_0_#06B6D4]">
-            <h3 className="text-base font-bold text-[#0A0A0A] mb-4 flex items-center gap-2" style={{ fontFamily: "var(--font-heading)" }}>
+            <h3 className="text-base font-bold text-[var(--text-primary)] mb-4 flex items-center gap-2" style={{ fontFamily: "var(--font-heading)" }}>
               <TerminalIcon size={16} className="text-[#06B6D4]" /> Virtual Machine
             </h3>
 
             {workspace.vm ? (
               <div className="space-y-3">
                 <div className="grid grid-cols-2 gap-2 text-xs" style={{ fontFamily: "var(--font-body)" }}>
-                  <div><span className="text-[#0A0A0A]/40">IP:</span> <span className="font-mono font-bold">{workspace.vm.ipAddress || "Pending"}</span></div>
-                  <div><span className="text-[#0A0A0A]/40">Region:</span> <span className="font-bold">{workspace.vm.region}</span></div>
-                  <div><span className="text-[#0A0A0A]/40">Plan:</span> <span className="font-bold">{workspace.vm.plan}</span></div>
-                  <div><span className="text-[#0A0A0A]/40">Status:</span> <VMStatusBadge status={workspace.vm.status} /></div>
+                  <div><span className="text-[var(--text-muted)]">IP:</span> <span className="font-mono font-bold">{workspace.vm.ipAddress || "Pending"}</span></div>
+                  <div><span className="text-[var(--text-muted)]">Region:</span> <span className="font-bold">{workspace.vm.region}</span></div>
+                  <div><span className="text-[var(--text-muted)]">Plan:</span> <span className="font-bold">{workspace.vm.plan}</span></div>
+                  <div><span className="text-[var(--text-muted)]">Status:</span> <VMStatusBadge status={effectiveVMStatus || workspace.vm.status} /></div>
                 </div>
-                {workspace.vm.status === "provisioning" && (
+                {effectiveVMStatus === "provisioning" && (
                   <div className="flex items-center gap-2 py-2 px-3 bg-amber-50 border border-amber-200 rounded-lg">
                     <motion.div
                       animate={{ rotate: 360 }}
@@ -327,8 +329,8 @@ export default function WorkspaceDetailPage() {
                 )}
                 {isAdmin && (
                   <div className="flex gap-2 pt-2">
-                    {(workspace.vm.status === "stopped" || workspace.vm.status === "provisioning") && (
-                      <Button variant="primary" size="sm" icon={Play} onClick={() => handleVMAction("start")} disabled={vmLoading || workspace.vm.status === "provisioning"} className="!bg-[#10B981] !border-[#0A0A0A] !text-white">Start</Button>
+                    {(effectiveVMStatus === "stopped" || effectiveVMStatus === "provisioning") && (
+                      <Button variant="primary" size="sm" icon={Play} onClick={() => handleVMAction("start")} disabled={vmLoading || effectiveVMStatus === "provisioning"} className="!bg-[#10B981] !border-[#0A0A0A] !text-white">Start</Button>
                     )}
                     {vmIsRunning && !showTerminal && (
                       <Button variant="primary" size="sm" icon={TerminalIcon} onClick={() => setShowTerminal(true)} className="!bg-[#0A0A0A] !border-[#0A0A0A] !text-[#06B6D4]">Terminal</Button>
@@ -342,7 +344,7 @@ export default function WorkspaceDetailPage() {
               </div>
             ) : (
               <div className="text-center py-6">
-                <p className="text-sm text-[#0A0A0A]/50 mb-4" style={{ fontFamily: "var(--font-body)" }}>No VM provisioned yet</p>
+                <p className="text-sm text-[var(--text-muted)] mb-4" style={{ fontFamily: "var(--font-body)" }}>No VM provisioned yet</p>
                 {isAdmin && (
                   <Button variant="primary" size="md" icon={Server} onClick={() => handleVMAction("provision")} disabled={vmLoading} className="!bg-[#06B6D4] !border-[#0A0A0A] !text-white">
                     {vmLoading ? "Provisioning..." : "Provision VM"}
@@ -354,17 +356,17 @@ export default function WorkspaceDetailPage() {
 
           {/* Quick Stats */}
           <Card className="!p-6">
-            <h3 className="text-base font-bold text-[#0A0A0A] mb-4" style={{ fontFamily: "var(--font-heading)" }}>
+            <h3 className="text-base font-bold text-[var(--text-primary)] mb-4" style={{ fontFamily: "var(--font-heading)" }}>
               Quick Stats
             </h3>
             <div className="grid grid-cols-2 gap-4">
               <div className="text-center p-4 bg-[#06B6D4]/5 rounded-xl">
                 <p className="text-2xl font-black text-[#06B6D4]" style={{ fontFamily: "var(--font-heading)" }}>{workspace.members.length}</p>
-                <p className="text-xs text-[#0A0A0A]/50" style={{ fontFamily: "var(--font-body)" }}>Members</p>
+                <p className="text-xs text-[var(--text-muted)]" style={{ fontFamily: "var(--font-body)" }}>Members</p>
               </div>
               <div className="text-center p-4 bg-[#FFE600]/10 rounded-xl">
-                <p className="text-2xl font-black text-[#0A0A0A]" style={{ fontFamily: "var(--font-heading)" }}>{auditLogs.length}</p>
-                <p className="text-xs text-[#0A0A0A]/50" style={{ fontFamily: "var(--font-body)" }}>Actions</p>
+                <p className="text-2xl font-black text-[var(--text-primary)]" style={{ fontFamily: "var(--font-heading)" }}>{auditLogs.length}</p>
+                <p className="text-xs text-[var(--text-muted)]" style={{ fontFamily: "var(--font-body)" }}>Actions</p>
               </div>
             </div>
           </Card>
@@ -384,7 +386,7 @@ export default function WorkspaceDetailPage() {
 
       {activeTab === "audit" && (
         <Card className="!p-6">
-          <h3 className="text-base font-bold text-[#0A0A0A] mb-4" style={{ fontFamily: "var(--font-heading)" }}>
+          <h3 className="text-base font-bold text-[var(--text-primary)] mb-4" style={{ fontFamily: "var(--font-heading)" }}>
             Activity Log
           </h3>
           <AuditTrail entries={auditLogs} />

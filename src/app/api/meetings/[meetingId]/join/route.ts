@@ -42,6 +42,13 @@ function getIceServers() {
   return servers;
 }
 
+function getTransportMode(meeting: { transportMode?: string; settings: { maxParticipants: number } }): "p2p" | "livekit" {
+  if (meeting.transportMode === "p2p" || meeting.transportMode === "livekit") {
+    return meeting.transportMode;
+  }
+  return determineTransportMode(meeting.settings.maxParticipants);
+}
+
 // ── Validation ──────────────────────────────────────────────────────
 
 const meetingIdSchema = z.string().min(1, "Meeting ID is required");
@@ -50,8 +57,11 @@ const meetingIdSchema = z.string().min(1, "Meeting ID is required");
 
 /**
  * Join a meeting by ObjectId or meeting code.
- * Adds the user to participants, activates the meeting if scheduled,
- * and returns ICE server configuration for WebRTC.
+ *
+ * Uses atomic MongoDB operations to prevent race conditions:
+ * - Duplicate participant entries are avoided via filter guards.
+ * - The maxParticipants limit is enforced inside the query filter
+ *   so two concurrent joins cannot both exceed the cap.
  */
 export const POST = withHandler(async (req: NextRequest, context) => {
   await checkRateLimit(req, "meetings");
@@ -63,81 +73,131 @@ export const POST = withHandler(async (req: NextRequest, context) => {
   await connectDB();
 
   const filter = buildMeetingFilter(meetingId);
-  const meeting = await Meeting.findOne(filter);
-
-  if (!meeting) {
-    throw new NotFoundError("Meeting not found.");
-  }
-
-  // Cannot join ended or cancelled meetings
-  if (meeting.status === "ended" || meeting.status === "cancelled") {
-    throw new BadRequestError("This meeting has already ended.");
-  }
-
   const userObjectId = new mongoose.Types.ObjectId(userId);
 
-  // Check if user is already a participant with "joined" status
-  const existingParticipant = meeting.participants.find(
-    (p) => p.userId.toString() === userId
-  );
+  // ── 1. Already joined? Return meeting data (no mutation). ───────
+  const alreadyJoined = await Meeting.findOne({
+    ...filter,
+    participants: { $elemMatch: { userId: userObjectId, status: "joined" } },
+  })
+    .populate("hostId", "name email displayName avatarUrl")
+    .populate("participants.userId", "name email displayName avatarUrl");
 
-  // Determine transport mode for this meeting
-  const effectiveTransportMode: "p2p" | "livekit" =
-    meeting.transportMode === "p2p" || meeting.transportMode === "livekit"
-      ? meeting.transportMode
-      : determineTransportMode(meeting.settings.maxParticipants);
-
-  if (existingParticipant) {
-    if (existingParticipant.status === "joined") {
-      // Already joined, just return the meeting + ICE servers
-      await meeting.populate("hostId", "name email displayName avatarUrl");
-      await meeting.populate("participants.userId", "name email displayName avatarUrl");
-
-      return successResponse({
-        meeting,
-        iceServers: getIceServers(),
-        transportMode: effectiveTransportMode,
-      });
-    }
-
-    // User was previously in the meeting (left/invited) - rejoin
-    existingParticipant.status = "joined";
-    existingParticipant.joinedAt = new Date();
-    existingParticipant.leftAt = undefined;
-  } else {
-    // Check maxParticipants limit
-    const activeParticipants = meeting.participants.filter(
-      (p) => p.status === "joined"
-    ).length;
-
-    if (activeParticipants >= meeting.settings.maxParticipants) {
-      throw new BadRequestError("Meeting has reached the maximum number of participants.");
-    }
-
-    // Add as new participant
-    meeting.participants.push({
-      userId: userObjectId,
-      role: "participant",
-      status: "joined",
-      joinedAt: new Date(),
+  if (alreadyJoined) {
+    return successResponse({
+      meeting: alreadyJoined,
+      iceServers: getIceServers(),
+      transportMode: getTransportMode(alreadyJoined),
     });
   }
 
-  // Activate meeting if it's scheduled
-  if (meeting.status === "scheduled") {
-    meeting.status = "live";
-    meeting.startedAt = new Date();
+  // ── 2. Rejoin (participant exists with status left/invited). ────
+  const rejoined = await Meeting.findOneAndUpdate(
+    {
+      ...filter,
+      status: { $nin: ["ended", "cancelled"] },
+      participants: {
+        $elemMatch: { userId: userObjectId, status: { $ne: "joined" } },
+      },
+    },
+    {
+      $set: {
+        "participants.$.status": "joined",
+        "participants.$.joinedAt": new Date(),
+      },
+      $unset: { "participants.$.leftAt": "" },
+    },
+    { new: true },
+  );
+
+  if (rejoined) {
+    // Activate meeting if still scheduled (atomic, idempotent)
+    if (rejoined.status === "scheduled") {
+      await Meeting.updateOne(
+        { _id: rejoined._id, status: "scheduled" },
+        { $set: { status: "live", startedAt: new Date() } },
+      );
+    }
+
+    const updated = await Meeting.findById(rejoined._id)
+      .populate("hostId", "name email displayName avatarUrl")
+      .populate("participants.userId", "name email displayName avatarUrl");
+
+    return successResponse({
+      meeting: updated,
+      iceServers: getIceServers(),
+      transportMode: getTransportMode(updated!),
+    });
   }
 
-  await meeting.save();
+  // ── 3. New participant — atomic push with capacity guard. ───────
+  //
+  // The $expr filter counts *currently joined* participants and only
+  // allows the push when the count is below maxParticipants. Because
+  // the filter and update are a single atomic operation, two concurrent
+  // requests cannot both see a count of N-1 and both succeed.
+  const joined = await Meeting.findOneAndUpdate(
+    {
+      ...filter,
+      status: { $nin: ["ended", "cancelled"] },
+      "participants.userId": { $ne: userObjectId },
+      $expr: {
+        $lt: [
+          {
+            $size: {
+              $filter: {
+                input: "$participants",
+                as: "p",
+                cond: { $eq: ["$$p.status", "joined"] },
+              },
+            },
+          },
+          "$settings.maxParticipants",
+        ],
+      },
+    },
+    {
+      $push: {
+        participants: {
+          userId: userObjectId,
+          role: "participant",
+          status: "joined",
+          joinedAt: new Date(),
+        },
+      },
+    },
+    { new: true },
+  );
 
-  // Populate for response
-  await meeting.populate("hostId", "name email displayName avatarUrl");
-  await meeting.populate("participants.userId", "name email displayName avatarUrl");
+  if (!joined) {
+    // Determine the reason for failure so we return an accurate error
+    const meeting = await Meeting.findOne(filter);
+    if (!meeting) {
+      throw new NotFoundError("Meeting not found.");
+    }
+    if (meeting.status === "ended" || meeting.status === "cancelled") {
+      throw new BadRequestError("This meeting has already ended.");
+    }
+    throw new BadRequestError(
+      "Meeting has reached the maximum number of participants.",
+    );
+  }
+
+  // Activate meeting if still scheduled (atomic, idempotent)
+  if (joined.status === "scheduled") {
+    await Meeting.updateOne(
+      { _id: joined._id, status: "scheduled" },
+      { $set: { status: "live", startedAt: new Date() } },
+    );
+  }
+
+  const populated = await Meeting.findById(joined._id)
+    .populate("hostId", "name email displayName avatarUrl")
+    .populate("participants.userId", "name email displayName avatarUrl");
 
   return successResponse({
-    meeting,
+    meeting: populated,
     iceServers: getIceServers(),
-    transportMode: effectiveTransportMode,
+    transportMode: getTransportMode(populated!),
   });
 });

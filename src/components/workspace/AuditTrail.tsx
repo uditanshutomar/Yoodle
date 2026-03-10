@@ -40,7 +40,7 @@ export default function AuditTrail({ entries }: AuditTrailProps) {
     <div className="space-y-3">
       {entries.length === 0 ? (
         <p
-          className="text-sm text-[#0A0A0A]/40 text-center py-8"
+          className="text-sm text-[var(--text-muted)] text-center py-8"
           style={{ fontFamily: "var(--font-body)" }}
         >
           No activity yet
@@ -62,11 +62,11 @@ export default function AuditTrail({ entries }: AuditTrailProps) {
                 <Icon size={12} className="text-[#06B6D4]" />
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-[#0A0A0A]" style={{ fontFamily: "var(--font-body)" }}>
+                <p className="text-[var(--text-primary)]" style={{ fontFamily: "var(--font-body)" }}>
                   <span className="font-bold">{entry.userName}</span> {label}
                 </p>
                 <p
-                  className="flex items-center gap-1 text-[10px] text-[#0A0A0A]/40 mt-0.5"
+                  className="flex items-center gap-1 text-[10px] text-[var(--text-muted)] mt-0.5"
                   style={{ fontFamily: "var(--font-body)" }}
                 >
                   <Clock size={9} />

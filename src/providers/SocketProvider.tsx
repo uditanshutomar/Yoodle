@@ -77,6 +77,8 @@ export default function SocketProvider({ children }: SocketProviderProps) {
     socketInstance.on("reconnect", () => {
       if (!mountedRef.current) return;
       setConnectionStatus("connected");
+      // Restore socket state after reconnect (disconnect handler sets it to null)
+      setSocket(socketRef.current);
     });
 
     socketInstance.on("reconnect_attempt", () => {

@@ -248,7 +248,7 @@ export default function WorkspaceTerminal({ workspaceId, onClose }: WorkspaceTer
                   ? "bg-green-500"
                   : status === "connecting" || status === "fetching"
                   ? "bg-yellow-500 animate-pulse"
-                  : "bg-gray-500"
+                  : "bg-[var(--text-muted)]"
               }`}
             />
           </div>

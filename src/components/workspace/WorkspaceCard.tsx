@@ -3,7 +3,6 @@
 import { motion } from "framer-motion";
 import { Server, Users } from "lucide-react";
 import Card from "@/components/ui/Card";
-import Badge from "@/components/ui/Badge";
 import VMStatusBadge from "./VMStatusBadge";
 
 interface WorkspaceCardProps {
@@ -36,7 +35,7 @@ export default function WorkspaceCard({
         </div>
 
         <h3
-          className="text-base font-bold text-[#0A0A0A] mb-1"
+          className="text-base font-bold text-[var(--text-primary)] mb-1"
           style={{ fontFamily: "var(--font-heading)" }}
         >
           {name}
@@ -44,22 +43,17 @@ export default function WorkspaceCard({
 
         {description && (
           <p
-            className="text-xs text-[#0A0A0A]/50 mb-3 line-clamp-2"
+            className="text-xs text-[var(--text-muted)] mb-3 line-clamp-2"
             style={{ fontFamily: "var(--font-body)" }}
           >
             {description}
           </p>
         )}
 
-        <div className="flex items-center gap-3 text-xs text-[#0A0A0A]/50">
+        <div className="flex items-center gap-3 text-xs text-[var(--text-muted)]">
           <span className="flex items-center gap-1">
             <Users size={12} /> {memberCount} member{memberCount !== 1 ? "s" : ""}
           </span>
-          {vmStatus && (
-            <Badge variant={vmStatus === "running" ? "success" : "default"}>
-              {vmStatus}
-            </Badge>
-          )}
         </div>
       </Card>
     </motion.div>

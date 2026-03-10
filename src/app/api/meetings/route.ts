@@ -65,19 +65,10 @@ export const GET = withHandler(async (req: NextRequest) => {
 
   await connectDB();
 
-  // Auto-cleanup: end stale "live" meetings (started > 6 hours ago or created > 24h with no start)
-  const sixHoursAgo = new Date(Date.now() - 6 * 60 * 60 * 1000);
-  const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
-  await Meeting.updateMany(
-    {
-      status: "live",
-      $or: [
-        { startedAt: { $lt: sixHoursAgo } },
-        { startedAt: null, createdAt: { $lt: twentyFourHoursAgo } },
-      ],
-    },
-    { $set: { status: "ended", endedAt: new Date() } }
-  );
+  // NOTE: Stale meeting cleanup is handled by the background job
+  // (meeting-cleanup worker, 4h threshold). Removed inline write from
+  // this GET handler to avoid write-in-read side effects and threshold
+  // mismatch (was 6h here vs 4h in the background job).
 
   const userObjectId = new mongoose.Types.ObjectId(userId);
 

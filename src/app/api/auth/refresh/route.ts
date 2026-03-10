@@ -1,4 +1,4 @@
-import { NextRequest } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import connectDB from "@/lib/db/client";
 import User from "@/lib/db/models/user";
@@ -22,10 +22,15 @@ export const POST = withHandler(async (req: NextRequest) => {
   // Check if refresh token has been blacklisted
   const blacklisted = await tokenIsBlacklisted(refreshTokenCookie);
   if (blacklisted) {
-    const response = successResponse({ message: "Token revoked." });
+    // Return error response directly (not throw) so cookie deletions are preserved.
+    // Throwing would create a new response in withHandler, discarding these cookies.
+    const response = NextResponse.json(
+      { success: false, error: "Refresh token has been revoked." },
+      { status: 401 },
+    );
     response.cookies.delete("yoodle-refresh-token");
     response.cookies.delete("yoodle-access-token");
-    throw new UnauthorizedError("Refresh token has been revoked.");
+    return response;
   }
 
   // Verify the refresh token JWT
@@ -39,8 +44,8 @@ export const POST = withHandler(async (req: NextRequest) => {
 
   await connectDB();
 
-  // Find the user and verify the stored refresh token hash
-  const user = await User.findById(userId);
+  // Find the user and verify the stored refresh token hash — only fetch what's needed
+  const user = await User.findById(userId).select("_id refreshTokenHash");
 
   if (!user || !user.refreshTokenHash) {
     throw new UnauthorizedError("Session not found. Please log in again.");

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import { useAuth } from "./useAuth";
 
 export interface ChatMessage {
@@ -15,10 +15,16 @@ export function useAIChat() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isStreaming, setIsStreaming] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
+  const messagesRef = useRef<ChatMessage[]>([]);
+  const isStreamingRef = useRef(false);
+
+  // Keep refs in sync with state
+  useEffect(() => { messagesRef.current = messages; }, [messages]);
+  useEffect(() => { isStreamingRef.current = isStreaming; }, [isStreaming]);
 
   const sendMessage = useCallback(
     async (content: string) => {
-      if (!user || !content.trim() || isStreaming) return;
+      if (!user || !content.trim() || isStreamingRef.current) return;
 
       const userMsg: ChatMessage = {
         id: `user-${Date.now()}`,
@@ -49,10 +55,12 @@ export function useAIChat() {
           credentials: "include",
           body: JSON.stringify({
             message: content.trim(),
-            history: messages.map((m) => ({
-              role: m.role,
-              content: m.content,
-            })),
+            history: messagesRef.current
+              .filter((m) => m.content.trim() !== "")
+              .map((m) => ({
+                role: m.role,
+                content: m.content,
+              })),
           }),
           signal: controller.signal,
         });
@@ -66,17 +74,23 @@ export function useAIChat() {
 
         const decoder = new TextDecoder();
         let accumulated = "";
+        let buffer = ""; // Buffer for incomplete SSE lines across chunks
 
         while (true) {
           const { done, value } = await reader.read();
           if (done) break;
 
           const chunk = decoder.decode(value, { stream: true });
-          const lines = chunk.split("\n");
+          buffer += chunk;
+          const lines = buffer.split("\n");
+
+          // Keep the last element — it may be an incomplete line
+          buffer = lines.pop() || "";
 
           for (const line of lines) {
-            if (line.startsWith("data: ")) {
-              const data = line.slice(6);
+            const trimmed = line.trim();
+            if (trimmed.startsWith("data: ")) {
+              const data = trimmed.slice(6);
               if (data === "[DONE]") continue;
 
               try {
@@ -97,6 +111,28 @@ export function useAIChat() {
             }
           }
         }
+
+        // Process any remaining buffer content
+        if (buffer.trim().startsWith("data: ")) {
+          const data = buffer.trim().slice(6);
+          if (data !== "[DONE]") {
+            try {
+              const parsed = JSON.parse(data);
+              if (parsed.text) {
+                accumulated += parsed.text;
+                setMessages((prev) =>
+                  prev.map((m) =>
+                    m.id === assistantMsg.id
+                      ? { ...m, content: accumulated }
+                      : m
+                  )
+                );
+              }
+            } catch {
+              // Skip malformed JSON
+            }
+          }
+        }
       } catch (error) {
         if ((error as Error).name !== "AbortError") {
           setMessages((prev) =>
@@ -112,7 +148,7 @@ export function useAIChat() {
         abortRef.current = null;
       }
     },
-    [user, messages, isStreaming]
+    [user]
   );
 
   const stopStreaming = useCallback(() => {

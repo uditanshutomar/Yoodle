@@ -1,25 +1,25 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
-// We need to mock the dynamic imports before importing the factory
+// Mock dynamic imports with class syntax so `new Provider()` works correctly
 vi.mock("../llm/claude", () => ({
-  ClaudeLLMProvider: vi.fn().mockImplementation(() => ({
-    name: "claude",
-    generateText: vi.fn(),
-  })),
+  ClaudeLLMProvider: class ClaudeLLMProvider {
+    name = "claude";
+    generateText = vi.fn();
+  },
 }));
 
 vi.mock("../llm/gemini", () => ({
-  GeminiLLMProvider: vi.fn().mockImplementation(() => ({
-    name: "gemini",
-    generateText: vi.fn(),
-  })),
+  GeminiLLMProvider: class GeminiLLMProvider {
+    name = "gemini";
+    generateText = vi.fn();
+  },
 }));
 
 vi.mock("../llm/openai", () => ({
-  OpenAILLMProvider: vi.fn().mockImplementation(() => ({
-    name: "openai",
-    generateText: vi.fn(),
-  })),
+  OpenAILLMProvider: class OpenAILLMProvider {
+    name = "openai";
+    generateText = vi.fn();
+  },
 }));
 
 describe("getLLMProvider", () => {

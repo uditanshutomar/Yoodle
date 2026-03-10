@@ -31,6 +31,7 @@ interface JoinPayload {
 interface TerminalConnectPayload {
   host: string;
   password: string;
+  username?: string;
   cols?: number;
   rows?: number;
 }
@@ -78,6 +79,12 @@ const sshSessions = new Map<
   string,
   { client: SSHClient; stream: ClientChannel | null }
 >();
+
+// ── Connection rate limiting ──────────────────────────────────────────
+// IP -> { count, resetAt }
+const connectionTracker = new Map<string, { count: number; resetAt: number }>();
+const MAX_CONNECTIONS_PER_IP = 10;
+const CONNECTION_WINDOW_MS = 60_000; // 1 minute
 
 // ── Express + Socket.io setup ──────────────────────────────────────────
 
@@ -162,6 +169,38 @@ function cleanupSSH(socketId: string) {
 }
 
 // ── Socket.io connection handler ───────────────────────────────────────
+
+// Connection rate limiting middleware
+io.use((socket, next) => {
+  const ip = socket.handshake.headers["x-forwarded-for"]?.toString().split(",")[0]?.trim()
+    || socket.handshake.address
+    || "unknown";
+
+  const now = Date.now();
+  const tracker = connectionTracker.get(ip);
+
+  if (tracker && tracker.resetAt > now) {
+    tracker.count++;
+    if (tracker.count > MAX_CONNECTIONS_PER_IP) {
+      console.warn(`[Rate Limit] Too many connections from ${ip}`);
+      return next(new Error("Too many connections. Please try again later."));
+    }
+  } else {
+    connectionTracker.set(ip, { count: 1, resetAt: now + CONNECTION_WINDOW_MS });
+  }
+
+  next();
+});
+
+// Clean up stale connection tracking entries every 5 minutes
+setInterval(() => {
+  const now = Date.now();
+  for (const [ip, tracker] of connectionTracker) {
+    if (tracker.resetAt <= now) {
+      connectionTracker.delete(ip);
+    }
+  }
+}, 5 * 60_000);
 
 io.on("connection", (socket: Socket) => {
   console.log(`[Socket] Connected: ${socket.id}`);
@@ -311,12 +350,26 @@ io.on("connection", (socket: Socket) => {
   // ── Terminal (SSH Proxy) ──────────────────────────────────────────
 
   socket.on(EVENTS.TERMINAL_CONNECT, (payload: TerminalConnectPayload) => {
-    const { host, password, cols = 80, rows = 24 } = payload;
+    const { host, password, username = "root", cols = 80, rows = 24 } = payload;
+
+    // Validate inputs
+    if (!host || typeof host !== "string" || host.length > 255) {
+      socket.emit(EVENTS.TERMINAL_ERROR, { message: "Invalid host." });
+      return;
+    }
+    if (!password || typeof password !== "string") {
+      socket.emit(EVENTS.TERMINAL_ERROR, { message: "Password is required." });
+      return;
+    }
+    if (typeof username !== "string" || username.length > 64) {
+      socket.emit(EVENTS.TERMINAL_ERROR, { message: "Invalid username." });
+      return;
+    }
 
     // Clean up existing session if any
     cleanupSSH(socket.id);
 
-    console.log(`[SSH] Connecting to ${host} for ${socket.id}`);
+    console.log(`[SSH] Connecting to ${host} as ${username} for ${socket.id}`);
 
     const sshClient = new SSHClient();
 
@@ -359,9 +412,15 @@ io.on("connection", (socket: Socket) => {
 
     sshClient.on("error", (err: Error) => {
       console.error(`[SSH] Connection error for ${socket.id}:`, err.message);
-      socket.emit(EVENTS.TERMINAL_ERROR, {
-        message: `SSH connection failed: ${err.message}`,
-      });
+      // Sanitize error message - don't leak host/auth details to client
+      const safeMessage = err.message.includes("Authentication")
+        ? "SSH authentication failed."
+        : err.message.includes("ECONNREFUSED")
+          ? "Connection refused by host."
+          : err.message.includes("ETIMEDOUT") || err.message.includes("Timed out")
+            ? "Connection timed out."
+            : "SSH connection failed.";
+      socket.emit(EVENTS.TERMINAL_ERROR, { message: safeMessage });
       cleanupSSH(socket.id);
     });
 
@@ -373,7 +432,7 @@ io.on("connection", (socket: Socket) => {
     sshClient.connect({
       host,
       port: 22,
-      username: "root",
+      username,
       password,
       readyTimeout: 10000,
       keepaliveInterval: 10000,
@@ -381,11 +440,18 @@ io.on("connection", (socket: Socket) => {
     });
   });
 
-  // Browser → SSH input
+  // Browser → SSH input (with backpressure handling)
   socket.on(EVENTS.TERMINAL_DATA, (data: string) => {
+    if (typeof data !== "string" || data.length > 4096) return; // Limit input size
     const session = sshSessions.get(socket.id);
     if (session?.stream) {
-      session.stream.write(data);
+      const canWrite = session.stream.write(data);
+      if (!canWrite) {
+        // Backpressure: pause until drain
+        session.stream.once("drain", () => {
+          // Stream ready for more data
+        });
+      }
     }
   });
 

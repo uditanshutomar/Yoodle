@@ -37,7 +37,7 @@ app.prepare().then(() => {
     transports: ["websocket", "polling"],
     pingInterval: 25000,
     pingTimeout: 60000,
-    maxHttpBufferSize: 1e7, // 10 MB for larger payloads
+    maxHttpBufferSize: 1e6, // 1 MB — prevent memory exhaustion via large payloads
   });
 
   setupSocketServer(io);

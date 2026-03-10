@@ -5,7 +5,9 @@ import { withHandler } from "@/lib/api/with-handler";
 import { successResponse } from "@/lib/api/response";
 import { checkRateLimit } from "@/lib/api/rate-limit";
 import { getUserIdFromRequest } from "@/lib/auth/middleware";
-import { BadRequestError } from "@/lib/api/errors";
+import { BadRequestError, NotFoundError, ForbiddenError } from "@/lib/api/errors";
+import connectDB from "@/lib/db/client";
+import Meeting from "@/lib/db/models/meeting";
 import {
   LIVEKIT_URL,
   LIVEKIT_API_KEY,
@@ -17,6 +19,7 @@ import {
 
 const stopRecordingSchema = z.object({
   egressId: z.string().min(1, "Egress ID is required."),
+  meetingId: z.string().min(1, "Meeting ID is required."),
 });
 
 // ── POST /api/recordings/stop ─────────────────────────────────────
@@ -26,10 +29,11 @@ const stopRecordingSchema = z.object({
  *
  * Calls the LiveKit Egress API to gracefully stop the recording.
  * The finalized file will be available in the configured S3 bucket.
+ * Only the meeting host can stop a recording.
  */
 export const POST = withHandler(async (req: NextRequest) => {
   await checkRateLimit(req, "meetings");
-  await getUserIdFromRequest(req);
+  const userId = await getUserIdFromRequest(req);
 
   if (!isLiveKitConfigured()) {
     throw new BadRequestError(
@@ -38,7 +42,17 @@ export const POST = withHandler(async (req: NextRequest) => {
   }
 
   const body = stopRecordingSchema.parse(await req.json());
-  const { egressId } = body;
+  const { egressId, meetingId } = body;
+
+  // Verify the caller is the host of this meeting
+  await connectDB();
+  const meeting = await Meeting.findById(meetingId).select("hostId").lean();
+  if (!meeting) {
+    throw new NotFoundError("Meeting not found.");
+  }
+  if (meeting.hostId.toString() !== userId) {
+    throw new ForbiddenError("Only the meeting host can stop a recording.");
+  }
 
   const egressClient = new EgressClient(
     LIVEKIT_URL,

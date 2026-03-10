@@ -81,19 +81,19 @@ export default function GhostRoomsPage() {
       {/* Header */}
       <motion.div variants={itemVariants} className="flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#7C3AED] border-2 border-[#0A0A0A]">
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#7C3AED] border-2 border-[var(--border-strong)]">
             <Ghost size={20} className="text-white" />
           </div>
           <div>
-            <h1 className="text-2xl font-black text-[#0A0A0A]" style={{ fontFamily: "var(--font-heading)" }}>
+            <h1 className="text-2xl font-black text-[var(--text-primary)]" style={{ fontFamily: "var(--font-heading)" }}>
               Ghost Rooms
             </h1>
-            <p className="text-xs text-[#0A0A0A]/50" style={{ fontFamily: "var(--font-body)" }}>
+            <p className="text-xs text-[var(--text-secondary)]" style={{ fontFamily: "var(--font-body)" }}>
               Ephemeral — everything vanishes when it ends
             </p>
           </div>
         </div>
-        <Button variant="primary" size="md" icon={Plus} onClick={createRoom} disabled={creating} className="!bg-[#7C3AED] !border-[#0A0A0A] !text-white">
+        <Button variant="primary" size="md" icon={Plus} onClick={createRoom} disabled={creating} className="!bg-[#7C3AED] !border-[var(--border-strong)] !text-white">
           {creating ? "Creating…" : "New Ghost Room"}
         </Button>
       </motion.div>
@@ -121,13 +121,13 @@ export default function GhostRoomsPage() {
                     <Clock size={12} /> {getTimeRemaining(room.expiresAt)}
                   </span>
                 </div>
-                <h3 className="text-base font-bold text-[#0A0A0A] mb-1" style={{ fontFamily: "var(--font-heading)" }}>
+                <h3 className="text-base font-bold text-[var(--text-primary)] mb-1" style={{ fontFamily: "var(--font-heading)" }}>
                   {room.title}
                 </h3>
-                <p className="text-xs text-[#0A0A0A]/40 font-mono mb-3" style={{ fontFamily: "var(--font-body)" }}>
+                <p className="text-xs text-[var(--text-secondary)] font-mono mb-3" style={{ fontFamily: "var(--font-body)" }}>
                   {room.code}
                 </p>
-                <div className="flex items-center gap-4 text-xs text-[#0A0A0A]/50">
+                <div className="flex items-center gap-4 text-xs text-[var(--text-secondary)]">
                   <span className="flex items-center gap-1">
                     <Users size={12} /> {room.participantCount}
                   </span>

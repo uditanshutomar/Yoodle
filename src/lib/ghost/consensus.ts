@@ -70,7 +70,7 @@ export async function persistGhostData(
     status: "joined" as const,
   }));
 
-  // Create the meeting document
+  // Create the meeting document — including messages and notes!
   const meeting = await Meeting.create({
     code: roomData.code,
     title: roomData.title,
@@ -88,6 +88,16 @@ export async function persistGhostData(
       waitingRoom: false,
       muteOnJoin: false,
     },
+    // Persist ghost-specific data that would otherwise be lost
+    ghostMessages: roomData.messages.map((m) => ({
+      id: m.id,
+      senderId: m.senderId,
+      senderName: m.senderName,
+      content: m.content,
+      timestamp: m.timestamp,
+      type: m.type,
+    })),
+    ghostNotes: roomData.notes || undefined,
   });
 
   return { meetingId: meeting._id.toString() };

@@ -52,7 +52,7 @@ export default function WorkspaceMembers({
         <div className="flex items-end gap-2">
           <div className="flex-1">
             <label
-              className="text-xs font-bold text-[#0A0A0A]/60 mb-1 block"
+              className="text-xs font-bold text-[var(--text-muted)] mb-1 block"
               style={{ fontFamily: "var(--font-heading)" }}
             >
               Add by email
@@ -63,14 +63,14 @@ export default function WorkspaceMembers({
               onChange={(e) => setEmail(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && handleAdd()}
               placeholder="user@example.com"
-              className="w-full px-3 py-2 text-sm border-2 border-[#0A0A0A]/10 rounded-xl bg-white focus:border-[#06B6D4] focus:outline-none"
+              className="w-full px-3 py-2 text-sm border-2 border-[var(--border)] rounded-xl bg-[var(--surface)] focus:border-[#06B6D4] focus:outline-none"
               style={{ fontFamily: "var(--font-body)" }}
             />
           </div>
           <select
             value={role}
             onChange={(e) => setRole(e.target.value)}
-            className="px-2 py-2 text-sm border-2 border-[#0A0A0A]/10 rounded-xl bg-white focus:border-[#06B6D4] focus:outline-none"
+            className="px-2 py-2 text-sm border-2 border-[var(--border)] rounded-xl bg-[var(--surface)] focus:border-[#06B6D4] focus:outline-none"
             style={{ fontFamily: "var(--font-body)" }}
           >
             <option value="member">Member</option>
@@ -103,7 +103,7 @@ export default function WorkspaceMembers({
               initial={{ opacity: 0, y: 5 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: i * 0.05 }}
-              className="flex items-center justify-between py-2 px-3 rounded-xl hover:bg-[#0A0A0A]/5 transition-colors"
+              className="flex items-center justify-between py-2 px-3 rounded-xl hover:bg-[var(--surface-hover)] transition-colors"
             >
               <div className="flex items-center gap-3">
                 <div
@@ -113,11 +113,11 @@ export default function WorkspaceMembers({
                   <RoleIcon size={14} style={{ color: roleColors[m.role] || "#0A0A0A" }} />
                 </div>
                 <div>
-                  <p className="text-sm font-bold text-[#0A0A0A]" style={{ fontFamily: "var(--font-heading)" }}>
+                  <p className="text-sm font-bold text-[var(--text-primary)]" style={{ fontFamily: "var(--font-heading)" }}>
                     {name}
                   </p>
                   {memberEmail && (
-                    <p className="text-[10px] text-[#0A0A0A]/40" style={{ fontFamily: "var(--font-body)" }}>
+                    <p className="text-[10px] text-[var(--text-muted)]" style={{ fontFamily: "var(--font-body)" }}>
                       {memberEmail}
                     </p>
                   )}

@@ -245,8 +245,13 @@ export async function tokenBlacklist(
   token: string,
   ttlSeconds: number,
 ): Promise<void> {
-  const client = getRedisClient();
-  await client.set(`token:blacklist:${token}`, "1", "EX", ttlSeconds);
+  try {
+    const client = getRedisClient();
+    await client.set(`token:blacklist:${token}`, "1", "EX", ttlSeconds);
+  } catch (err) {
+    // Log but don't throw — logout should still proceed client-side
+    console.error("[Redis] Failed to blacklist token:", err);
+  }
 }
 
 /**
@@ -257,7 +262,10 @@ export async function tokenIsBlacklisted(token: string): Promise<boolean> {
     const client = getRedisClient();
     const exists = await client.exists(`token:blacklist:${token}`);
     return exists === 1;
-  } catch {
-    return false; // If Redis is down, don't block auth
+  } catch (err) {
+    // If Redis is down, fail closed — treat the token as blacklisted.
+    // This prevents a compromised token from being used during a Redis outage.
+    console.error("[Redis] Token blacklist check failed, failing closed:", err);
+    return true;
   }
 }

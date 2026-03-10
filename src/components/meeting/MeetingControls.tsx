@@ -180,7 +180,7 @@ export default function MeetingControls({
         {/* Screen share */}
         <ControlButton
           onClick={onToggleScreenShare}
-          active={!isScreenSharing}
+          active={isScreenSharing}
           label={isScreenSharing ? "Stop sharing" : "Share screen"}
         >
           {isScreenSharing ? (
@@ -194,7 +194,7 @@ export default function MeetingControls({
         {onToggleHandRaise && (
           <ControlButton
             onClick={onToggleHandRaise}
-            active={!isHandRaised}
+            active={isHandRaised}
             label={isHandRaised ? "Lower hand (H)" : "Raise hand (H)"}
           >
             <Hand
@@ -207,7 +207,7 @@ export default function MeetingControls({
         {/* Reactions */}
         <ControlButton
           onClick={() => setShowReactions(!showReactions)}
-          active={!showReactions}
+          active={showReactions}
           label="Reactions"
         >
           {showReactions ? <X size={18} /> : <SmilePlus size={18} />}
@@ -216,7 +216,7 @@ export default function MeetingControls({
         {/* Chat toggle */}
         <ControlButton
           onClick={onToggleChat}
-          active={!isChatOpen}
+          active={isChatOpen}
           label="Chat (A)"
           badge={unreadChatCount > 0}
         >
@@ -229,7 +229,7 @@ export default function MeetingControls({
         {/* Participants toggle */}
         <ControlButton
           onClick={onToggleParticipants}
-          active={!isParticipantsOpen}
+          active={isParticipantsOpen}
           label="Participants (P)"
         >
           <Users

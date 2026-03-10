@@ -55,14 +55,25 @@ export const GET = withHandler(async (req: NextRequest) => {
       ],
     });
 
-    const googleTokensData = {
+    const googleTokensData: Record<string, unknown> = {
       accessToken: tokens.access_token,
-      refreshToken: tokens.refresh_token || "",
       expiresAt: new Date(tokens.expiry_date || Date.now() + 3600 * 1000),
       scope: tokens.scope || "",
     };
 
+    // Only set refreshToken if Google actually returned a new one.
+    // On re-authentication Google often omits it, and storing ""
+    // would destroy the existing (valid) refresh token.
+    if (tokens.refresh_token) {
+      googleTokensData.refreshToken = tokens.refresh_token;
+    }
+
     if (user) {
+      // Preserve the existing refresh token if Google didn't provide a new one
+      if (!tokens.refresh_token && user.googleTokens?.refreshToken) {
+        googleTokensData.refreshToken = user.googleTokens.refreshToken;
+      }
+
       // Update existing user with latest Google tokens and profile
       const updateData: Record<string, unknown> = {
         googleId: profile.googleId,
@@ -112,12 +123,31 @@ export const GET = withHandler(async (req: NextRequest) => {
     await User.findByIdAndUpdate(user._id, { refreshTokenHash });
 
     // Redirect to the requested page (or dashboard)
-    // Validate that the redirect target is a relative path to prevent open redirect attacks
-    let redirectTo = state || "/dashboard";
-    if (!redirectTo.startsWith("/") || redirectTo.startsWith("//")) {
-      redirectTo = "/dashboard";
+    // Validate the redirect target to prevent open redirect attacks
+    let redirectTo = "/dashboard";
+    if (state) {
+      try {
+        const decoded = decodeURIComponent(state);
+        // Must be a relative path: starts with "/" but not "//" and no protocol
+        if (
+          decoded.startsWith("/") &&
+          !decoded.startsWith("//") &&
+          !decoded.includes("://") &&
+          !decoded.includes("\\") &&
+          !/^\/[^/]*@/.test(decoded)
+        ) {
+          redirectTo = decoded;
+        }
+      } catch {
+        // Invalid URI encoding — use default
+      }
     }
     const redirectUrl = new URL(redirectTo, req.url);
+    // Extra safety: ensure the redirect stays on the same origin
+    const reqOrigin = new URL(req.url).origin;
+    if (redirectUrl.origin !== reqOrigin) {
+      redirectUrl.href = new URL("/dashboard", req.url).href;
+    }
     const response = NextResponse.redirect(redirectUrl);
 
     // Set JWT cookies

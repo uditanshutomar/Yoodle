@@ -43,14 +43,18 @@ export const POST = withHandler(async (req: NextRequest, context) => {
 
   let savedMeetingId: string | null = null;
 
-  if (consensus.allVoted && consensus.totalParticipants > 0 && updatedRoom) {
-    try {
-      const result = await persistGhostData(updatedRoom);
-      savedMeetingId = result.meetingId;
-    } catch (err) {
-      console.error("[Ghost Room Vote] Failed to persist data:", err);
+  if (consensus.allVoted && consensus.totalParticipants > 0) {
+    // Atomically claim and destroy the room — only one concurrent request
+    // will succeed, preventing duplicate persistence.
+    const claimedRoom = await ephemeralStore.claimAndDestroyRoom(roomId);
+    if (claimedRoom) {
+      try {
+        const result = await persistGhostData(claimedRoom);
+        savedMeetingId = result.meetingId;
+      } catch (err) {
+        console.error("[Ghost Room Vote] Failed to persist data:", err);
+      }
     }
-    await ephemeralStore.destroyRoom(roomId);
   }
 
   return successResponse({

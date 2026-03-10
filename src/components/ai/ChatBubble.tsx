@@ -23,8 +23,8 @@ export default function ChatBubble({ role, content, timestamp, isStreaming }: Ch
       <div
         className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full border-2 ${
           isAssistant
-            ? "bg-[#FFE600] border-[#0A0A0A]"
-            : "bg-[#0A0A0A] border-[#0A0A0A]"
+            ? "bg-[#FFE600] border-[var(--border-strong)]"
+            : "bg-[var(--foreground)] border-[var(--border-strong)]"
         }`}
       >
         {isAssistant ? (
@@ -39,8 +39,8 @@ export default function ChatBubble({ role, content, timestamp, isStreaming }: Ch
         <div
           className={`inline-block px-4 py-2.5 rounded-2xl text-sm leading-relaxed ${
             isAssistant
-              ? "bg-[#0A0A0A]/5 text-[#0A0A0A] rounded-tl-md"
-              : "bg-[#FFE600] text-[#0A0A0A] border-2 border-[#0A0A0A] rounded-tr-md"
+              ? "bg-[var(--surface-hover)] text-[var(--text-primary)] rounded-tl-md"
+              : "bg-[#FFE600] text-[#0A0A0A] border-2 border-[var(--border-strong)] rounded-tr-md"
           }`}
           style={{ fontFamily: "var(--font-body)" }}
         >
@@ -54,7 +54,7 @@ export default function ChatBubble({ role, content, timestamp, isStreaming }: Ch
           ))}
         </div>
         {timestamp && (
-          <p className={`text-[9px] text-[#0A0A0A]/30 mt-1 ${isAssistant ? "" : "text-right"}`}>
+          <p className={`text-[9px] text-[var(--text-muted)] mt-1 ${isAssistant ? "" : "text-right"}`}>
             {new Date(timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
           </p>
         )}

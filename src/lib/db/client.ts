@@ -8,6 +8,12 @@ if (!MONGODB_URI) {
   );
 }
 
+// Detect serverless environment (Vercel Functions, AWS Lambda, etc.)
+const isServerless =
+  !!process.env.VERCEL ||
+  !!process.env.AWS_LAMBDA_FUNCTION_NAME ||
+  process.env.FUNCTION_TARGET !== undefined;
+
 interface MongooseCache {
   conn: typeof mongoose | null;
   promise: Promise<typeof mongoose> | null;
@@ -28,7 +34,13 @@ if (!global._mongooseCache) {
 
 async function connectDB(): Promise<typeof mongoose> {
   if (cached.conn) {
-    return cached.conn;
+    // Verify the connection is still alive
+    if (mongoose.connection.readyState === 1) {
+      return cached.conn;
+    }
+    // Connection dropped — reset cache and reconnect
+    cached.conn = null;
+    cached.promise = null;
   }
 
   if (!cached.promise) {
@@ -36,9 +48,12 @@ async function connectDB(): Promise<typeof mongoose> {
       .connect(MONGODB_URI as string, {
         dbName: "yoodle",
         bufferCommands: false,
-        maxPoolSize: 10,
-        serverSelectionTimeoutMS: 5000,
+        // Use smaller pool in serverless to avoid connection exhaustion
+        maxPoolSize: isServerless ? 1 : 10,
+        minPoolSize: isServerless ? 0 : 2,
+        serverSelectionTimeoutMS: 10000, // 10s — more resilient to transient failures
         socketTimeoutMS: 45000,
+        heartbeatFrequencyMS: 10000,
       })
       .then((m) => {
         return m;
@@ -48,6 +63,7 @@ async function connectDB(): Promise<typeof mongoose> {
   try {
     cached.conn = await cached.promise;
   } catch (err) {
+    // Reset promise so next call retries the connection
     cached.promise = null;
     throw err;
   }
