@@ -20,24 +20,27 @@ export default function Dashboard() {
     const [mode, setMode] = useState<"lockin" | "invisible" | "social">("lockin");
     const [joinCode, setJoinCode] = useState("");
     const [showMascotChat, setShowMascotChat] = useState(false);
-    const [mascotMsg] = useState(() => {
-        const h = new Date().getHours();
-        const tips = h < 12
-            ? ["Ready to crush it today? I can pull up your agenda!", "Morning! Want me to summarize what you missed?"]
-            : h < 17
-                ? ["Need a quick stand-up room? I got you!", "Want me to recap your last meeting notes?"]
-                : ["Wrapping up? I can draft your end-of-day summary.", "Late session! Want me to set up a focus room?"];
-        return tips[Math.floor(Math.random() * tips.length)];
-    });
+    const [mascotMsg, setMascotMsg] = useState("");
     const [greeting, setGreeting] = useState("");
     const [selectedMeeting, setSelectedMeeting] = useState<MeetingRecord | null>(null);
 
     const firstName = user?.name?.split(" ")[0] || user?.displayName?.split(" ")[0] || "";
 
     useEffect(() => {
+        let mascotSet = false;
         const update = () => {
             const h = new Date().getHours();
             setGreeting(h < 12 ? "Good morning" : h < 17 ? "Good afternoon" : "Good evening");
+            // Set mascot message once, client-side only to avoid hydration mismatch
+            if (!mascotSet) {
+                mascotSet = true;
+                const tips = h < 12
+                    ? ["Ready to crush it today? I can pull up your agenda!", "Morning! Want me to summarize what you missed?"]
+                    : h < 17
+                        ? ["Need a quick stand-up room? I got you!", "Want me to recap your last meeting notes?"]
+                        : ["Wrapping up? I can draft your end-of-day summary.", "Late session! Want me to set up a focus room?"];
+                setMascotMsg(tips[Math.floor(Math.random() * tips.length)]);
+            }
         };
         update();
         const i = setInterval(update, 30000);
