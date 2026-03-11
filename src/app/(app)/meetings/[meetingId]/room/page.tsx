@@ -4,16 +4,19 @@ import { useEffect, useState, useCallback, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { WifiOff, AlertTriangle } from "lucide-react";
+import dynamic from "next/dynamic";
 import BubbleLayout from "@/components/meeting/BubbleLayout";
 import GridLayout from "@/components/meeting/GridLayout";
 import MeetingControls from "@/components/meeting/MeetingControls";
-import ChatPanel from "@/components/meeting/ChatPanel";
-import ScreenShareView from "@/components/meeting/ScreenShareView";
-import ParticipantList from "@/components/meeting/ParticipantList";
-import ReactionOverlay from "@/components/meeting/ReactionOverlay";
 import ConnectionIndicator from "@/components/meeting/ConnectionIndicator";
-import ReconnectionOverlay from "@/components/meeting/ReconnectionOverlay";
-import WaitingRoomPanel, { type WaitingUser } from "@/components/meeting/WaitingRoomPanel";
+import type { WaitingUser } from "@/components/meeting/WaitingRoomPanel";
+
+const ChatPanel = dynamic(() => import("@/components/meeting/ChatPanel"), { ssr: false });
+const ScreenShareView = dynamic(() => import("@/components/meeting/ScreenShareView"), { ssr: false });
+const ParticipantList = dynamic(() => import("@/components/meeting/ParticipantList"), { ssr: false });
+const ReactionOverlay = dynamic(() => import("@/components/meeting/ReactionOverlay"), { ssr: false });
+const ReconnectionOverlay = dynamic(() => import("@/components/meeting/ReconnectionOverlay"), { ssr: false });
+const WaitingRoomPanel = dynamic(() => import("@/components/meeting/WaitingRoomPanel"), { ssr: false });
 import { toParticipant } from "@/components/meeting/adapters";
 import { DoodleStar, DoodleSparkles } from "@/components/Doodles";
 import "./meeting.css";
@@ -207,10 +210,12 @@ export default function MeetingRoomPage() {
     enabled: transportMode === "livekit" && !!localStream,
   });
 
-  // Sync LiveKit transport errors to media error state for UI display
+  // If LiveKit fails, fall back to P2P so the meeting still works
   useEffect(() => {
     if (livekitError && transportMode === "livekit") {
-      setMediaError(livekitError);
+      console.warn("[transport] LiveKit failed, falling back to P2P:", livekitError);
+      setTransportMode("p2p");
+      sessionStorage.setItem("yoodle-transport-mode", "p2p");
     }
   }, [livekitError, transportMode]);
 
@@ -236,9 +241,7 @@ export default function MeetingRoomPage() {
     if (transportMode !== "p2p") return;
     const totalParticipants = remoteParticipants.length + 1;
     if (totalParticipants >= 5) {
-      console.warn(
-        "[Transport] Room has 5+ participants on P2P. Consider LiveKit for better quality."
-      );
+      // 5+ participants on P2P — LiveKit recommended for better quality
     }
   }, [remoteParticipants.length, transportMode]);
 
@@ -361,8 +364,8 @@ export default function MeetingRoomPage() {
     for (const candidate of candidates) {
       try {
         await peer.connection.addIceCandidate(new RTCIceCandidate(candidate));
-      } catch (err) {
-        console.error(`[WebRTC] Error adding pending ICE candidate for ${peerId}:`, err);
+      } catch {
+        // ICE candidate add failed — non-critical
       }
     }
   }, []);
@@ -433,7 +436,6 @@ export default function MeetingRoomPage() {
       // Monitor connection state
       pc.onconnectionstatechange = () => {
         if (pc.connectionState === "failed") {
-          console.warn(`[WebRTC] Peer ${remoteUserId} connection failed, attempting ICE restart`);
           pc.restartIce();
         } else if (pc.connectionState === "closed") {
           cleanupPeer(remoteUserId);
@@ -470,8 +472,8 @@ export default function MeetingRoomPage() {
             offer: pc.localDescription,
           } as SignalOfferPayload);
         }
-      } catch (err) {
-        console.error("[WebRTC] Failed to create offer:", err);
+      } catch {
+        // Offer creation failed
       } finally {
         makingOfferRef.current.delete(remoteUserId);
       }
@@ -487,7 +489,6 @@ export default function MeetingRoomPage() {
     mediaStartedRef.current = true;
 
     startMedia(true, true).catch((err) => {
-      console.error("[Media] Failed to start media:", err);
       setMediaError(
         err instanceof Error
           ? err.message
@@ -517,7 +518,6 @@ export default function MeetingRoomPage() {
       socket.emit(SOCKET_EVENTS.JOIN_ROOM, { roomId: meetingId, user: roomUser });
       joinedRef.current = true;
     } else {
-      console.log("[WebRTC] Socket reconnected -- re-joining room");
       peersRef.current.forEach((peer) => peer.connection.close());
       peersRef.current.clear();
       setRemoteParticipants([]);
@@ -589,8 +589,8 @@ export default function MeetingRoomPage() {
             answer: pc.localDescription,
           } as SignalAnswerPayload);
         }
-      } catch (err) {
-        console.error("[WebRTC] Failed to handle offer:", err);
+      } catch {
+        // Failed to handle offer
       }
     };
 
@@ -600,7 +600,6 @@ export default function MeetingRoomPage() {
 
       const { signalingState } = peer.connection;
       if (signalingState !== "have-local-offer" && signalingState !== "have-remote-pranswer") {
-        console.warn(`[WebRTC] Ignoring answer in state: ${signalingState}`);
         return;
       }
 
@@ -609,8 +608,8 @@ export default function MeetingRoomPage() {
           new RTCSessionDescription(payload.answer)
         );
         await processPendingCandidates(payload.senderId);
-      } catch (err) {
-        console.error("[WebRTC] Failed to set remote description:", err);
+      } catch {
+        // Failed to set remote description
       }
     };
 
@@ -633,8 +632,8 @@ export default function MeetingRoomPage() {
 
       try {
         await peer.connection.addIceCandidate(new RTCIceCandidate(payload.candidate));
-      } catch (err) {
-        console.error("[WebRTC] Failed to add ICE candidate:", err);
+      } catch {
+        // ICE candidate add failed
       }
     };
 
@@ -807,8 +806,8 @@ export default function MeetingRoomPage() {
         .find((s) => s.track?.kind === "video");
       if (sender) {
         replacePromises.push(
-          sender.replaceTrack(newTrack).catch((err) => {
-            console.error(`[WebRTC] Error replacing video track for ${peerId}:`, err);
+          sender.replaceTrack(newTrack).catch(() => {
+            // Track replace failed for peer
           })
         );
       }
@@ -862,10 +861,9 @@ export default function MeetingRoomPage() {
           }
         };
       } catch (err) {
-        if (err instanceof DOMException && err.name === "NotAllowedError") {
-          // User cancelled -- not an error
-        } else {
-          console.error("[ScreenShare] Failed:", err);
+        if (!(err instanceof DOMException && err.name === "NotAllowedError")) {
+          // Screen share failed for non-cancellation reason
+          void err;
         }
       }
     }
@@ -1063,7 +1061,7 @@ export default function MeetingRoomPage() {
   // ── Render ───────────────────────────────────────────────────────
 
   return (
-    <div className="meeting-root z-50 flex flex-col">
+    <div className="meeting-root z-50 flex flex-col" aria-label="Meeting room">
       {/* Doodle decorations */}
       <div className="pointer-events-none fixed inset-0 z-[1]">
         <DoodleStar className="absolute top-24 left-[8%] opacity-30" color="#FFE600" size={18} />
@@ -1073,6 +1071,7 @@ export default function MeetingRoomPage() {
       {/* Bug #6: Media error banner */}
       {mediaError && (
         <motion.div
+          role="alert"
           className="relative z-30 mx-6 mt-2 flex items-center gap-2 rounded-xl border-2 border-[#FF6B6B] bg-[#FF6B6B]/10 px-4 py-2 text-sm text-[#FF6B6B]"
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -1093,24 +1092,24 @@ export default function MeetingRoomPage() {
 
       {/* Header bar */}
       <motion.header
-        className="meeting-header relative z-20 flex items-center justify-between px-6 py-3"
+        className="meeting-header relative z-20 flex items-center justify-between px-3 py-2 sm:px-6 sm:py-3"
         initial={{ y: -50, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
         transition={{ type: "spring", stiffness: 200, damping: 25 }}
       >
         {/* Left: LIVE badge + timer */}
-        <div className="flex items-center gap-3">
-          <div className="flex items-center gap-2 rounded-full border-2 border-[#0A0A0A] bg-[#FF6B6B] px-3 py-1 shadow-[2px_2px_0_#0A0A0A]">
+        <div className="flex items-center gap-1.5 sm:gap-3">
+          <div className="flex items-center gap-2 rounded-full border-2 border-[#0A0A0A] bg-[#FF6B6B] px-3 py-1 shadow-[2px_2px_0_#0A0A0A]" role="status">
             <span className="relative flex h-2 w-2">
               <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-white opacity-75" />
               <span className="relative inline-flex h-2 w-2 rounded-full bg-white" />
             </span>
-            <span className="text-[11px] font-bold text-white" style={{ fontFamily: "var(--font-heading)" }}>LIVE</span>
+            <span className="text-[9px] sm:text-[11px] font-bold text-white" style={{ fontFamily: "var(--font-heading)" }}>LIVE</span>
           </div>
           <span className="text-sm font-mono text-[#0A0A0A]/40">{formatTime(elapsedTime)}</span>
           {/* Transport mode indicator */}
           <span
-            className="text-xs px-2 py-0.5 rounded-full border-2 border-black"
+            className="hidden sm:inline text-xs px-2 py-0.5 rounded-full border-2 border-black"
             style={{
               backgroundColor: transportMode === "livekit" ? "#FFE600" : "#E0E0E0",
             }}
@@ -1125,11 +1124,13 @@ export default function MeetingRoomPage() {
         </div>
 
         {/* Center: meeting code */}
-        <span className="text-xs font-mono text-[#0A0A0A]/25">{meetingId.slice(0, 8)}</span>
+        <span className="hidden sm:block text-xs font-mono text-[#0A0A0A]/25">{meetingId.slice(0, 8)}</span>
 
         {/* Right: connection quality + participant count + recording indicator */}
-        <div className="flex items-center gap-2">
-          <ConnectionIndicator quality={connectionQuality} rtt={rtt} packetLoss={packetLoss} />
+        <div className="flex items-center gap-1 sm:gap-2">
+          <div className="hidden sm:block">
+            <ConnectionIndicator quality={connectionQuality} rtt={rtt} packetLoss={packetLoss} />
+          </div>
           <div className="flex items-center gap-1.5 rounded-full border border-[#0A0A0A]/15 px-3 py-1">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#0A0A0A" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="opacity-40">
               <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M23 21v-2a4 4 0 0 0-3-3.87" /><path d="M16 3.13a4 4 0 0 1 0 7.75" />
@@ -1140,6 +1141,8 @@ export default function MeetingRoomPage() {
           </div>
           {isRecording && (
             <motion.div
+              role="status"
+              aria-label="Recording in progress"
               className="flex items-center gap-1.5 rounded-full border-2 border-[#FF6B6B] bg-[#FF6B6B]/10 px-3 py-1"
               animate={{ opacity: [1, 0.5, 1] }}
               transition={{ duration: 1.5, repeat: Infinity }}

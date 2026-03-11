@@ -7,15 +7,16 @@ import type { RoomTransport } from "./types";
 export type TransportMode = "p2p" | "livekit";
 
 /**
- * Determines which transport mode to use.
+ * Determines which transport mode to use based on the *actual*
+ * number of joined participants (not the meeting's max capacity).
  *
  * - If LiveKit is not configured → always P2P.
- * - If maxParticipants >= PARTICIPANT_THRESHOLD → LiveKit.
+ * - If participantCount >= PARTICIPANT_THRESHOLD → LiveKit.
  * - Otherwise → P2P.
  */
-export function determineTransportMode(maxParticipants: number): TransportMode {
+export function determineTransportMode(participantCount: number): TransportMode {
   if (!isLiveKitConfigured()) return "p2p";
-  return maxParticipants >= PARTICIPANT_THRESHOLD ? "livekit" : "p2p";
+  return participantCount >= PARTICIPANT_THRESHOLD ? "livekit" : "p2p";
 }
 
 /**

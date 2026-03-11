@@ -42,11 +42,18 @@ function getIceServers() {
   return servers;
 }
 
-function getTransportMode(meeting: { transportMode?: string; settings: { maxParticipants: number } }): "p2p" | "livekit" {
+function getTransportMode(meeting: {
+  transportMode?: string;
+  participants: { status: string }[];
+}): "p2p" | "livekit" {
   if (meeting.transportMode === "p2p" || meeting.transportMode === "livekit") {
     return meeting.transportMode;
   }
-  return determineTransportMode(meeting.settings.maxParticipants);
+  // Use actual joined participant count, not the meeting's max capacity
+  const joinedCount = meeting.participants.filter(
+    (p) => p.status === "joined",
+  ).length;
+  return determineTransportMode(joinedCount);
 }
 
 // ── Validation ──────────────────────────────────────────────────────
