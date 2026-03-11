@@ -11,13 +11,18 @@ function getConnection(): {
   port: number;
   password?: string;
   db: number;
+  maxRetriesPerRequest: null;
+  tls?: Record<string, unknown>;
 } {
   const client = getRedisClient();
+  const useTls = (process.env.REDIS_URL || "").startsWith("rediss://");
   return {
     host: client.options.host || "localhost",
     port: client.options.port || 6379,
     password: client.options.password,
     db: client.options.db || 0,
+    maxRetriesPerRequest: null, // Required by BullMQ
+    ...(useTls ? { tls: {} } : {}), // Forward TLS for Upstash
   };
 }
 
