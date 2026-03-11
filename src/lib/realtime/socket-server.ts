@@ -22,6 +22,8 @@ import {
   type WaitingRoomActionPayload,
   type HandRaisePayload,
 } from "./socket-events";
+import connectDB from "@/lib/db/client";
+import ChatMessage from "@/lib/db/models/chat-message";
 
 /** In-memory storage for rooms and their users */
 const rooms = new Map<string, Map<string, RoomUser>>();
@@ -132,6 +134,49 @@ function addChatMessage(roomId: string, message: ChatMessagePayload): void {
   }
 }
 
+/**
+ * Persist a chat message to MongoDB (fire-and-forget).
+ * Only called for regular meetings (non-ghost rooms).
+ */
+async function persistChatMessage(
+  roomId: string,
+  message: ChatMessagePayload
+): Promise<void> {
+  await connectDB();
+  await ChatMessage.create({
+    meetingCode: roomId,
+    messageId: message.id,
+    senderId: message.senderId,
+    senderName: message.senderName,
+    content: message.content,
+    type: message.type,
+    timestamp: message.timestamp,
+  });
+}
+
+/**
+ * Load chat history from MongoDB for a regular meeting.
+ * Returns messages as ChatMessagePayload[] for socket compatibility.
+ */
+async function loadChatHistory(
+  roomId: string
+): Promise<ChatMessagePayload[]> {
+  await connectDB();
+  const docs = await ChatMessage.find({ meetingCode: roomId })
+    .sort({ timestamp: 1 })
+    .limit(MAX_CHAT_HISTORY)
+    .lean();
+  return docs.map((doc) => ({
+    id: doc.messageId,
+    roomId,
+    senderId: doc.senderId,
+    senderName: doc.senderName,
+    content: doc.content,
+    type: doc.type,
+    timestamp: doc.timestamp,
+  }));
+}
+
 /** Validate JOIN_ROOM payload */
 function isValidJoinPayload(payload: unknown): payload is JoinRoomPayload {
   if (!payload || typeof payload !== "object") return false;
@@ -167,7 +212,7 @@ export function setupSocketServer(io: SocketIOServer): void {
 
     socket.on(
       SOCKET_EVENTS.JOIN_ROOM,
-      (payload: JoinRoomPayload, callback?: (data: { users: RoomUser[] }) => void) => {
+      async (payload: JoinRoomPayload, callback?: (data: { users: RoomUser[] }) => void) => {
         // Validate payload
         if (!isValidJoinPayload(payload)) {
           console.warn(`[Socket] Invalid JOIN_ROOM payload from ${socket.id}`);
@@ -218,7 +263,21 @@ export function setupSocketServer(io: SocketIOServer): void {
         io.to(roomId).emit(SOCKET_EVENTS.ROOM_USERS, currentUsers);
 
         // Send chat history to the joining user
-        const history = chatHistory.get(roomId) || [];
+        let history = chatHistory.get(roomId) || [];
+
+        // If no in-memory history, load from DB for regular meetings
+        if (history.length === 0 && !roomId.startsWith("ghost-")) {
+          try {
+            const dbHistory = await loadChatHistory(roomId);
+            if (dbHistory.length > 0) {
+              chatHistory.set(roomId, dbHistory);
+              history = dbHistory;
+            }
+          } catch (err) {
+            console.error("[Socket] Failed to load chat history from DB:", err);
+          }
+        }
+
         socket.emit(SOCKET_EVENTS.CHAT_HISTORY, history);
 
         // Send recording status if active
@@ -441,6 +500,14 @@ export function setupSocketServer(io: SocketIOServer): void {
         };
 
         addChatMessage(mapping.roomId, message);
+
+        // Persist to MongoDB for regular (non-ghost) meetings
+        if (!mapping.roomId.startsWith("ghost-")) {
+          persistChatMessage(mapping.roomId, message).catch((err) =>
+            console.error("[Socket] Failed to persist chat message:", err)
+          );
+        }
+
         // Use socket.to() to exclude the sender (client adds it optimistically)
         socket.to(mapping.roomId).emit(SOCKET_EVENTS.CHAT_MESSAGE, message);
       }
