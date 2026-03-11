@@ -123,7 +123,7 @@ describe("withHandler", () => {
       const { ZodError } = await import("zod");
       const handler = withHandler(async () => {
         throw new ZodError([
-          { code: "invalid_type", expected: "string", received: "number", path: ["name"], message: "Expected string" },
+          { code: "invalid_type", expected: "string", path: ["name"], message: "Expected string" } as never,
         ]);
       });
       const req = createNextRequest();
