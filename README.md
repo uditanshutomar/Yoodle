@@ -19,7 +19,7 @@ Ephemeral brainstorming spaces that auto-delete after a configurable TTL. Partic
 Team collaboration spaces with provisioned cloud VMs via Vultr. Includes a browser-based SSH terminal (xterm + SSH2), member role management (owner, admin, member), and auto-shutdown settings to control costs.
 
 ### Recordings & Transcription
-Record meetings with automatic AI transcription featuring speaker identification. Generates structured meeting minutes with summaries, decisions, and action items. Files stored in Vultr Object Storage (S3-compatible).
+Record meetings with automatic AI transcription featuring speaker identification. Generates structured meeting minutes with summaries, decisions, and action items. Recordings are stored directly in each user's Google Drive.
 
 ### Google Workspace Integration
 Full read/write access to Gmail, Google Calendar, Drive, Docs, Sheets, Tasks, and Contacts through the Doodle AI assistant.
@@ -39,7 +39,7 @@ Full read/write access to Gmail, Google Calendar, Drive, Docs, Sheets, Tasks, an
 | UI | Radix UI, Framer Motion, Lucide Icons |
 | Email | Resend |
 | Cloud/VMs | Vultr Cloud Computing |
-| Storage | Vultr Object Storage (S3-compatible, AWS SDK) |
+| Storage | Google Drive (per-user recordings) |
 | Terminal | SSH2 + xterm |
 | Validation | Zod |
 
@@ -85,12 +85,6 @@ ELEVENLABS_API_KEY=your-elevenlabs-api-key
 # Cloud infrastructure (optional - needed for workspaces)
 VULTR_API_KEY=your-vultr-api-key
 VULTR_SSH_KEY_ID=your-vultr-ssh-key-id
-
-# Object storage (optional - needed for recordings)
-VULTR_OBJECT_STORAGE_HOSTNAME=your-hostname
-VULTR_OBJECT_STORAGE_ACCESS_KEY=your-access-key
-VULTR_OBJECT_STORAGE_SECRET_KEY=your-secret-key
-VULTR_OBJECT_STORAGE_BUCKET=your-bucket-name
 
 # Email (optional - falls back to console logging)
 RESEND_API_KEY=your-resend-api-key
@@ -181,9 +175,8 @@ server.ts                       # Main server entry (Next.js + Socket.io)
 - `POST /api/meetings/[id]/start` - Start recording
 
 ### Recordings & Transcription
-- `GET /api/recordings` - List recordings
-- `GET /api/recordings/[meetingId]` - Get recording for a meeting
-- `POST /api/recordings/upload-url` - Get a presigned upload URL
+- `GET /api/recordings/[meetingId]` - Get recordings for a meeting (from Google Drive)
+- `POST /api/recordings/upload` - Upload recording to Google Drive
 - `POST /api/transcription` - Process transcription with AI
 
 ### Workspaces

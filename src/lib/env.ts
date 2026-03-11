@@ -34,24 +34,6 @@ const ENV_VARS: EnvVar[] = [
   { key: "VULTR_API_KEY", required: false, description: "Vultr API key (workspace VMs)" },
   { key: "VULTR_SSH_KEY_ID", required: false, description: "Vultr SSH key ID" },
 
-  // Object Storage
-  {
-    key: "VULTR_OBJECT_STORAGE_HOSTNAME",
-    required: true,
-    description: "Vultr Object Storage hostname",
-  },
-  {
-    key: "VULTR_OBJECT_STORAGE_ACCESS_KEY",
-    required: true,
-    description: "Vultr Object Storage access key",
-  },
-  {
-    key: "VULTR_OBJECT_STORAGE_SECRET_KEY",
-    required: true,
-    description: "Vultr Object Storage secret key",
-  },
-  { key: "VULTR_OBJECT_STORAGE_BUCKET", required: true, description: "Object storage bucket name" },
-
   // Email
   { key: "RESEND_API_KEY", required: false, description: "Resend API key for emails (falls back to console logging)" },
   { key: "EMAIL_FROM", required: false, description: "Sender email address" },
