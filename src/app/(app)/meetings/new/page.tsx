@@ -59,12 +59,28 @@ export default function NewMeetingPage() {
         body.scheduledAt = new Date(scheduledAt).toISOString();
       }
 
-      const res = await fetch("/api/meetings", {
+      let res = await fetch("/api/meetings", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
         body: JSON.stringify(body),
       });
+
+      // If access token expired, try refreshing and retry once
+      if (res.status === 401) {
+        const refreshRes = await fetch("/api/auth/refresh", {
+          method: "POST",
+          credentials: "include",
+        });
+        if (refreshRes.ok) {
+          res = await fetch("/api/meetings", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            credentials: "include",
+            body: JSON.stringify(body),
+          });
+        }
+      }
 
       const data = await res.json();
       if (data.success && data.data) {

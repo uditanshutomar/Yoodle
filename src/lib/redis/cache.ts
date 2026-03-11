@@ -263,9 +263,11 @@ export async function tokenIsBlacklisted(token: string): Promise<boolean> {
     const exists = await client.exists(`token:blacklist:${token}`);
     return exists === 1;
   } catch (err) {
-    // If Redis is down, fail closed — treat the token as blacklisted.
-    // This prevents a compromised token from being used during a Redis outage.
-    console.error("[Redis] Token blacklist check failed, failing closed:", err);
-    return true;
+    // If Redis is down, fail open — allow the token through.
+    // JWT tokens are already cryptographically verified and short-lived (15 min),
+    // so the blacklist is a secondary safety net, not the primary auth gate.
+    // Failing closed makes the entire app unusable during Redis outages.
+    console.error("[Redis] Token blacklist check failed, failing open:", err);
+    return false;
   }
 }

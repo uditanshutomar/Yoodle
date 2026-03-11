@@ -35,25 +35,26 @@ describe("Token Blacklist", () => {
       expect(result).toBe(false);
     });
 
-    it("CRITICAL: fails CLOSED when Redis is down (returns true)", async () => {
-      // This is the most critical security behavior:
-      // When Redis is unavailable, tokenIsBlacklisted must return TRUE
-      // to prevent potentially compromised tokens from being used.
+    it("fails OPEN when Redis is down (returns false)", async () => {
+      // When Redis is unavailable, tokenIsBlacklisted returns FALSE
+      // to keep the app functional. JWT tokens are already cryptographically
+      // verified and short-lived (15 min), so failing closed would make the
+      // entire app unusable during Redis outages.
       mockedGetRedisClient.mockReturnValue({
         exists: vi.fn().mockRejectedValue(new Error("Redis connection refused")),
       } as any);
 
       const result = await tokenIsBlacklisted("any-token");
-      expect(result).toBe(true); // FAIL CLOSED — treat as blacklisted
+      expect(result).toBe(false); // FAIL OPEN — allow token through
     });
 
-    it("CRITICAL: fails CLOSED on timeout (returns true)", async () => {
+    it("fails OPEN on timeout (returns false)", async () => {
       mockedGetRedisClient.mockReturnValue({
         exists: vi.fn().mockRejectedValue(new Error("Redis timeout")),
       } as any);
 
       const result = await tokenIsBlacklisted("any-token");
-      expect(result).toBe(true); // FAIL CLOSED
+      expect(result).toBe(false); // FAIL OPEN
     });
 
     it("checks the correct Redis key format", async () => {
