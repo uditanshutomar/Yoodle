@@ -62,8 +62,8 @@ export default function GhostRoomsPage() {
       if (data.success && data.data) {
         router.push(`/ghost-rooms/${data.data.roomId}`);
       }
-    } catch (err) {
-      console.error(err);
+    } catch {
+      // ghost room creation failed
     } finally {
       setCreating(false);
     }

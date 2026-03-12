@@ -14,7 +14,11 @@ export interface UseMediaDevicesReturn {
   setSelectedAudioDevice: (id: string) => void;
   toggleVideo: () => void;
   toggleAudio: () => void;
-  startMedia: (video?: boolean, audio?: boolean) => Promise<void>;
+  startMedia: (
+    video?: boolean,
+    audio?: boolean,
+    deviceOverrides?: { videoDeviceId?: string; audioDeviceId?: string },
+  ) => Promise<void>;
   stopMedia: () => void;
   error: string | null;
 }
@@ -59,8 +63,8 @@ export function useMediaDevices(options?: UseMediaDevicesOptions): UseMediaDevic
       if (audio.length > 0 && !selectedAudioDevice) {
         setSelectedAudioDeviceState(audio[0].deviceId);
       }
-    } catch (err) {
-      console.error("[MediaDevices] Error enumerating devices:", err);
+    } catch {
+      // Device enumeration failed — UI will show empty device lists
     }
   }, [selectedVideoDevice, selectedAudioDevice]);
 
@@ -83,7 +87,11 @@ export function useMediaDevices(options?: UseMediaDevicesOptions): UseMediaDevic
 
   /** Start media capture with specified constraints */
   const startMedia = useCallback(
-    async (video: boolean = true, audio: boolean = true) => {
+    async (
+      video: boolean = true,
+      audio: boolean = true,
+      deviceOverrides?: { videoDeviceId?: string; audioDeviceId?: string },
+    ) => {
       try {
         setError(null);
 
@@ -95,8 +103,11 @@ export function useMediaDevices(options?: UseMediaDevicesOptions): UseMediaDevic
         const constraints: MediaStreamConstraints = {
           video: video
             ? {
-                deviceId: selectedVideoDevice
-                  ? { exact: selectedVideoDevice }
+                deviceId: (deviceOverrides?.videoDeviceId || selectedVideoDevice)
+                  ? {
+                      exact:
+                        deviceOverrides?.videoDeviceId || selectedVideoDevice,
+                    }
                   : undefined,
                 width: { ideal: 1280 },
                 height: { ideal: 720 },
@@ -105,8 +116,11 @@ export function useMediaDevices(options?: UseMediaDevicesOptions): UseMediaDevic
             : false,
           audio: audio
             ? {
-                deviceId: selectedAudioDevice
-                  ? { exact: selectedAudioDevice }
+                deviceId: (deviceOverrides?.audioDeviceId || selectedAudioDevice)
+                  ? {
+                      exact:
+                        deviceOverrides?.audioDeviceId || selectedAudioDevice,
+                    }
                   : undefined,
                 echoCancellation: true,
                 noiseSuppression: true,
@@ -145,7 +159,6 @@ export function useMediaDevices(options?: UseMediaDevicesOptions): UseMediaDevic
       } catch (err) {
         const message = getMediaErrorMessage(err);
         setError(message);
-        console.error("[MediaDevices] Error starting media:", message);
       }
     },
     [selectedVideoDevice, selectedAudioDevice, enumerateDevices]
@@ -232,7 +245,6 @@ export function useMediaDevices(options?: UseMediaDevicesOptions): UseMediaDevic
       } catch (err) {
         const message = getMediaErrorMessage(err);
         setError(message);
-        console.error("[MediaDevices] Error switching video device:", message);
       }
     },
     [] // streamRef is stable — no stale closure issue
@@ -278,7 +290,6 @@ export function useMediaDevices(options?: UseMediaDevicesOptions): UseMediaDevic
       } catch (err) {
         const message = getMediaErrorMessage(err);
         setError(message);
-        console.error("[MediaDevices] Error switching audio device:", message);
       }
     },
     [] // streamRef is stable — no stale closure issue

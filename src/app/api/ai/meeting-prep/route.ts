@@ -10,6 +10,13 @@ import Meeting from "@/lib/db/models/meeting";
 import Recording from "@/lib/db/models/recording";
 import { generateMeetingPrep } from "@/lib/ai/gemini";
 
+interface PopulatedMeeting {
+  hostId: { _id: string } | string;
+  participants: Array<{ userId: { _id: string; displayName?: string; name?: string } | string }>;
+  title: string;
+  description?: string;
+}
+
 // -- Validation ----------------------------------------------------------------
 
 const meetingPrepSchema = z.union([
@@ -52,10 +59,10 @@ export const POST = withHandler(async (req: NextRequest) => {
 
     // Verify user is a participant or host
     // After populate + lean, hostId and participants.userId are plain objects
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const meetingData = meeting as any;
+    const meetingData = meeting as unknown as PopulatedMeeting;
+    const hostId = meetingData.hostId;
     const isParticipant =
-      String(meetingData.hostId?._id || meetingData.hostId) === userId ||
+      String(typeof hostId === "object" ? hostId._id : hostId) === userId ||
       meetingData.participants.some((p: { userId: string | { _id: string } }) =>
         String(typeof p.userId === "object" ? p.userId._id : p.userId) === userId
       );

@@ -57,6 +57,10 @@ export const POST = withHandler(async (req: NextRequest) => {
     throw new ForbiddenError("You are not a participant in this meeting.");
   }
 
+  if (!meeting.settings?.allowRecording) {
+    throw new ForbiddenError("Recording is disabled for this meeting.");
+  }
+
   // Verify user has Google access
   const hasAccess = await hasGoogleAccess(userId);
   if (!hasAccess) {

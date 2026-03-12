@@ -55,8 +55,8 @@ export default function RecordingPage() {
           const data = await recordingsRes.value.json();
           setRecordings(data.data?.recordings || []);
         }
-      } catch (err) {
-        console.error("[Recording] Failed to fetch data:", err);
+      } catch {
+        // fetch failed — UI will show empty states
       } finally {
         setLoading(false);
       }

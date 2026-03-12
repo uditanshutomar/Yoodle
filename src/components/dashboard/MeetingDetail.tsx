@@ -374,7 +374,7 @@ function RecordingTab({ meeting }: { meeting: MeetingRecord }) {
             {/* Video preview */}
             <div className="rounded-2xl border-[1.5px] border-[var(--border)] bg-[var(--foreground)] overflow-hidden relative" style={{ aspectRatio: "16/9" }}>
                 {meeting.recordingUrl ? (
-                    <img src={meeting.recordingUrl} alt="Recording" className="w-full h-full object-cover opacity-80" />
+                    <Image src={meeting.recordingUrl} alt="Recording" fill className="object-cover opacity-80" sizes="(max-width: 960px) 100vw, 960px" unoptimized />
                 ) : (
                     <div className="flex items-center justify-center h-full text-white/30 text-sm">No recording preview</div>
                 )}

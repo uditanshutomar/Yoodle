@@ -1,4 +1,5 @@
 import { getGoogleServices } from "./client";
+import { tasks_v1 } from "googleapis";
 
 export interface TaskList {
   id: string;
@@ -117,15 +118,18 @@ export async function completeTask(
   return updateTask(userId, taskListId, taskId, { status: "completed" });
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function formatTask(task: any): Task {
+function formatTask(task: tasks_v1.Schema$Task): Task {
   return {
     id: task.id || "",
     title: task.title || "",
-    notes: task.notes,
-    status: task.status || "needsAction",
-    due: task.due,
-    completed: task.completed,
-    links: task.links,
+    notes: task.notes ?? undefined,
+    status: (task.status as Task["status"]) || "needsAction",
+    due: task.due ?? undefined,
+    completed: task.completed ?? undefined,
+    links: task.links?.map((l) => ({
+      type: l.type || "",
+      description: l.description || "",
+      link: l.link || "",
+    })),
   };
 }

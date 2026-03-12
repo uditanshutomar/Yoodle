@@ -44,7 +44,9 @@ export default function ChatPanel({ isOpen, onClose, messages, onSendMessage, cu
                     animate={{ x: 0, opacity: 1 }}
                     exit={{ x: 380, opacity: 0 }}
                     transition={{ type: "spring", stiffness: 200, damping: 28 }}
-                    className="chat-panel absolute right-0 top-0 bottom-0 z-30 flex w-[340px] flex-col"
+                    className="chat-panel absolute right-0 top-0 bottom-0 z-30 flex w-full sm:w-[340px] flex-col"
+                    role="complementary"
+                    aria-label="Meeting chat"
                 >
                     {/* Header */}
                     <div className="flex items-center justify-between border-b-2 border-[#0A0A0A] px-5 py-4">
@@ -58,6 +60,7 @@ export default function ChatPanel({ isOpen, onClose, messages, onSendMessage, cu
                             whileHover={{ scale: 1.1, rotate: 90 }}
                             whileTap={{ scale: 0.9 }}
                             onClick={onClose}
+                            aria-label="Close chat"
                             className="flex h-7 w-7 items-center justify-center rounded-full border-2 border-[#0A0A0A] bg-white text-[#0A0A0A] shadow-[2px_2px_0_#0A0A0A] hover:shadow-[1px_1px_0_#0A0A0A] hover:translate-x-[1px] hover:translate-y-[1px] transition-all"
                         >
                             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
@@ -68,7 +71,7 @@ export default function ChatPanel({ isOpen, onClose, messages, onSendMessage, cu
                     </div>
 
                     {/* Messages */}
-                    <div ref={scrollRef} className="chat-messages flex-1 overflow-y-auto px-4 py-3 space-y-4">
+                    <div ref={scrollRef} className="chat-messages flex-1 overflow-y-auto px-4 py-3 space-y-4" role="log" aria-live="polite">
                         {messages.length === 0 && (
                             <div className="flex items-center justify-center h-full">
                                 <p className="text-sm text-[#0A0A0A]/25 text-center">
@@ -129,6 +132,7 @@ export default function ChatPanel({ isOpen, onClose, messages, onSendMessage, cu
                                 whileHover={{ scale: 1.1 }}
                                 whileTap={{ scale: 0.9 }}
                                 onClick={handleSend}
+                                aria-label="Send message"
                                 className="flex h-8 w-8 items-center justify-center rounded-full bg-[#FFE600] border-2 border-[#0A0A0A] shadow-[2px_2px_0_#0A0A0A] hover:shadow-[1px_1px_0_#0A0A0A] transition-all"
                             >
                                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#0A0A0A" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">

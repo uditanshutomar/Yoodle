@@ -29,6 +29,8 @@ interface MeetingControlsProps {
   isHandRaised?: boolean;
   layout?: "bubbles" | "grid";
   unreadChatCount?: number;
+  canScreenShare?: boolean;
+  canRecord?: boolean;
   onToggleAudio: () => void;
   onToggleVideo: () => void;
   onToggleScreenShare: () => void;
@@ -51,6 +53,8 @@ function ControlButton({
   children,
   label,
   badge,
+  pressed,
+  disabled,
 }: {
   onClick: () => void;
   active?: boolean;
@@ -58,20 +62,29 @@ function ControlButton({
   children: React.ReactNode;
   label: string;
   badge?: boolean;
+  pressed?: boolean;
+  disabled?: boolean;
 }) {
   return (
     <motion.button
-      className={`relative h-12 w-12 rounded-full border-2 border-[#0A0A0A] flex items-center justify-center cursor-pointer transition-colors ${
+      className={`relative h-11 w-11 sm:h-12 sm:w-12 rounded-full border-2 border-[#0A0A0A] flex items-center justify-center transition-colors ${
+        disabled
+          ? "cursor-not-allowed opacity-40"
+          : "cursor-pointer"
+      } ${
         danger
           ? "bg-[#FF6B6B] text-white hover:bg-[#ff5252]"
           : active
             ? "bg-white text-[#0A0A0A] hover:bg-gray-50"
             : "bg-[#0A0A0A]/80 text-white hover:bg-[#0A0A0A]"
       }`}
-      whileHover={{ scale: 1.1, y: -2 }}
-      whileTap={{ scale: 0.9 }}
-      onClick={onClick}
+      whileHover={disabled ? undefined : { scale: 1.1, y: -2 }}
+      whileTap={disabled ? undefined : { scale: 0.9 }}
+      onClick={disabled ? undefined : onClick}
       title={label}
+      aria-label={label}
+      aria-pressed={pressed}
+      disabled={disabled}
     >
       {children}
       {badge && (
@@ -91,6 +104,8 @@ export default function MeetingControls({
   isHandRaised = false,
   layout = "bubbles",
   unreadChatCount = 0,
+  canScreenShare = true,
+  canRecord = true,
   onToggleAudio,
   onToggleVideo,
   onToggleScreenShare,
@@ -106,7 +121,7 @@ export default function MeetingControls({
   const [showReactions, setShowReactions] = useState(false);
 
   return (
-    <div className="relative flex justify-center px-4 pb-4">
+    <div className="relative flex justify-center px-2 pb-2 sm:px-4 sm:pb-4">
       {/* Emoji picker popup */}
       <AnimatePresence>
         {showReactions && (
@@ -137,7 +152,9 @@ export default function MeetingControls({
 
       {/* Control bar */}
       <motion.div
-        className="flex items-center gap-3 rounded-2xl bg-white/95 backdrop-blur-sm border-2 border-[#0A0A0A] shadow-[4px_4px_0_#0A0A0A] px-5 py-3"
+        className="flex items-center gap-1.5 sm:gap-3 rounded-2xl bg-white/95 backdrop-blur-sm border-2 border-[#0A0A0A] shadow-[3px_3px_0_#0A0A0A] sm:shadow-[4px_4px_0_#0A0A0A] px-3 py-2 sm:px-5 sm:py-3"
+        role="toolbar"
+        aria-label="Meeting controls"
         initial={{ y: 100, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
         transition={{ type: "spring", stiffness: 300, damping: 25, delay: 0.3 }}
@@ -146,7 +163,8 @@ export default function MeetingControls({
         <ControlButton
           onClick={onToggleAudio}
           active={isAudioEnabled}
-          label={isAudioEnabled ? "Mute (D)" : "Unmute (D)"}
+          label={isAudioEnabled ? "Mute microphone (D)" : "Unmute microphone (D)"}
+          pressed={isAudioEnabled}
         >
           {isAudioEnabled ? (
             <Mic size={18} />
@@ -166,6 +184,7 @@ export default function MeetingControls({
           onClick={onToggleVideo}
           active={isVideoEnabled}
           label={isVideoEnabled ? "Turn off camera (E)" : "Turn on camera (E)"}
+          pressed={isVideoEnabled}
         >
           {isVideoEnabled ? (
             <Video size={18} />
@@ -175,13 +194,21 @@ export default function MeetingControls({
         </ControlButton>
 
         {/* Divider */}
-        <div className="h-8 w-px bg-[#0A0A0A]/15 mx-1" />
+        <div className="hidden sm:block h-8 w-px bg-[#0A0A0A]/15 mx-1" />
 
         {/* Screen share */}
         <ControlButton
           onClick={onToggleScreenShare}
           active={isScreenSharing}
-          label={isScreenSharing ? "Stop sharing" : "Share screen"}
+          label={
+            canScreenShare
+              ? isScreenSharing
+                ? "Stop sharing"
+                : "Share screen"
+              : "Screen sharing disabled"
+          }
+          pressed={isScreenSharing}
+          disabled={!canScreenShare}
         >
           {isScreenSharing ? (
             <MonitorOff size={18} className="text-[#06B6D4]" />
@@ -256,7 +283,15 @@ export default function MeetingControls({
         <ControlButton
           onClick={isRecording ? onStopRecording : onStartRecording}
           active={!isRecording}
-          label={isRecording ? "Stop recording (R)" : "Start recording (R)"}
+          label={
+            canRecord
+              ? isRecording
+                ? "Stop recording (R)"
+                : "Start recording (R)"
+              : "Recording disabled"
+          }
+          pressed={isRecording}
+          disabled={!canRecord}
         >
           <Circle
             size={18}
@@ -272,7 +307,7 @@ export default function MeetingControls({
         </ControlButton>
 
         {/* Divider */}
-        <div className="h-8 w-px bg-[#0A0A0A]/15 mx-1" />
+        <div className="hidden sm:block h-8 w-px bg-[#0A0A0A]/15 mx-1" />
 
         {/* Leave call */}
         <ControlButton onClick={onLeave} danger label="Leave call">

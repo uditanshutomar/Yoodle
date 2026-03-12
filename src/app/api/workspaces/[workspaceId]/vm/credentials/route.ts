@@ -1,17 +1,14 @@
 import { NextRequest } from "next/server";
 import { withHandler } from "@/lib/api/with-handler";
-import { successResponse } from "@/lib/api/response";
 import { checkRateLimit } from "@/lib/api/rate-limit";
 import { getUserIdFromRequest } from "@/lib/auth/middleware";
 import { BadRequestError, NotFoundError, ForbiddenError } from "@/lib/api/errors";
 import connectDB from "@/lib/db/client";
 import Workspace from "@/lib/db/models/workspace";
-import { getInstance } from "@/lib/vultr/client";
-
 export const maxDuration = 30;
 
 // GET /api/workspaces/[workspaceId]/vm/credentials
-// Returns IP + root password for the workspace VM (needed for terminal SSH)
+// Legacy endpoint intentionally no longer exposes raw VM credentials.
 export const GET = withHandler(async (req: NextRequest, context) => {
   await checkRateLimit(req, "general");
   const userId = await getUserIdFromRequest(req);
@@ -31,19 +28,9 @@ export const GET = withHandler(async (req: NextRequest, context) => {
   );
   if (!isMember) throw new ForbiddenError("Not a member.");
 
-  if (!workspace.vm?.vultrInstanceId) {
-    throw new BadRequestError("No VM provisioned.");
-  }
+  void req;
 
-  const instance = await getInstance(workspace.vm.vultrInstanceId);
-
-  if (instance.status !== "active") {
-    throw new BadRequestError("VM is not running. Current status: " + instance.status);
-  }
-
-  return successResponse({
-    ip: instance.mainIp,
-    password: instance.defaultPassword,
-    status: instance.status,
-  });
+  throw new ForbiddenError(
+    "Direct VM credentials are no longer exposed. Use /api/workspaces/[workspaceId]/vm/terminal-session instead.",
+  );
 });

@@ -71,6 +71,9 @@ MONGODB_URI=mongodb://localhost:27017/yoodle
 JWT_SECRET=your-jwt-secret-minimum-64-characters-long
 # Application (required)
 NEXT_PUBLIC_APP_URL=http://localhost:3000
+NEXT_PUBLIC_REALTIME_URL=http://localhost:4001
+NEXT_PUBLIC_REALTIME_PATH=/api/socketio
+REALTIME_JWT_SECRET=use-a-separate-secret-or-reuse-jwt-secret
 
 # AI (required)
 GEMINI_API_KEY=your-gemini-api-key
@@ -94,23 +97,31 @@ EMAIL_FROM=noreply@yourdomain.com
 TURN_SERVER_URL=your-turn-server-url
 TURN_USERNAME=your-turn-username
 TURN_CREDENTIAL=your-turn-credential
+
+# Backend service (required for realtime, terminal proxying, and workers)
+BACKEND_SERVICE_PORT=4001
+BACKEND_ALLOWED_ORIGINS=http://localhost:3000
 ```
 
 ### Running the App
 
 ```bash
-# Development (Next.js + Socket.io server)
+# Development (Vercel-compatible Next.js app)
 npm run dev
+
+# Backend service (realtime, terminal proxy, workers)
+npm run dev:backend
 
 # Production build
 npm run build
 npm start
+npm run start:backend
 
 # Lint
 npm run lint
 ```
 
-The app starts at [http://localhost:3000](http://localhost:3000) with the Socket.io server integrated on the same port.
+The web app starts at [http://localhost:3000](http://localhost:3000). Realtime sockets, workspace terminal proxying, and background jobs run in the separate backend service.
 
 ## Project Structure
 

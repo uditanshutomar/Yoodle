@@ -181,8 +181,8 @@ export function useRecording(
           isRecording: true,
         });
       }
-    } catch (err) {
-      console.error("[Recording] Failed to start:", err);
+    } catch {
+      // Recording start failed — UI state remains isRecording=false
     }
   }, [meetingId, remoteStreams, socket, speechSegmentsRef]);
 

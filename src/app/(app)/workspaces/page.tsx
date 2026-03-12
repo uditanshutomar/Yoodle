@@ -59,8 +59,8 @@ export default function WorkspacesPage() {
       if (data.success && data.data) {
         router.push(`/workspaces/${data.data._id}`);
       }
-    } catch (err) {
-      console.error(err);
+    } catch {
+      // workspace creation failed
     } finally {
       setCreating(false);
     }

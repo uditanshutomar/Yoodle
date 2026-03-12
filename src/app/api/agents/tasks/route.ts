@@ -11,6 +11,7 @@ import Agent from "@/lib/db/models/agent";
 import AgentTask from "@/lib/db/models/agent-task";
 import { createTask as createGoogleTask } from "@/lib/google/tasks";
 import { hasGoogleAccess } from "@/lib/google/client";
+import { withRetry, isTransientError } from "@/lib/utils/retry";
 
 const createTaskSchema = z.object({
   title: z.string().min(1).max(500),
@@ -134,11 +135,14 @@ export const POST = withHandler(async (req: NextRequest) => {
     const hasAccess = await hasGoogleAccess(userId);
     if (hasAccess) {
       try {
-        const googleTask = await createGoogleTask(userId, "@default", {
-          title: body.title,
-          notes: body.description,
-          due: body.dueDate,
-        });
+        const googleTask = await withRetry(
+          () => createGoogleTask(userId, "@default", {
+            title: body.title,
+            notes: body.description,
+            due: body.dueDate,
+          }),
+          { retryOn: isTransientError }
+        );
         taskData.googleTaskId = googleTask.id;
         taskData.googleTaskListId = "@default";
       } catch (err) {

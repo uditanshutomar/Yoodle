@@ -172,3 +172,20 @@
   box-shadow: 2px 2px 0 #0A0A0A;
   transform: translate(2px, 2px);
 }
+
+/* Mobile safe-area and responsive adjustments */
+@supports (padding-bottom: env(safe-area-inset-bottom)) {
+  .meeting-root {
+    padding-bottom: env(safe-area-inset-bottom, 0);
+  }
+}
+
+@media (max-width: 639px) {
+  .controls-bar {
+    box-shadow: 3px 3px 0 #0A0A0A;
+  }
+  .chat-panel {
+    border-left: none;
+    box-shadow: none;
+  }
+}

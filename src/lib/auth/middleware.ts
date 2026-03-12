@@ -1,3 +1,4 @@
+import { NextRequest } from "next/server";
 import { verifyAccessToken } from "@/lib/auth/jwt";
 import { tokenIsBlacklisted } from "@/lib/redis/cache";
 import { UnauthorizedError } from "@/lib/api/errors";
@@ -25,8 +26,7 @@ export async function authenticateRequest(
 
   // 2. Try NextRequest cookies API (available in Next.js API routes)
   if (!token && "cookies" in request) {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const cookieVal = (request as any).cookies?.get?.("yoodle-access-token");
+    const cookieVal = (request as NextRequest).cookies.get("yoodle-access-token");
     if (cookieVal?.value) {
       token = cookieVal.value;
     }

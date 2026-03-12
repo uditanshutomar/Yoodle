@@ -9,6 +9,7 @@ import BubbleLayout from "@/components/meeting/BubbleLayout";
 import GridLayout from "@/components/meeting/GridLayout";
 import MeetingControls from "@/components/meeting/MeetingControls";
 import ConnectionIndicator from "@/components/meeting/ConnectionIndicator";
+import LoadingSpinner from "@/components/ui/LoadingSpinner";
 import type { WaitingUser } from "@/components/meeting/WaitingRoomPanel";
 
 const ChatPanel = dynamic(() => import("@/components/meeting/ChatPanel"), { ssr: false });
@@ -46,6 +47,12 @@ import {
   type WaitingRoomActionPayload,
   type HandRaisePayload,
 } from "@/lib/realtime/socket-events";
+import {
+  clearRoomJoinSession,
+  loadRoomJoinSession,
+  saveRoomJoinSession,
+  type RoomJoinSession,
+} from "@/lib/meetings/room-session";
 
 // ── Types ──────────────────────────────────────────────────────────────
 
@@ -79,6 +86,7 @@ export default function MeetingRoomPage() {
   const meetingId = params.meetingId as string;
   const { user } = useAuth();
   const { socket, isConnected } = useSocket();
+  const [roomSession, setRoomSession] = useState<RoomJoinSession | null>(null);
 
   // ── Bug #6 fix: media error state ──────────────────────────────────
   const [mediaError, setMediaError] = useState<string | null>(null);
@@ -115,26 +123,17 @@ export default function MeetingRoomPage() {
   // ── Transport mode ─────────────────────────────────────────────────
   const [transportMode, setTransportMode] = useState<"p2p" | "livekit">("p2p");
 
-  // ── Lobby bypass guard ─────────────────────────────────────────────
+  // ── Room session bootstrap ────────────────────────────────────────
   useEffect(() => {
-    const lobbyPassed = sessionStorage.getItem("yoodle-lobby-passed");
-    if (lobbyPassed !== meetingId) {
+    const session = loadRoomJoinSession(meetingId);
+    if (!session) {
       router.push(`/meetings/${meetingId}`);
       return;
     }
 
-    // Read transport mode set by the lobby page after the join API response
-    const storedMode = sessionStorage.getItem("yoodle-transport-mode");
-    if (storedMode === "p2p" || storedMode === "livekit") {
-      setTransportMode(storedMode);
-    }
-
-    // Read host ID for host controls
-    const storedHostId = sessionStorage.getItem("yoodle-host-id");
-    if (storedHostId && user?.id === storedHostId) {
-      setIsLocalHost(true);
-    }
-  }, [meetingId, router, user?.id]);
+    setRoomSession(session);
+    setTransportMode(session.transportMode);
+  }, [meetingId, router]);
 
   // ── UI state ─────────────────────────────────────────────────────────
   const [showChat, setShowChat] = useState(false);
@@ -188,12 +187,18 @@ export default function MeetingRoomPage() {
         avatar: user.avatar || undefined,
       }
     : { id: "local", name: "You", displayName: "You", avatar: undefined };
+  const canRecord = roomSession?.permissions.allowRecording ?? false;
+  const canScreenShare = roomSession?.permissions.allowScreenShare ?? true;
+
+  useEffect(() => {
+    if (!roomSession || !user) return;
+    setIsLocalHost(user.id === roomSession.hostUserId);
+  }, [roomSession, user]);
 
   // ── LiveKit transport (only active when mode is "livekit") ────────
   const {
     remoteStreams: livekitRemoteStreams,
     remoteParticipants: livekitRemoteParticipants,
-    connectionState: livekitConnectionState,
     error: livekitError,
   } = useTransport({
     meetingId,
@@ -215,9 +220,14 @@ export default function MeetingRoomPage() {
     if (livekitError && transportMode === "livekit") {
       console.warn("[transport] LiveKit failed, falling back to P2P:", livekitError);
       setTransportMode("p2p");
-      sessionStorage.setItem("yoodle-transport-mode", "p2p");
+      setRoomSession((prev) => {
+        if (!prev) return prev;
+        const nextSession = { ...prev, transportMode: "p2p" as const };
+        saveRoomJoinSession(meetingId, nextSession);
+        return nextSession;
+      });
     }
-  }, [livekitError, transportMode]);
+  }, [livekitError, meetingId, transportMode]);
 
   // ── Chat hook ──────────────────────────────────────────────────────
   const {
@@ -486,9 +496,17 @@ export default function MeetingRoomPage() {
 
   useEffect(() => {
     if (mediaStartedRef.current) return;
+    if (!roomSession) return;
     mediaStartedRef.current = true;
 
-    startMedia(true, true).catch((err) => {
+    startMedia(
+      roomSession.media.videoEnabled,
+      roomSession.media.audioEnabled,
+      {
+        videoDeviceId: roomSession.media.videoDeviceId,
+        audioDeviceId: roomSession.media.audioDeviceId,
+      },
+    ).catch((err) => {
       setMediaError(
         err instanceof Error
           ? err.message
@@ -500,12 +518,12 @@ export default function MeetingRoomPage() {
     getIceServers().then((servers) => {
       iceServersRef.current = servers;
     });
-  }, [startMedia]);
+  }, [roomSession, startMedia]);
 
   // ── Socket event setup (handles initial join AND reconnection) ──────
 
   useEffect(() => {
-    if (!socket || !isConnected || !user) return;
+    if (!socket || !isConnected || !user || !roomSession) return;
 
     const roomUser = {
       id: user.id,
@@ -515,14 +533,20 @@ export default function MeetingRoomPage() {
     };
 
     if (!joinedRef.current) {
-      socket.emit(SOCKET_EVENTS.JOIN_ROOM, { roomId: meetingId, user: roomUser });
+      socket.emit(SOCKET_EVENTS.JOIN_ROOM, {
+        roomId: roomSession.roomId,
+        user: roomUser,
+      });
       joinedRef.current = true;
     } else {
       peersRef.current.forEach((peer) => peer.connection.close());
       peersRef.current.clear();
       setRemoteParticipants([]);
       syncStreams();
-      socket.emit(SOCKET_EVENTS.JOIN_ROOM, { roomId: meetingId, user: roomUser });
+      socket.emit(SOCKET_EVENTS.JOIN_ROOM, {
+        roomId: roomSession.roomId,
+        user: roomUser,
+      });
     }
 
     // ── Event handlers ──────────────────────────────────────────────
@@ -711,6 +735,7 @@ export default function MeetingRoomPage() {
 
       screenStreamRef.current?.getTracks().forEach((t) => t.stop());
       stopMedia();
+      clearRoomJoinSession(meetingId);
 
       router.push("/meetings?kicked=true");
     };
@@ -782,8 +807,22 @@ export default function MeetingRoomPage() {
       socket.io.off("reconnect_attempt", handleReconnectAttempt);
       socket.io.off("reconnect_failed", handleDisconnect);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [socket, isConnected, user]);
+  }, [
+    socket,
+    isConnected,
+    user,
+    roomSession,
+    syncStreams,
+    createOffer,
+    createPeerConnection,
+    processPendingCandidates,
+    cleanupPeer,
+    toggleAudio,
+    stopMedia,
+    router,
+    meetingId,
+    isLocalHost,
+  ]);
 
   // ── Broadcast media state on toggle ──────────────────────────────
 
@@ -800,7 +839,7 @@ export default function MeetingRoomPage() {
 
   const replaceVideoTrackInPeers = useCallback(async (newTrack: MediaStreamTrack) => {
     const replacePromises: Promise<void>[] = [];
-    peersRef.current.forEach((peer, peerId) => {
+    peersRef.current.forEach((peer) => {
       const sender = peer.connection
         .getSenders()
         .find((s) => s.track?.kind === "video");
@@ -816,6 +855,11 @@ export default function MeetingRoomPage() {
   }, []);
 
   const handleToggleScreenShare = useCallback(async () => {
+    if (!canScreenShare) {
+      setMediaError("Screen sharing is disabled for this meeting.");
+      return;
+    }
+
     if (isScreenSharing) {
       screenStreamRef.current?.getTracks().forEach((t) => t.stop());
       screenStreamRef.current = null;
@@ -867,7 +911,7 @@ export default function MeetingRoomPage() {
         }
       }
     }
-  }, [isScreenSharing, replaceVideoTrackInPeers, socket, user]);
+  }, [canScreenShare, isScreenSharing, replaceVideoTrackInPeers, socket, user]);
 
   // ── Reactions ────────────────────────────────────────────────────
 
@@ -986,6 +1030,7 @@ export default function MeetingRoomPage() {
     }
 
     stopMedia();
+    clearRoomJoinSession(meetingId);
 
     try {
       await fetch(`/api/meetings/${meetingId}/leave`, {
@@ -998,6 +1043,15 @@ export default function MeetingRoomPage() {
 
     router.push("/meetings");
   }, [meetingId, router, stopMedia, socket, isRecording, handleStopRecording]);
+
+  const handleStartRecordingClick = useCallback(() => {
+    if (!canRecord) {
+      setMediaError("Recording is disabled for this meeting.");
+      return;
+    }
+
+    handleStartRecording();
+  }, [canRecord, handleStartRecording]);
 
   // ── Keyboard shortcuts ────────────────────────────────────────────
 
@@ -1013,7 +1067,7 @@ export default function MeetingRoomPage() {
       setShowChat(false);
     },
     toggleLayout: handleToggleLayout,
-    toggleRecording: isRecording ? handleStopRecording : handleStartRecording,
+    toggleRecording: isRecording ? handleStopRecording : handleStartRecordingClick,
     toggleHandRaise: handleToggleHandRaise,
     leaveCall: handleEndCall,
   });
@@ -1060,6 +1114,14 @@ export default function MeetingRoomPage() {
 
   // ── Render ───────────────────────────────────────────────────────
 
+  if (!roomSession) {
+    return (
+      <div className="flex min-h-screen items-center justify-center">
+        <LoadingSpinner />
+      </div>
+    );
+  }
+
   return (
     <div className="meeting-root z-50 flex flex-col" aria-label="Meeting room">
       {/* Doodle decorations */}
@@ -1082,7 +1144,15 @@ export default function MeetingRoomPage() {
             className="ml-auto text-xs underline hover:no-underline cursor-pointer"
             onClick={() => {
               setMediaError(null);
-              startMedia(true, true).catch(() => {});
+              if (!roomSession) return;
+              startMedia(
+                roomSession.media.videoEnabled,
+                roomSession.media.audioEnabled,
+                {
+                  videoDeviceId: roomSession.media.videoDeviceId,
+                  audioDeviceId: roomSession.media.audioDeviceId,
+                },
+              ).catch(() => {});
             }}
           >
             Retry
@@ -1224,7 +1294,7 @@ export default function MeetingRoomPage() {
                   isVideoEnabled: p.isVideoEnabled,
                   isAudioEnabled: p.isAudioEnabled,
                   isScreenSharing: p.isScreenSharing,
-                  isHost: p.id === (sessionStorage.getItem("yoodle-host-id") || localUser.id),
+                  isHost: p.id === (roomSession?.hostUserId || localUser.id),
                   isHandRaised: p.isHandRaised,
                 }))}
                 speakingPeers={speakingPeers}
@@ -1306,6 +1376,7 @@ export default function MeetingRoomPage() {
         onToggleVideo={toggleVideo}
         onToggleAudio={toggleAudio}
         onToggleScreenShare={handleToggleScreenShare}
+        canScreenShare={canScreenShare}
         onToggleChat={() => {
           setShowChat(!showChat);
           setShowParticipants(false);
@@ -1314,8 +1385,9 @@ export default function MeetingRoomPage() {
           setShowParticipants(!showParticipants);
           setShowChat(false);
         }}
-        onStartRecording={handleStartRecording}
+        onStartRecording={handleStartRecordingClick}
         onStopRecording={handleStopRecording}
+        canRecord={canRecord}
         onReaction={handleReaction}
         onLeave={handleEndCall}
         onToggleHandRaise={handleToggleHandRaise}

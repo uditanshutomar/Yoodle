@@ -1,4 +1,5 @@
 import { getGoogleServices } from "./client";
+import { calendar_v3 } from "googleapis";
 
 export interface CalendarEvent {
   id: string;
@@ -187,32 +188,29 @@ export async function getFreeBusy(
   }));
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function formatEvent(event: any): CalendarEvent {
+function formatEvent(event: calendar_v3.Schema$Event): CalendarEvent {
   return {
     id: event.id || "",
     title: event.summary || "",
     description: event.description || "",
     start: event.start?.dateTime || event.start?.date || "",
     end: event.end?.dateTime || event.end?.date || "",
-    location: event.location,
-    attendees: (event.attendees || []).map(
-      (a: { email?: string; displayName?: string; responseStatus?: string }) => ({
-        email: a.email || "",
-        name: a.displayName,
-        responseStatus: a.responseStatus,
-      })
-    ),
+    location: event.location ?? undefined,
+    attendees: (event.attendees || []).map((a) => ({
+      email: a.email || "",
+      name: a.displayName ?? undefined,
+      responseStatus: a.responseStatus ?? undefined,
+    })),
     meetLink:
       event.conferenceData?.entryPoints?.find(
-        (ep: { entryPointType?: string }) => ep.entryPointType === "video"
-      )?.uri || event.hangoutLink,
-    htmlLink: event.htmlLink,
+        (ep) => ep.entryPointType === "video"
+      )?.uri ?? event.hangoutLink ?? undefined,
+    htmlLink: event.htmlLink ?? undefined,
     status: event.status || "confirmed",
     organizer: event.organizer
       ? {
           email: event.organizer.email || "",
-          displayName: event.organizer.displayName,
+          displayName: event.organizer.displayName ?? undefined,
         }
       : undefined,
   };

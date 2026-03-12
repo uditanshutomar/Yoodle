@@ -110,8 +110,9 @@ export class ElevenLabsSTTProvider implements STTProvider {
 
   async transcribe(
     audio: Buffer | ArrayBuffer,
-    _options?: { language?: string },
+    options?: { language?: string },
   ): Promise<TranscriptResult> {
+    void options;
     const buffer = toBuffer(audio);
     const data = await callTranscriptionAPI(buffer);
 

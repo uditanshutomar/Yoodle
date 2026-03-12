@@ -1,4 +1,5 @@
 import { getGoogleServices } from "./client";
+import { people_v1 } from "googleapis";
 
 export interface Contact {
   resourceName: string;
@@ -27,7 +28,7 @@ export async function listContacts(
 
     return (res.data.results || [])
       .map((r) => r.person)
-      .filter(Boolean)
+      .filter((p): p is people_v1.Schema$Person => Boolean(p))
       .map(formatContact);
   }
 
@@ -52,17 +53,16 @@ export async function searchContacts(
   return listContacts(userId, { query, maxResults });
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function formatContact(person: any): Contact {
+function formatContact(person: people_v1.Schema$Person): Contact {
   return {
     resourceName: person.resourceName || "",
     name:
       person.names?.[0]?.displayName ||
       person.emailAddresses?.[0]?.value ||
       "Unknown",
-    email: person.emailAddresses?.[0]?.value,
-    phone: person.phoneNumbers?.[0]?.value,
-    organization: person.organizations?.[0]?.name,
-    photoUrl: person.photos?.[0]?.url,
+    email: person.emailAddresses?.[0]?.value ?? undefined,
+    phone: person.phoneNumbers?.[0]?.value ?? undefined,
+    organization: person.organizations?.[0]?.name ?? undefined,
+    photoUrl: person.photos?.[0]?.url ?? undefined,
   };
 }

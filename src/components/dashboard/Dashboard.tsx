@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import Image from "next/image";
 import CalendarPanel from "./CalendarPanel";
 import TasksPanel from "./TasksPanel";
 import MeetingHistory from "./MeetingHistory";
@@ -205,11 +206,11 @@ export default function Dashboard() {
                     className={`flex items-center justify-center rounded-full bg-[#FFE600] border-2 border-[var(--border-strong)] shadow-[3px_3px_0_var(--border-strong)] flex-shrink-0 overflow-hidden ${!showMascotChat ? "w-[68px] h-[68px]" : "w-10 h-10"}`}
                 >
                     {mode === "lockin" ? (
-                        <img src="/mascot-lockin.png" alt="Lock in mascot" className="h-full w-full object-cover" />
+                        <Image src="/mascot-lockin.png" alt="Lock in mascot" width={68} height={68} className="h-full w-full object-cover" />
                     ) : mode === "invisible" ? (
-                        <img src="/mascot-invisible.png" alt="Invisible mascot" className="h-full w-full object-cover" />
+                        <Image src="/mascot-invisible.png" alt="Invisible mascot" width={68} height={68} className="h-full w-full object-cover" />
                     ) : (
-                        <img src="/mascot-social.png" alt="Social mascot" className="h-full w-full object-cover" />
+                        <Image src="/mascot-social.png" alt="Social mascot" width={68} height={68} className="h-full w-full object-cover" />
                     )}
                 </motion.button>
 

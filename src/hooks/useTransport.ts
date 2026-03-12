@@ -42,6 +42,14 @@ export function useTransport({
   user,
   enabled,
 }: UseTransportOptions): UseTransportReturn {
+  const {
+    id: userId,
+    name: userName,
+    avatar: userAvatar,
+    isAudioEnabled: userAudioEnabled,
+    isVideoEnabled: userVideoEnabled,
+    isScreenSharing: userScreenSharing,
+  } = user;
   const [transport, setTransport] = useState<RoomTransport | null>(null);
   const [connectionState, setConnectionState] =
     useState<ConnectionState>("disconnected");
@@ -76,8 +84,8 @@ export function useTransport({
           credentials: "include",
           body: JSON.stringify({
             roomId: meetingId,
-            identity: user.id,
-            name: user.name,
+            identity: userId,
+            name: userName,
           }),
         });
 
@@ -125,7 +133,14 @@ export function useTransport({
         });
 
         // 4. Join the room
-        await t.join(meetingId, localStream!, user);
+        await t.join(meetingId, localStream!, {
+          id: userId,
+          name: userName,
+          avatar: userAvatar,
+          isAudioEnabled: userAudioEnabled,
+          isVideoEnabled: userVideoEnabled,
+          isScreenSharing: userScreenSharing,
+        });
 
         if (cancelled) {
           t.leave();
@@ -155,7 +170,19 @@ export function useTransport({
         setConnectionState("disconnected");
       }
     };
-  }, [mode, enabled, localStream, meetingId, user.id, user.name, user.avatar, updateRemoteState]);
+  }, [
+    mode,
+    enabled,
+    localStream,
+    meetingId,
+    userId,
+    userName,
+    userAvatar,
+    userAudioEnabled,
+    userVideoEnabled,
+    userScreenSharing,
+    updateRemoteState,
+  ]);
 
   // For P2P mode, return null transport — the room page handles it
   if (mode === "p2p") {

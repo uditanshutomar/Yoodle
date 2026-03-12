@@ -29,8 +29,7 @@ export default function MeetingHistory({
                 const apiMeetings: APIMeeting[] = data.data || [];
                 const records = apiMeetings.map(apiMeetingToRecord);
                 setMeetings(records);
-            } catch (err) {
-                console.error("Failed to fetch meetings:", err);
+            } catch {
                 if (!cancelled) setError(true);
             } finally {
                 if (!cancelled) setLoading(false);

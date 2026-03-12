@@ -13,6 +13,16 @@ import AIMemory from "@/lib/db/models/ai-memory";
 import { chatWithAssistant } from "@/lib/ai/gemini";
 import { buildWorkspaceContext } from "@/lib/google/workspace-context";
 
+interface ChannelMessage {
+  _id?: { toString(): string };
+  fromAgentId: { toString(): string };
+  fromUserId: { toString(): string };
+  fromUserName: string;
+  content: string;
+  type: string;
+  timestamp: Date;
+}
+
 const messageSchema = z.object({
   message: z.string().min(1, "Message is required.").max(5000),
 });
@@ -63,8 +73,7 @@ export const GET = withHandler(async (req: NextRequest, context) => {
       userName: p.userName,
       userEmail: p.userEmail,
     })),
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    messages: channel.messages.map((m: any) => ({
+    messages: channel.messages.map((m: ChannelMessage) => ({
       id: m._id?.toString(),
       fromAgentId: m.fromAgentId.toString(),
       fromUserId: m.fromUserId.toString(),

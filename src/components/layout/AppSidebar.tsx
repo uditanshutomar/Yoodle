@@ -57,7 +57,7 @@ export default function AppSidebar() {
       </div>
 
       {/* Navigation */}
-      <nav className="flex-1 px-3 py-4 space-y-1">
+      <nav className="flex-1 px-3 py-4 space-y-1" aria-label="Main navigation">
         {navItems.map((item) => {
           const active = isActive(item.href);
           return (
@@ -65,6 +65,7 @@ export default function AppSidebar() {
               key={item.href}
               href={item.href}
               onClick={() => setMobileOpen(false)}
+              aria-current={active ? "page" : undefined}
               className={`group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm transition-all ${
                 active
                   ? "bg-[#FFE600]/20 text-[var(--text-primary)] font-bold"
@@ -129,13 +130,14 @@ export default function AppSidebar() {
       {/* Mobile hamburger */}
       <button
         onClick={() => setMobileOpen(true)}
+        aria-label="Open navigation menu"
         className="fixed top-4 left-4 z-50 flex h-10 w-10 items-center justify-center rounded-xl bg-[var(--surface)] border-2 border-[var(--border-strong)] shadow-[var(--shadow-card)] lg:hidden cursor-pointer"
       >
         <Menu size={18} className="text-[var(--text-primary)]" />
       </button>
 
       {/* Desktop sidebar */}
-      <aside className="hidden lg:flex lg:flex-col lg:w-64 lg:shrink-0 h-screen bg-[var(--surface)] border-r-2 border-[var(--border)] sticky top-0">
+      <aside className="hidden lg:flex lg:flex-col lg:w-64 lg:shrink-0 h-screen bg-[var(--surface)] border-r-2 border-[var(--border)] sticky top-0" role="navigation" aria-label="Main navigation">
         {sidebarContent}
       </aside>
 
@@ -151,6 +153,8 @@ export default function AppSidebar() {
               onClick={() => setMobileOpen(false)}
             />
             <motion.aside
+              role="navigation"
+              aria-label="Main navigation"
               className="fixed left-0 top-0 z-50 h-full w-72 bg-[var(--surface)] border-r-2 border-[var(--border-strong)] shadow-[6px_0_0_rgba(0,0,0,0.3)] lg:hidden"
               initial={{ x: "-100%" }}
               animate={{ x: 0 }}
@@ -159,6 +163,7 @@ export default function AppSidebar() {
             >
               <button
                 onClick={() => setMobileOpen(false)}
+                aria-label="Close navigation menu"
                 className="absolute top-4 right-4 rounded-lg p-1.5 text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors cursor-pointer"
               >
                 <X size={18} />

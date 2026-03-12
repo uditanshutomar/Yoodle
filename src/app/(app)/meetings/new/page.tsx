@@ -239,6 +239,7 @@ export default function NewMeetingPage() {
               if (titleError) setTitleError("");
             }}
             error={titleError}
+            aria-required="true"
           />
 
           <div>
@@ -337,6 +338,7 @@ export default function NewMeetingPage() {
       {/* Error banner — prominent, above the button */}
       {error && (
         <motion.div
+          role="alert"
           initial={{ opacity: 0, y: -10 }}
           animate={{ opacity: 1, y: 0 }}
           className="bg-[#FF6B6B]/10 border-2 border-[#FF6B6B] rounded-xl px-4 py-3 text-center"

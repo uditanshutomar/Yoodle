@@ -1,4 +1,5 @@
 import { getGoogleServices } from "./client";
+import { docs_v1 } from "googleapis";
 
 export interface DocContent {
   title: string;
@@ -89,8 +90,7 @@ export async function replaceTextInDoc(
 /**
  * Extract plain text from a Google Docs document object.
  */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function extractTextFromDoc(doc: any): string {
+function extractTextFromDoc(doc: docs_v1.Schema$Document): string {
   const content = doc.body?.content || [];
   let text = "";
 

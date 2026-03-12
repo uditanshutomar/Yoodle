@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAuth } from "@/hooks/useAuth";
 
@@ -111,8 +111,8 @@ export default function TasksPanel() {
         return new Date(due) < new Date(new Date().toDateString());
     };
 
-    const pendingTasks = tasks.filter((t) => t.status === "needsAction");
-    const completedTasks = tasks.filter((t) => t.status === "completed");
+    const pendingTasks = useMemo(() => tasks.filter((t) => t.status === "needsAction"), [tasks]);
+    const completedTasks = useMemo(() => tasks.filter((t) => t.status === "completed"), [tasks]);
 
     /* ── Loading skeleton ── */
     if (loading) {

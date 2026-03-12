@@ -2,8 +2,9 @@
   "extends": "./tsconfig.json",
   "compilerOptions": {
     "module": "commonjs",
+    "moduleResolution": "node",
     "outDir": "./dist",
     "noEmit": false
   },
-  "include": ["server.ts", "src/lib/realtime/**/*"]
+  "include": ["server.ts", "backend-service.ts", "src/lib/realtime/**/*", "src/lib/jobs/**/*"]
 }

@@ -11,7 +11,12 @@ interface PreJoinLobbyProps {
   meetingTitle: string;
   meetingCode: string;
   participantCount: number;
-  onJoin: (settings: { video: boolean; audio: boolean }) => void;
+  onJoin: (settings: {
+    video: boolean;
+    audio: boolean;
+    videoDeviceId?: string;
+    audioDeviceId?: string;
+  }) => void;
 }
 
 export default function PreJoinLobby({
@@ -70,7 +75,12 @@ export default function PreJoinLobby({
 
   const handleJoin = () => {
     setJoining(true);
-    onJoin({ video: isVideoEnabled, audio: isAudioEnabled });
+    onJoin({
+      video: isVideoEnabled,
+      audio: isAudioEnabled,
+      videoDeviceId: selectedVideoDevice || undefined,
+      audioDeviceId: selectedAudioDevice || undefined,
+    });
   };
 
   return (

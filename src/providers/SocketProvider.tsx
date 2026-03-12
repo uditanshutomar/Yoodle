@@ -31,7 +31,7 @@ export default function SocketProvider({ children }: SocketProviderProps) {
   const socketRef = useRef<Socket | null>(null);
   const mountedRef = useRef(true);
 
-  const createSocket = useCallback(() => {
+  const createSocket = useCallback(async () => {
     // Guard against SSR
     if (typeof window === "undefined") return;
 
@@ -43,11 +43,33 @@ export default function SocketProvider({ children }: SocketProviderProps) {
 
     setConnectionStatus("connecting");
 
-    // Always connect to the embedded signaling server (same origin).
-    // The standalone server/index.ts is deprecated — all signaling is
-    // handled by the custom Next.js server (server.ts) on /api/socketio.
-    const socketInstance = io({
-      path: "/api/socketio",
+    let session;
+    try {
+      const res = await fetch("/api/realtime/session", {
+        credentials: "include",
+      });
+
+      if (!res.ok) {
+        throw new Error("Failed to create realtime session.");
+      }
+
+      const json = await res.json();
+      session = json.data as {
+        url: string;
+        path: string;
+        token: string;
+      };
+    } catch {
+      if (!mountedRef.current) return;
+      setConnectionStatus("error");
+      setSocket(null);
+      return;
+    }
+
+    if (!mountedRef.current) return;
+
+    const socketInstance = io(session.url, {
+      path: session.path,
       transports: ["websocket", "polling"],
       reconnection: true,
       reconnectionAttempts: 10,
@@ -55,6 +77,9 @@ export default function SocketProvider({ children }: SocketProviderProps) {
       reconnectionDelayMax: 10000,
       timeout: 20000,
       autoConnect: true,
+      auth: {
+        token: session.token,
+      },
     });
 
     socketInstance.on("connect", () => {
@@ -97,7 +122,9 @@ export default function SocketProvider({ children }: SocketProviderProps) {
   useEffect(() => {
     mountedRef.current = true;
     // Defer socket creation to avoid synchronous setState in effect
-    const timer = setTimeout(() => createSocket(), 0);
+    const timer = setTimeout(() => {
+      void createSocket();
+    }, 0);
 
     return () => {
       clearTimeout(timer);
@@ -111,7 +138,7 @@ export default function SocketProvider({ children }: SocketProviderProps) {
   }, []);
 
   const reconnect = useCallback(() => {
-    createSocket();
+    void createSocket();
   }, [createSocket]);
 
   const isConnected = connectionStatus === "connected";

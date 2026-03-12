@@ -68,7 +68,8 @@ Powered by Gemini API. Has access to files, mails, tasks, messages.
 - Socket.io client (real-time)
 
 ### Backend
-- Next.js API routes + separate WebSocket server
+- Next.js API routes on the web app
+- Separate always-on backend service for WebSocket/realtime, terminal proxying, and background jobs
 - MongoDB Atlas (via Mongoose)
 - WebRTC signaling server
 - Gemini API integration

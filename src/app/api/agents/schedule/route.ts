@@ -10,6 +10,7 @@ import Agent from "@/lib/db/models/agent";
 import AgentTask from "@/lib/db/models/agent-task";
 import { getFreeBusy, createEvent } from "@/lib/google/calendar";
 import { hasGoogleAccess } from "@/lib/google/client";
+import { withRetry, isTransientError } from "@/lib/utils/retry";
 import { suggestSchedule } from "@/lib/ai/agent-services";
 
 const scheduleSchema = z.object({
@@ -45,8 +46,7 @@ export const POST = withHandler(async (req: NextRequest) => {
   }
 
   // Get tasks to schedule
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const taskFilter: any = {
+  const taskFilter: Record<string, unknown> = {
     userId,
     status: { $in: ["pending", "in_progress"] },
   };
@@ -70,7 +70,7 @@ export const POST = withHandler(async (req: NextRequest) => {
     body.toDate ||
     new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000).toISOString();
 
-  const freeBusyResult = await getFreeBusy(userId, fromDate, toDate);
+  const freeBusyResult = await withRetry(() => getFreeBusy(userId, fromDate, toDate), { retryOn: isTransientError });
   const busyBlocks = freeBusyResult.flatMap((cal) => cal.busy);
 
   // Get AI scheduling suggestions
@@ -97,12 +97,15 @@ export const POST = withHandler(async (req: NextRequest) => {
       if (!bestSlot) continue;
 
       try {
-        const event = await createEvent(userId, {
-          title: `[Focus] ${suggestion.taskTitle}`,
-          description: `Scheduled by Doodle for focused work.\nPriority: ${suggestion.priority}\nEstimated: ${suggestion.estimatedMinutes} minutes`,
-          start: bestSlot.start,
-          end: bestSlot.end,
-        });
+        const event = await withRetry(
+          () => createEvent(userId, {
+            title: `[Focus] ${suggestion.taskTitle}`,
+            description: `Scheduled by Doodle for focused work.\nPriority: ${suggestion.priority}\nEstimated: ${suggestion.estimatedMinutes} minutes`,
+            start: bestSlot.start,
+            end: bestSlot.end,
+          }),
+          { retryOn: isTransientError }
+        );
 
         scheduledEvents.push({
           taskTitle: suggestion.taskTitle,

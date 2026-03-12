@@ -9,6 +9,7 @@ import { BadRequestError, NotFoundError } from "@/lib/api/errors";
 import connectDB from "@/lib/db/client";
 import Meeting from "@/lib/db/models/meeting";
 import { determineTransportMode } from "@/lib/transport/transport-factory";
+import { waitingConsumeAdmission } from "@/lib/redis/cache";
 
 // ── Helpers ─────────────────────────────────────────────────────────
 
@@ -56,9 +57,72 @@ function getTransportMode(meeting: {
   return determineTransportMode(joinedCount);
 }
 
+function getHostUserId(meeting: { hostId: unknown }): string {
+  const hostId = meeting.hostId as
+    | string
+    | mongoose.Types.ObjectId
+    | { _id?: string | mongoose.Types.ObjectId };
+
+  if (typeof hostId === "string") return hostId;
+  if (hostId instanceof mongoose.Types.ObjectId) return hostId.toString();
+  if (hostId && typeof hostId === "object" && hostId._id) {
+    return hostId._id.toString();
+  }
+
+  return "";
+}
+
+function buildRoomSession(
+  meeting: {
+    hostId: unknown;
+    settings?: {
+      waitingRoom?: boolean;
+      allowRecording?: boolean;
+      allowScreenShare?: boolean;
+      muteOnJoin?: boolean;
+    };
+    transportMode?: string;
+    participants: { status: string }[];
+  },
+  meetingId: string,
+  preferences: {
+    audioEnabled: boolean;
+    videoEnabled: boolean;
+    audioDeviceId?: string;
+    videoDeviceId?: string;
+  },
+  joinDisposition: "joined" | "waiting",
+) {
+  const muteOnJoin = meeting.settings?.muteOnJoin ?? false;
+
+  return {
+    roomId: meetingId,
+    hostUserId: getHostUserId(meeting),
+    transportMode: getTransportMode(meeting),
+    joinDisposition,
+    waitingRoomEnabled: meeting.settings?.waitingRoom ?? false,
+    media: {
+      audioEnabled: muteOnJoin ? false : preferences.audioEnabled,
+      videoEnabled: preferences.videoEnabled,
+      audioDeviceId: preferences.audioDeviceId,
+      videoDeviceId: preferences.videoDeviceId,
+    },
+    permissions: {
+      allowRecording: meeting.settings?.allowRecording ?? false,
+      allowScreenShare: meeting.settings?.allowScreenShare ?? true,
+    },
+  };
+}
+
 // ── Validation ──────────────────────────────────────────────────────
 
 const meetingIdSchema = z.string().min(1, "Meeting ID is required");
+const joinPreferencesSchema = z.object({
+  audioEnabled: z.boolean().optional(),
+  videoEnabled: z.boolean().optional(),
+  audioDeviceId: z.string().optional(),
+  videoDeviceId: z.string().optional(),
+});
 
 // ── POST /api/meetings/:meetingId/join ──────────────────────────────
 
@@ -77,6 +141,16 @@ export const POST = withHandler(async (req: NextRequest, context) => {
   const { meetingId } = await context!.params;
   meetingIdSchema.parse(meetingId);
 
+  const parsedPreferences = joinPreferencesSchema.parse(
+    await req.json().catch(() => ({})),
+  );
+  const preferences = {
+    audioEnabled: parsedPreferences.audioEnabled ?? true,
+    videoEnabled: parsedPreferences.videoEnabled ?? true,
+    audioDeviceId: parsedPreferences.audioDeviceId,
+    videoDeviceId: parsedPreferences.videoDeviceId,
+  };
+
   await connectDB();
 
   const filter = buildMeetingFilter(meetingId);
@@ -93,8 +167,47 @@ export const POST = withHandler(async (req: NextRequest, context) => {
   if (alreadyJoined) {
     return successResponse({
       meeting: alreadyJoined,
+      roomSession: buildRoomSession(
+        alreadyJoined,
+        alreadyJoined._id.toString(),
+        preferences,
+        "joined",
+      ),
       iceServers: getIceServers(),
       transportMode: getTransportMode(alreadyJoined),
+    });
+  }
+
+  const meetingForAccess = await Meeting.findOne(filter)
+    .select("hostId settings status participants transportMode")
+    .lean();
+  if (!meetingForAccess) {
+    throw new NotFoundError("Meeting not found.");
+  }
+
+  if (
+    (meetingForAccess.status === "ended" || meetingForAccess.status === "cancelled")
+  ) {
+    throw new BadRequestError("This meeting has already ended.");
+  }
+
+  const isHost = getHostUserId(meetingForAccess) === userId;
+  const admissionGranted = await waitingConsumeAdmission(
+    meetingForAccess._id.toString(),
+    userId,
+  );
+
+  if (meetingForAccess.settings?.waitingRoom && !isHost && !admissionGranted) {
+    return successResponse({
+      joinDisposition: "waiting" as const,
+      roomSession: buildRoomSession(
+        meetingForAccess,
+        meetingForAccess._id.toString(),
+        preferences,
+        "waiting",
+      ),
+      iceServers: getIceServers(),
+      transportMode: getTransportMode(meetingForAccess),
     });
   }
 
@@ -132,6 +245,12 @@ export const POST = withHandler(async (req: NextRequest, context) => {
 
     return successResponse({
       meeting: updated,
+      roomSession: buildRoomSession(
+        updated!,
+        updated!._id.toString(),
+        preferences,
+        "joined",
+      ),
       iceServers: getIceServers(),
       transportMode: getTransportMode(updated!),
     });
@@ -204,6 +323,12 @@ export const POST = withHandler(async (req: NextRequest, context) => {
 
   return successResponse({
     meeting: populated,
+    roomSession: buildRoomSession(
+      populated!,
+      populated!._id.toString(),
+      preferences,
+      "joined",
+    ),
     iceServers: getIceServers(),
     transportMode: getTransportMode(populated!),
   });

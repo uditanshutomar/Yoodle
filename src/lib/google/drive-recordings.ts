@@ -1,5 +1,6 @@
 import { Readable } from "stream";
 import { getGoogleServices } from "./client";
+import { withRetry, isTransientError } from "@/lib/utils/retry";
 
 const YOODLE_FOLDER_NAME = "Yoodle Recordings";
 
@@ -112,18 +113,21 @@ export async function uploadRecordingToDrive(
 
   const { drive } = await getGoogleServices(userId);
 
-  const res = await drive.files.create({
-    requestBody: {
-      name: options.fileName,
-      mimeType: options.mimeType,
-      parents: [folderId],
-    },
-    media: {
-      mimeType: options.mimeType,
-      body: Readable.from(options.buffer),
-    },
-    fields: "id, name, mimeType, size, createdTime, webViewLink, webContentLink",
-  });
+  const res = await withRetry(
+    () => drive.files.create({
+      requestBody: {
+        name: options.fileName,
+        mimeType: options.mimeType,
+        parents: [folderId],
+      },
+      media: {
+        mimeType: options.mimeType,
+        body: Readable.from(options.buffer),
+      },
+      fields: "id, name, mimeType, size, createdTime, webViewLink, webContentLink",
+    }),
+    { retryOn: isTransientError }
+  );
 
   return {
     fileId: res.data.id!,

@@ -23,6 +23,9 @@ export default function ReconnectionOverlay({
       {isDisconnected && (
         <motion.div
           className="fixed inset-0 z-[100] flex items-center justify-center bg-[#0A0A0A]/70 backdrop-blur-sm"
+          role="alertdialog"
+          aria-live="assertive"
+          aria-label="Connection lost"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}

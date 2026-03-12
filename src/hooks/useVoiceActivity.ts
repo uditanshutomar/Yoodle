@@ -251,8 +251,8 @@ export function useVoiceActivity({
         sourceRef.current = source;
 
         intervalRef.current = setInterval(analyzeAudio, sampleInterval);
-      } catch (err) {
-        console.error("[VoiceActivity] Error starting monitoring:", err);
+      } catch {
+        // Error starting voice monitoring — silently ignored (non-critical)
       }
     },
     [analyzeAudio, sampleInterval, stopMonitoringInternal]

@@ -1,4 +1,5 @@
 import { getGoogleServices } from "./client";
+import { drive_v3 } from "googleapis";
 
 export interface DriveFile {
   id: string;
@@ -178,22 +179,19 @@ export async function createGoogleSlides(
   });
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function formatFile(file: any): DriveFile {
+function formatFile(file: drive_v3.Schema$File): DriveFile {
   return {
     id: file.id || "",
     name: file.name || "",
     mimeType: file.mimeType || "",
-    webViewLink: file.webViewLink,
-    createdTime: file.createdTime,
-    modifiedTime: file.modifiedTime,
-    size: file.size,
-    owners: file.owners?.map(
-      (o: { displayName?: string; emailAddress?: string }) => ({
-        displayName: o.displayName || "",
-        emailAddress: o.emailAddress || "",
-      })
-    ),
+    webViewLink: file.webViewLink ?? undefined,
+    createdTime: file.createdTime ?? undefined,
+    modifiedTime: file.modifiedTime ?? undefined,
+    size: file.size ?? undefined,
+    owners: file.owners?.map((o) => ({
+      displayName: o.displayName || "",
+      emailAddress: o.emailAddress || "",
+    })),
     shared: file.shared || false,
   };
 }

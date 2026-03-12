@@ -3,8 +3,8 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { Terminal as XTermTerminal } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
-import { io, Socket } from "socket.io-client";
 import "@xterm/xterm/css/xterm.css";
+import { useSocket } from "@/hooks/useSocket";
 
 interface WorkspaceTerminalProps {
   workspaceId: string;
@@ -17,58 +17,63 @@ export default function WorkspaceTerminal({ workspaceId, onClose }: WorkspaceTer
   const termRef = useRef<HTMLDivElement>(null);
   const xtermRef = useRef<XTermTerminal | null>(null);
   const fitAddonRef = useRef<FitAddon | null>(null);
-  const socketRef = useRef<Socket | null>(null);
   const [status, setStatus] = useState<TerminalStatus>("idle");
   const [error, setError] = useState<string>("");
   const mountedRef = useRef(true);
+  const { socket, isConnected } = useSocket();
 
   const cleanup = useCallback(() => {
-    if (socketRef.current) {
-      socketRef.current.emit("terminal:disconnect");
-      socketRef.current.disconnect();
-      socketRef.current = null;
-    }
+    socket?.emit("terminal:disconnect");
     if (xtermRef.current) {
       xtermRef.current.dispose();
       xtermRef.current = null;
     }
     fitAddonRef.current = null;
-  }, []);
+  }, [socket]);
 
   useEffect(() => {
     mountedRef.current = true;
     let resizeObserver: ResizeObserver | null = null;
 
     const initTerminal = async () => {
-      if (!termRef.current) return;
+      if (!termRef.current || !socket || !isConnected) return;
 
       setStatus("fetching");
       setError("");
 
       // 1. Fetch VM credentials from API
-      let ip: string;
-      let password: string;
+      let sessionToken: string;
 
       try {
-        const res = await fetch(`/api/workspaces/${workspaceId}/vm/credentials`, {
-          credentials: "include",
-        });
+        const res = await fetch(
+          `/api/workspaces/${workspaceId}/vm/terminal-session`,
+          {
+            credentials: "include",
+          },
+        );
         const data = await res.json();
 
         if (!data.success) {
-          throw new Error(data.error?.message || "Failed to get VM credentials.");
+          throw new Error(
+            data.error?.message || "Failed to create terminal session.",
+          );
         }
 
-        ip = data.data.ip;
-        password = data.data.password;
+        sessionToken = data.data.token;
 
-        if (!ip || !password) {
-          throw new Error("VM credentials not available. The VM may still be provisioning.");
+        if (!sessionToken) {
+          throw new Error(
+            "Terminal session token not available. The VM may still be provisioning.",
+          );
         }
       } catch (err) {
         if (!mountedRef.current) return;
         setStatus("error");
-        setError(err instanceof Error ? err.message : "Failed to fetch credentials.");
+        setError(
+          err instanceof Error
+            ? err.message
+            : "Failed to initialize terminal session.",
+        );
         return;
       }
 
@@ -123,50 +128,24 @@ export default function WorkspaceTerminal({ workspaceId, onClose }: WorkspaceTer
       fitAddonRef.current = fitAddon;
 
       term.writeln("\x1b[36m  Yoodle Terminal\x1b[0m");
-      term.writeln(`\x1b[90m  Connecting to ${ip}...\x1b[0m`);
+      term.writeln("\x1b[90m  Connecting to workspace terminal...\x1b[0m");
       term.writeln("");
 
-      // 3. Connect to signaling server for SSH proxy
+      // 3. Start terminal session on the authenticated realtime backend
       setStatus("connecting");
 
-      // Always connect to the embedded signaling server (same origin).
-      // The standalone server/index.ts is deprecated — all signaling is
-      // handled by the custom Next.js server (server.ts) on /api/socketio.
-      const socket = io({
-        path: "/api/socketio",
-        transports: ["websocket", "polling"],
-        reconnection: false,
-        timeout: 15000,
-      });
-
-      socketRef.current = socket;
-
-      socket.on("connect", () => {
+      const handleTerminalConnected = () => {
         if (!mountedRef.current) return;
-        console.log("[Terminal] Socket connected, initiating SSH...");
-
-        socket.emit("terminal:connect", {
-          host: ip,
-          password,
-          cols: term.cols,
-          rows: term.rows,
-        });
-      });
-
-      socket.on("terminal:connected", () => {
-        if (!mountedRef.current) return;
-        console.log("[Terminal] SSH session established");
         setStatus("connected");
-      });
+      };
 
-      socket.on("terminal:data", (data: string) => {
+      const handleTerminalData = (data: string) => {
         if (!mountedRef.current || !xtermRef.current) return;
         xtermRef.current.write(data);
-      });
+      };
 
-      socket.on("terminal:error", (data: { message: string }) => {
+      const handleTerminalError = (data: { message: string }) => {
         if (!mountedRef.current) return;
-        console.error("[Terminal] Error:", data.message);
 
         if (xtermRef.current) {
           xtermRef.current.writeln(`\r\n\x1b[31m${data.message}\x1b[0m`);
@@ -174,31 +153,33 @@ export default function WorkspaceTerminal({ workspaceId, onClose }: WorkspaceTer
 
         setStatus("error");
         setError(data.message);
-      });
+      };
 
-      socket.on("connect_error", (err: Error) => {
-        if (!mountedRef.current) return;
-        console.error("[Terminal] Socket connection error:", err.message);
-        setStatus("error");
-        setError("Failed to connect to signaling server.");
-
-        if (xtermRef.current) {
-          xtermRef.current.writeln(`\r\n\x1b[31mConnection failed: ${err.message}\x1b[0m`);
-        }
-      });
-
-      socket.on("disconnect", () => {
+      const handleSocketDisconnect = () => {
         if (!mountedRef.current) return;
         if (xtermRef.current) {
-          xtermRef.current.writeln("\r\n\x1b[33mDisconnected.\x1b[0m");
+          xtermRef.current.writeln(
+            "\r\n\x1b[33mRealtime backend disconnected.\x1b[0m",
+          );
         }
         setStatus("idle");
+      };
+
+      socket.on("terminal:connected", handleTerminalConnected);
+      socket.on("terminal:data", handleTerminalData);
+      socket.on("terminal:error", handleTerminalError);
+      socket.on("disconnect", handleSocketDisconnect);
+
+      socket.emit("terminal:connect", {
+        sessionToken,
+        cols: term.cols,
+        rows: term.rows,
       });
 
       // 4. Forward keystrokes → server
       term.onData((data: string) => {
-        if (socketRef.current?.connected) {
-          socketRef.current.emit("terminal:data", data);
+        if (socket.connected) {
+          socket.emit("terminal:data", data);
         }
       });
 
@@ -207,8 +188,8 @@ export default function WorkspaceTerminal({ workspaceId, onClose }: WorkspaceTer
         if (!mountedRef.current || !fitAddonRef.current) return;
         try {
           fitAddonRef.current.fit();
-          if (socketRef.current?.connected && xtermRef.current) {
-            socketRef.current.emit("terminal:resize", {
+          if (socket.connected && xtermRef.current) {
+            socket.emit("terminal:resize", {
               cols: xtermRef.current.cols,
               rows: xtermRef.current.rows,
             });
@@ -219,16 +200,27 @@ export default function WorkspaceTerminal({ workspaceId, onClose }: WorkspaceTer
       if (termRef.current) {
         resizeObserver.observe(termRef.current);
       }
+      return () => {
+        socket.off("terminal:connected", handleTerminalConnected);
+        socket.off("terminal:data", handleTerminalData);
+        socket.off("terminal:error", handleTerminalError);
+        socket.off("disconnect", handleSocketDisconnect);
+      };
     };
 
-    initTerminal();
+    let cleanupListeners: (() => void) | undefined;
+
+    void initTerminal().then((result) => {
+      cleanupListeners = result;
+    });
 
     return () => {
       mountedRef.current = false;
       if (resizeObserver) resizeObserver.disconnect();
+      cleanupListeners?.();
       cleanup();
     };
-  }, [workspaceId, cleanup]);
+  }, [workspaceId, cleanup, socket, isConnected]);
 
   return (
     <div className="flex flex-col h-full rounded-xl overflow-hidden border-2 border-[#0A0A0A] shadow-[4px_4px_0_#0A0A0A]">
@@ -253,7 +245,7 @@ export default function WorkspaceTerminal({ workspaceId, onClose }: WorkspaceTer
             />
           </div>
           <span className="text-xs text-white/60 font-mono ml-2">
-            {status === "fetching" && "Fetching credentials..."}
+            {status === "fetching" && "Creating terminal session..."}
             {status === "connecting" && "Connecting..."}
             {status === "connected" && "Connected"}
             {status === "error" && "Error"}

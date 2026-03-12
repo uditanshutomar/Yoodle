@@ -96,8 +96,6 @@ export const POST = withHandler(async (req: NextRequest, context) => {
   const body = vmActionSchema.parse(await req.json());
   const { action, region, plan } = body;
 
-  console.log("[VM POST] action:", action, "workspaceId:", workspaceId);
-
   await connectDB();
 
   const workspace = await Workspace.findById(workspaceId);
@@ -120,16 +118,12 @@ export const POST = withHandler(async (req: NextRequest, context) => {
         throw new BadRequestError("VM already provisioned.");
       }
 
-      console.log("[VM] Calling Vultr API to provision...");
       const result = await provisionVM({
         workspaceName: workspace.name,
         region,
         plan,
       });
-      console.log("[VM] Vultr returned instanceId:", result.instanceId);
-
       const sshKeyId = process.env.VULTR_SSH_KEY_ID || "";
-      console.log("[VM] sshKeyId length:", sshKeyId.length);
 
       workspace.vm = {
         vultrInstanceId: result.instanceId,
@@ -141,17 +135,13 @@ export const POST = withHandler(async (req: NextRequest, context) => {
         provisionedAt: new Date(),
       };
 
-      console.log("[VM] Saving workspace...");
       await workspace.save();
-      console.log("[VM] Workspace saved. Creating audit log...");
 
       await AuditLog.create({
         workspaceId, userId, userName: actingUserName,
         action: "vm.provision",
         details: { instanceId: result.instanceId },
       });
-      console.log("[VM] Provision complete");
-
       return successResponse({ provisioned: true, ...result });
     }
 

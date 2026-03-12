@@ -56,8 +56,8 @@ export default function WorkspaceDetailPage() {
       if (data.success && data.data?.appStatus) {
         setLiveVMStatus(data.data.appStatus);
       }
-    } catch (err) {
-      console.error("[VM Status Poll]", err);
+    } catch {
+      // VM status poll failed — will retry on next interval
     }
   }, [user, workspaceId]);
 
@@ -69,8 +69,8 @@ export default function WorkspaceDetailPage() {
       });
       const data = await res.json();
       if (data.success && data.data) setWorkspace(data.data);
-    } catch (err) {
-      console.error(err);
+    } catch {
+      // workspace fetch failed
     } finally {
       setLoading(false);
     }
@@ -84,8 +84,8 @@ export default function WorkspaceDetailPage() {
       });
       const data = await res.json();
       if (data.success && data.data) setAuditLogs(data.data.logs || []);
-    } catch (err) {
-      console.error(err);
+    } catch {
+      // audit fetch failed
     }
   }, [user, workspaceId]);
 

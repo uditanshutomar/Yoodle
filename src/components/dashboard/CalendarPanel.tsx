@@ -3,6 +3,7 @@
 import { motion, AnimatePresence } from "framer-motion";
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { createPortal } from "react-dom";
+import Image from "next/image";
 import Modal from "@/components/ui/Modal";
 import { Input, Textarea } from "@/components/ui/Input";
 import Button from "@/components/ui/Button";
@@ -403,7 +404,7 @@ function AttendeeSearch({ selectedUsers, onAdd, onRemove }: {
                 <div className="flex flex-wrap gap-1.5 mb-1">
                     {selectedUsers.map(user => (
                         <span key={user.id} className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-[#FFE600]/20 border border-[#FFE600] text-xs font-semibold text-[var(--text-primary)]">
-                            {user.avatarUrl && <img src={user.avatarUrl} alt="" className="w-4 h-4 rounded-full" />}
+                            {user.avatarUrl && <Image src={user.avatarUrl} alt="" width={16} height={16} className="w-4 h-4 rounded-full" />}
                             {user.displayName || user.name}
                             <button onClick={() => onRemove(user.id)} className="ml-0.5 text-[var(--text-muted)] hover:text-[var(--text-primary)]">×</button>
                         </span>
@@ -427,7 +428,7 @@ function AttendeeSearch({ selectedUsers, onAdd, onRemove }: {
                                 onMouseDown={(e) => e.preventDefault()}
                                 onClick={() => { onAdd(user); setQuery(""); setResults([]); setShowDropdown(false); }}
                                 className="w-full flex items-center gap-2.5 px-3 py-2 hover:bg-[#FFE600]/10 text-left transition-colors">
-                                {user.avatarUrl ? <img src={user.avatarUrl} alt="" className="w-6 h-6 rounded-full" /> : (
+                                {user.avatarUrl ? <Image src={user.avatarUrl} alt="" width={24} height={24} className="w-6 h-6 rounded-full" /> : (
                                     <div className="w-6 h-6 rounded-full bg-[var(--surface-hover)] flex items-center justify-center text-[10px] font-bold text-[var(--text-secondary)]">
                                         {(user.displayName || user.name).charAt(0).toUpperCase()}
                                     </div>
@@ -874,8 +875,8 @@ export default function CalendarPanel() {
                 const calEvents = apiEvents.map((e, i) => apiEventToCalEvent(e, i, timeMin)).filter((e): e is CalEvent => e !== null);
                 setEvents(calEvents);
             }
-        } catch (err) {
-            console.error("Failed to fetch calendar events:", err);
+        } catch {
+            // Calendar fetch failed — UI will show empty state
         } finally {
             setLoading(false);
         }
@@ -980,7 +981,7 @@ export default function CalendarPanel() {
             if (!res.ok) throw new Error("Failed to create event");
             setQuickAdd(null);
             await fetchEvents();
-        } catch (err) { console.error("Quick save failed:", err); }
+        } catch { /* quick save failed — UI resets */ }
         finally { setQuickSaving(false); }
     }, [quickAdd, DAYS_OF_WEEK, fetchEvents]);
 
@@ -1004,8 +1005,8 @@ export default function CalendarPanel() {
     }, []);
 
     /* ─── Computed event lists ─── */
-    const allDayEvents = events.filter((e) => e.isAllDay);
-    const timedEvents = events.filter((e) => !e.isAllDay);
+    const allDayEvents = useMemo(() => events.filter((e) => e.isAllDay), [events]);
+    const timedEvents = useMemo(() => events.filter((e) => !e.isAllDay), [events]);
     const totalHours = GRID_END_HOUR - GRID_START_HOUR;
 
     /* ─── Header display text ─── */

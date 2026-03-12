@@ -2,7 +2,7 @@ import { NextRequest } from "next/server";
 import { withHandler } from "@/lib/api/with-handler";
 import { successResponse } from "@/lib/api/response";
 import { checkRateLimit } from "@/lib/api/rate-limit";
-import { authenticateRequest, getUserIdFromRequest } from "@/lib/auth/middleware";
+import { getUserIdFromRequest } from "@/lib/auth/middleware";
 import { verifyAccessToken, verifyRefreshToken } from "@/lib/auth/jwt";
 import { tokenBlacklist } from "@/lib/redis/cache";
 import { NotFoundError } from "@/lib/api/errors";

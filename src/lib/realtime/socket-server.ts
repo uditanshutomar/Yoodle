@@ -61,7 +61,6 @@ function cleanupSSH(socketId: string): void {
   }
 
   sshSessions.delete(socketId);
-  console.log(`[SSH] Session closed for ${socketId}`);
 }
 
 const MAX_CHAT_HISTORY = 500;
@@ -206,7 +205,6 @@ function isHost(roomId: string, userId: string): boolean {
  */
 export function setupSocketServer(io: SocketIOServer): void {
   io.on("connection", (socket: Socket) => {
-    console.log(`[Socket] Client connected: ${socket.id}`);
 
     // --- Room management ---
 
@@ -291,9 +289,6 @@ export function setupSocketServer(io: SocketIOServer): void {
           callback({ users: currentUsers });
         }
 
-        console.log(
-          `[Socket] User ${user.displayName || user.name} (${user.id}) joined room ${roomId}. Room size: ${currentUsers.length}`
-        );
       }
     );
 
@@ -308,9 +303,6 @@ export function setupSocketServer(io: SocketIOServer): void {
         io.to(result.roomId).emit(
           SOCKET_EVENTS.ROOM_USERS,
           getRoomUsers(result.roomId)
-        );
-        console.log(
-          `[Socket] User ${result.user.displayName} left room ${result.roomId}`
         );
       }
     });
@@ -774,13 +766,9 @@ export function setupSocketServer(io: SocketIOServer): void {
         // Clean up existing session if any
         cleanupSSH(socket.id);
 
-        console.log(`[SSH] Connecting to ${host} for ${socket.id}`);
-
         const sshClient = new SSHClient();
 
         sshClient.on("ready", () => {
-          console.log(`[SSH] Authenticated to ${host} for ${socket.id}`);
-
           sshClient.shell(
             { cols, rows, term: "xterm-256color" },
             (err: Error | undefined, stream: ClientChannel) => {
@@ -805,7 +793,6 @@ export function setupSocketServer(io: SocketIOServer): void {
               });
 
               stream.on("close", () => {
-                console.log(`[SSH] Stream closed for ${socket.id}`);
                 socket.emit(SOCKET_EVENTS.TERMINAL_ERROR, {
                   message: "SSH session ended.",
                 });
@@ -824,7 +811,6 @@ export function setupSocketServer(io: SocketIOServer): void {
         });
 
         sshClient.on("close", () => {
-          console.log(`[SSH] Connection closed for ${socket.id}`);
           cleanupSSH(socket.id);
         });
 
@@ -900,9 +886,7 @@ export function setupSocketServer(io: SocketIOServer): void {
 
     // --- Disconnect ---
 
-    socket.on("disconnect", (reason: string) => {
-      console.log(`[Socket] Client disconnected: ${socket.id} (${reason})`);
-
+    socket.on("disconnect", () => {
       const result = removeUserBySocketId(socket.id);
       if (result) {
         io.to(result.roomId).emit(SOCKET_EVENTS.USER_LEFT, {
@@ -913,15 +897,11 @@ export function setupSocketServer(io: SocketIOServer): void {
           SOCKET_EVENTS.ROOM_USERS,
           getRoomUsers(result.roomId)
         );
-        console.log(
-          `[Socket] Cleaned up user ${result.user.displayName} from room ${result.roomId}`
-        );
       }
       cleanupSSH(socket.id);
     });
   });
 
-  console.log("[Socket] Socket.io server initialized");
 }
 
 /**

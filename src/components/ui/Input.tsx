@@ -1,6 +1,6 @@
 "use client";
 
-import { forwardRef } from "react";
+import { forwardRef, useId } from "react";
 import type { LucideIcon } from "lucide-react";
 
 interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> {
@@ -11,6 +11,7 @@ interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> {
 
 const Input = forwardRef<HTMLInputElement, InputProps>(
   ({ label, error, icon: Icon, className = "", type = "text", ...props }, ref) => {
+    const errorId = useId();
     return (
       <div className="flex flex-col gap-1.5">
         {label && (
@@ -30,6 +31,8 @@ const Input = forwardRef<HTMLInputElement, InputProps>(
           <input
             ref={ref}
             type={type}
+            aria-invalid={!!error}
+            aria-describedby={error ? errorId : undefined}
             className={`w-full border-2 border-[#0A0A0A] rounded-xl px-4 py-3 text-sm bg-white text-[#0A0A0A] placeholder:text-[#0A0A0A]/40 focus:outline-none focus:ring-2 focus:ring-[#FFE600] focus:ring-offset-0 transition-all ${
               Icon ? "pl-10" : ""
             } ${error ? "border-[#FF6B6B] focus:ring-[#FF6B6B]" : ""} ${className}`}
@@ -39,6 +42,7 @@ const Input = forwardRef<HTMLInputElement, InputProps>(
         </div>
         {error && (
           <span
+            id={errorId}
             className="text-xs font-medium text-[#FF6B6B]"
             style={{ fontFamily: "var(--font-body)" }}
           >
@@ -59,6 +63,7 @@ interface TextareaProps extends React.TextareaHTMLAttributes<HTMLTextAreaElement
 
 const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(
   ({ label, error, className = "", ...props }, ref) => {
+    const errorId = useId();
     return (
       <div className="flex flex-col gap-1.5">
         {label && (
@@ -71,6 +76,8 @@ const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(
         )}
         <textarea
           ref={ref}
+          aria-invalid={!!error}
+          aria-describedby={error ? errorId : undefined}
           className={`w-full border-2 border-[#0A0A0A] rounded-xl px-4 py-3 text-sm bg-white text-[#0A0A0A] placeholder:text-[#0A0A0A]/40 focus:outline-none focus:ring-2 focus:ring-[#FFE600] focus:ring-offset-0 transition-all resize-none ${
             error ? "border-[#FF6B6B] focus:ring-[#FF6B6B]" : ""
           } ${className}`}
@@ -79,6 +86,7 @@ const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(
         />
         {error && (
           <span
+            id={errorId}
             className="text-xs font-medium text-[#FF6B6B]"
             style={{ fontFamily: "var(--font-body)" }}
           >
