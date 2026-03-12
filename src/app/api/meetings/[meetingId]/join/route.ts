@@ -8,6 +8,7 @@ import { getUserIdFromRequest } from "@/lib/auth/middleware";
 import { BadRequestError, NotFoundError } from "@/lib/api/errors";
 import connectDB from "@/lib/db/client";
 import Meeting from "@/lib/db/models/meeting";
+import "@/lib/db/models/user"; // register User schema for .populate("hostId")
 import { determineTransportMode } from "@/lib/transport/transport-factory";
 import { waitingConsumeAdmission } from "@/lib/redis/cache";
 

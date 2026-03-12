@@ -7,6 +7,7 @@ import { checkRateLimit } from "@/lib/api/rate-limit";
 import { getUserIdFromRequest } from "@/lib/auth/middleware";
 import connectDB from "@/lib/db/client";
 import Meeting from "@/lib/db/models/meeting";
+import "@/lib/db/models/user"; // register User schema for .populate("hostId")
 import { generateMeetingCode } from "@/lib/utils/id";
 import { features } from "@/lib/features/flags";
 
