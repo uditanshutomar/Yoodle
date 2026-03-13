@@ -48,7 +48,7 @@ export function useChat(
   useEffect(() => {
     const unsub = onMessage(
       DataMessageType.CHAT_MESSAGE,
-      (msg: DataMessage, _senderId: string) => {
+      (msg: DataMessage) => {
         if (msg.type !== DataMessageType.CHAT_MESSAGE) return;
         const chat = msg as ChatMessageData;
 
