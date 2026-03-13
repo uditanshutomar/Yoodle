@@ -1,20 +1,28 @@
 import { NextRequest } from "next/server";
 import { z } from "zod";
-import { AccessToken } from "livekit-server-sdk";
+import { AccessToken, RoomServiceClient } from "livekit-server-sdk";
 import { withHandler } from "@/lib/api/with-handler";
 import { successResponse } from "@/lib/api/response";
 import { checkRateLimit } from "@/lib/api/rate-limit";
 import { getUserIdFromRequest } from "@/lib/auth/middleware";
-import { BadRequestError, NotFoundError, ForbiddenError } from "@/lib/api/errors";
+import {
+  BadRequestError,
+  NotFoundError,
+  ForbiddenError,
+} from "@/lib/api/errors";
 import connectDB from "@/lib/db/client";
 import Meeting from "@/lib/db/models/meeting";
+import mongoose from "mongoose";
 import {
+  LIVEKIT_URL,
   LIVEKIT_API_KEY,
   LIVEKIT_API_SECRET,
   isLiveKitConfigured,
 } from "@/lib/livekit/config";
 
 // ── Validation schema ─────────────────────────────────────────────
+
+const MEETING_CODE_REGEX = /^yoo-[a-z0-9]{3}-[a-z0-9]{3}$/;
 
 const tokenRequestSchema = z.object({
   roomId: z.string().min(1, "Room ID is required."),
@@ -24,13 +32,9 @@ const tokenRequestSchema = z.object({
 // ── POST /api/livekit/token ───────────────────────────────────────
 
 /**
- * Generate a LiveKit access token for a participant to join a room.
- *
- * The token includes grants for joining the specified room with
- * publish and subscribe permissions.
- *
- * The caller must be an authenticated participant in the meeting.
- * Identity is enforced to match the authenticated userId.
+ * Generate a LiveKit access token. Accepts both MongoDB ObjectId
+ * and meeting codes as roomId. Enforces maxParticipants by checking
+ * the active LiveKit room size before issuing a token.
  */
 export const POST = withHandler(async (req: NextRequest) => {
   await checkRateLimit(req, "meetings");
@@ -45,24 +49,54 @@ export const POST = withHandler(async (req: NextRequest) => {
   const body = tokenRequestSchema.parse(await req.json());
   const { roomId, name } = body;
 
-  // Verify user is a participant in this meeting
+  // ── Look up meeting by ObjectId OR meeting code ────────────────
   await connectDB();
-  const meeting = await Meeting.findById(roomId).lean();
+  const isObjectId =
+    mongoose.Types.ObjectId.isValid(roomId) &&
+    !MEETING_CODE_REGEX.test(roomId);
+  const meeting = isObjectId
+    ? await Meeting.findById(roomId).lean()
+    : await Meeting.findOne({ code: roomId.toLowerCase() }).lean();
+
   if (!meeting) {
     throw new NotFoundError("Meeting not found.");
   }
 
+  // ── Verify caller is a participant ─────────────────────────────
   const isParticipant =
     meeting.hostId.toString() === userId ||
     meeting.participants.some(
-      (p) => p.userId.toString() === userId && p.status === "joined"
+      (p) => p.userId.toString() === userId && p.status === "joined",
     );
 
   if (!isParticipant) {
     throw new ForbiddenError("You are not a participant in this meeting.");
   }
 
-  // Force identity to the authenticated userId — never trust caller-provided identity
+  // ── Enforce maxParticipants via LiveKit room API ───────────────
+  const maxParticipants = meeting.settings?.maxParticipants || 50;
+  const livekitRoomId = meeting._id.toString();
+
+  try {
+    const roomService = new RoomServiceClient(
+      LIVEKIT_URL,
+      LIVEKIT_API_KEY,
+      LIVEKIT_API_SECRET,
+    );
+    const rooms = await roomService.listRooms([livekitRoomId]);
+    if (rooms.length > 0 && rooms[0].numParticipants >= maxParticipants) {
+      throw new ForbiddenError(
+        `Meeting is full (${maxParticipants} participants).`,
+      );
+    }
+  } catch (err) {
+    // If it's our own ForbiddenError, re-throw
+    if (err instanceof ForbiddenError) throw err;
+    // Otherwise LiveKit API is unreachable — allow join (fail open for availability)
+    console.warn("LiveKit RoomService check failed, allowing join:", err);
+  }
+
+  // ── Issue token ────────────────────────────────────────────────
   const token = new AccessToken(LIVEKIT_API_KEY, LIVEKIT_API_SECRET, {
     identity: userId,
     name,
@@ -71,9 +105,10 @@ export const POST = withHandler(async (req: NextRequest) => {
 
   token.addGrant({
     roomJoin: true,
-    room: roomId,
+    room: livekitRoomId,
     canPublish: true,
     canSubscribe: true,
+    canPublishData: true,
   });
 
   const jwt = await token.toJwt();
