@@ -35,9 +35,6 @@ import { useTransport } from "@/hooks/useTransport";
 import {
   SOCKET_EVENTS,
   type RoomUser,
-  type SignalOfferPayload,
-  type SignalAnswerPayload,
-  type SignalIceCandidatePayload,
   type MediaStatePayload,
   type ReactionPayload,
   type ScreenSharePayload,
@@ -50,33 +47,8 @@ import {
 import {
   clearRoomJoinSession,
   loadRoomJoinSession,
-  saveRoomJoinSession,
   type RoomJoinSession,
 } from "@/lib/meetings/room-session";
-
-// ── Types ──────────────────────────────────────────────────────────────
-
-interface PeerData {
-  connection: RTCPeerConnection;
-  stream: MediaStream;
-  pendingCandidates: RTCIceCandidateInit[];
-}
-
-// ── ICE servers helper ─────────────────────────────────────────────────
-
-async function getIceServers(): Promise<RTCIceServer[]> {
-  try {
-    const res = await fetch("/api/turn-credentials", { credentials: "include" });
-    if (res.ok) {
-      const data = await res.json();
-      if (Array.isArray(data)) return data;
-      return data.data?.iceServers || data.iceServers || data;
-    }
-  } catch {
-    // fallback
-  }
-  return [{ urls: "stun:stun.l.google.com:19302" }];
-}
 
 // ── Component ──────────────────────────────────────────────────────────
 
@@ -120,9 +92,6 @@ export default function MeetingRoomPage() {
     userName: user?.displayName || user?.name || "You",
   });
 
-  // ── Transport mode ─────────────────────────────────────────────────
-  const [transportMode, setTransportMode] = useState<"p2p" | "livekit">("p2p");
-
   // ── Room session bootstrap ────────────────────────────────────────
   useEffect(() => {
     const session = loadRoomJoinSession(meetingId);
@@ -132,7 +101,6 @@ export default function MeetingRoomPage() {
     }
 
     setRoomSession(session);
-    setTransportMode(session.transportMode);
   }, [meetingId, router]);
 
   // ── UI state ─────────────────────────────────────────────────────────
@@ -147,6 +115,7 @@ export default function MeetingRoomPage() {
   const [reconnectAttempts, setReconnectAttempts] = useState(0);
   const MAX_RECONNECT_ATTEMPTS = 5;
   const reactionRef = useRef<((emoji: string, userName: string) => void) | null>(null);
+  const [handRaisedUsers, setHandRaisedUsers] = useState<Set<string>>(new Set());
 
   // ── Bubble layout container measurement ─────────────────────────────
   const containerRef = useRef<HTMLDivElement>(null);
@@ -195,14 +164,14 @@ export default function MeetingRoomPage() {
     setIsLocalHost(user.id === roomSession.hostUserId);
   }, [roomSession, user]);
 
-  // ── LiveKit transport (only active when mode is "livekit") ────────
+  // ── LiveKit transport ──────────────────────────────────────────────
   const {
+    transport,
     remoteStreams: livekitRemoteStreams,
     remoteParticipants: livekitRemoteParticipants,
     error: livekitError,
   } = useTransport({
     meetingId,
-    mode: transportMode,
     localStream,
     user: {
       id: localUser.id,
@@ -212,22 +181,8 @@ export default function MeetingRoomPage() {
       isVideoEnabled,
       isScreenSharing,
     },
-    enabled: transportMode === "livekit" && !!localStream,
+    enabled: !!localStream,
   });
-
-  // If LiveKit fails, fall back to P2P so the meeting still works
-  useEffect(() => {
-    if (livekitError && transportMode === "livekit") {
-      console.warn("[transport] LiveKit failed, falling back to P2P:", livekitError);
-      setTransportMode("p2p");
-      setRoomSession((prev) => {
-        if (!prev) return prev;
-        const nextSession = { ...prev, transportMode: "p2p" as const };
-        saveRoomJoinSession(meetingId, nextSession);
-        return nextSession;
-      });
-    }
-  }, [livekitError, meetingId, transportMode]);
 
   // ── Chat hook ──────────────────────────────────────────────────────
   const {
@@ -242,50 +197,30 @@ export default function MeetingRoomPage() {
     if (showChat) markChatRead();
   }, [showChat, markChatRead]);
 
-  // ── WebRTC state ─────────────────────────────────────────────────────
-  const [remoteParticipants, setRemoteParticipants] = useState<RoomUser[]>([]);
-  const [remoteStreams, setRemoteStreams] = useState<Map<string, MediaStream>>(new Map());
+  // ── Remote participants (from LiveKit transport) ────────────────────
+  const effectiveRemoteStreams = livekitRemoteStreams;
 
-  // ── Transport upgrade check ───────────────────────────────────────
-  useEffect(() => {
-    if (transportMode !== "p2p") return;
-    const totalParticipants = remoteParticipants.length + 1;
-    if (totalParticipants >= 5) {
-      // 5+ participants on P2P — LiveKit recommended for better quality
-    }
-  }, [remoteParticipants.length, transportMode]);
-
-  // ── Resolve effective remote streams based on transport mode ──────
-  const effectiveRemoteStreams = transportMode === "livekit" ? livekitRemoteStreams : remoteStreams;
-
-  // For LiveKit mode, convert transport participants to RoomUser format
-  const effectiveRemoteParticipants: RoomUser[] = transportMode === "livekit"
-    ? livekitRemoteParticipants.map((p) => ({
-        id: p.id,
-        socketId: "",
-        name: p.name,
-        displayName: p.name,
-        avatar: p.avatar || null,
-        isVideoEnabled: true,
-        isAudioEnabled: true,
-        isScreenSharing: false,
-        isHandRaised: false,
-      }))
-    : remoteParticipants;
+  const effectiveRemoteParticipants: RoomUser[] = livekitRemoteParticipants.map((p) => ({
+    id: p.id,
+    socketId: "",
+    name: p.name,
+    displayName: p.name,
+    avatar: p.avatar || null,
+    isVideoEnabled: p.isVideoEnabled ?? true,
+    isAudioEnabled: p.isAudioEnabled ?? true,
+    isScreenSharing: p.isScreenSharing ?? false,
+    isHandRaised: handRaisedUsers.has(p.id),
+  }));
 
   // Speaker detection: combine local + remote
   const speakingPeers = new Set([
     ...(isLocalSpeaking ? [user?.id || "local"] : []),
     ...remoteSpeakingFromVAD,
   ]);
-  const peersRef = useRef<Map<string, PeerData>>(new Map());
-  const iceServersRef = useRef<RTCIceServer[]>([]);
   const localStreamRef = useRef<MediaStream | null>(null);
   const joinedRef = useRef(false);
   const mediaStartedRef = useRef(false);
   const screenStreamRef = useRef<MediaStream | null>(null);
-  const makingOfferRef = useRef<Set<string>>(new Set());
-  const earlyCandidatesRef = useRef<Map<string, RTCIceCandidateInit[]>>(new Map());
 
   // Track speech segments for recording (ref to avoid re-renders)
   const speechSegmentsRef = useRef<SpeechSegment[]>([]);
@@ -339,17 +274,8 @@ export default function MeetingRoomPage() {
   const showMutedWarning = useMutedWarning(localStream, isAudioEnabled);
 
   // ── Connection quality monitoring ─────────────────────────────────
-  const { quality: connectionQuality, rtt, packetLoss } = useConnectionQuality(peersRef.current);
-
-  // ── Sync remote streams from peersRef to React state ────────────────
-
-  const syncStreams = useCallback(() => {
-    const streams = new Map<string, MediaStream>();
-    peersRef.current.forEach((peer, peerId) => {
-      streams.set(peerId, peer.stream);
-    });
-    setRemoteStreams(new Map(streams));
-  }, []);
+  // TODO: Replace with LiveKit connection quality metrics
+  const { quality: connectionQuality, rtt, packetLoss } = useConnectionQuality(new Map());
 
   // Keep localStreamRef in sync and start voice monitoring
   useEffect(() => {
@@ -361,135 +287,6 @@ export default function MeetingRoomPage() {
       stopVoiceMonitoring();
     };
   }, [localStream, startVoiceMonitoring, stopVoiceMonitoring]);
-
-  // ── Process pending ICE candidates for a peer ────────────────────────
-
-  const processPendingCandidates = useCallback(async (peerId: string) => {
-    const peer = peersRef.current.get(peerId);
-    if (!peer || peer.pendingCandidates.length === 0) return;
-
-    const candidates = [...peer.pendingCandidates];
-    peer.pendingCandidates = [];
-
-    for (const candidate of candidates) {
-      try {
-        await peer.connection.addIceCandidate(new RTCIceCandidate(candidate));
-      } catch {
-        // ICE candidate add failed — non-critical
-      }
-    }
-  }, []);
-
-  // ── Clean up a peer connection ──────────────────────────────────────
-
-  const cleanupPeer = useCallback((peerId: string) => {
-    const peer = peersRef.current.get(peerId);
-    if (peer) {
-      peer.connection.onicecandidate = null;
-      peer.connection.ontrack = null;
-      peer.connection.onnegotiationneeded = null;
-      peer.connection.onconnectionstatechange = null;
-      peer.connection.oniceconnectionstatechange = null;
-      peer.connection.close();
-      peersRef.current.delete(peerId);
-    }
-    makingOfferRef.current.delete(peerId);
-    syncStreams();
-  }, [syncStreams]);
-
-  // ── Create a peer connection for a remote user ───────────────────────
-
-  const createPeerConnection = useCallback(
-    (remoteUserId: string): RTCPeerConnection => {
-      cleanupPeer(remoteUserId);
-
-      const pc = new RTCPeerConnection({
-        iceServers: iceServersRef.current,
-        iceCandidatePoolSize: 10,
-      });
-
-      const remoteStream = new MediaStream();
-      const earlyCandidates = earlyCandidatesRef.current.get(remoteUserId) || [];
-      earlyCandidatesRef.current.delete(remoteUserId);
-      peersRef.current.set(remoteUserId, {
-        connection: pc,
-        stream: remoteStream,
-        pendingCandidates: earlyCandidates,
-      });
-
-      // Add local tracks to the connection
-      if (localStreamRef.current) {
-        localStreamRef.current.getTracks().forEach((track) => {
-          pc.addTrack(track, localStreamRef.current!);
-        });
-      }
-
-      // ICE candidate -> send to remote via socket
-      pc.onicecandidate = (event) => {
-        if (event.candidate && socket) {
-          socket.emit(SOCKET_EVENTS.ICE_CANDIDATE, {
-            targetId: remoteUserId,
-            senderId: localUser.id,
-            candidate: event.candidate.toJSON(),
-          } as SignalIceCandidatePayload);
-        }
-      };
-
-      // Receive remote tracks
-      pc.ontrack = (event) => {
-        event.streams[0]?.getTracks().forEach((track) => {
-          remoteStream.addTrack(track);
-        });
-        syncStreams();
-      };
-
-      // Monitor connection state
-      pc.onconnectionstatechange = () => {
-        if (pc.connectionState === "failed") {
-          pc.restartIce();
-        } else if (pc.connectionState === "closed") {
-          cleanupPeer(remoteUserId);
-        }
-      };
-
-      pc.oniceconnectionstatechange = () => {
-        if (pc.iceConnectionState === "failed") {
-          pc.restartIce();
-        }
-      };
-
-      return pc;
-    },
-    [socket, localUser.id, syncStreams, cleanupPeer]
-  );
-
-  // ── Create offer to a remote peer ───────────────────────────────────
-
-  const createOffer = useCallback(
-    async (remoteUserId: string) => {
-      if (peersRef.current.has(remoteUserId)) return;
-
-      const pc = createPeerConnection(remoteUserId);
-      try {
-        makingOfferRef.current.add(remoteUserId);
-        const offer = await pc.createOffer();
-        await pc.setLocalDescription(offer);
-
-        if (pc.localDescription) {
-          socket?.emit(SOCKET_EVENTS.OFFER, {
-            targetId: remoteUserId,
-            senderId: localUser.id,
-            offer: pc.localDescription,
-          } as SignalOfferPayload);
-        }
-      } catch {
-        // Offer creation failed
-      } finally {
-        makingOfferRef.current.delete(remoteUserId);
-      }
-    },
-    [createPeerConnection, socket, localUser.id]
-  );
 
   // ── Start media immediately on mount ────────────────────────────────
   // Bug #6 fix: wrap in try/catch and surface error to UI
@@ -513,11 +310,6 @@ export default function MeetingRoomPage() {
           : "Failed to access camera or microphone. Please check your permissions."
       );
     });
-
-    // Pre-fetch ICE servers in parallel
-    getIceServers().then((servers) => {
-      iceServersRef.current = servers;
-    });
   }, [roomSession, startMedia]);
 
   // ── Socket event setup (handles initial join AND reconnection) ──────
@@ -539,10 +331,7 @@ export default function MeetingRoomPage() {
       });
       joinedRef.current = true;
     } else {
-      peersRef.current.forEach((peer) => peer.connection.close());
-      peersRef.current.clear();
-      setRemoteParticipants([]);
-      syncStreams();
+      // Reconnection — re-join the room
       socket.emit(SOCKET_EVENTS.JOIN_ROOM, {
         roomId: roomSession.roomId,
         user: roomUser,
@@ -550,162 +339,30 @@ export default function MeetingRoomPage() {
     }
 
     // ── Event handlers ──────────────────────────────────────────────
-
-    const handleRoomUsers = (users: RoomUser[]) => {
-      const remoteUsers = users.filter((u) => u.id !== user.id);
-      setRemoteParticipants(remoteUsers);
-      remoteUsers.forEach((u) => {
-        if (!peersRef.current.has(u.id)) createOffer(u.id);
-      });
-    };
-
-    const handleUserJoined = (roomUser: RoomUser) => {
-      setRemoteParticipants((prev) => {
-        if (prev.find((p) => p.id === roomUser.id)) return prev;
-        return [...prev, roomUser];
-      });
-      if (!peersRef.current.has(roomUser.id)) createOffer(roomUser.id);
-    };
-
-    const handleUserLeft = ({ userId }: { userId: string }) => {
-      cleanupPeer(userId);
-      setRemoteParticipants((prev) => prev.filter((p) => p.id !== userId));
-    };
-
-    // ── Receive offer -> create answer (with glare handling) ────────
-
-    const handleOffer = async (payload: SignalOfferPayload) => {
-      const { senderId } = payload;
-      const isPolite = user.id < senderId;
-      const existingPeer = peersRef.current.get(senderId);
-      const offerCollision =
-        makingOfferRef.current.has(senderId) ||
-        (existingPeer && existingPeer.connection.signalingState !== "stable");
-
-      if (offerCollision && !isPolite) return;
-
-      if (offerCollision && isPolite && existingPeer) {
-        try {
-          await existingPeer.connection.setLocalDescription({ type: "rollback" });
-        } catch {
-          cleanupPeer(senderId);
-        }
-      }
-
-      let pc: RTCPeerConnection;
-      const peer = peersRef.current.get(senderId);
-      if (peer && peer.connection.signalingState !== "closed") {
-        pc = peer.connection;
-      } else {
-        pc = createPeerConnection(senderId);
-      }
-
-      try {
-        await pc.setRemoteDescription(new RTCSessionDescription(payload.offer));
-        await processPendingCandidates(senderId);
-        const answer = await pc.createAnswer();
-        await pc.setLocalDescription(answer);
-
-        if (pc.localDescription) {
-          socket.emit(SOCKET_EVENTS.ANSWER, {
-            targetId: senderId,
-            senderId: user.id,
-            answer: pc.localDescription,
-          } as SignalAnswerPayload);
-        }
-      } catch {
-        // Failed to handle offer
-      }
-    };
-
-    const handleAnswer = async (payload: SignalAnswerPayload) => {
-      const peer = peersRef.current.get(payload.senderId);
-      if (!peer) return;
-
-      const { signalingState } = peer.connection;
-      if (signalingState !== "have-local-offer" && signalingState !== "have-remote-pranswer") {
-        return;
-      }
-
-      try {
-        await peer.connection.setRemoteDescription(
-          new RTCSessionDescription(payload.answer)
-        );
-        await processPendingCandidates(payload.senderId);
-      } catch {
-        // Failed to set remote description
-      }
-    };
-
-    // ── Receive ICE candidate (with queuing) ─────────────────────────
-
-    const handleIceCandidate = async (payload: SignalIceCandidatePayload) => {
-      const peer = peersRef.current.get(payload.senderId);
-      if (!peer) {
-        if (!earlyCandidatesRef.current.has(payload.senderId)) {
-          earlyCandidatesRef.current.set(payload.senderId, []);
-        }
-        earlyCandidatesRef.current.get(payload.senderId)!.push(payload.candidate);
-        return;
-      }
-
-      if (!peer.connection.remoteDescription) {
-        peer.pendingCandidates.push(payload.candidate);
-        return;
-      }
-
-      try {
-        await peer.connection.addIceCandidate(new RTCIceCandidate(payload.candidate));
-      } catch {
-        // ICE candidate add failed
-      }
-    };
-
-    const handleMediaState = (payload: MediaStatePayload) => {
-      setRemoteParticipants((prev) =>
-        prev.map((p) =>
-          p.id === payload.userId
-            ? { ...p, isVideoEnabled: payload.isVideoEnabled, isAudioEnabled: payload.isAudioEnabled }
-            : p
-        )
-      );
-    };
+    // Note: participant join/leave for media streams is handled by
+    // LiveKit transport. Socket events here handle metadata only
+    // (media state, reactions, screen share status, hand raise, etc.)
 
     const handleReaction = (payload: ReactionPayload) => {
       reactionRef.current?.(payload.emoji, payload.userName);
     };
 
-    const handleScreenShareStart = (payload: ScreenSharePayload) => {
-      setRemoteParticipants((prev) =>
-        prev.map((p) =>
-          p.id === payload.userId ? { ...p, isScreenSharing: true } : p
-        )
-      );
-    };
+    // Screen share start/stop handled natively by LiveKit transport.
+    // Socket events still broadcast for waiting room / UI sync.
+    const handleScreenShareStart = (_payload: ScreenSharePayload) => {};
+    const handleScreenShareStop = (_payload: ScreenSharePayload) => {};
 
-    const handleScreenShareStop = (payload: ScreenSharePayload) => {
-      setRemoteParticipants((prev) =>
-        prev.map((p) =>
-          p.id === payload.userId ? { ...p, isScreenSharing: false } : p
-        )
-      );
-    };
-
-    // ── Hand raise events ────────────────────────────────────────────
+    // ── Hand raise events (tracked locally, not part of LiveKit) ────
     const handleHandRaised = (payload: HandRaisePayload) => {
-      setRemoteParticipants((prev) =>
-        prev.map((p) =>
-          p.id === payload.userId ? { ...p, isHandRaised: true } : p
-        )
-      );
+      setHandRaisedUsers((prev) => new Set(prev).add(payload.userId));
     };
 
     const handleHandLowered = (payload: HandRaisePayload) => {
-      setRemoteParticipants((prev) =>
-        prev.map((p) =>
-          p.id === payload.userId ? { ...p, isHandRaised: false } : p
-        )
-      );
+      setHandRaisedUsers((prev) => {
+        const next = new Set(prev);
+        next.delete(payload.userId);
+        return next;
+      });
     };
 
     // ── Host control events ──────────────────────────────────────────
@@ -723,16 +380,7 @@ export default function MeetingRoomPage() {
       // when the socket effect runs, not re-created on isRecording change).
       if (isRecordingRef.current) handleStopRecordingRef.current();
 
-      peersRef.current.forEach((peer) => {
-        peer.connection.onicecandidate = null;
-        peer.connection.ontrack = null;
-        peer.connection.onnegotiationneeded = null;
-        peer.connection.onconnectionstatechange = null;
-        peer.connection.oniceconnectionstatechange = null;
-        peer.connection.close();
-      });
-      peersRef.current.clear();
-
+      // LiveKit transport cleanup handled by useTransport hook unmount
       screenStreamRef.current?.getTracks().forEach((t) => t.stop());
       stopMedia();
       clearRoomJoinSession(meetingId);
@@ -770,13 +418,6 @@ export default function MeetingRoomPage() {
 
     // ── Register event listeners ────────────────────────────────────
 
-    socket.on(SOCKET_EVENTS.ROOM_USERS, handleRoomUsers);
-    socket.on(SOCKET_EVENTS.USER_JOINED, handleUserJoined);
-    socket.on(SOCKET_EVENTS.USER_LEFT, handleUserLeft);
-    socket.on(SOCKET_EVENTS.OFFER, handleOffer);
-    socket.on(SOCKET_EVENTS.ANSWER, handleAnswer);
-    socket.on(SOCKET_EVENTS.ICE_CANDIDATE, handleIceCandidate);
-    socket.on(SOCKET_EVENTS.MEDIA_STATE_CHANGED, handleMediaState);
     socket.on(SOCKET_EVENTS.REACTION_RECEIVED, handleReaction);
     socket.on(SOCKET_EVENTS.SCREEN_SHARE_START, handleScreenShareStart);
     socket.on(SOCKET_EVENTS.SCREEN_SHARE_STOP, handleScreenShareStop);
@@ -789,13 +430,6 @@ export default function MeetingRoomPage() {
     socket.io.on("reconnect_failed", handleDisconnect);
 
     return () => {
-      socket.off(SOCKET_EVENTS.ROOM_USERS, handleRoomUsers);
-      socket.off(SOCKET_EVENTS.USER_JOINED, handleUserJoined);
-      socket.off(SOCKET_EVENTS.USER_LEFT, handleUserLeft);
-      socket.off(SOCKET_EVENTS.OFFER, handleOffer);
-      socket.off(SOCKET_EVENTS.ANSWER, handleAnswer);
-      socket.off(SOCKET_EVENTS.ICE_CANDIDATE, handleIceCandidate);
-      socket.off(SOCKET_EVENTS.MEDIA_STATE_CHANGED, handleMediaState);
       socket.off(SOCKET_EVENTS.REACTION_RECEIVED, handleReaction);
       socket.off(SOCKET_EVENTS.SCREEN_SHARE_START, handleScreenShareStart);
       socket.off(SOCKET_EVENTS.SCREEN_SHARE_STOP, handleScreenShareStop);
@@ -812,11 +446,6 @@ export default function MeetingRoomPage() {
     isConnected,
     user,
     roomSession,
-    syncStreams,
-    createOffer,
-    createPeerConnection,
-    processPendingCandidates,
-    cleanupPeer,
     toggleAudio,
     stopMedia,
     router,
@@ -835,24 +464,7 @@ export default function MeetingRoomPage() {
     } as MediaStatePayload);
   }, [isVideoEnabled, isAudioEnabled, socket, isConnected, user]);
 
-  // ── Screen sharing ───────────────────────────────────────────────
-
-  const replaceVideoTrackInPeers = useCallback(async (newTrack: MediaStreamTrack) => {
-    const replacePromises: Promise<void>[] = [];
-    peersRef.current.forEach((peer) => {
-      const sender = peer.connection
-        .getSenders()
-        .find((s) => s.track?.kind === "video");
-      if (sender) {
-        replacePromises.push(
-          sender.replaceTrack(newTrack).catch(() => {
-            // Track replace failed for peer
-          })
-        );
-      }
-    });
-    await Promise.all(replacePromises);
-  }, []);
+  // ── Screen sharing (via LiveKit transport) ──────────────────────────
 
   const handleToggleScreenShare = useCallback(async () => {
     if (!canScreenShare) {
@@ -861,14 +473,13 @@ export default function MeetingRoomPage() {
     }
 
     if (isScreenSharing) {
+      // Stop screen share via transport
+      if (transport) {
+        await transport.stopScreenShare().catch(() => {});
+      }
       screenStreamRef.current?.getTracks().forEach((t) => t.stop());
       screenStreamRef.current = null;
       setIsScreenSharing(false);
-
-      if (localStreamRef.current) {
-        const videoTrack = localStreamRef.current.getVideoTracks()[0];
-        if (videoTrack) await replaceVideoTrackInPeers(videoTrack);
-      }
 
       // Broadcast screen share stop to other participants
       if (socket && user) {
@@ -878,13 +489,15 @@ export default function MeetingRoomPage() {
       try {
         const screenStream = await navigator.mediaDevices.getDisplayMedia({
           video: true,
-          audio: false,
+          audio: true,
         });
         screenStreamRef.current = screenStream;
         setIsScreenSharing(true);
 
-        const screenTrack = screenStream.getVideoTracks()[0];
-        await replaceVideoTrackInPeers(screenTrack);
+        // Publish screen share tracks via LiveKit transport
+        if (transport) {
+          await transport.startScreenShare(screenStream);
+        }
 
         // Broadcast screen share start to other participants
         if (socket && user) {
@@ -892,13 +505,13 @@ export default function MeetingRoomPage() {
         }
 
         // Handle native "stop sharing" browser button
+        const screenTrack = screenStream.getVideoTracks()[0];
         screenTrack.onended = async () => {
+          if (transport) {
+            await transport.stopScreenShare().catch(() => {});
+          }
           setIsScreenSharing(false);
           screenStreamRef.current = null;
-          if (localStreamRef.current) {
-            const camTrack = localStreamRef.current.getVideoTracks()[0];
-            if (camTrack) await replaceVideoTrackInPeers(camTrack);
-          }
           // Broadcast screen share stop when user clicks browser's native stop button
           if (socket && user) {
             socket.emit(SOCKET_EVENTS.SCREEN_SHARE_STOP);
@@ -911,7 +524,7 @@ export default function MeetingRoomPage() {
         }
       }
     }
-  }, [canScreenShare, isScreenSharing, replaceVideoTrackInPeers, socket, user]);
+  }, [canScreenShare, isScreenSharing, transport, socket, user]);
 
   // ── Reactions ────────────────────────────────────────────────────
 
@@ -1009,17 +622,6 @@ export default function MeetingRoomPage() {
     // Stop recording if active
     if (isRecording) handleStopRecording();
 
-    // P2P peer cleanup
-    peersRef.current.forEach((peer) => {
-      peer.connection.onicecandidate = null;
-      peer.connection.ontrack = null;
-      peer.connection.onnegotiationneeded = null;
-      peer.connection.onconnectionstatechange = null;
-      peer.connection.oniceconnectionstatechange = null;
-      peer.connection.close();
-    });
-    peersRef.current.clear();
-
     // LiveKit transport cleanup is handled by the useTransport hook's
     // cleanup effect (runs on unmount / when enabled becomes false).
 
@@ -1073,21 +675,11 @@ export default function MeetingRoomPage() {
   });
 
   // ── Cleanup on unmount ───────────────────────────────────────────
+  // LiveKit transport cleanup handled by useTransport hook unmount
 
   useEffect(() => {
-    const peers = peersRef.current;
-    const screenStream = screenStreamRef.current;
     return () => {
-      peers.forEach((peer) => {
-        peer.connection.onicecandidate = null;
-        peer.connection.ontrack = null;
-        peer.connection.onnegotiationneeded = null;
-        peer.connection.onconnectionstatechange = null;
-        peer.connection.oniceconnectionstatechange = null;
-        peer.connection.close();
-      });
-      peers.clear();
-      screenStream?.getTracks().forEach((t) => t.stop());
+      screenStreamRef.current?.getTracks().forEach((t) => t.stop());
     };
   }, []);
 
@@ -1160,6 +752,19 @@ export default function MeetingRoomPage() {
         </motion.div>
       )}
 
+      {/* LiveKit error banner */}
+      {livekitError && (
+        <motion.div
+          role="alert"
+          className="relative z-30 mx-6 mt-2 flex items-center gap-2 rounded-xl border-2 border-[#FF6B6B] bg-[#FF6B6B]/10 px-4 py-2 text-sm text-[#FF6B6B]"
+          initial={{ opacity: 0, y: -20 }}
+          animate={{ opacity: 1, y: 0 }}
+        >
+          <AlertTriangle size={16} />
+          <span>Connection error: {livekitError}</span>
+        </motion.div>
+      )}
+
       {/* Header bar */}
       <motion.header
         className="meeting-header relative z-20 flex items-center justify-between px-3 py-2 sm:px-6 sm:py-3"
@@ -1179,12 +784,9 @@ export default function MeetingRoomPage() {
           <span className="text-sm font-mono text-[#0A0A0A]/40">{formatTime(elapsedTime)}</span>
           {/* Transport mode indicator */}
           <span
-            className="hidden sm:inline text-xs px-2 py-0.5 rounded-full border-2 border-black"
-            style={{
-              backgroundColor: transportMode === "livekit" ? "#FFE600" : "#E0E0E0",
-            }}
+            className="hidden sm:inline text-xs px-2 py-0.5 rounded-full border-2 border-black bg-[#FFE600]"
           >
-            {transportMode === "livekit" ? "SFU" : "P2P"}
+            SFU
           </span>
           {!isConnected && (
             <span className="flex items-center gap-1 text-xs text-[#FF6B6B]">
