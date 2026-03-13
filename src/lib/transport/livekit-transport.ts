@@ -64,6 +64,7 @@ export class LiveKitTransport implements RoomTransport {
   private leftCallbacks: ((userId: string) => void)[] = [];
   private streamCallbacks: ((userId: string, stream: MediaStream) => void)[] =
     [];
+  private connectionStateCallbacks: ((state: ConnectionState) => void)[] = [];
 
   participantCount = 1;
   connectionState: ConnectionState = "disconnected";
@@ -175,7 +176,9 @@ export class LiveKitTransport implements RoomTransport {
         pub.source === Track.Source.ScreenShare ||
         pub.source === Track.Source.ScreenShareAudio
       ) {
-        await local.unpublishTrack(pub.track!.mediaStreamTrack);
+        if (pub.track) {
+          await local.unpublishTrack(pub.track.mediaStreamTrack);
+        }
       }
     }
   }
@@ -194,6 +197,10 @@ export class LiveKitTransport implements RoomTransport {
     this.streamCallbacks.push(cb);
   };
 
+  onConnectionStateChanged = (cb: (state: ConnectionState) => void): void => {
+    this.connectionStateCallbacks.push(cb);
+  };
+
   // ── Internal ────────────────────────────────────────────────────────
 
   private updateParticipantCount(): void {
@@ -204,6 +211,7 @@ export class LiveKitTransport implements RoomTransport {
     this.room
       .on(RoomEvent.ConnectionStateChanged, (state: LKConnectionState) => {
         this.connectionState = mapConnectionState(state);
+        this.connectionStateCallbacks.forEach((cb) => cb(this.connectionState));
       })
       .on(RoomEvent.ParticipantConnected, (p: RemoteParticipant) => {
         this.updateParticipantCount();
@@ -240,6 +248,13 @@ export class LiveKitTransport implements RoomTransport {
             cb(participant.identity, stream),
           );
         },
-      );
+      )
+      .on(RoomEvent.ConnectionQualityChanged, () => {
+        // Forward as a stream update so UI can react to quality changes
+        for (const p of this.room.remoteParticipants.values()) {
+          const stream = buildStreamForParticipant(p);
+          this.streamCallbacks.forEach((cb) => cb(p.identity, stream));
+        }
+      });
   }
 }

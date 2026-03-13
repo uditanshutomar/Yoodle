@@ -59,6 +59,9 @@ export interface RoomTransport {
     cb: (userId: string, stream: MediaStream) => void
   ) => void;
 
+  /** Subscribe to connection state changes. */
+  onConnectionStateChanged: (cb: (state: ConnectionState) => void) => void;
+
   /** Current number of participants (including local). */
   participantCount: number;
 
