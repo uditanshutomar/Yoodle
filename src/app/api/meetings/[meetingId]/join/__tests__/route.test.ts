@@ -110,7 +110,6 @@ describe("POST /api/meetings/[meetingId]/join", () => {
           _id: TEST_MEETING_ID,
           hostId: HOST_USER_ID,
           status: "scheduled",
-          transportMode: "auto",
           participants: [],
           settings: {
             waitingRoom: true,
@@ -155,7 +154,6 @@ describe("POST /api/meetings/[meetingId]/join", () => {
           _id: TEST_MEETING_ID,
           hostId: HOST_USER_ID,
           status: "scheduled",
-          transportMode: "auto",
           participants: [],
           settings: {
             waitingRoom: true,
@@ -207,7 +205,7 @@ describe("POST /api/meetings/[meetingId]/join", () => {
     expect(response.status).toBe(200);
     expect(body.success).toBe(true);
     expect(body.data.roomSession.joinDisposition).toBe("joined");
-    expect(body.data.roomSession.transportMode).toBe("p2p");
+    expect(body.data.roomSession.transportMode).toBe("livekit");
     expect(body.data.roomSession.media.audioEnabled).toBe(true);
     expect(body.data.roomSession.media.videoEnabled).toBe(false);
     expect(body.data.roomSession.media.audioDeviceId).toBe("mic-2");

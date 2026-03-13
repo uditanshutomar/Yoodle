@@ -8,7 +8,6 @@ export interface IUsage {
   aiMinutes: number;
   storageBytes: number;
   livekitMinutes: number;
-  p2pMinutes: number;
   lastUpdatedAt: Date;
 }
 
@@ -44,10 +43,6 @@ const usageSchema = new Schema<IUsageDocument>(
       default: 0,
     },
     livekitMinutes: {
-      type: Number,
-      default: 0,
-    },
-    p2pMinutes: {
       type: Number,
       default: 0,
     },

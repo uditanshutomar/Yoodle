@@ -9,7 +9,6 @@ import { BadRequestError, NotFoundError } from "@/lib/api/errors";
 import connectDB from "@/lib/db/client";
 import Meeting from "@/lib/db/models/meeting";
 import "@/lib/db/models/user"; // register User schema for .populate("hostId")
-import type { TransportMode } from "@/lib/transport/transport-factory";
 import { waitingConsumeAdmission } from "@/lib/redis/cache";
 
 // ── Helpers ─────────────────────────────────────────────────────────
@@ -21,35 +20,6 @@ function buildMeetingFilter(meetingId: string): Record<string, unknown> {
     return { _id: new mongoose.Types.ObjectId(meetingId) };
   }
   return { code: meetingId.toLowerCase() };
-}
-
-function getIceServers() {
-  const servers: Record<string, unknown>[] = [
-    {
-      urls: [
-        "stun:stun.l.google.com:19302",
-        "stun:stun1.l.google.com:19302",
-      ],
-    },
-  ];
-
-  if (process.env.TURN_SERVER_URL) {
-    servers.push({
-      urls: process.env.TURN_SERVER_URL,
-      username: process.env.TURN_USERNAME,
-      credential: process.env.TURN_CREDENTIAL,
-    });
-  }
-
-  return servers;
-}
-
-function getTransportMode(_meeting: {
-  transportMode?: string;
-  participants: { status: string }[];
-}): TransportMode {
-  // All calls route through LiveKit — P2P is eliminated
-  return "livekit";
 }
 
 function getHostUserId(meeting: { hostId: unknown }): string {
@@ -76,8 +46,6 @@ function buildRoomSession(
       allowScreenShare?: boolean;
       muteOnJoin?: boolean;
     };
-    transportMode?: string;
-    participants: { status: string }[];
   },
   meetingId: string,
   preferences: {
@@ -93,7 +61,7 @@ function buildRoomSession(
   return {
     roomId: meetingId,
     hostUserId: getHostUserId(meeting),
-    transportMode: getTransportMode(meeting),
+    transportMode: "livekit" as const,
     joinDisposition,
     waitingRoomEnabled: meeting.settings?.waitingRoom ?? false,
     media: {
@@ -168,13 +136,11 @@ export const POST = withHandler(async (req: NextRequest, context) => {
         preferences,
         "joined",
       ),
-      iceServers: getIceServers(),
-      transportMode: getTransportMode(alreadyJoined),
     });
   }
 
   const meetingForAccess = await Meeting.findOne(filter)
-    .select("hostId settings status participants transportMode")
+    .select("hostId settings status participants")
     .lean();
   if (!meetingForAccess) {
     throw new NotFoundError("Meeting not found.");
@@ -201,8 +167,6 @@ export const POST = withHandler(async (req: NextRequest, context) => {
         preferences,
         "waiting",
       ),
-      iceServers: getIceServers(),
-      transportMode: getTransportMode(meetingForAccess),
     });
   }
 
@@ -246,8 +210,6 @@ export const POST = withHandler(async (req: NextRequest, context) => {
         preferences,
         "joined",
       ),
-      iceServers: getIceServers(),
-      transportMode: getTransportMode(updated!),
     });
   }
 
@@ -324,7 +286,5 @@ export const POST = withHandler(async (req: NextRequest, context) => {
       preferences,
       "joined",
     ),
-    iceServers: getIceServers(),
-    transportMode: getTransportMode(populated!),
   });
 });

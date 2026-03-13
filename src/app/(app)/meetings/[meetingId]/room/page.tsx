@@ -274,8 +274,7 @@ export default function MeetingRoomPage() {
   const showMutedWarning = useMutedWarning(localStream, isAudioEnabled);
 
   // ── Connection quality monitoring ─────────────────────────────────
-  // TODO: Replace with LiveKit connection quality metrics
-  const { quality: connectionQuality, rtt, packetLoss } = useConnectionQuality(new Map());
+  const { quality: connectionQuality, rtt, packetLoss } = useConnectionQuality(transport);
 
   // Keep localStreamRef in sync and start voice monitoring
   useEffect(() => {

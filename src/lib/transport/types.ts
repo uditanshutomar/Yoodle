@@ -1,9 +1,7 @@
 /**
  * Transport abstraction layer for Yoodle room connections.
  *
- * Phase 1: Interface definition only. The current P2P WebRTC logic stays
- * inline in the room page. In Phase 2, a P2PTransport and LiveKitTransport
- * will implement this interface.
+ * All calls route through LiveKit SFU via LiveKitTransport.
  */
 
 export interface TransportRoomUser {

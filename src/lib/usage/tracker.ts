@@ -25,7 +25,6 @@ async function incrementUsageField(
     | "aiMinutes"
     | "storageBytes"
     | "livekitMinutes"
-    | "p2pMinutes"
   >,
   amount: number,
 ): Promise<void> {
@@ -44,15 +43,12 @@ async function incrementUsageField(
   );
 }
 
-/** Increment participant-minutes for a user. Also tracks mode-specific minutes. */
+/** Increment participant-minutes for a user. All minutes are LiveKit minutes. */
 export async function trackParticipantMinutes(
   userId: string,
   minutes: number,
-  mode: "p2p" | "livekit" = "p2p",
 ): Promise<void> {
   await connectDB();
-
-  const modeField = mode === "p2p" ? "p2pMinutes" : "livekitMinutes";
 
   await Usage.findOneAndUpdate(
     {
@@ -60,7 +56,7 @@ export async function trackParticipantMinutes(
       period: getCurrentPeriod(),
     },
     {
-      $inc: { participantMinutes: minutes, [modeField]: minutes },
+      $inc: { participantMinutes: minutes, livekitMinutes: minutes },
       $set: { lastUpdatedAt: new Date() },
     },
     { upsert: true },

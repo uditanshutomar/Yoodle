@@ -5,7 +5,7 @@ export type TransportMode = "livekit";
 
 /**
  * All calls use LiveKit. Returns "livekit" if configured,
- * throws if LiveKit is not configured (no P2P fallback).
+ * throws if LiveKit is not configured.
  */
 export function determineTransportMode(): TransportMode {
   if (!isLiveKitConfigured()) {

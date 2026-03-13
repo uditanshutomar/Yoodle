@@ -1,7 +1,7 @@
 export interface RoomJoinSession {
   roomId: string;
   hostUserId: string;
-  transportMode: "p2p" | "livekit";
+  transportMode: "livekit";
   joinDisposition: "joined" | "waiting";
   waitingRoomEnabled: boolean;
   media: {
