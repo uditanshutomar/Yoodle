@@ -14,7 +14,6 @@ interface WorkspaceSummary {
   name: string;
   description?: string;
   members: { userId: string; role: string }[];
-  vm?: { status: string };
 }
 
 const containerVariants = {
@@ -108,7 +107,6 @@ export default function WorkspacesPage() {
               name={ws.name}
               description={ws.description}
               memberCount={ws.members?.length || 0}
-              vmStatus={ws.vm?.status}
               onClick={() => router.push(`/workspaces/${ws._id}`)}
             />
           ))}

@@ -1,15 +1,13 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { Server, Users } from "lucide-react";
+import { Users } from "lucide-react";
 import Card from "@/components/ui/Card";
-import VMStatusBadge from "./VMStatusBadge";
 
 interface WorkspaceCardProps {
   name: string;
   description?: string;
   memberCount: number;
-  vmStatus?: string;
   onClick?: () => void;
 }
 
@@ -17,7 +15,6 @@ export default function WorkspaceCard({
   name,
   description,
   memberCount,
-  vmStatus,
   onClick,
 }: WorkspaceCardProps) {
   return (
@@ -29,9 +26,8 @@ export default function WorkspaceCard({
       >
         <div className="flex items-start justify-between mb-3">
           <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-[#06B6D4] border-2 border-[#0A0A0A]">
-            <Server size={16} className="text-white" />
+            <span className="text-sm font-black text-white">{name.charAt(0).toUpperCase()}</span>
           </div>
-          {vmStatus && <VMStatusBadge status={vmStatus} />}
         </div>
 
         <h3

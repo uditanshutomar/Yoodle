@@ -5,7 +5,6 @@ import { checkRateLimit } from "@/lib/api/rate-limit";
 import { getUserIdFromRequest } from "@/lib/auth/middleware";
 import connectDB from "@/lib/db/client";
 import AIMemory from "@/lib/db/models/ai-memory";
-import Agent from "@/lib/db/models/agent";
 import { streamChatWithAssistant } from "@/lib/ai/gemini";
 import { createStreamingResponse } from "@/lib/ai/streaming";
 import { buildWorkspaceContext } from "@/lib/google/workspace-context";
@@ -79,16 +78,6 @@ export const POST = withHandler(async (req: NextRequest) => {
 
   // Load user's AI memories and Google Workspace context in parallel
   await connectDB();
-
-  // Ensure the user has an agent (auto-create if not) and mark it active
-  await Agent.findOneAndUpdate(
-    { userId },
-    {
-      $setOnInsert: { userId, name: "Doodle", status: "active", capabilities: ["chat", "meeting-prep", "meeting-minutes", "proofreading", "task-management", "gmail", "calendar", "drive", "docs", "sheets", "tasks", "contacts"] },
-      $set: { lastActiveAt: new Date(), status: "active" },
-    },
-    { upsert: true, new: true }
-  );
 
   const [memories, workspaceContext] = await Promise.all([
     AIMemory.find({ userId })
