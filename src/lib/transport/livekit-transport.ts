@@ -129,6 +129,12 @@ export class LiveKitTransport implements RoomTransport {
     return streams;
   }
 
+  getRemoteParticipants(): TransportRoomUser[] {
+    return Array.from(this.room.remoteParticipants.values()).map(
+      participantToUser,
+    );
+  }
+
   async replaceTrack(
     kind: "video" | "audio",
     track: MediaStreamTrack,

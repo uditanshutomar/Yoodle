@@ -34,6 +34,9 @@ export interface RoomTransport {
   /** Get a snapshot of every remote participant's MediaStream, keyed by userId. */
   getRemoteStreams(): Map<string, MediaStream>;
 
+  /** Get a snapshot of all current remote participants. */
+  getRemoteParticipants(): TransportRoomUser[];
+
   /** Hot-swap a local track (e.g. when switching camera or starting screen share). */
   replaceTrack(
     kind: "video" | "audio",

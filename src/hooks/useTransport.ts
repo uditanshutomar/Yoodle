@@ -153,6 +153,11 @@ export function useTransport({
 
         transportRef.current = t;
         setTransport(t);
+
+        // Sync participants already in the room when we joined.
+        // ParticipantConnected events may fire during connect(), but
+        // we do an explicit sync here to guarantee we never miss anyone.
+        setRemoteParticipants(t.getRemoteParticipants());
         updateRemoteState(t);
       } catch (err) {
         if (!cancelled) {
