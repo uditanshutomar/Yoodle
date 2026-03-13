@@ -39,16 +39,6 @@ export function getRedisClient(): Redis {
 }
 
 /**
- * Gracefully close the Redis connection (call on server shutdown)
- */
-export async function closeRedis(): Promise<void> {
-  if (redis) {
-    await redis.quit();
-    redis = null;
-  }
-}
-
-/**
  * Check if Redis is available and connected.
  * Returns false if Redis is not configured or unreachable — features
  * that depend on Redis should gracefully degrade.

@@ -3,7 +3,7 @@ import type {
   TranscriptResult,
   TranscriptSegment,
   SpeakerDetectionResult,
-} from "../types";
+} from "./types";
 
 const ELEVENLABS_BASE_URL = "https://api.elevenlabs.io/v1";
 const STT_MODEL = "scribe_v1";

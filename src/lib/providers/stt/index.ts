@@ -1,4 +1,4 @@
-import type { STTProvider } from "../types";
+import type { STTProvider } from "./types";
 
 let cachedProvider: STTProvider | null = null;
 

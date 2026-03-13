@@ -6,10 +6,10 @@ import { authenticateRequest } from "@/lib/auth/middleware";
 import {
   successResponse,
   errorResponse,
-  unauthorizedResponse,
-  notFoundResponse,
-  serverErrorResponse,
-} from "@/lib/utils/api-response";
+  unauthorized,
+  notFound,
+  internalError,
+} from "@/lib/api/response";
 
 /**
  * GET /api/users/me
@@ -23,7 +23,7 @@ export async function GET(request: NextRequest) {
       const payload = await authenticateRequest(request);
       userId = payload.userId;
     } catch {
-      return unauthorizedResponse();
+      return unauthorized();
     }
 
     await connectDB();
@@ -33,7 +33,7 @@ export async function GET(request: NextRequest) {
     );
 
     if (!user) {
-      return notFoundResponse("User not found.");
+      return notFound("User not found.");
     }
 
     return successResponse({
@@ -51,7 +51,7 @@ export async function GET(request: NextRequest) {
     });
   } catch (error) {
     console.error("[Users/Me GET Error]", error);
-    return serverErrorResponse("Failed to retrieve profile.");
+    return internalError("Failed to retrieve profile.");
   }
 }
 
@@ -100,7 +100,7 @@ export async function PATCH(request: NextRequest) {
       const payload = await authenticateRequest(request);
       userId = payload.userId;
     } catch {
-      return unauthorizedResponse();
+      return unauthorized();
     }
 
     const body = await request.json();
@@ -115,11 +115,7 @@ export async function PATCH(request: NextRequest) {
         }
         fieldErrors[path].push(issue.message);
       }
-      return errorResponse({
-        message: "Validation failed.",
-        status: 400,
-        errors: fieldErrors,
-      });
+      return errorResponse("VALIDATION_ERROR", "Validation failed.", 400, fieldErrors);
     }
 
     const updates = parsed.data;
@@ -177,10 +173,7 @@ export async function PATCH(request: NextRequest) {
     }
 
     if (Object.keys(updateQuery).length === 0) {
-      return errorResponse({
-        message: "No valid fields to update.",
-        status: 400,
-      });
+      return errorResponse("BAD_REQUEST", "No valid fields to update.", 400);
     }
 
     const updatedUser = await User.findByIdAndUpdate(userId, updateQuery, {
@@ -189,7 +182,7 @@ export async function PATCH(request: NextRequest) {
     }).select("-magicLinkToken -magicLinkExpires -refreshTokenHash -__v");
 
     if (!updatedUser) {
-      return notFoundResponse("User not found.");
+      return notFound("User not found.");
     }
 
     return successResponse({
@@ -210,6 +203,6 @@ export async function PATCH(request: NextRequest) {
     });
   } catch (error) {
     console.error("[Users/Me PATCH Error]", error);
-    return serverErrorResponse("Failed to update profile.");
+    return internalError("Failed to update profile.");
   }
 }

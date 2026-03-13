@@ -1,4 +1,4 @@
-import type { STTProvider, TranscriptResult, TranscriptSegment } from "../types";
+import type { STTProvider, TranscriptResult, TranscriptSegment } from "./types";
 
 const DEEPGRAM_BASE_URL = "https://api.deepgram.com/v1";
 

@@ -56,14 +56,10 @@ describe("POST /api/waitlist", () => {
     const response = await POST(req);
     const body = await response.json();
 
-    // The waitlist route uses successResponse({ message, id, position }, 201).
-    // Because the argument contains a `message` key, the overloaded
-    // successResponse detects the legacy object-style call and places
-    // `message` at the top level. The `id`/`position` extras and the
-    // positional statusArg are consumed as legacy opts (status defaults to 200).
-    expect(response.status).toBe(200);
+    // successResponse({ message, id, position }, 201) → { success: true, data: { message, id, position } }
+    expect(response.status).toBe(201);
     expect(body.success).toBe(true);
-    expect(body.message).toContain("on the list");
+    expect(body.data.message).toContain("on the list");
   });
 
   it("creates entry with lowercased email", async () => {
@@ -116,12 +112,10 @@ describe("POST /api/waitlist", () => {
     const response = await POST(req);
     const body = await response.json();
 
-    // The duplicate path calls successResponse({ message, alreadyJoined }).
-    // Legacy detection triggers (has `message`), so only `message` ends up
-    // in the response body at the top level.
+    // successResponse({ message, alreadyJoined }) → { success: true, data: { message, alreadyJoined } }
     expect(response.status).toBe(200);
     expect(body.success).toBe(true);
-    expect(body.message).toContain("already on the waitlist");
+    expect(body.data.message).toContain("already on the waitlist");
   });
 
   it("does NOT call Waitlist.create when email already exists", async () => {

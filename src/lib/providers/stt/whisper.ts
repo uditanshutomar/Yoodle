@@ -1,4 +1,4 @@
-import type { STTProvider, TranscriptResult, TranscriptSegment } from "../types";
+import type { STTProvider, TranscriptResult, TranscriptSegment } from "./types";
 
 const OPENAI_BASE_URL = "https://api.openai.com/v1";
 

@@ -5,8 +5,8 @@ import Waitlist from "@/lib/db/models/waitlist";
 import {
   successResponse,
   errorResponse,
-  serverErrorResponse,
-} from "@/lib/utils/api-response";
+  internalError,
+} from "@/lib/api/response";
 
 const waitlistSchema = z.object({
   email: z.string().email("Please enter a valid email address."),
@@ -24,7 +24,7 @@ export async function POST(request: NextRequest) {
       const errors = parsed.error.flatten().fieldErrors;
       const firstError =
         Object.values(errors).flat()[0] || "Invalid input.";
-      return errorResponse(firstError, 400);
+      return errorResponse("VALIDATION_ERROR", firstError, 400);
     }
 
     await connectDB();
@@ -56,7 +56,7 @@ export async function POST(request: NextRequest) {
     );
   } catch (error) {
     console.error("[POST /api/waitlist] Error:", error);
-    return serverErrorResponse("Something went wrong. Please try again.");
+    return internalError("Something went wrong. Please try again.");
   }
 }
 
@@ -68,6 +68,6 @@ export async function GET() {
     return successResponse({ count });
   } catch (error) {
     console.error("[GET /api/waitlist] Error:", error);
-    return serverErrorResponse();
+    return internalError();
   }
 }
