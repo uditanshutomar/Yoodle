@@ -184,7 +184,7 @@ export function useTransport({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [meetingId, userId, enabled, localStream]);
 
-  // ── Effect 2: Track replacement on audio/video toggle ────────────
+  // ── Effect 2: Track replacement on stream change (device switch) ──
   useEffect(() => {
     const t = transportRef.current;
     if (!t || !localStream) return;
@@ -202,7 +202,24 @@ export function useTransport({
         console.warn("Failed to replace video track:", err);
       });
     }
-  }, [localStream, userAudioEnabled, userVideoEnabled]);
+  }, [localStream]);
+
+  // ── Effect 3: Sync mute/unmute with LiveKit SFU ─────────────────
+  useEffect(() => {
+    const room = (transportRef.current?.getRoom() as Room) ?? null;
+    if (!room?.localParticipant) return;
+    room.localParticipant.setMicrophoneEnabled(userAudioEnabled).catch(() => {
+      // Ignore — track may not be published yet during init
+    });
+  }, [userAudioEnabled]);
+
+  useEffect(() => {
+    const room = (transportRef.current?.getRoom() as Room) ?? null;
+    if (!room?.localParticipant) return;
+    room.localParticipant.setCameraEnabled(userVideoEnabled).catch(() => {
+      // Ignore — track may not be published yet during init
+    });
+  }, [userVideoEnabled]);
 
   const room = useMemo(() => {
     if (!transport) return null;
