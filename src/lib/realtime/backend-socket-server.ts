@@ -14,9 +14,6 @@ import {
   type RecordingStatusPayload,
   type RoomUser,
   type ScreenSharePayload,
-  type SignalAnswerPayload,
-  type SignalIceCandidatePayload,
-  type SignalOfferPayload,
   type VoiceActivityPayload,
   type WaitingRoomActionPayload,
   type WaitingRoomUser,
@@ -41,6 +38,7 @@ import {
   waitingAddUser,
   waitingGetUser,
   waitingGetUsers,
+  waitingConsumeAdmission,
   waitingGrantAdmission,
   waitingRemoveUser,
   waitingSize,
@@ -96,14 +94,6 @@ function isValidJoinPayload(payload: unknown): payload is JoinRoomPayload {
   return typeof user.id === "string" && typeof user.name === "string";
 }
 
-function isValidSignalPayload(
-  payload: unknown,
-): payload is { senderId: string; targetId: string } {
-  if (!payload || typeof payload !== "object") return false;
-  const p = payload as Record<string, unknown>;
-  return typeof p.senderId === "string" && typeof p.targetId === "string";
-}
-
 function cleanupSSH(socketId: string): void {
   const session = sshSessions.get(socketId);
   if (!session) return;
@@ -112,7 +102,7 @@ function cleanupSSH(socketId: string): void {
     session.stream?.close();
     session.client.end();
   } catch (err) {
-    console.error(`[SSH] Cleanup error for ${socketId}:`, err);
+    console.warn(`[SSH] Cleanup error for ${socketId}:`, err);
   }
 
   sshSessions.delete(socketId);
@@ -306,6 +296,20 @@ export function setupBackendSocketServer(io: SocketIOServer): void {
         await removeSocketState(io, socket);
 
         const { roomId, user } = payload;
+
+        // Enforce waiting room: non-host users must have a valid admission token
+        const permissions = await getMeetingPermissions(roomId);
+        if (permissions.waitingRoom) {
+          const isHost = await isMeetingHost(roomId, user.id);
+          if (!isHost) {
+            const admitted = await waitingConsumeAdmission(roomId, user.id);
+            if (!admitted) {
+              callback?.({ users: [] });
+              return;
+            }
+          }
+        }
+
         const roomUser: RoomUser = {
           id: user.id,
           socketId: socket.id,
@@ -339,7 +343,7 @@ export function setupBackendSocketServer(io: SocketIOServer): void {
               await chatPush(roomId, message);
             }
           } catch (err) {
-            console.error("[Socket] Failed to load chat history:", err);
+            console.warn("[Socket] Failed to load chat history:", err);
           }
         }
         socket.emit(SOCKET_EVENTS.CHAT_HISTORY, history);
@@ -364,65 +368,8 @@ export function setupBackendSocketServer(io: SocketIOServer): void {
       await removeSocketState(io, socket);
     });
 
-    socket.on(SOCKET_EVENTS.OFFER, async (payload: SignalOfferPayload) => {
-      if (!isValidSignalPayload(payload) || payload.senderId !== authUserId) {
-        return;
-      }
-
-      const mapping = await socketGetMapping(socket.id);
-      if (!mapping || mapping.state !== "joined") return;
-
-      const target = (await roomGetUser(mapping.roomId, payload.targetId)) as
-        | RoomUser
-        | null;
-      if (!target?.socketId) return;
-
-      io.to(target.socketId).emit(SOCKET_EVENTS.OFFER, {
-        senderId: payload.senderId,
-        offer: payload.offer,
-      });
-    });
-
-    socket.on(SOCKET_EVENTS.ANSWER, async (payload: SignalAnswerPayload) => {
-      if (!isValidSignalPayload(payload) || payload.senderId !== authUserId) {
-        return;
-      }
-
-      const mapping = await socketGetMapping(socket.id);
-      if (!mapping || mapping.state !== "joined") return;
-
-      const target = (await roomGetUser(mapping.roomId, payload.targetId)) as
-        | RoomUser
-        | null;
-      if (!target?.socketId) return;
-
-      io.to(target.socketId).emit(SOCKET_EVENTS.ANSWER, {
-        senderId: payload.senderId,
-        answer: payload.answer,
-      });
-    });
-
-    socket.on(
-      SOCKET_EVENTS.ICE_CANDIDATE,
-      async (payload: SignalIceCandidatePayload) => {
-        if (!isValidSignalPayload(payload) || payload.senderId !== authUserId) {
-          return;
-        }
-
-        const mapping = await socketGetMapping(socket.id);
-        if (!mapping || mapping.state !== "joined") return;
-
-        const target = (await roomGetUser(mapping.roomId, payload.targetId)) as
-          | RoomUser
-          | null;
-        if (!target?.socketId) return;
-
-        io.to(target.socketId).emit(SOCKET_EVENTS.ICE_CANDIDATE, {
-          senderId: payload.senderId,
-          candidate: payload.candidate,
-        });
-      },
-    );
+    // P2P signaling handlers (OFFER, ANSWER, ICE_CANDIDATE) removed —
+    // all media now routes through LiveKit SFU.
 
     socket.on(
       SOCKET_EVENTS.MEDIA_STATE_CHANGED,
@@ -529,8 +476,19 @@ export function setupBackendSocketServer(io: SocketIOServer): void {
           return;
         }
 
+        // Validate message content length to prevent abuse
+        const MAX_CHAT_MESSAGE_LENGTH = 4000;
+        if (
+          !payload.content ||
+          typeof payload.content !== "string" ||
+          payload.content.length > MAX_CHAT_MESSAGE_LENGTH
+        ) {
+          return;
+        }
+
         const message: ChatMessagePayload = {
           ...payload,
+          content: payload.content.slice(0, MAX_CHAT_MESSAGE_LENGTH),
           roomId: mapping.roomId,
           timestamp: Date.now(),
         };
@@ -539,7 +497,7 @@ export function setupBackendSocketServer(io: SocketIOServer): void {
 
         if (!mapping.roomId.startsWith("ghost-")) {
           persistChatMessage(mapping.roomId, message).catch((err) =>
-            console.error("[Socket] Failed to persist chat message:", err),
+            console.warn("[Socket] Failed to persist chat message:", err),
           );
         }
 
