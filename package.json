@@ -38,8 +38,6 @@
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
     "resend": "^6.9.3",
-    "socket.io": "^4.8.3",
-    "socket.io-client": "^4.8.3",
     "sonner": "^2.0.7",
     "ssh2": "^1.17.0",
     "zod": "^4.3.6"

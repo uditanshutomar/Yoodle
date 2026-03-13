@@ -1,6 +1,9 @@
 import { NextResponse } from "next/server";
 import connectDB from "@/lib/infra/db/client";
 import { isRedisAvailable } from "@/lib/infra/redis/client";
+import { createLogger } from "@/lib/infra/logger";
+
+const log = createLogger("api:health");
 
 /**
  * GET /api/health
@@ -52,7 +55,7 @@ export async function GET() {
     );
   } catch (error) {
     const latency = Date.now() - start;
-    console.error("[Health Check] Error:", error);
+    log.error({ err: error }, "health check failed");
 
     return NextResponse.json(
       {

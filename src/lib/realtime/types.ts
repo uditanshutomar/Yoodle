@@ -1,83 +1,14 @@
 /**
- * Socket.io event constants for Yoodle real-time communication.
- * All socket events are namespaced by category for clarity.
+ * Shared type definitions for Yoodle real-time communication.
+ * All signaling now goes through LiveKit data channels — see
+ * `src/lib/livekit/data-messages.ts` for the message envelope types.
+ *
+ * These interfaces are kept for domain modelling across the app.
  */
 
-export const SOCKET_EVENTS = {
-  // Room management
-  JOIN_ROOM: "room:join",
-  LEAVE_ROOM: "room:leave",
-  ROOM_USERS: "room:users",
-  USER_JOINED: "room:user-joined",
-  USER_LEFT: "room:user-left",
-
-  // Media state
-  TOGGLE_VIDEO: "media:toggle-video",
-  TOGGLE_AUDIO: "media:toggle-audio",
-  MEDIA_STATE_CHANGED: "media:state-changed",
-
-  // Voice activity
-  VOICE_ACTIVITY: "voice:activity",
-  SPEAKING_START: "voice:speaking-start",
-  SPEAKING_STOP: "voice:speaking-stop",
-
-  // Chat
-  CHAT_MESSAGE: "chat:message",
-  CHAT_HISTORY: "chat:history",
-
-  // Reactions
-  REACTION: "reaction:send",
-  REACTION_RECEIVED: "reaction:received",
-
-  // Screen share
-  SCREEN_SHARE_START: "screen:start",
-  SCREEN_SHARE_STOP: "screen:stop",
-
-  // Recording
-  RECORDING_START: "recording:start",
-  RECORDING_STOP: "recording:stop",
-  RECORDING_STATUS: "recording:status",
-
-  // Host controls
-  HOST_MUTE: "host:mute",
-  HOST_KICK: "host:kick",
-  HOST_ADMIT: "host:admit",
-  HOST_DENY: "host:deny",
-  HOST_MUTED: "host:muted",
-  HOST_KICKED: "host:kicked",
-
-  // Waiting room
-  WAITING_JOIN: "waiting:join",
-  WAITING_LIST: "waiting:list",
-  WAITING_ADMITTED: "waiting:admitted",
-  WAITING_DENIED: "waiting:denied",
-
-  // Hand raise
-  HAND_RAISE: "hand:raise",
-  HAND_LOWER: "hand:lower",
-  HAND_RAISED: "hand:raised",
-  HAND_LOWERED: "hand:lowered",
-
-  // Agent collaboration
-  AGENT_COLLAB_INVITE: "agent:collab-invite",
-  AGENT_COLLAB_MESSAGE: "agent:collab-message",
-  AGENT_COLLAB_CLOSED: "agent:collab-closed",
-
-  // Terminal (SSH proxy)
-  TERMINAL_CONNECT: "terminal:connect",
-  TERMINAL_DATA: "terminal:data",
-  TERMINAL_RESIZE: "terminal:resize",
-  TERMINAL_DISCONNECT: "terminal:disconnect",
-  TERMINAL_CONNECTED: "terminal:connected",
-  TERMINAL_ERROR: "terminal:error",
-} as const;
-
-export type SocketEvent = (typeof SOCKET_EVENTS)[keyof typeof SOCKET_EVENTS];
-
-/** User metadata tracked per room */
+/** User metadata tracked per room. LiveKit identity is the key. */
 export interface RoomUser {
   id: string;
-  socketId: string;
   name: string;
   displayName: string;
   avatar?: string | null;

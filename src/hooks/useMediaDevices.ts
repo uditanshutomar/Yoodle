@@ -25,6 +25,10 @@ export interface UseMediaDevicesReturn {
 
 interface UseMediaDevicesOptions {
   onTrackChanged?: (kind: 'video' | 'audio', track: MediaStreamTrack) => void;
+  /** Initial video enabled state (before startMedia resolves). Prevents UI flash. */
+  initialVideoEnabled?: boolean;
+  /** Initial audio enabled state (before startMedia resolves). Prevents UI flash. */
+  initialAudioEnabled?: boolean;
 }
 
 export function useMediaDevices(options?: UseMediaDevicesOptions): UseMediaDevicesReturn {
@@ -34,8 +38,8 @@ export function useMediaDevices(options?: UseMediaDevicesOptions): UseMediaDevic
   const [audioDevices, setAudioDevices] = useState<MediaDeviceInfo[]>([]);
   const [selectedVideoDevice, setSelectedVideoDeviceState] = useState<string>("");
   const [selectedAudioDevice, setSelectedAudioDeviceState] = useState<string>("");
-  const [isVideoEnabled, setIsVideoEnabled] = useState(false);
-  const [isAudioEnabled, setIsAudioEnabled] = useState(false);
+  const [isVideoEnabled, setIsVideoEnabled] = useState(options?.initialVideoEnabled ?? false);
+  const [isAudioEnabled, setIsAudioEnabled] = useState(options?.initialAudioEnabled ?? false);
   const [error, setError] = useState<string | null>(null);
 
   const streamRef = useRef<MediaStream | null>(null);
@@ -85,7 +89,13 @@ export function useMediaDevices(options?: UseMediaDevicesOptions): UseMediaDevic
     };
   }, [enumerateDevices]);
 
-  /** Start media capture with specified constraints */
+  /** Start media capture with specified constraints.
+   *
+   * Audio is ALWAYS requested from getUserMedia so that toggleAudio can
+   * enable/disable the mic at any time.  When the `audio` param is false
+   * (e.g. muteOnJoin) the track is acquired but starts with
+   * `track.enabled = false` so no audio data flows until the user unmutes.
+   */
   const startMedia = useCallback(
     async (
       video: boolean = true,
@@ -100,37 +110,39 @@ export function useMediaDevices(options?: UseMediaDevicesOptions): UseMediaDevic
           streamRef.current.getTracks().forEach((track) => track.stop());
         }
 
+        // Resolve device IDs — prefer explicit override, then previously selected
+        const videoDeviceId = deviceOverrides?.videoDeviceId || selectedVideoDevice;
+        const audioDeviceId = deviceOverrides?.audioDeviceId || selectedAudioDevice;
+
         const constraints: MediaStreamConstraints = {
           video: video
             ? {
-                deviceId: (deviceOverrides?.videoDeviceId || selectedVideoDevice)
-                  ? {
-                      exact:
-                        deviceOverrides?.videoDeviceId || selectedVideoDevice,
-                    }
-                  : undefined,
+                deviceId: videoDeviceId ? { exact: videoDeviceId } : undefined,
                 width: { ideal: 1280 },
                 height: { ideal: 720 },
                 frameRate: { ideal: 30 },
               }
             : false,
-          audio: audio
-            ? {
-                deviceId: (deviceOverrides?.audioDeviceId || selectedAudioDevice)
-                  ? {
-                      exact:
-                        deviceOverrides?.audioDeviceId || selectedAudioDevice,
-                    }
-                  : undefined,
-                echoCancellation: true,
-                noiseSuppression: true,
-                autoGainControl: true,
-              }
-            : false,
+          // Always request audio so toggleAudio has a track to flip.
+          // If `audio` is false the track starts disabled (muted).
+          audio: {
+            deviceId: audioDeviceId ? { exact: audioDeviceId } : undefined,
+            echoCancellation: true,
+            noiseSuppression: true,
+            autoGainControl: true,
+          },
         };
 
         const mediaStream =
           await navigator.mediaDevices.getUserMedia(constraints);
+
+        // If caller wants audio muted, disable the track (but keep it alive
+        // so toggleAudio can re-enable it later).
+        if (!audio) {
+          mediaStream.getAudioTracks().forEach((t) => {
+            t.enabled = false;
+          });
+        }
 
         streamRef.current = mediaStream;
         setStream(mediaStream);

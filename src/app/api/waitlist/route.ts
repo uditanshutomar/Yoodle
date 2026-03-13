@@ -7,6 +7,9 @@ import {
   errorResponse,
   internalError,
 } from "@/lib/infra/api/response";
+import { createLogger } from "@/lib/infra/logger";
+
+const log = createLogger("api:waitlist");
 
 const waitlistSchema = z.object({
   email: z.string().email("Please enter a valid email address."),
@@ -55,7 +58,7 @@ export async function POST(request: NextRequest) {
       201
     );
   } catch (error) {
-    console.error("[POST /api/waitlist] Error:", error);
+    log.error({ err: error }, "POST /api/waitlist failed");
     return internalError("Something went wrong. Please try again.");
   }
 }
@@ -67,7 +70,7 @@ export async function GET() {
     const count = await Waitlist.countDocuments();
     return successResponse({ count });
   } catch (error) {
-    console.error("[GET /api/waitlist] Error:", error);
+    log.error({ err: error }, "GET /api/waitlist failed");
     return internalError();
   }
 }

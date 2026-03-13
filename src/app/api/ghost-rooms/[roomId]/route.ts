@@ -9,6 +9,9 @@ import { ephemeralStore } from "@/lib/ghost/ephemeral-store";
 import { checkConsensus, persistGhostData } from "@/lib/ghost/consensus";
 import connectDB from "@/lib/infra/db/client";
 import User from "@/lib/infra/db/models/user";
+import { createLogger } from "@/lib/infra/logger";
+
+const log = createLogger("api:ghost-rooms");
 
 // -- Helpers -------------------------------------------------------------------
 
@@ -223,7 +226,7 @@ export const DELETE = withHandler(async (req: NextRequest, context) => {
       const result = await persistGhostData(room);
       savedMeetingId = result.meetingId;
     } catch (err) {
-      console.error("[Ghost Room] Failed to persist data:", err);
+      log.error({ err }, "failed to persist ghost room data");
       // Still destroy the room even if persistence fails
     }
   }

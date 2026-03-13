@@ -5,8 +5,10 @@ import {
   RoomEvent,
   Track,
   ConnectionState as LKConnectionState,
+  Participant,
   RemoteParticipant,
   RemoteTrackPublication,
+  TrackPublication,
   LocalTrackPublication,
   type RemoteTrack,
 } from "livekit-client";
@@ -65,6 +67,8 @@ export class LiveKitTransport implements RoomTransport {
   private streamCallbacks: ((userId: string, stream: MediaStream) => void)[] =
     [];
   private connectionStateCallbacks: ((state: ConnectionState) => void)[] = [];
+  private participantUpdatedCallbacks: ((user: TransportRoomUser) => void)[] =
+    [];
 
   participantCount = 1;
   connectionState: ConnectionState = "disconnected";
@@ -100,8 +104,10 @@ export class LiveKitTransport implements RoomTransport {
 
     // Publish local tracks from the provided MediaStream
     for (const track of localStream.getTracks()) {
+      const isVideo = track.kind === "video";
       await this.room.localParticipant.publishTrack(track, {
-        name: track.kind === "video" ? "camera" : "microphone",
+        name: isVideo ? "camera" : "microphone",
+        source: isVideo ? Track.Source.Camera : Track.Source.Microphone,
       });
     }
 
@@ -197,9 +203,17 @@ export class LiveKitTransport implements RoomTransport {
     this.streamCallbacks.push(cb);
   };
 
+  onParticipantUpdated = (cb: (user: TransportRoomUser) => void): void => {
+    this.participantUpdatedCallbacks.push(cb);
+  };
+
   onConnectionStateChanged = (cb: (state: ConnectionState) => void): void => {
     this.connectionStateCallbacks.push(cb);
   };
+
+  getRoom(): Room {
+    return this.room;
+  }
 
   // ── Internal ────────────────────────────────────────────────────────
 
@@ -226,14 +240,16 @@ export class LiveKitTransport implements RoomTransport {
         RoomEvent.TrackSubscribed,
         (
           _track: RemoteTrack,
-          pub: RemoteTrackPublication,
+          _pub: RemoteTrackPublication,
           participant: RemoteParticipant,
         ) => {
-          void pub; // consumed implicitly via participant's publications
           const stream = buildStreamForParticipant(participant);
           this.streamCallbacks.forEach((cb) =>
             cb(participant.identity, stream),
           );
+          // Also update participant media state (camera/mic enabled flags)
+          const user = participantToUser(participant);
+          this.participantUpdatedCallbacks.forEach((cb) => cb(user));
         },
       )
       .on(
@@ -247,6 +263,24 @@ export class LiveKitTransport implements RoomTransport {
           this.streamCallbacks.forEach((cb) =>
             cb(participant.identity, stream),
           );
+        },
+      )
+      .on(
+        RoomEvent.TrackMuted,
+        (_pub: TrackPublication, participant: Participant) => {
+          if (participant instanceof RemoteParticipant) {
+            const user = participantToUser(participant);
+            this.participantUpdatedCallbacks.forEach((cb) => cb(user));
+          }
+        },
+      )
+      .on(
+        RoomEvent.TrackUnmuted,
+        (_pub: TrackPublication, participant: Participant) => {
+          if (participant instanceof RemoteParticipant) {
+            const user = participantToUser(participant);
+            this.participantUpdatedCallbacks.forEach((cb) => cb(user));
+          }
         },
       )
       .on(RoomEvent.ConnectionQualityChanged, () => {

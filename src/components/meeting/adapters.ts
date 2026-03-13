@@ -1,12 +1,25 @@
-import type { RoomUser } from "@/lib/realtime/socket-events";
 import type { Participant } from "./ParticipantBubble";
 
 /**
- * Bridge between main's RoomUser and yoodle-I's Participant interface.
+ * Participant data from the room page, compatible with LiveKit transport users.
+ */
+export interface RoomParticipant {
+  id: string;
+  name: string;
+  displayName: string;
+  avatar?: string | null;
+  isVideoEnabled: boolean;
+  isAudioEnabled: boolean;
+  isScreenSharing: boolean;
+  isHandRaised?: boolean;
+}
+
+/**
+ * Bridge between RoomParticipant and yoodle-I's Participant interface.
  * Maps field names and adds stream/speaking data.
  */
 export function toParticipant(
-    roomUser: RoomUser,
+    roomUser: RoomParticipant,
     opts: {
         isSpeaking: boolean;
         stream?: MediaStream | null;

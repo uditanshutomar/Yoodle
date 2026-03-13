@@ -2,6 +2,9 @@ import { google } from "googleapis";
 import { createAuthenticatedClient } from "@/lib/infra/auth/google";
 import connectDB from "@/lib/infra/db/client";
 import User, { IUserDocument } from "@/lib/infra/db/models/user";
+import { createLogger } from "@/lib/infra/logger";
+
+const log = createLogger("google:client");
 
 /**
  * Get an authenticated Google OAuth2 client for a user.
@@ -42,7 +45,7 @@ export async function getGoogleClientForUser(userId: string) {
     } catch (err) {
       // Log but don't throw — the current request can still proceed with the
       // in-memory refreshed token; the next request will trigger another refresh.
-      console.error("[Google] Failed to persist refreshed tokens:", err);
+      log.error({ err }, "failed to persist refreshed Google tokens");
     }
   });
 

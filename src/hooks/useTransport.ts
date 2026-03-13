@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useMemo, useCallback } from "react";
+import type { Room } from "livekit-client";
 import type {
   RoomTransport,
   TransportRoomUser,
@@ -16,6 +17,7 @@ interface UseTransportOptions {
 
 interface UseTransportReturn {
   transport: RoomTransport | null;
+  room: Room | null;
   connectionState: ConnectionState;
   remoteStreams: Map<string, MediaStream>;
   remoteParticipants: TransportRoomUser[];
@@ -125,6 +127,12 @@ export function useTransport({
           updateRemoteState(t);
         });
 
+        t.onParticipantUpdated((updated) => {
+          setRemoteParticipants((prev) =>
+            prev.map((p) => (p.id === updated.id ? updated : p)),
+          );
+        });
+
         t.onConnectionStateChanged((state) => {
           setConnectionState(state);
         });
@@ -191,8 +199,14 @@ export function useTransport({
     }
   }, [localStream, userAudioEnabled, userVideoEnabled]);
 
+  const room = useMemo(() => {
+    if (!transport) return null;
+    return transport.getRoom() as Room | null;
+  }, [transport]);
+
   return {
     transport,
+    room,
     connectionState,
     remoteStreams,
     remoteParticipants,

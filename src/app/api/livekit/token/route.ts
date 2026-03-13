@@ -19,6 +19,9 @@ import {
   LIVEKIT_API_SECRET,
   isLiveKitConfigured,
 } from "@/lib/livekit/config";
+import { createLogger } from "@/lib/infra/logger";
+
+const log = createLogger("api:livekit-token");
 
 // ── Validation schema ─────────────────────────────────────────────
 
@@ -93,7 +96,7 @@ export const POST = withHandler(async (req: NextRequest) => {
     // If it's our own ForbiddenError, re-throw
     if (err instanceof ForbiddenError) throw err;
     // Otherwise LiveKit API is unreachable — allow join (fail open for availability)
-    console.warn("LiveKit RoomService check failed, allowing join:", err);
+    log.warn({ err }, "LiveKit RoomService check failed, allowing join");
   }
 
   // ── Issue token ────────────────────────────────────────────────
@@ -109,6 +112,7 @@ export const POST = withHandler(async (req: NextRequest) => {
     canPublish: true,
     canSubscribe: true,
     canPublishData: true,
+    canUpdateOwnMetadata: true,
   });
 
   const jwt = await token.toJwt();

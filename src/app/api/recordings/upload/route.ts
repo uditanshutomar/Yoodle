@@ -10,6 +10,9 @@ import Transcript from "@/lib/infra/db/models/transcript";
 import { hasGoogleAccess } from "@/lib/google/client";
 import { uploadRecordingToDrive } from "@/lib/google/drive-recordings";
 import { getQueue, QUEUE_NAMES } from "@/lib/infra/jobs/queue";
+import { createLogger } from "@/lib/infra/logger";
+
+const log = createLogger("api:recordings-upload");
 
 /**
  * POST /api/recordings/upload
@@ -144,7 +147,7 @@ export const POST = withHandler(async (req: NextRequest) => {
     });
   } catch (err) {
     // Queue may not be available (no Redis) — recording still uploaded
-    console.warn("[Recording Upload] Transcription job not queued:", err);
+    log.warn({ err }, "transcription job not queued");
     transcriptionQueued = false;
   }
 

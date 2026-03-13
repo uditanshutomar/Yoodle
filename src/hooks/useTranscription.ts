@@ -22,7 +22,7 @@ export function useTranscription(
   userId: string,
   userName: string,
   isAudioEnabled: boolean,
-  isConnected: boolean
+  isLivekitConnected: boolean,
 ): UseTranscriptionReturn {
   const [transcriptText, setTranscriptText] = useState("");
   const [isTranscribing, setIsTranscribing] = useState(false);
@@ -44,7 +44,7 @@ export function useTranscription(
   // transcript afterwards.
 
   useEffect(() => {
-    if (!isConnected || !isAudioEnabled || !localStream || !userId) return;
+    if (!isLivekitConnected || !isAudioEnabled || !localStream || !userId) return;
 
     const audioTrack = localStream.getAudioTracks()[0];
     if (!audioTrack) return;
@@ -132,7 +132,7 @@ export function useTranscription(
       }
       setIsTranscribing(false);
     };
-  }, [isAudioEnabled, isConnected, localStream, userId, userName, meetingId]);
+  }, [isAudioEnabled, isLivekitConnected, localStream, userId, userName, meetingId]);
 
   // ── Manual start/stop (for future UI toggle) ──────────────────────
 

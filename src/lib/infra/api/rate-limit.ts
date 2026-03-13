@@ -1,6 +1,9 @@
 import { NextRequest } from "next/server";
 import { getRedisClient } from "../redis/client";
 import { RateLimitError } from "./errors";
+import { createLogger } from "../logger";
+
+const log = createLogger("rate-limit");
 
 interface RateLimitConfig {
   /** Max number of requests in the window */
@@ -119,7 +122,7 @@ export async function checkRateLimit(
     if (error instanceof RateLimitError) throw error;
     // Redis unavailable — fall back to in-memory rate limiting
     // This prevents unlimited requests when Redis is down
-    console.warn(`[RateLimit] Redis unavailable, using in-memory fallback for ${group}`);
+    log.warn({ group }, "Redis unavailable, using in-memory fallback");
     checkInMemoryRateLimit(key, config);
   }
 }

@@ -2,28 +2,25 @@
 
 import AppSidebar from "@/components/layout/AppSidebar";
 import AppTopbar from "@/components/layout/AppTopbar";
-import SocketProvider from "@/providers/SocketProvider";
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   return (
-    <SocketProvider>
-      <div className="flex h-screen bg-background">
-        {/* Sidebar */}
-        <AppSidebar />
+    <div className="flex h-screen bg-background">
+      {/* Sidebar */}
+      <AppSidebar />
 
-        {/* Main area */}
-        <div className="flex flex-1 flex-col overflow-hidden">
-          {/* Topbar */}
-          <AppTopbar />
+      {/* Main area */}
+      <div className="flex flex-1 flex-col overflow-hidden">
+        {/* Topbar */}
+        <AppTopbar />
 
-          {/* Content */}
-          <main className="flex-1 overflow-y-auto">
-            <div className="mx-auto max-w-7xl px-4 py-6 lg:px-8">
-              {children}
-            </div>
-          </main>
-        </div>
+        {/* Content */}
+        <main className="flex-1 overflow-y-auto">
+          <div className="mx-auto max-w-7xl px-4 py-6 lg:px-8">
+            {children}
+          </div>
+        </main>
       </div>
-    </SocketProvider>
+    </div>
   );
 }

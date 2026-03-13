@@ -10,6 +10,9 @@ import {
   notFound,
   internalError,
 } from "@/lib/infra/api/response";
+import { createLogger } from "@/lib/infra/logger";
+
+const log = createLogger("api:users-me");
 
 /**
  * GET /api/users/me
@@ -50,7 +53,7 @@ export async function GET(request: NextRequest) {
       updatedAt: user.updatedAt,
     });
   } catch (error) {
-    console.error("[Users/Me GET Error]", error);
+    log.error({ err: error }, "GET /api/users/me failed");
     return internalError("Failed to retrieve profile.");
   }
 }
@@ -202,7 +205,7 @@ export async function PATCH(request: NextRequest) {
       message: "Profile updated successfully.",
     });
   } catch (error) {
-    console.error("[Users/Me PATCH Error]", error);
+    log.error({ err: error }, "PATCH /api/users/me failed");
     return internalError("Failed to update profile.");
   }
 }

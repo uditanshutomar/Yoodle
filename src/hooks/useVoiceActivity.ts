@@ -1,8 +1,15 @@
 "use client";
 
 import { useState, useCallback, useRef, useEffect } from "react";
-import { Socket } from "socket.io-client";
-import { SOCKET_EVENTS } from "@/lib/realtime/socket-events";
+import type { Room } from "livekit-client";
+import { RoomEvent, type Participant } from "livekit-client";
+import { useDataChannel } from "./useDataChannel";
+import {
+  DataMessageType,
+  type SpeakingStartData,
+  type SpeakingStopData,
+  type DataMessage,
+} from "@/lib/livekit/data-messages";
 
 export interface SpeechSegment {
   peerId: string;
@@ -21,7 +28,7 @@ export interface UseVoiceActivityReturn {
 }
 
 interface UseVoiceActivityOptions {
-  socket: Socket | null;
+  room: Room | null;
   userId: string;
   userName: string;
   /** Volume threshold to consider speaking (0-1). Default: 0.15 */
@@ -35,7 +42,7 @@ interface UseVoiceActivityOptions {
 }
 
 export function useVoiceActivity({
-  socket,
+  room,
   userId,
   userName,
   speakingThreshold = 0.15,
@@ -47,54 +54,119 @@ export function useVoiceActivity({
   const [audioLevel, setAudioLevel] = useState(0);
   const [speechSegments, setSpeechSegments] = useState<SpeechSegment[]>([]);
   const [remoteSpeakingPeers, setRemoteSpeakingPeers] = useState<Set<string>>(
-    new Set()
+    new Set(),
   );
+
+  const { sendLossy, onMessage } = useDataChannel(room);
 
   // Refs for audio analysis
   const audioContextRef = useRef<AudioContext | null>(null);
   const analyserRef = useRef<AnalyserNode | null>(null);
   const sourceRef = useRef<MediaStreamAudioSourceNode | null>(null);
-  const animationFrameRef = useRef<number | null>(null);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Refs for speaking detection state
   const isSpeakingRef = useRef(false);
-  const prevIsSpeakingRef = useRef(false);
   const speakingStartTimeRef = useRef<number | null>(null);
   const aboveThresholdSinceRef = useRef<number | null>(null);
   const lastAboveThresholdRef = useRef<number>(0);
 
-  /** Broadcast voice activity to other peers */
-  const broadcastActivity = useCallback(
-    (speaking: boolean, level: number) => {
-      if (!socket || !userId) return;
+  // ── LiveKit native: remote speaker detection ──────────────────────
 
-      socket.emit(SOCKET_EVENTS.VOICE_ACTIVITY, {
-        userId,
-        isSpeaking: speaking,
-        audioLevel: level,
-      });
-    },
-    [socket, userId]
-  );
+  useEffect(() => {
+    if (!room) return;
 
-  /** Mark the start of a new speech segment */
+    const handleActiveSpeakers = (speakers: Participant[]) => {
+      const ids = new Set(
+        speakers
+          .filter((p) => p.identity !== userId)
+          .map((p) => p.identity),
+      );
+      setRemoteSpeakingPeers(ids);
+    };
+
+    room.on(RoomEvent.ActiveSpeakersChanged, handleActiveSpeakers);
+    return () => {
+      room.off(RoomEvent.ActiveSpeakersChanged, handleActiveSpeakers);
+    };
+  }, [room, userId]);
+
+  // ── Listen for remote speech segments (for transcript attribution) ─
+
+  useEffect(() => {
+    const unsub = onMessage(
+      DataMessageType.SPEAKING_STOP,
+      (msg: DataMessage) => {
+        if (msg.type !== DataMessageType.SPEAKING_STOP) return;
+        // We receive SPEAKING_STOP with the segment's start time from a data message
+        // but we need to pair it with the corresponding SPEAKING_START
+        // For simplicity, we'll store segments when we get stop messages
+      },
+    );
+    return unsub;
+  }, [onMessage]);
+
+  // ── Speech segment tracking from remote data messages ──────────────
+
+  const remoteSpeakingStartRef = useRef<Map<string, number>>(new Map());
+
+  useEffect(() => {
+    const unsubStart = onMessage(
+      DataMessageType.SPEAKING_START,
+      (msg: DataMessage, senderId: string) => {
+        if (msg.type !== DataMessageType.SPEAKING_START) return;
+        const data = msg as SpeakingStartData;
+        if (data.userId === userId) return;
+        remoteSpeakingStartRef.current.set(senderId, data.timestamp);
+      },
+    );
+
+    const unsubStop = onMessage(
+      DataMessageType.SPEAKING_STOP,
+      (msg: DataMessage, senderId: string) => {
+        if (msg.type !== DataMessageType.SPEAKING_STOP) return;
+        const data = msg as SpeakingStopData;
+        if (data.userId === userId) return;
+
+        const startTime = remoteSpeakingStartRef.current.get(senderId);
+        remoteSpeakingStartRef.current.delete(senderId);
+
+        if (startTime) {
+          const segment: SpeechSegment = {
+            peerId: data.userId,
+            speakerName: senderId, // best-effort
+            startTime,
+            endTime: data.timestamp,
+          };
+          setSpeechSegments((prev) => {
+            const next = [...prev, segment];
+            return next.length > 500 ? next.slice(-500) : next;
+          });
+        }
+      },
+    );
+
+    return () => {
+      unsubStart();
+      unsubStop();
+    };
+  }, [onMessage, userId]);
+
+  // ── Local speech start/stop ─────────────────────────────────────────
+
   const onSpeakingStart = useCallback(() => {
     const now = Date.now();
     isSpeakingRef.current = true;
     speakingStartTimeRef.current = now;
     setIsSpeaking(true);
 
-    if (socket) {
-      socket.emit(SOCKET_EVENTS.SPEAKING_START, {
-        userId,
-        speakerName: userName,
-        startTime: now,
-      });
-    }
-  }, [socket, userId, userName]);
+    void sendLossy({
+      type: DataMessageType.SPEAKING_START,
+      userId,
+      timestamp: now,
+    });
+  }, [sendLossy, userId]);
 
-  /** Mark the end of a speech segment and save metadata */
   const onSpeakingStop = useCallback(() => {
     const now = Date.now();
     const startTime = speakingStartTimeRef.current;
@@ -111,24 +183,21 @@ export function useVoiceActivity({
         startTime,
         endTime: now,
       };
-
       setSpeechSegments((prev) => {
         const next = [...prev, segment];
         return next.length > 500 ? next.slice(-500) : next;
       });
 
-      if (socket) {
-        socket.emit(SOCKET_EVENTS.SPEAKING_STOP, {
-          userId,
-          speakerName: userName,
-          startTime,
-          endTime: now,
-        });
-      }
+      void sendLossy({
+        type: DataMessageType.SPEAKING_STOP,
+        userId,
+        timestamp: now,
+      });
     }
-  }, [socket, userId, userName]);
+  }, [sendLossy, userId, userName]);
 
-  /** Analyze audio data from the AnalyserNode */
+  // ── Audio analysis ──────────────────────────────────────────────────
+
   const analyzeAudio = useCallback(() => {
     const analyser = analyserRef.current;
     if (!analyser) return;
@@ -137,7 +206,6 @@ export function useVoiceActivity({
     const dataArray = new Uint8Array(bufferLength);
     analyser.getByteFrequencyData(dataArray);
 
-    // Average all frequency data and normalize to 0-1
     let sum = 0;
     for (let i = 0; i < bufferLength; i++) {
       sum += dataArray[i];
@@ -154,33 +222,21 @@ export function useVoiceActivity({
       lastAboveThresholdRef.current = now;
 
       if (!isSpeakingRef.current) {
-        // Track when we first go above threshold
         if (aboveThresholdSinceRef.current === null) {
           aboveThresholdSinceRef.current = now;
         }
-
-        // If above threshold long enough, start speaking
         if (now - aboveThresholdSinceRef.current >= speakingStartDelay) {
           onSpeakingStart();
         }
       }
     } else {
-      // Below threshold
       if (!isSpeakingRef.current) {
-        // Reset the "above threshold since" tracker if not speaking yet
         aboveThresholdSinceRef.current = null;
       } else {
-        // Currently speaking, check if silence has been long enough
         if (now - lastAboveThresholdRef.current >= silenceTimeout) {
           onSpeakingStop();
         }
       }
-    }
-
-    // Only broadcast on speaking state change (not every analysis loop)
-    if (isSpeakingRef.current !== prevIsSpeakingRef.current) {
-      broadcastActivity(isSpeakingRef.current, normalizedLevel);
-      prevIsSpeakingRef.current = isSpeakingRef.current;
     }
   }, [
     speakingThreshold,
@@ -188,56 +244,38 @@ export function useVoiceActivity({
     silenceTimeout,
     onSpeakingStart,
     onSpeakingStop,
-    broadcastActivity,
   ]);
 
-  /** Internal stop function — defined before startMonitoring to avoid forward reference */
+  // ── Internal stop ───────────────────────────────────────────────────
+
   const stopMonitoringInternal = useCallback(() => {
     if (intervalRef.current) {
       clearInterval(intervalRef.current);
       intervalRef.current = null;
     }
-
-    if (animationFrameRef.current) {
-      cancelAnimationFrame(animationFrameRef.current);
-      animationFrameRef.current = null;
-    }
-
     if (sourceRef.current) {
       sourceRef.current.disconnect();
       sourceRef.current = null;
     }
-
-    if (analyserRef.current) {
-      analyserRef.current = null;
-    }
-
+    analyserRef.current = null;
     if (audioContextRef.current) {
-      audioContextRef.current.close().catch(() => {
-        // Ignore errors when closing
-      });
+      audioContextRef.current.close().catch(() => {});
       audioContextRef.current = null;
     }
-
-    // End any active speech segment
     if (isSpeakingRef.current) {
       onSpeakingStop();
     }
-
     setAudioLevel(0);
   }, [onSpeakingStop]);
 
-  /** Start monitoring an audio stream for voice activity */
+  // ── Start monitoring ────────────────────────────────────────────────
+
   const startMonitoring = useCallback(
     (stream: MediaStream) => {
-      // Stop any existing monitoring
       stopMonitoringInternal();
-
       try {
         const audioContext = new AudioContext();
         const analyser = audioContext.createAnalyser();
-
-        // Configure the analyser for voice detection
         analyser.fftSize = 1024;
         analyser.smoothingTimeConstant = 0.5;
         analyser.minDecibels = -90;
@@ -252,93 +290,17 @@ export function useVoiceActivity({
 
         intervalRef.current = setInterval(analyzeAudio, sampleInterval);
       } catch {
-        // Error starting voice monitoring — silently ignored (non-critical)
+        // Non-critical — silently ignored
       }
     },
-    [analyzeAudio, sampleInterval, stopMonitoringInternal]
+    [analyzeAudio, sampleInterval, stopMonitoringInternal],
   );
 
-  /** Public stop function */
   const stopMonitoring = useCallback(() => {
     stopMonitoringInternal();
   }, [stopMonitoringInternal]);
 
-  /** Listen for remote voice activity events */
-  useEffect(() => {
-    if (!socket) return;
-
-    const handleRemoteVoiceActivity = (payload: {
-      userId: string;
-      isSpeaking: boolean;
-      audioLevel: number;
-    }) => {
-      if (payload.userId === userId) return;
-
-      setRemoteSpeakingPeers((prev) => {
-        const next = new Set(prev);
-        if (payload.isSpeaking) {
-          next.add(payload.userId);
-        } else {
-          next.delete(payload.userId);
-        }
-        return next;
-      });
-    };
-
-    const handleRemoteSpeakingStart = (payload: {
-      userId: string;
-      speakerName: string;
-      startTime: number;
-    }) => {
-      if (payload.userId === userId) return;
-
-      setRemoteSpeakingPeers((prev) => {
-        const next = new Set(prev);
-        next.add(payload.userId);
-        return next;
-      });
-    };
-
-    const handleRemoteSpeakingStop = (payload: {
-      userId: string;
-      speakerName: string;
-      startTime: number;
-      endTime: number;
-    }) => {
-      if (payload.userId === userId) return;
-
-      setRemoteSpeakingPeers((prev) => {
-        const next = new Set(prev);
-        next.delete(payload.userId);
-        return next;
-      });
-
-      // Store remote speech segments for transcript attribution
-      const segment: SpeechSegment = {
-        peerId: payload.userId,
-        speakerName: payload.speakerName,
-        startTime: payload.startTime,
-        endTime: payload.endTime,
-      };
-
-      setSpeechSegments((prev) => {
-        const next = [...prev, segment];
-        return next.length > 500 ? next.slice(-500) : next;
-      });
-    };
-
-    socket.on(SOCKET_EVENTS.VOICE_ACTIVITY, handleRemoteVoiceActivity);
-    socket.on(SOCKET_EVENTS.SPEAKING_START, handleRemoteSpeakingStart);
-    socket.on(SOCKET_EVENTS.SPEAKING_STOP, handleRemoteSpeakingStop);
-
-    return () => {
-      socket.off(SOCKET_EVENTS.VOICE_ACTIVITY, handleRemoteVoiceActivity);
-      socket.off(SOCKET_EVENTS.SPEAKING_START, handleRemoteSpeakingStart);
-      socket.off(SOCKET_EVENTS.SPEAKING_STOP, handleRemoteSpeakingStop);
-    };
-  }, [socket, userId]);
-
-  /** Clean up on unmount */
+  // Clean up on unmount
   useEffect(() => {
     return () => {
       stopMonitoringInternal();

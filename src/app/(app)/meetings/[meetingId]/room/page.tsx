@@ -18,13 +18,12 @@ const ParticipantList = dynamic(() => import("@/components/meeting/ParticipantLi
 const ReactionOverlay = dynamic(() => import("@/components/meeting/ReactionOverlay"), { ssr: false });
 const ReconnectionOverlay = dynamic(() => import("@/components/meeting/ReconnectionOverlay"), { ssr: false });
 const WaitingRoomPanel = dynamic(() => import("@/components/meeting/WaitingRoomPanel"), { ssr: false });
-import { toParticipant } from "@/components/meeting/adapters";
+import { toParticipant, type RoomParticipant } from "@/components/meeting/adapters";
 import { DoodleStar, DoodleSparkles } from "@/components/Doodles";
 import "./meeting.css";
 import { useMediaDevices } from "@/hooks/useMediaDevices";
 import { useVoiceActivity, type SpeechSegment } from "@/hooks/useVoiceActivity";
 import { useAuth } from "@/hooks/useAuth";
-import { useSocket } from "@/hooks/useSocket";
 import { useChat } from "@/hooks/useChat";
 import { useRecording } from "@/hooks/useRecording";
 import { useTranscription } from "@/hooks/useTranscription";
@@ -32,17 +31,16 @@ import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
 import { useMutedWarning } from "@/hooks/useMutedWarning";
 import { useConnectionQuality } from "@/hooks/useConnectionQuality";
 import { useTransport } from "@/hooks/useTransport";
+import { useDataChannel } from "@/hooks/useDataChannel";
 import {
-  SOCKET_EVENTS,
-  type RoomUser,
-  type MediaStatePayload,
-  type ReactionPayload,
-  type HostMutePayload,
-  type HostKickPayload,
-  type WaitingRoomUser,
-  type WaitingRoomActionPayload,
-  type HandRaisePayload,
-} from "@/lib/realtime/socket-events";
+  DataMessageType,
+  type DataMessage,
+  type ReactionData,
+  type HandRaiseData,
+  type HandLowerData,
+  type HostMuteData,
+  type HostKickData,
+} from "@/lib/livekit/data-messages";
 import {
   clearRoomJoinSession,
   loadRoomJoinSession,
@@ -56,8 +54,12 @@ export default function MeetingRoomPage() {
   const router = useRouter();
   const meetingId = params.meetingId as string;
   const { user } = useAuth();
-  const { socket, isConnected } = useSocket();
-  const [roomSession, setRoomSession] = useState<RoomJoinSession | null>(null);
+
+  // Load roomSession eagerly from sessionStorage (synchronous) so media state
+  // can be initialized correctly before the first render.
+  const [roomSession] = useState<RoomJoinSession | null>(() =>
+    loadRoomJoinSession(meetingId),
+  );
 
   // ── Bug #6 fix: media error state ──────────────────────────────────
   const [mediaError, setMediaError] = useState<string | null>(null);
@@ -71,10 +73,50 @@ export default function MeetingRoomPage() {
     startMedia,
     stopMedia,
     error: mediaDeviceError,
-  } = useMediaDevices();
+  } = useMediaDevices({
+    initialVideoEnabled: roomSession?.media.videoEnabled,
+    initialAudioEnabled: roomSession?.media.audioEnabled,
+  });
 
-  // Combine device hook error with local state error for display
   const effectiveMediaError = mediaDeviceError || mediaError;
+
+  // ── LiveKit transport ──────────────────────────────────────────────
+  const localUser = user
+    ? {
+        id: user.id,
+        name: user.name,
+        displayName: user.displayName || user.name,
+        avatar: user.avatar || undefined,
+      }
+    : { id: "local", name: "You", displayName: "You", avatar: undefined };
+
+  const [isScreenSharing, setIsScreenSharing] = useState(false);
+
+  const {
+    transport,
+    room,
+    connectionState: livekitConnectionState,
+    remoteStreams: livekitRemoteStreams,
+    remoteParticipants: livekitRemoteParticipants,
+    error: livekitError,
+  } = useTransport({
+    meetingId,
+    localStream,
+    user: {
+      id: localUser.id,
+      name: localUser.name,
+      avatar: localUser.avatar || undefined,
+      isAudioEnabled,
+      isVideoEnabled,
+      isScreenSharing,
+    },
+    enabled: !!localStream,
+  });
+
+  const isLivekitConnected = livekitConnectionState === "connected";
+
+  // ── Data channel for signaling ─────────────────────────────────────
+  const { sendReliable, sendLossy, onMessage } = useDataChannel(room);
 
   // ── Voice activity (speaker detection for transcripts) ──────────────
   const {
@@ -84,34 +126,28 @@ export default function MeetingRoomPage() {
     startMonitoring: startVoiceMonitoring,
     stopMonitoring: stopVoiceMonitoring,
   } = useVoiceActivity({
-    socket,
+    room,
     userId: user?.id || "local",
     userName: user?.displayName || user?.name || "You",
   });
 
   // ── Room session bootstrap ────────────────────────────────────────
+  // roomSession is loaded eagerly via useState initializer above.
+  // Redirect if missing (user navigated directly without joining).
   useEffect(() => {
-    const session = loadRoomJoinSession(meetingId);
-    if (!session) {
+    if (!roomSession) {
       router.push(`/meetings/${meetingId}`);
-      return;
     }
-
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setRoomSession(session);
-  }, [meetingId, router]);
+  }, [meetingId, router, roomSession]);
 
   // ── UI state ─────────────────────────────────────────────────────────
   const [showChat, setShowChat] = useState(false);
   const [showParticipants, setShowParticipants] = useState(false);
-  const [isScreenSharing, setIsScreenSharing] = useState(false);
   const [layout, setLayout] = useState<"bubbles" | "grid">("bubbles");
   const [isHandRaised, setIsHandRaised] = useState(false);
   const [showWaitingRoom, setShowWaitingRoom] = useState(false);
   const [waitingUsers, setWaitingUsers] = useState<WaitingUser[]>([]);
   const isLocalHost = !!(user && roomSession && user.id === roomSession.hostUserId);
-  const [reconnectAttempts, setReconnectAttempts] = useState(0);
-  const MAX_RECONNECT_ATTEMPTS = 5;
   const reactionRef = useRef<((emoji: string, userName: string) => void) | null>(null);
   const [handRaisedUsers, setHandRaisedUsers] = useState<Set<string>>(new Set());
 
@@ -149,37 +185,8 @@ export default function MeetingRoomPage() {
     return `${m}:${s.toString().padStart(2, "0")}`;
   };
 
-  // ── Local user identity ────────────────────────────────────────────
-  const localUser = user
-    ? {
-        id: user.id,
-        name: user.name,
-        displayName: user.displayName || user.name,
-        avatar: user.avatar || undefined,
-      }
-    : { id: "local", name: "You", displayName: "You", avatar: undefined };
   const canRecord = roomSession?.permissions.allowRecording ?? false;
   const canScreenShare = roomSession?.permissions.allowScreenShare ?? true;
-
-  // ── LiveKit transport ──────────────────────────────────────────────
-  const {
-    transport,
-    remoteStreams: livekitRemoteStreams,
-    remoteParticipants: livekitRemoteParticipants,
-    error: livekitError,
-  } = useTransport({
-    meetingId,
-    localStream,
-    user: {
-      id: localUser.id,
-      name: localUser.name,
-      avatar: localUser.avatar || undefined,
-      isAudioEnabled,
-      isVideoEnabled,
-      isScreenSharing,
-    },
-    enabled: !!localStream,
-  });
 
   // ── Chat hook ──────────────────────────────────────────────────────
   const {
@@ -187,9 +194,8 @@ export default function MeetingRoomPage() {
     sendMessage: handleSendMessage,
     unreadCount: chatUnreadCount,
     markRead: markChatRead,
-  } = useChat(socket, meetingId, localUser.id, localUser.displayName);
+  } = useChat(room, localUser.id, localUser.displayName);
 
-  // Mark chat as read when the panel is opened
   useEffect(() => {
     if (showChat) markChatRead();
   }, [showChat, markChatRead]);
@@ -197,9 +203,8 @@ export default function MeetingRoomPage() {
   // ── Remote participants (from LiveKit transport) ────────────────────
   const effectiveRemoteStreams = livekitRemoteStreams;
 
-  const effectiveRemoteParticipants: RoomUser[] = livekitRemoteParticipants.map((p) => ({
+  const effectiveRemoteParticipants: RoomParticipant[] = livekitRemoteParticipants.map((p) => ({
     id: p.id,
-    socketId: "",
     name: p.name,
     displayName: p.name,
     avatar: p.avatar || null,
@@ -215,7 +220,6 @@ export default function MeetingRoomPage() {
     ...remoteSpeakingFromVAD,
   ]);
   const localStreamRef = useRef<MediaStream | null>(null);
-  const joinedRef = useRef(false);
   const mediaStartedRef = useRef(false);
   const screenStreamRef = useRef<MediaStream | null>(null);
   const [screenStream, setScreenStream] = useState<MediaStream | null>(null);
@@ -231,9 +235,8 @@ export default function MeetingRoomPage() {
     isRecording,
     startRecording: handleStartRecording,
     stopRecording: handleStopRecording,
-  } = useRecording(localStream, effectiveRemoteStreams, meetingId, socket, speechSegmentsRef);
+  } = useRecording(localStream, effectiveRemoteStreams, meetingId, room, speechSegmentsRef);
 
-  // Keep a ref so socket handlers always see the latest recording state
   const isRecordingRef = useRef(isRecording);
   const handleStopRecordingRef = useRef(handleStopRecording);
   useEffect(() => { isRecordingRef.current = isRecording; }, [isRecording]);
@@ -246,14 +249,13 @@ export default function MeetingRoomPage() {
     user?.id || "local",
     user?.displayName || user?.name || "You",
     isAudioEnabled,
-    isConnected
+    isLivekitConnected,
   );
 
   // ── Build full participants list ─────────────────────────────────────
-  const participants: RoomUser[] = [
+  const participants: RoomParticipant[] = [
     {
       id: localUser.id,
-      socketId: socket?.id || "",
       name: localUser.name,
       displayName: localUser.displayName,
       avatar: localUser.avatar || null,
@@ -265,10 +267,9 @@ export default function MeetingRoomPage() {
     ...effectiveRemoteParticipants,
   ];
 
-  // Bug #3 fix: derive activeScreenShare from ANY participant, not just local
   const activeScreenShare = participants.some((p) => p.isScreenSharing);
 
-  // ── Muted warning (detects speaking while muted) ──────────────────
+  // ── Muted warning ──────────────────────────────────────────────────
   const showMutedWarning = useMutedWarning(localStream, isAudioEnabled);
 
   // ── Connection quality monitoring ─────────────────────────────────
@@ -286,8 +287,6 @@ export default function MeetingRoomPage() {
   }, [localStream, startVoiceMonitoring, stopVoiceMonitoring]);
 
   // ── Start media immediately on mount ────────────────────────────────
-  // Bug #6 fix: wrap in try/catch and surface error to UI
-
   useEffect(() => {
     if (mediaStartedRef.current) return;
     if (!roomSession) return;
@@ -304,162 +303,108 @@ export default function MeetingRoomPage() {
       setMediaError(
         err instanceof Error
           ? err.message
-          : "Failed to access camera or microphone. Please check your permissions."
+          : "Failed to access camera or microphone. Please check your permissions.",
       );
     });
   }, [roomSession, startMedia]);
 
-  // ── Socket event setup (handles initial join AND reconnection) ──────
+  // ── Data channel event handlers ─────────────────────────────────────
 
+  // Reactions
   useEffect(() => {
-    if (!socket || !isConnected || !user || !roomSession) return;
+    const unsub = onMessage(DataMessageType.REACTION, (msg: DataMessage) => {
+      if (msg.type !== DataMessageType.REACTION) return;
+      const data = msg as ReactionData;
+      reactionRef.current?.(data.emoji, data.userName);
+    });
+    return unsub;
+  }, [onMessage]);
 
-    const roomUser = {
-      id: user.id,
-      name: user.name,
-      displayName: user.displayName,
-      avatar: user.avatar,
-    };
-
-    if (!joinedRef.current) {
-      socket.emit(SOCKET_EVENTS.JOIN_ROOM, {
-        roomId: roomSession.roomId,
-        user: roomUser,
-      });
-      joinedRef.current = true;
-    } else {
-      // Reconnection — re-join the room
-      socket.emit(SOCKET_EVENTS.JOIN_ROOM, {
-        roomId: roomSession.roomId,
-        user: roomUser,
-      });
-    }
-
-    // ── Event handlers ──────────────────────────────────────────────
-    // Note: participant join/leave for media streams is handled by
-    // LiveKit transport. Socket events here handle metadata only
-    // (media state, reactions, screen share status, hand raise, etc.)
-
-    const handleReaction = (payload: ReactionPayload) => {
-      reactionRef.current?.(payload.emoji, payload.userName);
-    };
-
-    // Screen share start/stop handled natively by LiveKit transport.
-    // Socket events still broadcast for waiting room / UI sync.
-    const handleScreenShareStart = () => {};
-    const handleScreenShareStop = () => {};
-
-    // ── Hand raise events (tracked locally, not part of LiveKit) ────
-    const handleHandRaised = (payload: HandRaisePayload) => {
-      setHandRaisedUsers((prev) => new Set(prev).add(payload.userId));
-    };
-
-    const handleHandLowered = (payload: HandRaisePayload) => {
+  // Hand raise/lower
+  useEffect(() => {
+    const unsubRaise = onMessage(DataMessageType.HAND_RAISE, (msg: DataMessage) => {
+      if (msg.type !== DataMessageType.HAND_RAISE) return;
+      const data = msg as HandRaiseData;
+      setHandRaisedUsers((prev) => new Set(prev).add(data.userId));
+    });
+    const unsubLower = onMessage(DataMessageType.HAND_LOWER, (msg: DataMessage) => {
+      if (msg.type !== DataMessageType.HAND_LOWER) return;
+      const data = msg as HandLowerData;
       setHandRaisedUsers((prev) => {
         const next = new Set(prev);
-        next.delete(payload.userId);
+        next.delete(data.userId);
         return next;
       });
-    };
-
-    // ── Host control events ──────────────────────────────────────────
-    const handleHostMuted = () => {
-      // Server force-muted us — check actual track state to avoid stale closure
-      const audioTrack = localStreamRef.current?.getAudioTracks()[0];
-      if (audioTrack?.enabled) {
-        toggleAudio();
-      }
-    };
-
-    const handleHostKicked = () => {
-      // We've been kicked — clean up resources before navigating.
-      // Use refs to avoid stale closure (this handler is created once
-      // when the socket effect runs, not re-created on isRecording change).
-      if (isRecordingRef.current) handleStopRecordingRef.current();
-
-      // LiveKit transport cleanup handled by useTransport hook unmount
-      screenStreamRef.current?.getTracks().forEach((t) => t.stop());
-      stopMedia();
-      clearRoomJoinSession(meetingId);
-
-      router.push("/meetings?kicked=true");
-    };
-
-    // ── Waiting room events ──────────────────────────────────────────
-    // Server sends { roomId, users: WaitingRoomUser[] } — extract users from payload
-    const handleWaitingList = (payload: { roomId?: string; users?: WaitingRoomUser[] } | WaitingRoomUser[]) => {
-      const users = Array.isArray(payload) ? payload : (payload.users ?? []);
-      setWaitingUsers(
-        users.map((u) => ({
-          id: u.id,
-          name: u.name,
-          displayName: u.displayName,
-          avatar: u.avatar,
-          joinedWaitingAt: u.joinedWaitingAt,
-        }))
-      );
-      // Auto-show waiting room panel if there are users waiting
-      if (users.length > 0 && isLocalHost) {
-        setShowWaitingRoom(true);
-      }
-    };
-
-    // ── Reconnection tracking ────────────────────────────────────────
-    const handleDisconnect = () => {
-      setReconnectAttempts(MAX_RECONNECT_ATTEMPTS);
-    };
-
-    const handleReconnectAttempt = (attempt: number) => {
-      setReconnectAttempts(attempt);
-    };
-
-    // ── Register event listeners ────────────────────────────────────
-
-    socket.on(SOCKET_EVENTS.REACTION_RECEIVED, handleReaction);
-    socket.on(SOCKET_EVENTS.SCREEN_SHARE_START, handleScreenShareStart);
-    socket.on(SOCKET_EVENTS.SCREEN_SHARE_STOP, handleScreenShareStop);
-    socket.on(SOCKET_EVENTS.HAND_RAISED, handleHandRaised);
-    socket.on(SOCKET_EVENTS.HAND_LOWERED, handleHandLowered);
-    socket.on(SOCKET_EVENTS.HOST_MUTED, handleHostMuted);
-    socket.on(SOCKET_EVENTS.HOST_KICKED, handleHostKicked);
-    socket.on(SOCKET_EVENTS.WAITING_LIST, handleWaitingList);
-    socket.io.on("reconnect_attempt", handleReconnectAttempt);
-    socket.io.on("reconnect_failed", handleDisconnect);
-
+    });
     return () => {
-      socket.off(SOCKET_EVENTS.REACTION_RECEIVED, handleReaction);
-      socket.off(SOCKET_EVENTS.SCREEN_SHARE_START, handleScreenShareStart);
-      socket.off(SOCKET_EVENTS.SCREEN_SHARE_STOP, handleScreenShareStop);
-      socket.off(SOCKET_EVENTS.HAND_RAISED, handleHandRaised);
-      socket.off(SOCKET_EVENTS.HAND_LOWERED, handleHandLowered);
-      socket.off(SOCKET_EVENTS.HOST_MUTED, handleHostMuted);
-      socket.off(SOCKET_EVENTS.HOST_KICKED, handleHostKicked);
-      socket.off(SOCKET_EVENTS.WAITING_LIST, handleWaitingList);
-      socket.io.off("reconnect_attempt", handleReconnectAttempt);
-      socket.io.off("reconnect_failed", handleDisconnect);
+      unsubRaise();
+      unsubLower();
     };
-  }, [
-    socket,
-    isConnected,
-    user,
-    roomSession,
-    toggleAudio,
-    stopMedia,
-    router,
-    meetingId,
-    isLocalHost,
-  ]);
+  }, [onMessage]);
 
-  // ── Broadcast media state on toggle ──────────────────────────────
-
+  // Host controls: mute and kick
   useEffect(() => {
-    if (!socket || !isConnected || !user) return;
-    socket.emit(SOCKET_EVENTS.MEDIA_STATE_CHANGED, {
-      userId: user.id,
-      isVideoEnabled,
-      isAudioEnabled,
-    } as MediaStatePayload);
-  }, [isVideoEnabled, isAudioEnabled, socket, isConnected, user]);
+    const unsubMute = onMessage(DataMessageType.HOST_MUTE, (msg: DataMessage) => {
+      if (msg.type !== DataMessageType.HOST_MUTE) return;
+      const data = msg as HostMuteData;
+      if (data.targetUserId === localUser.id) {
+        const audioTrack = localStreamRef.current?.getAudioTracks()[0];
+        if (audioTrack?.enabled) {
+          toggleAudio();
+        }
+      }
+    });
+    const unsubKick = onMessage(DataMessageType.HOST_KICK, (msg: DataMessage) => {
+      if (msg.type !== DataMessageType.HOST_KICK) return;
+      const data = msg as HostKickData;
+      if (data.targetUserId === localUser.id) {
+        if (isRecordingRef.current) handleStopRecordingRef.current();
+        screenStreamRef.current?.getTracks().forEach((t) => t.stop());
+        stopMedia();
+        clearRoomJoinSession(meetingId);
+        router.push("/meetings?kicked=true");
+      }
+    });
+    return () => {
+      unsubMute();
+      unsubKick();
+    };
+  }, [onMessage, localUser.id, toggleAudio, stopMedia, meetingId, router]);
+
+  // ── Waiting room HTTP polling (host only) ──────────────────────────
+  useEffect(() => {
+    if (!isLocalHost || !isLivekitConnected) return;
+
+    let active = true;
+    const poll = async () => {
+      try {
+        const res = await fetch(`/api/meetings/${meetingId}/waiting-status`, {
+          credentials: "include",
+        });
+        if (res.ok && active) {
+          const data = await res.json();
+          const users: WaitingUser[] = (data.users ?? []).map((u: WaitingUser) => ({
+            id: u.id,
+            name: u.name,
+            displayName: u.displayName,
+            avatar: u.avatar,
+            joinedWaitingAt: u.joinedWaitingAt,
+          }));
+          setWaitingUsers(users);
+          if (users.length > 0) setShowWaitingRoom(true);
+        }
+      } catch {
+        // Polling is best-effort
+      }
+    };
+
+    void poll();
+    const interval = setInterval(poll, 3000);
+    return () => {
+      active = false;
+      clearInterval(interval);
+    };
+  }, [isLocalHost, isLivekitConnected, meetingId]);
 
   // ── Screen sharing (via LiveKit transport) ──────────────────────────
 
@@ -470,7 +415,6 @@ export default function MeetingRoomPage() {
     }
 
     if (isScreenSharing) {
-      // Stop screen share via transport
       if (transport) {
         await transport.stopScreenShare().catch(() => {});
       }
@@ -478,33 +422,22 @@ export default function MeetingRoomPage() {
       screenStreamRef.current = null;
       setScreenStream(null);
       setIsScreenSharing(false);
-
-      // Broadcast screen share stop to other participants
-      if (socket && user) {
-        socket.emit(SOCKET_EVENTS.SCREEN_SHARE_STOP);
-      }
     } else {
       try {
-        const screenStream = await navigator.mediaDevices.getDisplayMedia({
+        const stream = await navigator.mediaDevices.getDisplayMedia({
           video: true,
           audio: true,
         });
-        screenStreamRef.current = screenStream;
-        setScreenStream(screenStream);
+        screenStreamRef.current = stream;
+        setScreenStream(stream);
         setIsScreenSharing(true);
 
-        // Publish screen share tracks via LiveKit transport
         if (transport) {
-          await transport.startScreenShare(screenStream);
-        }
-
-        // Broadcast screen share start to other participants
-        if (socket && user) {
-          socket.emit(SOCKET_EVENTS.SCREEN_SHARE_START);
+          await transport.startScreenShare(stream);
         }
 
         // Handle native "stop sharing" browser button
-        const screenTrack = screenStream.getVideoTracks()[0];
+        const screenTrack = stream.getVideoTracks()[0];
         screenTrack.onended = async () => {
           if (transport) {
             await transport.stopScreenShare().catch(() => {});
@@ -512,49 +445,53 @@ export default function MeetingRoomPage() {
           setIsScreenSharing(false);
           screenStreamRef.current = null;
           setScreenStream(null);
-          // Broadcast screen share stop when user clicks browser's native stop button
-          if (socket && user) {
-            socket.emit(SOCKET_EVENTS.SCREEN_SHARE_STOP);
-          }
         };
       } catch (err) {
         if (!(err instanceof DOMException && err.name === "NotAllowedError")) {
-          // Screen share failed for non-cancellation reason
           void err;
         }
       }
     }
-  }, [canScreenShare, isScreenSharing, transport, socket, user]);
+  }, [canScreenShare, isScreenSharing, transport]);
 
   // ── Reactions ────────────────────────────────────────────────────
 
   const handleReaction = useCallback(
     (emoji: string) => {
-      if (!socket || !user) return;
-      const payload: ReactionPayload = {
+      if (!user) return;
+      const data: ReactionData = {
+        type: DataMessageType.REACTION,
         userId: user.id,
         userName: user.displayName || user.name,
         emoji,
         timestamp: Date.now(),
       };
-      socket.emit(SOCKET_EVENTS.REACTION, payload);
-      reactionRef.current?.(emoji, payload.userName);
+      void sendLossy(data);
+      reactionRef.current?.(emoji, data.userName);
     },
-    [socket, user]
+    [user, sendLossy],
   );
 
   // ── Hand raise ─────────────────────────────────────────────────────
 
   const handleToggleHandRaise = useCallback(() => {
-    if (!socket || !user) return;
-    const event = isHandRaised ? SOCKET_EVENTS.HAND_LOWER : SOCKET_EVENTS.HAND_RAISE;
-    socket.emit(event, {
-      userId: user.id,
-      userName: user.displayName || user.name,
-      timestamp: Date.now(),
-    } as HandRaisePayload);
+    if (!user) return;
+    if (isHandRaised) {
+      void sendReliable({
+        type: DataMessageType.HAND_LOWER,
+        userId: user.id,
+        timestamp: Date.now(),
+      });
+    } else {
+      void sendReliable({
+        type: DataMessageType.HAND_RAISE,
+        userId: user.id,
+        userName: user.displayName || user.name,
+        timestamp: Date.now(),
+      });
+    }
     setIsHandRaised(!isHandRaised);
-  }, [socket, user, isHandRaised]);
+  }, [user, isHandRaised, sendReliable]);
 
   // ── Layout toggle ─────────────────────────────────────────────────
 
@@ -566,71 +503,80 @@ export default function MeetingRoomPage() {
 
   const handleMuteParticipant = useCallback(
     (targetUserId: string) => {
-      if (!socket || !isLocalHost) return;
-      socket.emit(SOCKET_EVENTS.HOST_MUTE, {
-        targetUserId,
-        roomId: meetingId,
-      } as HostMutePayload);
+      if (!isLocalHost) return;
+      void sendReliable(
+        {
+          type: DataMessageType.HOST_MUTE,
+          targetUserId,
+        },
+        [targetUserId],
+      );
     },
-    [socket, isLocalHost, meetingId]
+    [isLocalHost, sendReliable],
   );
 
   const handleKickParticipant = useCallback(
     (targetUserId: string) => {
-      if (!socket || !isLocalHost) return;
-      socket.emit(SOCKET_EVENTS.HOST_KICK, {
-        targetUserId,
-        roomId: meetingId,
-      } as HostKickPayload);
+      if (!isLocalHost) return;
+      void sendReliable(
+        {
+          type: DataMessageType.HOST_KICK,
+          targetUserId,
+        },
+        [targetUserId],
+      );
     },
-    [socket, isLocalHost, meetingId]
+    [isLocalHost, sendReliable],
   );
 
   // ── Waiting room controls ────────────────────────────────────────
 
   const handleAdmitUser = useCallback(
-    (userId: string) => {
-      if (!socket || !isLocalHost) return;
-      socket.emit(SOCKET_EVENTS.HOST_ADMIT, {
-        userId,
-        roomId: meetingId,
-      } as WaitingRoomActionPayload);
+    async (userId: string) => {
+      if (!isLocalHost) return;
+      try {
+        await fetch(`/api/meetings/${meetingId}/admit`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify({ userId }),
+        });
+      } catch {
+        /* best-effort */
+      }
       setWaitingUsers((prev) => prev.filter((u) => u.id !== userId));
     },
-    [socket, isLocalHost, meetingId]
+    [isLocalHost, meetingId],
   );
 
   const handleDenyUser = useCallback(
-    (userId: string) => {
-      if (!socket || !isLocalHost) return;
-      socket.emit(SOCKET_EVENTS.HOST_DENY, {
-        userId,
-        roomId: meetingId,
-      } as WaitingRoomActionPayload);
+    async (userId: string) => {
+      if (!isLocalHost) return;
+      try {
+        await fetch(`/api/meetings/${meetingId}/deny`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify({ userId }),
+        });
+      } catch {
+        /* best-effort */
+      }
       setWaitingUsers((prev) => prev.filter((u) => u.id !== userId));
     },
-    [socket, isLocalHost, meetingId]
+    [isLocalHost, meetingId],
   );
 
   const handleAdmitAll = useCallback(() => {
-    waitingUsers.forEach((u) => handleAdmitUser(u.id));
+    waitingUsers.forEach((u) => void handleAdmitUser(u.id));
   }, [waitingUsers, handleAdmitUser]);
 
   // ── Leave / End call ─────────────────────────────────────────────
 
   const handleEndCall = useCallback(async () => {
-    // Stop recording if active
     if (isRecording) handleStopRecording();
 
-    // LiveKit transport cleanup is handled by the useTransport hook's
-    // cleanup effect (runs on unmount / when enabled becomes false).
-
     screenStreamRef.current?.getTracks().forEach((t) => t.stop());
-
-    if (socket) {
-      socket.emit(SOCKET_EVENTS.LEAVE_ROOM, { roomId: meetingId });
-    }
-
     stopMedia();
     clearRoomJoinSession(meetingId);
 
@@ -644,14 +590,13 @@ export default function MeetingRoomPage() {
     }
 
     router.push("/meetings");
-  }, [meetingId, router, stopMedia, socket, isRecording, handleStopRecording]);
+  }, [meetingId, router, stopMedia, isRecording, handleStopRecording]);
 
   const handleStartRecordingClick = useCallback(() => {
     if (!canRecord) {
       setMediaError("Recording is disabled for this meeting.");
       return;
     }
-
     handleStartRecording();
   }, [canRecord, handleStartRecording]);
 
@@ -675,8 +620,6 @@ export default function MeetingRoomPage() {
   });
 
   // ── Cleanup on unmount ───────────────────────────────────────────
-  // LiveKit transport cleanup handled by useTransport hook unmount
-
   useEffect(() => {
     return () => {
       screenStreamRef.current?.getTracks().forEach((t) => t.stop());
@@ -684,7 +627,6 @@ export default function MeetingRoomPage() {
   }, []);
 
   // ── Find active screen-share presenter ────────────────────────────
-  // Bug #3 fix: find the FIRST participant who is sharing, not just local
   const screenSharePresenter = participants.find((p) => p.isScreenSharing);
   const screenShareStream = screenSharePresenter
     ? screenSharePresenter.id === localUser.id
@@ -701,7 +643,7 @@ export default function MeetingRoomPage() {
         p.id === localUser.id
           ? (isScreenSharing ? screenStream : localStream)
           : effectiveRemoteStreams.get(p.id) || null,
-    })
+    }),
   );
 
   // ── Render ───────────────────────────────────────────────────────
@@ -783,12 +725,10 @@ export default function MeetingRoomPage() {
           </div>
           <span className="text-sm font-mono text-[#0A0A0A]/40">{formatTime(elapsedTime)}</span>
           {/* Transport mode indicator */}
-          <span
-            className="hidden sm:inline text-xs px-2 py-0.5 rounded-full border-2 border-black bg-[#FFE600]"
-          >
+          <span className="hidden sm:inline text-xs px-2 py-0.5 rounded-full border-2 border-black bg-[#FFE600]">
             SFU
           </span>
-          {!isConnected && (
+          {!isLivekitConnected && livekitConnectionState !== "disconnected" && (
             <span className="flex items-center gap-1 text-xs text-[#FF6B6B]">
               <WifiOff size={12} /> Reconnecting...
             </span>
@@ -828,7 +768,6 @@ export default function MeetingRoomPage() {
 
       {/* Main content area */}
       <div ref={containerRef} className="relative z-10 flex-1 overflow-hidden">
-        {/* Bubble layout or screen share */}
         <AnimatePresence mode="wait">
           {activeScreenShare && screenSharePresenter ? (
             <ScreenShareView
@@ -866,7 +805,7 @@ export default function MeetingRoomPage() {
           ) : null}
         </AnimatePresence>
 
-        {/* Chat panel -- slides in from right */}
+        {/* Chat panel */}
         <ChatPanel
           isOpen={showChat}
           onClose={() => setShowChat(false)}
@@ -956,11 +895,11 @@ export default function MeetingRoomPage() {
         )}
       </AnimatePresence>
 
-      {/* Reconnection overlay */}
+      {/* Reconnection overlay — uses LiveKit connection state */}
       <ReconnectionOverlay
-        isDisconnected={!isConnected && reconnectAttempts > 0}
-        attemptCount={reconnectAttempts}
-        maxAttempts={MAX_RECONNECT_ATTEMPTS}
+        isDisconnected={livekitConnectionState === "reconnecting"}
+        attemptCount={1}
+        maxAttempts={5}
         onLeave={handleEndCall}
       />
 

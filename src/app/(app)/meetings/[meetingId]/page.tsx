@@ -5,10 +5,8 @@ import { useParams, useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import PreJoinLobby from "@/components/meeting/PreJoinLobby";
 import LoadingSpinner from "@/components/ui/LoadingSpinner";
-import { useSocket } from "@/hooks/useSocket";
 import { useAuth } from "@/hooks/useAuth";
 import { saveRoomJoinSession, type RoomJoinSession } from "@/lib/meetings/room-session";
-import { SOCKET_EVENTS } from "@/lib/realtime/socket-events";
 
 interface MeetingData {
   _id: string;
@@ -22,7 +20,6 @@ export default function MeetingLobbyPage() {
   const params = useParams();
   const router = useRouter();
   const meetingId = params.meetingId as string;
-  const { socket, isConnected } = useSocket();
   const { user } = useAuth();
 
   const [meeting, setMeeting] = useState<MeetingData | null>(null);
@@ -35,7 +32,7 @@ export default function MeetingLobbyPage() {
     videoDeviceId?: string;
     audioDeviceId?: string;
   } | null>(null);
-  const waitingJoinSentRef = useRef(false);
+  const pollingRef = useRef(false);
 
   useEffect(() => {
     fetch(`/api/meetings/${meetingId}`, { credentials: "include" })
@@ -83,7 +80,6 @@ export default function MeetingLobbyPage() {
           saveRoomJoinSession(meetingId, roomSession);
 
           if (roomSession.joinDisposition === "waiting") {
-            waitingJoinSentRef.current = false;
             setPendingJoinSettings(settings);
             setWaitingForAdmission(true);
             setError("");
@@ -101,65 +97,53 @@ export default function MeetingLobbyPage() {
     [meetingId, router],
   );
 
+  // ── HTTP polling for waiting room admission ──────────────────────
+
   useEffect(() => {
-    if (
-      !waitingForAdmission ||
-      !pendingJoinSettings ||
-      !meeting ||
-      !socket ||
-      !isConnected ||
-      !user ||
-      waitingJoinSentRef.current
-    ) {
+    if (!waitingForAdmission || !pendingJoinSettings || !meeting || !user) {
       return;
     }
+    if (pollingRef.current) return;
+    pollingRef.current = true;
 
-    waitingJoinSentRef.current = true;
+    let active = true;
 
-    const roomId = meeting._id;
+    const poll = async () => {
+      try {
+        const res = await fetch(
+          `/api/meetings/${meetingId}/waiting-status?userId=${user.id}`,
+          { credentials: "include" },
+        );
+        if (!res.ok || !active) return;
+        const data = await res.json();
 
-    const handleAdmitted = async (payload: { roomId: string }) => {
-      if (payload.roomId !== roomId) return;
-      waitingJoinSentRef.current = false;
-      setWaitingForAdmission(false);
-      await submitJoin(pendingJoinSettings);
+        if (data.status === "admitted") {
+          pollingRef.current = false;
+          setWaitingForAdmission(false);
+          await submitJoin(pendingJoinSettings);
+          return;
+        }
+
+        if (data.status === "denied") {
+          pollingRef.current = false;
+          setWaitingForAdmission(false);
+          setPendingJoinSettings(null);
+          setError("The host denied your request to join this meeting.");
+          return;
+        }
+      } catch {
+        // Polling is best-effort
+      }
     };
 
-    const handleDenied = (payload: { roomId: string }) => {
-      if (payload.roomId !== roomId) return;
-      waitingJoinSentRef.current = false;
-      setWaitingForAdmission(false);
-      setPendingJoinSettings(null);
-      setError("The host denied your request to join this meeting.");
-    };
-
-    socket.on(SOCKET_EVENTS.WAITING_ADMITTED, handleAdmitted);
-    socket.on(SOCKET_EVENTS.WAITING_DENIED, handleDenied);
-
-    socket.emit(SOCKET_EVENTS.WAITING_JOIN, {
-      roomId,
-      user: {
-        id: user.id,
-        name: user.name,
-        displayName: user.displayName,
-        avatar: user.avatar || undefined,
-        joinedWaitingAt: Date.now(),
-      },
-    });
+    const interval = setInterval(poll, 3000);
 
     return () => {
-      socket.off(SOCKET_EVENTS.WAITING_ADMITTED, handleAdmitted);
-      socket.off(SOCKET_EVENTS.WAITING_DENIED, handleDenied);
+      active = false;
+      pollingRef.current = false;
+      clearInterval(interval);
     };
-  }, [
-    waitingForAdmission,
-    pendingJoinSettings,
-    meeting,
-    socket,
-    isConnected,
-    user,
-    submitJoin,
-  ]);
+  }, [waitingForAdmission, pendingJoinSettings, meeting, user, meetingId, submitJoin]);
 
   if (loading) {
     return (

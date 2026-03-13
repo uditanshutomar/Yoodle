@@ -2,12 +2,12 @@
 
 import { motion, AnimatePresence } from "framer-motion";
 import { useState, useRef, useEffect } from "react";
-import type { ChatMessagePayload } from "@/lib/realtime/socket-events";
+import type { ChatMessage } from "@/hooks/useChat";
 
 interface ChatPanelProps {
     isOpen: boolean;
     onClose: () => void;
-    messages: ChatMessagePayload[];
+    messages: ChatMessage[];
     onSendMessage: (content: string) => void;
     currentUserId: string;
 }

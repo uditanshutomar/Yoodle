@@ -8,6 +8,9 @@ import AIMemory from "@/lib/infra/db/models/ai-memory";
 import { streamChatWithAssistant } from "@/lib/ai/gemini";
 import { createStreamingResponse } from "@/lib/ai/streaming";
 import { buildWorkspaceContext } from "@/lib/google/workspace-context";
+import { createLogger } from "@/lib/infra/logger";
+
+const log = createLogger("api:ai-chat");
 
 // -- Validation ----------------------------------------------------------------
 
@@ -85,7 +88,7 @@ export const POST = withHandler(async (req: NextRequest) => {
       .limit(50)
       .lean(),
     buildWorkspaceContext(userId).catch((err) => {
-      console.error("[Workspace Context Error]", err);
+      log.error({ err }, "failed to build workspace context");
       return "";
     }),
   ]);

@@ -6,6 +6,9 @@ import connectDB from "@/lib/infra/db/client";
 import User from "@/lib/infra/db/models/user";
 import { exchangeCodeForTokens, getGoogleUserProfile } from "@/lib/infra/auth/google";
 import { signAccessToken, signRefreshToken } from "@/lib/infra/auth/jwt";
+import { createLogger } from "@/lib/infra/logger";
+
+const log = createLogger("api:auth-google-callback");
 
 /**
  * GET /api/auth/google/callback
@@ -182,7 +185,7 @@ export const GET = withHandler(async (req: NextRequest) => {
 
     return response;
   } catch (err) {
-    console.error("[Google Callback Error]", err);
+    log.error({ err }, "Google OAuth callback failed");
 
     const loginUrl = new URL("/login", req.url);
     loginUrl.searchParams.set("error", "google_auth_failed");

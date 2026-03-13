@@ -57,6 +57,9 @@ export interface RoomTransport {
     cb: (userId: string, stream: MediaStream) => void
   ) => void;
 
+  /** Subscribe to a remote participant's media state changing (mute/unmute). */
+  onParticipantUpdated: (cb: (user: TransportRoomUser) => void) => void;
+
   /** Subscribe to connection state changes. */
   onConnectionStateChanged: (cb: (state: ConnectionState) => void) => void;
 
@@ -65,4 +68,7 @@ export interface RoomTransport {
 
   /** Observable connection state. */
   connectionState: ConnectionState;
+
+  /** Access the underlying LiveKit Room instance for data channels. */
+  getRoom(): unknown;
 }

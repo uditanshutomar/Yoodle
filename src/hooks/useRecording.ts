@@ -1,8 +1,13 @@
 "use client";
 
 import { useState, useCallback, useRef, useEffect } from "react";
-import { Socket } from "socket.io-client";
-import { SOCKET_EVENTS, type RecordingStatusPayload } from "@/lib/realtime/socket-events";
+import type { Room } from "livekit-client";
+import { useDataChannel } from "./useDataChannel";
+import {
+  DataMessageType,
+  type RecordingStatusData,
+  type DataMessage,
+} from "@/lib/livekit/data-messages";
 import { type SpeechSegment } from "@/hooks/useVoiceActivity";
 
 export interface UseRecordingReturn {
@@ -17,25 +22,23 @@ export interface UseRecordingReturn {
 /**
  * Manages meeting recording with mixed audio via Web Audio API.
  *
- * Captures local video + mixed (local + all remote) audio into a single
- * MediaRecorder, then uploads the resulting blob via a pre-signed URL or
- * falls back to a local download.
- *
- * Bug #5 fix: emits RECORDING_START socket event after recorder.start()
- * so all participants see the recording indicator.
+ * Uses LiveKit data channels to broadcast recording status to all
+ * participants so everyone sees the recording indicator.
  */
 export function useRecording(
   localStream: MediaStream | null,
   remoteStreams: Map<string, MediaStream>,
   meetingId: string,
-  socket: Socket | null,
-  speechSegmentsRef: React.RefObject<SpeechSegment[]>
+  room: Room | null,
+  speechSegmentsRef: React.RefObject<SpeechSegment[]>,
 ): UseRecordingReturn {
   const [isRecording, setIsRecording] = useState(false);
   const [recordingDuration, setRecordingDuration] = useState(0);
   const [error, setError] = useState<string | null>(null);
 
   const clearError = useCallback(() => setError(null), []);
+
+  const { sendReliable, onMessage } = useDataChannel(room);
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const recordedChunksRef = useRef<Blob[]>([]);
@@ -50,37 +53,47 @@ export function useRecording(
     localStreamRef.current = localStream;
   }, [localStream]);
 
-  // Listen for recording status broadcasts from other participants
+  // Listen for recording status from other participants
   useEffect(() => {
-    if (!socket) return;
-
-    const handleRecordingStatus = (payload: RecordingStatusPayload) => {
-      setIsRecording(payload.isRecording);
-    };
-
-    socket.on(SOCKET_EVENTS.RECORDING_STATUS, handleRecordingStatus);
-
-    return () => {
-      socket.off(SOCKET_EVENTS.RECORDING_STATUS, handleRecordingStatus);
-    };
-  }, [socket]);
+    const unsub = onMessage(
+      DataMessageType.RECORDING_STATUS,
+      (msg: DataMessage) => {
+        if (msg.type !== DataMessageType.RECORDING_STATUS) return;
+        const data = msg as RecordingStatusData;
+        setIsRecording(data.isRecording);
+      },
+    );
+    return unsub;
+  }, [onMessage]);
 
   // ── Start recording ────────────────────────────────────────────────
 
   const startRecording = useCallback(() => {
     try {
       const audioCtx = new AudioContext();
-      const dest = audioCtx.createMediaStreamDestination();
       audioContextRef.current = audioCtx;
+
+      // Modern browsers start AudioContext in a suspended state.
+      // We must resume it for the mixing destination to produce data.
+      if (audioCtx.state === "suspended") {
+        void audioCtx.resume();
+      }
+
+      const dest = audioCtx.createMediaStreamDestination();
       mixedDestRef.current = dest;
       const sources: MediaStreamAudioSourceNode[] = [];
 
-      // Add local audio
+      // Add local audio — use a *clone* of the track so that
+      // toggling track.enabled on the original (mute/unmute) does
+      // not cut audio to the recording destination.
       if (localStreamRef.current) {
         const localAudioTracks = localStreamRef.current.getAudioTracks();
         if (localAudioTracks.length > 0) {
+          const clonedTrack = localAudioTracks[0].clone();
+          // Ensure the cloned track is always enabled for recording
+          clonedTrack.enabled = true;
           const localSource = audioCtx.createMediaStreamSource(
-            new MediaStream(localAudioTracks)
+            new MediaStream([clonedTrack]),
           );
           localSource.connect(dest);
           sources.push(localSource);
@@ -92,7 +105,7 @@ export function useRecording(
         const audioTracks = stream.getAudioTracks();
         if (audioTracks.length > 0) {
           const remoteSource = audioCtx.createMediaStreamSource(
-            new MediaStream(audioTracks)
+            new MediaStream(audioTracks),
           );
           remoteSource.connect(dest);
           sources.push(remoteSource);
@@ -124,7 +137,6 @@ export function useRecording(
       recorder.onstop = async () => {
         const blob = new Blob(recordedChunksRef.current, { type: mimeType });
 
-        // Capture speech segments for speaker-attributed transcript
         const segments = (speechSegmentsRef.current ?? []).map((seg) => ({
           speakerId: seg.peerId,
           speakerName: seg.speakerName,
@@ -132,7 +144,6 @@ export function useRecording(
           endTime: seg.endTime,
         }));
 
-        // Upload to Google Drive via our API
         try {
           const formData = new FormData();
           formData.append("file", blob, `recording.${mimeType.includes("webm") ? "webm" : "mp4"}`);
@@ -148,18 +159,14 @@ export function useRecording(
           });
 
           if (!uploadRes.ok) {
-            // Google Drive upload failed — fall back to local download
-            console.error("[Recording] Upload failed with status:", uploadRes.status);
             setError("Cloud upload failed. Recording saved locally instead.");
             downloadRecording(blob);
           }
-        } catch (err) {
-          console.error("[Recording] Upload error:", err);
+        } catch {
           setError("Cloud upload failed. Recording saved locally instead.");
           downloadRecording(blob);
         }
 
-        // Clean up audio context and sources
         for (const source of audioSourcesRef.current) {
           try {
             source.disconnect();
@@ -177,24 +184,21 @@ export function useRecording(
       mediaRecorderRef.current = recorder;
       setIsRecording(true);
 
-      // Start duration timer
       setRecordingDuration(0);
       recordingTimerRef.current = setInterval(() => {
         setRecordingDuration((prev) => prev + 1);
       }, 1000);
 
-      // Bug #5 fix: broadcast recording status AFTER recorder.start()
-      if (socket) {
-        socket.emit(SOCKET_EVENTS.RECORDING_START, {
-          roomId: meetingId,
-          isRecording: true,
-        });
-      }
-    } catch (err) {
-      console.error("[Recording] Failed to start recording:", err);
+      // Broadcast recording status via data channel
+      void sendReliable({
+        type: DataMessageType.RECORDING_STATUS,
+        isRecording: true,
+        startedAt: Date.now(),
+      });
+    } catch {
       setError("Failed to start recording. Please check your microphone/camera permissions.");
     }
-  }, [meetingId, remoteStreams, socket, speechSegmentsRef]);
+  }, [meetingId, remoteStreams, sendReliable, speechSegmentsRef]);
 
   // ── Stop recording ─────────────────────────────────────────────────
 
@@ -209,20 +213,16 @@ export function useRecording(
     setIsRecording(false);
     setRecordingDuration(0);
 
-    // Broadcast stop to other participants
-    if (socket) {
-      socket.emit(SOCKET_EVENTS.RECORDING_STOP, {
-        roomId: meetingId,
-        isRecording: false,
-      });
-    }
-  }, [socket, meetingId]);
+    void sendReliable({
+      type: DataMessageType.RECORDING_STATUS,
+      isRecording: false,
+    });
+  }, [sendReliable]);
 
   // ── Cleanup on unmount ─────────────────────────────────────────────
 
   useEffect(() => {
     return () => {
-      // Read refs at cleanup time (not at mount time) to get current values
       for (const source of audioSourcesRef.current) {
         try {
           source.disconnect();

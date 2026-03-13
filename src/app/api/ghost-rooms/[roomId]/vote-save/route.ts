@@ -6,6 +6,9 @@ import { getUserIdFromRequest } from "@/lib/infra/auth/middleware";
 import { NotFoundError, ForbiddenError } from "@/lib/infra/api/errors";
 import { ephemeralStore } from "@/lib/ghost/ephemeral-store";
 import { checkConsensus, persistGhostData } from "@/lib/ghost/consensus";
+import { createLogger } from "@/lib/infra/logger";
+
+const log = createLogger("api:ghost-vote-save");
 
 export const POST = withHandler(async (req: NextRequest, context) => {
   await checkRateLimit(req, "general");
@@ -52,7 +55,7 @@ export const POST = withHandler(async (req: NextRequest, context) => {
         const result = await persistGhostData(claimedRoom);
         savedMeetingId = result.meetingId;
       } catch (err) {
-        console.error("[Ghost Room Vote] Failed to persist data:", err);
+        log.error({ err }, "failed to persist ghost room data after vote");
       }
     }
   }

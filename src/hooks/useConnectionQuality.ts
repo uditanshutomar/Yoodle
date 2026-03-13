@@ -1,7 +1,7 @@
 "use client";
 
-import { useSyncExternalStore, useCallback } from "react";
-import type { RoomTransport } from "@/lib/transport/types";
+import { useSyncExternalStore, useCallback, useRef } from "react";
+import type { RoomTransport, ConnectionState } from "@/lib/transport/types";
 
 export type ConnectionQuality = "good" | "fair" | "poor" | "unknown";
 
@@ -17,14 +17,32 @@ const UNKNOWN_STATS: ConnectionStats = {
   packetLoss: null,
 };
 
-function mapTransportState(transport: RoomTransport): ConnectionStats {
-  switch (transport.connectionState) {
+const CONNECTED_STATS: ConnectionStats = {
+  quality: "good",
+  rtt: null,
+  packetLoss: null,
+};
+
+const RECONNECTING_STATS: ConnectionStats = {
+  quality: "fair",
+  rtt: null,
+  packetLoss: null,
+};
+
+const DISCONNECTED_STATS: ConnectionStats = {
+  quality: "poor",
+  rtt: null,
+  packetLoss: null,
+};
+
+function statsForState(state: ConnectionState): ConnectionStats {
+  switch (state) {
     case "connected":
-      return { quality: "good", rtt: null, packetLoss: null };
+      return CONNECTED_STATS;
     case "reconnecting":
-      return { quality: "fair", rtt: null, packetLoss: null };
+      return RECONNECTING_STATS;
     case "disconnected":
-      return { quality: "poor", rtt: null, packetLoss: null };
+      return DISCONNECTED_STATS;
     default:
       return UNKNOWN_STATS;
   }
@@ -38,24 +56,36 @@ function mapTransportState(transport: RoomTransport): ConnectionStats {
  * - "reconnecting" → fair
  * - "connecting"   → unknown
  * - "disconnected" → poor
+ *
+ * Snapshots are stable singleton objects so useSyncExternalStore
+ * never sees a new reference unless the state actually changed.
  */
 export function useConnectionQuality(
   transport: RoomTransport | null,
 ): ConnectionStats {
+  // Cache the last snapshot so getSnapshot returns a stable reference
+  const cachedRef = useRef<ConnectionStats>(UNKNOWN_STATS);
+  const lastStateRef = useRef<ConnectionState | null>(null);
+
   const subscribe = useCallback(
     (onStoreChange: () => void) => {
       if (!transport) return () => {};
       transport.onConnectionStateChanged(onStoreChange);
-      // No unsubscribe available — return noop cleanup
       return () => {};
     },
     [transport],
   );
 
-  const getSnapshot = useCallback(
-    () => (transport ? mapTransportState(transport) : UNKNOWN_STATS),
-    [transport],
-  );
+  const getSnapshot = useCallback(() => {
+    if (!transport) return UNKNOWN_STATS;
+
+    const state = transport.connectionState;
+    if (state !== lastStateRef.current) {
+      lastStateRef.current = state;
+      cachedRef.current = statsForState(state);
+    }
+    return cachedRef.current;
+  }, [transport]);
 
   const getServerSnapshot = useCallback(() => UNKNOWN_STATS, []);
 
