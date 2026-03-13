@@ -20,7 +20,7 @@ export const GET = withHandler(async (req: NextRequest) => {
   await connectDB();
 
   const user = await User.findById(userId).select(
-    "-googleTokens -refreshTokenHash -__v"
+    "-refreshTokenHash -__v -googleTokens.accessToken -googleTokens.expiresAt -googleTokens.scope"
   );
 
   if (!user) {
@@ -36,7 +36,7 @@ export const GET = withHandler(async (req: NextRequest) => {
     status: user.status,
     location: user.location,
     preferences: user.preferences,
-    hasGoogleAccess: !!user.googleId,
+    hasGoogleAccess: !!(user.googleId && user.googleTokens?.refreshToken),
     lastSeenAt: user.lastSeenAt,
     createdAt: user.createdAt,
     updatedAt: user.updatedAt,

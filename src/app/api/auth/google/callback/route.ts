@@ -122,24 +122,34 @@ export const GET = withHandler(async (req: NextRequest) => {
     const refreshTokenHash = await bcrypt.hash(refreshToken, 10);
     await User.findByIdAndUpdate(user._id, { refreshTokenHash });
 
-    // Redirect to the requested page (or dashboard)
-    // Validate the redirect target to prevent open redirect attacks
+    // Verify CSRF nonce from the OAuth state parameter
     let redirectTo = "/dashboard";
     if (state) {
       try {
-        const decoded = decodeURIComponent(state);
-        // Must be a relative path: starts with "/" but not "//" and no protocol
+        const stateObj = JSON.parse(decodeURIComponent(state));
+        const storedNonce = req.cookies.get("yoodle-oauth-nonce")?.value;
+
+        // Validate CSRF nonce matches the one stored in the cookie
+        if (!storedNonce || !stateObj.nonce || storedNonce !== stateObj.nonce) {
+          const loginUrl = new URL("/login", req.url);
+          loginUrl.searchParams.set("error", "google_csrf_failed");
+          return NextResponse.redirect(loginUrl);
+        }
+
+        // Extract redirect target and validate it
+        const redirect = stateObj.redirect || "/dashboard";
         if (
-          decoded.startsWith("/") &&
-          !decoded.startsWith("//") &&
-          !decoded.includes("://") &&
-          !decoded.includes("\\") &&
-          !/^\/[^/]*@/.test(decoded)
+          typeof redirect === "string" &&
+          redirect.startsWith("/") &&
+          !redirect.startsWith("//") &&
+          !redirect.includes("://") &&
+          !redirect.includes("\\") &&
+          !/^\/[^/]*@/.test(redirect)
         ) {
-          redirectTo = decoded;
+          redirectTo = redirect;
         }
       } catch {
-        // Invalid URI encoding — use default
+        // Invalid state — use default redirect
       }
     }
     const redirectUrl = new URL(redirectTo, req.url);
@@ -166,6 +176,9 @@ export const GET = withHandler(async (req: NextRequest) => {
       path: "/",
       maxAge: 7 * 24 * 60 * 60,
     });
+
+    // Clean up the OAuth nonce cookie
+    response.cookies.delete("yoodle-oauth-nonce");
 
     return response;
   } catch (err) {

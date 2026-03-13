@@ -1,4 +1,7 @@
 import Redis from "ioredis";
+import { createLogger } from "@/lib/logger";
+
+const logger = createLogger("redis-client");
 
 let redis: Redis | null = null;
 
@@ -21,15 +24,15 @@ export function getRedisClient(): Redis {
   });
 
   redis.on("error", (err) => {
-    console.error("[Redis] Connection error:", err.message);
+    logger.error({ err: err.message }, "Connection error");
   });
 
   redis.on("connect", () => {
-    console.log("[Redis] Connected successfully");
+    logger.info("Connected successfully");
   });
 
   redis.on("reconnecting", () => {
-    console.warn("[Redis] Reconnecting...");
+    logger.warn("Reconnecting...");
   });
 
   return redis;

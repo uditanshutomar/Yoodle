@@ -23,20 +23,26 @@ export async function getGoogleClientForUser(userId: string) {
 
   // Listen for token refresh events and persist new tokens
   client.on("tokens", async (newTokens) => {
-    const update: Record<string, unknown> = {};
+    try {
+      const update: Record<string, unknown> = {};
 
-    if (newTokens.access_token) {
-      update["googleTokens.accessToken"] = newTokens.access_token;
-    }
-    if (newTokens.expiry_date) {
-      update["googleTokens.expiresAt"] = new Date(newTokens.expiry_date);
-    }
-    if (newTokens.refresh_token) {
-      update["googleTokens.refreshToken"] = newTokens.refresh_token;
-    }
+      if (newTokens.access_token) {
+        update["googleTokens.accessToken"] = newTokens.access_token;
+      }
+      if (newTokens.expiry_date) {
+        update["googleTokens.expiresAt"] = new Date(newTokens.expiry_date);
+      }
+      if (newTokens.refresh_token) {
+        update["googleTokens.refreshToken"] = newTokens.refresh_token;
+      }
 
-    if (Object.keys(update).length > 0) {
-      await User.findByIdAndUpdate(userId, { $set: update });
+      if (Object.keys(update).length > 0) {
+        await User.findByIdAndUpdate(userId, { $set: update });
+      }
+    } catch (err) {
+      // Log but don't throw — the current request can still proceed with the
+      // in-memory refreshed token; the next request will trigger another refresh.
+      console.error("[Google] Failed to persist refreshed tokens:", err);
     }
   });
 

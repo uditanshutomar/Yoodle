@@ -17,15 +17,32 @@ export const GET = withHandler(async (req: NextRequest) => {
   await checkRateLimit(req, "general");
   const userId = await getUserIdFromRequest(req);
 
+  const limit = Math.min(
+    Math.max(Number(req.nextUrl.searchParams.get("limit")) || 50, 1),
+    100,
+  );
+  const page = Math.max(Number(req.nextUrl.searchParams.get("page")) || 1, 1);
+  const skip = (page - 1) * limit;
+
   await connectDB();
 
-  const workspaces = await Workspace.find({
+  const filter = {
     $or: [{ ownerId: userId }, { "members.userId": userId }],
-  })
-    .sort({ updatedAt: -1 })
-    .lean();
+  };
 
-  return successResponse(workspaces);
+  const [workspaces, total] = await Promise.all([
+    Workspace.find(filter)
+      .sort({ updatedAt: -1 })
+      .skip(skip)
+      .limit(limit)
+      .lean(),
+    Workspace.countDocuments(filter),
+  ]);
+
+  return successResponse({
+    workspaces,
+    pagination: { page, limit, total, totalPages: Math.ceil(total / limit) },
+  });
 });
 
 // POST /api/workspaces -- create a new workspace

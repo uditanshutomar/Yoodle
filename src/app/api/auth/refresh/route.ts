@@ -19,8 +19,8 @@ export const POST = withHandler(async (req: NextRequest) => {
     throw new UnauthorizedError("No refresh token provided.");
   }
 
-  // Check if refresh token has been blacklisted
-  const blacklisted = await tokenIsBlacklisted(refreshTokenCookie);
+  // Check if refresh token has been blacklisted (fail closed for long-lived refresh tokens)
+  const blacklisted = await tokenIsBlacklisted(refreshTokenCookie, { failClosed: true });
   if (blacklisted) {
     // Return error response directly (not throw) so cookie deletions are preserved.
     // Throwing would create a new response in withHandler, discarding these cookies.
@@ -82,9 +82,8 @@ export const POST = withHandler(async (req: NextRequest) => {
     lastSeenAt: new Date(),
   });
 
-  // Build response with new cookies
+  // Build response with new cookies (tokens delivered via httpOnly cookies only, not in body)
   const response = successResponse({
-    accessToken: newAccessToken,
     message: "Tokens refreshed successfully.",
   });
 

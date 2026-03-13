@@ -1,7 +1,7 @@
-import { NextRequest } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
+import crypto from "crypto";
 import { z } from "zod";
 import { withHandler } from "@/lib/api/with-handler";
-import { successResponse } from "@/lib/api/response";
 import { checkRateLimit } from "@/lib/api/rate-limit";
 import { getGoogleAuthUrl } from "@/lib/auth/google";
 
@@ -12,6 +12,7 @@ const querySchema = z.object({
 /**
  * GET /api/auth/google
  * Returns the Google OAuth consent URL for the client to redirect to.
+ * Includes a CSRF nonce in the OAuth state to prevent login CSRF attacks.
  */
 export const GET = withHandler(async (req: NextRequest) => {
   await checkRateLimit(req, "auth");
@@ -20,6 +21,21 @@ export const GET = withHandler(async (req: NextRequest) => {
     redirect: req.nextUrl.searchParams.get("redirect") ?? undefined,
   });
 
-  const authUrl = getGoogleAuthUrl(redirect);
-  return successResponse({ url: authUrl });
+  // Generate CSRF nonce to bind the OAuth flow to this session
+  const nonce = crypto.randomBytes(16).toString("hex");
+  const state = JSON.stringify({ nonce, redirect });
+
+  const authUrl = getGoogleAuthUrl(state);
+
+  // Set nonce in a short-lived httpOnly cookie for verification in the callback
+  const response = NextResponse.json({ success: true, data: { url: authUrl } });
+  response.cookies.set("yoodle-oauth-nonce", nonce, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax",
+    path: "/",
+    maxAge: 10 * 60, // 10 minutes — enough for OAuth flow
+  });
+
+  return response;
 });

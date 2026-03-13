@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
+    "dev": "concurrently -n next,backend -c cyan,yellow \"next dev\" \"node --require ts-node/register --require tsconfig-paths/register backend-service.ts\"",
     "dev:next": "next dev",
     "dev:backend": "node --require ts-node/register --require tsconfig-paths/register backend-service.ts",
     "build": "next build",
@@ -64,6 +64,7 @@
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
     "@vitest/coverage-v8": "^4.0.18",
+    "concurrently": "^9.2.1",
     "eslint": "^9",
     "eslint-config-next": "16.1.6",
     "tailwindcss": "^4",

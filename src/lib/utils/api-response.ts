@@ -78,12 +78,6 @@ export function unauthorizedResponse(
   return errorResponse(message, 401);
 }
 
-export function forbiddenResponse(
-  message = "Forbidden"
-): NextResponse<ApiErrorResponse> {
-  return errorResponse(message, 403);
-}
-
 export function notFoundResponse(
   message = "Resource not found"
 ): NextResponse<ApiErrorResponse> {

@@ -13,9 +13,9 @@ import {
 // -- Validation ----------------------------------------------------------------
 
 const summarizeSchema = z.object({
-  text: z.string().min(1, "Text is required."),
+  text: z.string().min(1, "Text is required.").max(50000, "Text too long (max 50,000 chars)."),
   type: z.enum(["plan", "meeting", "general"]).default("general"),
-  title: z.string().optional(),
+  title: z.string().max(200).optional(),
 });
 
 // -- POST /api/ai/summarize ----------------------------------------------------

@@ -6,5 +6,5 @@
     "outDir": "./dist",
     "noEmit": false
   },
-  "include": ["server.ts", "backend-service.ts", "src/lib/realtime/**/*", "src/lib/jobs/**/*"]
+  "include": ["backend-service.ts", "src/lib/realtime/**/*", "src/lib/jobs/**/*"]
 }

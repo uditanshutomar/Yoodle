@@ -45,6 +45,9 @@ const { POST } = await import("../route");
 
 // ── Test helpers ──────────────────────────────────────────────────
 
+// withHandler returns a NextRouteHandler expecting (req, context) — provide a dummy context
+const dummyCtx = { params: Promise.resolve({}) };
+
 function createRequest(body?: object, headers?: Record<string, string>) {
   const url = "http://localhost:3000/api/auth/login";
   const init = {
@@ -79,7 +82,7 @@ describe("POST /api/auth/login", () => {
 
   it("returns success with valid email (user exists)", async () => {
     const req = createRequest({ email: "test@example.com" });
-    const response = await POST(req);
+    const response = await POST(req, dummyCtx);
     const body = await response.json();
 
     expect(response.status).toBe(200);
@@ -91,7 +94,7 @@ describe("POST /api/auth/login", () => {
 
   it("generates a magic link for existing user", async () => {
     const req = createRequest({ email: "test@example.com" });
-    await POST(req);
+    await POST(req, dummyCtx);
 
     expect(mockedGenerateMagicLink).toHaveBeenCalledWith("test@example.com");
   });
@@ -101,7 +104,7 @@ describe("POST /api/auth/login", () => {
     mockUserSelect.mockResolvedValue(null);
 
     const req = createRequest({ email: "noone@example.com" });
-    const response = await POST(req);
+    const response = await POST(req, dummyCtx);
     const body = await response.json();
 
     expect(response.status).toBe(200);
@@ -113,14 +116,14 @@ describe("POST /api/auth/login", () => {
     mockUserSelect.mockResolvedValue(null);
 
     const req = createRequest({ email: "noone@example.com" });
-    await POST(req);
+    await POST(req, dummyCtx);
 
     expect(mockedGenerateMagicLink).not.toHaveBeenCalled();
   });
 
   it("returns 400 with invalid email format", async () => {
     const req = createRequest({ email: "not-an-email" });
-    const response = await POST(req);
+    const response = await POST(req, dummyCtx);
     const body = await response.json();
 
     expect(response.status).toBe(400);
@@ -129,7 +132,7 @@ describe("POST /api/auth/login", () => {
 
   it("returns 400 when email field is missing", async () => {
     const req = createRequest({});
-    const response = await POST(req);
+    const response = await POST(req, dummyCtx);
     const body = await response.json();
 
     expect(response.status).toBe(400);
@@ -138,7 +141,7 @@ describe("POST /api/auth/login", () => {
 
   it("returns 400 when email is empty string", async () => {
     const req = createRequest({ email: "" });
-    const response = await POST(req);
+    const response = await POST(req, dummyCtx);
     const body = await response.json();
 
     expect(response.status).toBe(400);
@@ -147,7 +150,7 @@ describe("POST /api/auth/login", () => {
 
   it("normalizes email to lowercase before querying", async () => {
     const req = createRequest({ email: "Test@Example.COM" });
-    await POST(req);
+    await POST(req, dummyCtx);
 
     // The route calls User.findOne with email.toLowerCase().trim()
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -157,7 +160,7 @@ describe("POST /api/auth/login", () => {
 
   it("calls checkRateLimit with 'auth' group", async () => {
     const req = createRequest({ email: "test@example.com" });
-    await POST(req);
+    await POST(req, dummyCtx);
 
     expect(mockedCheckRateLimit).toHaveBeenCalledWith(expect.any(NextRequest), "auth");
   });
@@ -167,13 +170,11 @@ describe("POST /api/auth/login", () => {
     mockedCheckRateLimit.mockRejectedValue(new RateLimitError(60));
 
     const req = createRequest({ email: "test@example.com" });
-    const response = await POST(req);
+    const response = await POST(req, dummyCtx);
     const body = await response.json();
 
-    // The login route has its own try/catch that catches all errors as 500
-    // RateLimitError extends AppError, the catch block logs and returns 500
-    // since it doesn't specifically handle RateLimitError
-    expect(response.status).toBe(500);
+    // withHandler recognises RateLimitError (extends AppError) and returns 429
+    expect(response.status).toBe(429);
     expect(body.success).toBe(false);
   });
 
@@ -183,7 +184,7 @@ describe("POST /api/auth/login", () => {
     });
 
     const req = createRequest({ email: "test@example.com" });
-    const response = await POST(req);
+    const response = await POST(req, dummyCtx);
     const body = await response.json();
 
     expect(response.status).toBe(500);
@@ -198,7 +199,7 @@ describe("POST /api/auth/login", () => {
       displayName: "Test",
     });
     const reqExisting = createRequest({ email: "exists@example.com" });
-    const resExisting = await POST(reqExisting);
+    const resExisting = await POST(reqExisting, dummyCtx);
     const bodyExisting = await resExisting.json();
 
     vi.clearAllMocks();
@@ -207,7 +208,7 @@ describe("POST /api/auth/login", () => {
     // User does not exist
     mockUserSelect.mockResolvedValue(null);
     const reqMissing = createRequest({ email: "missing@example.com" });
-    const resMissing = await POST(reqMissing);
+    const resMissing = await POST(reqMissing, dummyCtx);
     const bodyMissing = await resMissing.json();
 
     // Same HTTP status and same message — prevents user enumeration

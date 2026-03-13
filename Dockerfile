@@ -35,19 +35,20 @@ COPY --from=deps /app/node_modules ./node_modules
 COPY --from=builder /app/.next ./.next
 COPY --from=builder /app/public ./public
 COPY --from=builder /app/package.json ./package.json
-COPY --from=builder /app/server.ts ./server.ts
+COPY --from=builder /app/backend-service.ts ./backend-service.ts
 COPY --from=builder /app/tsconfig.json ./tsconfig.json
 COPY --from=builder /app/src ./src
 COPY --from=builder /app/next.config.ts ./next.config.ts
 
-# ts-node and tsconfig-paths are needed at runtime for server.ts
+# ts-node and tsconfig-paths are needed at runtime for backend-service.ts
 RUN npm install ts-node tsconfig-paths
 
 USER nextjs
 
-EXPOSE 3000
+EXPOSE 3000 4001
 
 ENV PORT=3000
 ENV HOSTNAME="0.0.0.0"
 
-CMD ["node", "--require", "ts-node/register", "server.ts"]
+# Start both Next.js and the backend service
+CMD ["sh", "-c", "node node_modules/.bin/next start & node --require ts-node/register --require tsconfig-paths/register backend-service.ts"]

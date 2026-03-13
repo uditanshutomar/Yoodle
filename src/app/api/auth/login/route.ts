@@ -5,94 +5,99 @@ import connectDB from "@/lib/db/client";
 import User from "@/lib/db/models/user";
 import { generateMagicLink } from "@/lib/auth/magic-link";
 import { checkRateLimit } from "@/lib/api/rate-limit";
+import { withHandler } from "@/lib/api/with-handler";
 import {
   successResponse,
   errorResponse,
-  serverErrorResponse,
 } from "@/lib/utils/api-response";
 
 const loginSchema = z.object({
   email: z.string().email("Please enter a valid email address."),
 });
 
-export async function POST(request: NextRequest) {
-  try {
-    // Rate limit: 5 attempts per minute per IP
-    await checkRateLimit(request, "auth");
+export const POST = withHandler(async (request: NextRequest) => {
+  // Rate limit: 5 attempts per minute per IP
+  await checkRateLimit(request, "auth");
 
-    const body = await request.json();
+  const body = await request.json();
 
-    const parsed = loginSchema.safeParse(body);
-    if (!parsed.success) {
-      const fieldErrors: Record<string, string[]> = {};
-      for (const issue of parsed.error.issues) {
-        const path = issue.path.join(".");
-        if (!fieldErrors[path]) {
-          fieldErrors[path] = [];
-        }
-        fieldErrors[path].push(issue.message);
+  const parsed = loginSchema.safeParse(body);
+  if (!parsed.success) {
+    const fieldErrors: Record<string, string[]> = {};
+    for (const issue of parsed.error.issues) {
+      const path = issue.path.join(".");
+      if (!fieldErrors[path]) {
+        fieldErrors[path] = [];
       }
-      return errorResponse({
-        message: "Validation failed.",
-        status: 400,
-        errors: fieldErrors,
-      });
+      fieldErrors[path].push(issue.message);
     }
+    return errorResponse({
+      message: "Validation failed.",
+      status: 400,
+      errors: fieldErrors,
+    });
+  }
 
-    const { email } = parsed.data;
+  const { email } = parsed.data;
 
-    await connectDB();
+  await connectDB();
 
-    // Check if user exists — only fetch fields needed for the email template
-    const user = await User.findOne({
-      email: email.toLowerCase().trim(),
-    }).select("_id name displayName");
+  // Check if user exists — only fetch fields needed for the email template
+  const user = await User.findOne({
+    email: email.toLowerCase().trim(),
+  }).select("_id name displayName");
 
-    // SECURITY: Return the same success message whether user exists or not
-    // to prevent user enumeration attacks. If user doesn't exist, we still
-    // pretend we sent a magic link.
-    if (!user) {
-      return successResponse({
-        message: "Check your email for login link.",
-      });
-    }
-
-    // Generate magic link and send email
-    const magicLink = await generateMagicLink(email);
-
-    const resendKey = process.env.RESEND_API_KEY;
-    if (resendKey && !resendKey.startsWith("your-")) {
-      const resend = new Resend(resendKey);
-      const fromAddress = process.env.EMAIL_FROM || "Yoodle <onboarding@resend.dev>";
-
-      try {
-        await resend.emails.send({
-          from: fromAddress,
-          to: email.toLowerCase().trim(),
-          subject: "Your Yoodle login link",
-          html: buildLoginEmail(user.displayName || user.name, magicLink),
-        });
-      } catch (emailError) {
-        // If email fails, log error but never expose magic link in production
-        console.error("[Email Send Error]", emailError);
-        if (process.env.NODE_ENV !== "production") {
-          console.log("\n✨ [FALLBACK] Magic link for", email);
-          console.log("🔗", magicLink, "\n");
-        }
-      }
-    } else {
-      // Dev mode: log magic link to console when Resend is not configured
-      console.log("\n✨ [DEV MODE] Magic link for", email);
-      console.log("🔗", magicLink, "\n");
-    }
-
+  // SECURITY: Return the same success message whether user exists or not
+  // to prevent user enumeration attacks. If user doesn't exist, we still
+  // pretend we sent a magic link.
+  if (!user) {
     return successResponse({
       message: "Check your email for login link.",
     });
-  } catch (error) {
-    console.error("[Login Error]", error);
-    return serverErrorResponse("Something went wrong during login.");
   }
+
+  // Generate magic link and send email
+  const magicLink = await generateMagicLink(email);
+
+  const resendKey = process.env.RESEND_API_KEY;
+  if (resendKey && !resendKey.startsWith("your-")) {
+    const resend = new Resend(resendKey);
+    const fromAddress = process.env.EMAIL_FROM || "Yoodle <onboarding@resend.dev>";
+
+    try {
+      await resend.emails.send({
+        from: fromAddress,
+        to: email.toLowerCase().trim(),
+        subject: "Your Yoodle login link",
+        html: buildLoginEmail(user.displayName || user.name, magicLink),
+      });
+    } catch (emailError) {
+      // If email fails, log error but never expose magic link in production
+      console.error("[Email Send Error]", emailError);
+      if (process.env.NODE_ENV !== "production") {
+        console.log("\n✨ [FALLBACK] Magic link for", email);
+        console.log("🔗", magicLink, "\n");
+      }
+    }
+  } else {
+    // Dev mode: log magic link to console when Resend is not configured
+    console.log("\n✨ [DEV MODE] Magic link for", email);
+    console.log("🔗", magicLink, "\n");
+  }
+
+  return successResponse({
+    message: "Check your email for login link.",
+  });
+});
+
+/** Escape HTML special characters to prevent XSS in email templates */
+function escapeHtml(str: string): string {
+  return str
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
 }
 
 function buildLoginEmail(name: string, magicLink: string): string {
@@ -117,7 +122,7 @@ function buildLoginEmail(name: string, magicLink: string): string {
 
         <!-- Login text -->
         <h1 style="margin: 0 0 8px 0; font-size: 22px; font-weight: 800; color: #1a1a1a; text-align: center;">
-          Hey ${name}, welcome back!
+          Hey ${escapeHtml(name)}, welcome back!
         </h1>
         <p style="margin: 0 0 28px 0; font-size: 15px; color: #4a4a4a; text-align: center; line-height: 1.5;">
           Tap the button below to log in to your Yoodle account. No passwords needed — we keep things simple.

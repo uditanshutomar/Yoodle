@@ -14,31 +14,32 @@ import { buildWorkspaceContext } from "@/lib/google/workspace-context";
 
 const messageSchema = z.object({
   role: z.enum(["user", "model", "assistant"]),
-  content: z.string().min(1, "Message content is required."),
+  content: z.string().min(1, "Message content is required.").max(8000, "Message too long (max 8000 chars)."),
 });
 
 // Accept both frontend format { message, history } and direct { messages }
 const chatSchema = z.union([
   z.object({
-    message: z.string().min(1, "Message is required."),
-    history: z.array(messageSchema).optional().default([]),
+    message: z.string().min(1, "Message is required.").max(8000, "Message too long (max 8000 chars)."),
+    history: z.array(messageSchema).max(50, "Too many history messages (max 50).").optional().default([]),
     context: z
       .object({
-        name: z.string().optional(),
-        upcomingMeetings: z.array(z.string()).optional(),
-        recentNotes: z.array(z.string()).optional(),
+        name: z.string().max(100).optional(),
+        upcomingMeetings: z.array(z.string().max(500)).max(20).optional(),
+        recentNotes: z.array(z.string().max(2000)).max(20).optional(),
       })
       .optional(),
   }),
   z.object({
     messages: z
       .array(messageSchema)
-      .min(1, "At least one message is required."),
+      .min(1, "At least one message is required.")
+      .max(50, "Too many messages (max 50)."),
     context: z
       .object({
-        name: z.string().optional(),
-        upcomingMeetings: z.array(z.string()).optional(),
-        recentNotes: z.array(z.string()).optional(),
+        name: z.string().max(100).optional(),
+        upcomingMeetings: z.array(z.string().max(500)).max(20).optional(),
+        recentNotes: z.array(z.string().max(2000)).max(20).optional(),
       })
       .optional(),
   }),

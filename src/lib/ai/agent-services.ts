@@ -1,5 +1,8 @@
 import { generateText } from "./gemini";
 import { SYSTEM_PROMPTS } from "./prompts";
+import { createLogger } from "@/lib/logger";
+
+const logger = createLogger("ai-agent-services");
 
 // ── Types ───────────────────────────────────────────────────────────
 
@@ -46,7 +49,11 @@ function parseJsonSafe<T>(text: string, fallback: T): T {
       .replace(/\s*```$/i, "")
       .trim();
     return JSON.parse(cleaned) as T;
-  } catch {
+  } catch (err) {
+    logger.warn(
+      { err, textPreview: text.slice(0, 200) },
+      "AI JSON parse failed, using fallback",
+    );
     return fallback;
   }
 }

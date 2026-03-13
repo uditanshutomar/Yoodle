@@ -5,10 +5,10 @@ import connectDB from "@/lib/db/client";
 import User from "@/lib/db/models/user";
 import { generateMagicLink } from "@/lib/auth/magic-link";
 import { checkRateLimit } from "@/lib/api/rate-limit";
+import { withHandler } from "@/lib/api/with-handler";
 import {
   successResponse,
   errorResponse,
-  serverErrorResponse,
 } from "@/lib/utils/api-response";
 
 const signupSchema = z.object({
@@ -23,102 +23,107 @@ const signupSchema = z.object({
     .max(50, "Display name must be 50 characters or fewer."),
 });
 
-export async function POST(request: NextRequest) {
-  try {
-    // Rate limit: 5 attempts per minute per IP
-    await checkRateLimit(request, "auth");
+export const POST = withHandler(async (request: NextRequest) => {
+  // Rate limit: 5 attempts per minute per IP
+  await checkRateLimit(request, "auth");
 
-    const body = await request.json();
+  const body = await request.json();
 
-    const parsed = signupSchema.safeParse(body);
-    if (!parsed.success) {
-      const fieldErrors: Record<string, string[]> = {};
-      for (const issue of parsed.error.issues) {
-        const path = issue.path.join(".");
-        if (!fieldErrors[path]) {
-          fieldErrors[path] = [];
-        }
-        fieldErrors[path].push(issue.message);
+  const parsed = signupSchema.safeParse(body);
+  if (!parsed.success) {
+    const fieldErrors: Record<string, string[]> = {};
+    for (const issue of parsed.error.issues) {
+      const path = issue.path.join(".");
+      if (!fieldErrors[path]) {
+        fieldErrors[path] = [];
       }
-      return errorResponse({
-        message: "Validation failed.",
-        status: 400,
-        errors: fieldErrors,
-      });
+      fieldErrors[path].push(issue.message);
     }
+    return errorResponse({
+      message: "Validation failed.",
+      status: 400,
+      errors: fieldErrors,
+    });
+  }
 
-    const { email, name, displayName } = parsed.data;
-    const normalizedEmail = email.toLowerCase().trim();
+  const { email, name, displayName } = parsed.data;
+  const normalizedEmail = email.toLowerCase().trim();
 
-    await connectDB();
+  await connectDB();
 
-    // Atomic check-and-create to prevent race conditions.
-    // Uses findOneAndUpdate with upsert + $setOnInsert so that:
-    //   - If user exists: returns existing doc (was created before this call)
-    //   - If user doesn't exist: atomically creates it
-    const result = await User.findOneAndUpdate(
-      { email: normalizedEmail },
-      {
-        $setOnInsert: {
-          email: normalizedEmail,
-          name,
-          displayName,
-          status: "offline",
-          preferences: {
-            notifications: true,
-            ghostModeDefault: false,
-            theme: "auto",
-          },
+  // Atomic check-and-create to prevent race conditions.
+  // Uses findOneAndUpdate with upsert + $setOnInsert so that:
+  //   - If user exists: returns existing doc (was created before this call)
+  //   - If user doesn't exist: atomically creates it
+  const result = await User.findOneAndUpdate(
+    { email: normalizedEmail },
+    {
+      $setOnInsert: {
+        email: normalizedEmail,
+        name,
+        displayName,
+        status: "offline",
+        preferences: {
+          notifications: true,
+          ghostModeDefault: false,
+          theme: "auto",
         },
       },
-      { upsert: true, new: false } // new: false returns null if doc was just created
-    );
+    },
+    { upsert: true, new: false } // new: false returns null if doc was just created
+  );
 
-    // If result is non-null, the user already existed (not a fresh upsert)
-    if (result !== null) {
-      return errorResponse({
-        message: "Email already registered.",
-        status: 409,
-      });
-    }
-
-    // Generate magic link and send email
-    const magicLink = await generateMagicLink(email);
-
-    const resendKey = process.env.RESEND_API_KEY;
-    if (resendKey && !resendKey.startsWith("your-")) {
-      const resend = new Resend(resendKey);
-      const fromAddress = process.env.EMAIL_FROM || "Yoodle <onboarding@resend.dev>";
-
-      try {
-        await resend.emails.send({
-          from: fromAddress,
-          to: email.toLowerCase().trim(),
-          subject: "Welcome to Yoodle! Verify your account",
-          html: buildWelcomeEmail(name, magicLink),
-        });
-      } catch (emailError) {
-        // If email fails, log error but never expose magic link in production
-        console.error("[Email Send Error]", emailError);
-        if (process.env.NODE_ENV !== "production") {
-          console.log("\n✨ [FALLBACK] Magic link for", email);
-          console.log("🔗", magicLink, "\n");
-        }
-      }
-    } else {
-      // Dev mode: log magic link to console when Resend is not configured
-      console.log("\n✨ [DEV MODE] Magic link for", email);
-      console.log("🔗", magicLink, "\n");
-    }
-
-    return successResponse({
-      message: "Check your email for login link.",
-      status: 201,
+  // If result is non-null, the user already existed (not a fresh upsert)
+  if (result !== null) {
+    return errorResponse({
+      message: "Email already registered.",
+      status: 409,
     });
-  } catch (error) {
-    console.error("[Signup Error]", error);
-    return serverErrorResponse("Something went wrong during signup.");
   }
+
+  // Generate magic link and send email
+  const magicLink = await generateMagicLink(email);
+
+  const resendKey = process.env.RESEND_API_KEY;
+  if (resendKey && !resendKey.startsWith("your-")) {
+    const resend = new Resend(resendKey);
+    const fromAddress = process.env.EMAIL_FROM || "Yoodle <onboarding@resend.dev>";
+
+    try {
+      await resend.emails.send({
+        from: fromAddress,
+        to: email.toLowerCase().trim(),
+        subject: "Welcome to Yoodle! Verify your account",
+        html: buildWelcomeEmail(name, magicLink),
+      });
+    } catch (emailError) {
+      // If email fails, log error but never expose magic link in production
+      console.error("[Email Send Error]", emailError);
+      if (process.env.NODE_ENV !== "production") {
+        console.log("\n✨ [FALLBACK] Magic link for", email);
+        console.log("🔗", magicLink, "\n");
+      }
+    }
+  } else {
+    // Dev mode: log magic link to console when Resend is not configured
+    console.log("\n✨ [DEV MODE] Magic link for", email);
+    console.log("🔗", magicLink, "\n");
+  }
+
+  return successResponse({
+    message: "Check your email for login link.",
+    status: 201,
+  });
+});
+
+/** Escape HTML special characters to prevent XSS in email templates */
+function escapeHtml(str: string): string {
+  return str
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
 }
 
 function buildWelcomeEmail(name: string, magicLink: string): string {
@@ -143,7 +148,7 @@ function buildWelcomeEmail(name: string, magicLink: string): string {
 
         <!-- Welcome text -->
         <h1 style="margin: 0 0 8px 0; font-size: 22px; font-weight: 800; color: #1a1a1a; text-align: center;">
-          Welcome aboard, ${name}!
+          Welcome aboard, ${escapeHtml(name)}!
         </h1>
         <p style="margin: 0 0 28px 0; font-size: 15px; color: #4a4a4a; text-align: center; line-height: 1.5;">
           You're one click away from joining meetings that don't suck. Tap the button below to verify your account.

@@ -10,6 +10,8 @@ export interface UseRecordingReturn {
   startRecording: () => void;
   stopRecording: () => void;
   recordingDuration: number;
+  error: string | null;
+  clearError: () => void;
 }
 
 /**
@@ -31,6 +33,9 @@ export function useRecording(
 ): UseRecordingReturn {
   const [isRecording, setIsRecording] = useState(false);
   const [recordingDuration, setRecordingDuration] = useState(0);
+  const [error, setError] = useState<string | null>(null);
+
+  const clearError = useCallback(() => setError(null), []);
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const recordedChunksRef = useRef<Blob[]>([]);
@@ -144,9 +149,13 @@ export function useRecording(
 
           if (!uploadRes.ok) {
             // Google Drive upload failed — fall back to local download
+            console.error("[Recording] Upload failed with status:", uploadRes.status);
+            setError("Cloud upload failed. Recording saved locally instead.");
             downloadRecording(blob);
           }
-        } catch {
+        } catch (err) {
+          console.error("[Recording] Upload error:", err);
+          setError("Cloud upload failed. Recording saved locally instead.");
           downloadRecording(blob);
         }
 
@@ -181,8 +190,9 @@ export function useRecording(
           isRecording: true,
         });
       }
-    } catch {
-      // Recording start failed — UI state remains isRecording=false
+    } catch (err) {
+      console.error("[Recording] Failed to start recording:", err);
+      setError("Failed to start recording. Please check your microphone/camera permissions.");
     }
   }, [meetingId, remoteStreams, socket, speechSegmentsRef]);
 
@@ -239,6 +249,8 @@ export function useRecording(
     startRecording,
     stopRecording,
     recordingDuration,
+    error,
+    clearError,
   };
 }
 
