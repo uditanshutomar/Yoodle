@@ -1,10 +1,10 @@
 import { NextRequest } from "next/server";
-import connectDB from "@/lib/db/client";
-import User from "@/lib/db/models/user";
-import { verifyAccessToken, verifyRefreshToken } from "@/lib/auth/jwt";
-import { tokenBlacklist } from "@/lib/redis/cache";
-import { withHandler } from "@/lib/api/with-handler";
-import { successResponse } from "@/lib/api/response";
+import connectDB from "@/lib/infra/db/client";
+import User from "@/lib/infra/db/models/user";
+import { verifyAccessToken, verifyRefreshToken } from "@/lib/infra/auth/jwt";
+import { tokenBlacklist } from "@/lib/infra/redis/cache";
+import { withHandler } from "@/lib/infra/api/with-handler";
+import { successResponse } from "@/lib/infra/api/response";
 
 export const POST = withHandler(async (req: NextRequest) => {
   const accessToken = req.cookies.get("yoodle-access-token")?.value;

@@ -1,13 +1,13 @@
 import { NextRequest } from "next/server";
 import { z } from "zod";
 import mongoose from "mongoose";
-import { withHandler } from "@/lib/api/with-handler";
-import { successResponse } from "@/lib/api/response";
-import { checkRateLimit } from "@/lib/api/rate-limit";
-import { getUserIdFromRequest } from "@/lib/auth/middleware";
-import { BadRequestError, NotFoundError } from "@/lib/api/errors";
-import connectDB from "@/lib/db/client";
-import Meeting from "@/lib/db/models/meeting";
+import { withHandler } from "@/lib/infra/api/with-handler";
+import { successResponse } from "@/lib/infra/api/response";
+import { checkRateLimit } from "@/lib/infra/api/rate-limit";
+import { getUserIdFromRequest } from "@/lib/infra/auth/middleware";
+import { BadRequestError, NotFoundError } from "@/lib/infra/api/errors";
+import connectDB from "@/lib/infra/db/client";
+import Meeting from "@/lib/infra/db/models/meeting";
 
 // ── Helpers ─────────────────────────────────────────────────────────
 

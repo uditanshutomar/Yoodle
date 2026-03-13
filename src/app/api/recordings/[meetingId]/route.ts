@@ -1,11 +1,11 @@
 import { NextRequest } from "next/server";
-import { withHandler } from "@/lib/api/with-handler";
-import { successResponse } from "@/lib/api/response";
-import { checkRateLimit } from "@/lib/api/rate-limit";
-import { getUserIdFromRequest } from "@/lib/auth/middleware";
-import { BadRequestError, NotFoundError, ForbiddenError } from "@/lib/api/errors";
-import connectDB from "@/lib/db/client";
-import Meeting from "@/lib/db/models/meeting";
+import { withHandler } from "@/lib/infra/api/with-handler";
+import { successResponse } from "@/lib/infra/api/response";
+import { checkRateLimit } from "@/lib/infra/api/rate-limit";
+import { getUserIdFromRequest } from "@/lib/infra/auth/middleware";
+import { BadRequestError, NotFoundError, ForbiddenError } from "@/lib/infra/api/errors";
+import connectDB from "@/lib/infra/db/client";
+import Meeting from "@/lib/infra/db/models/meeting";
 import { hasGoogleAccess } from "@/lib/google/client";
 import { listMeetingRecordings } from "@/lib/google/drive-recordings";
 

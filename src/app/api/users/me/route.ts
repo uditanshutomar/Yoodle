@@ -1,15 +1,15 @@
 import { NextRequest } from "next/server";
 import { z } from "zod";
-import connectDB from "@/lib/db/client";
-import User from "@/lib/db/models/user";
-import { authenticateRequest } from "@/lib/auth/middleware";
+import connectDB from "@/lib/infra/db/client";
+import User from "@/lib/infra/db/models/user";
+import { authenticateRequest } from "@/lib/infra/auth/middleware";
 import {
   successResponse,
   errorResponse,
   unauthorized,
   notFound,
   internalError,
-} from "@/lib/api/response";
+} from "@/lib/infra/api/response";
 
 /**
  * GET /api/users/me

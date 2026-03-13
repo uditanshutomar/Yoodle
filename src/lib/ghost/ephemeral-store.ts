@@ -1,7 +1,7 @@
 import { customAlphabet, nanoid } from "nanoid";
-import connectDB from "@/lib/db/client";
-import GhostRoom from "@/lib/db/models/ghost-room";
-import type { IGhostParticipant, IGhostMessage } from "@/lib/db/models/ghost-room";
+import connectDB from "@/lib/infra/db/client";
+import GhostRoom from "@/lib/infra/db/models/ghost-room";
+import type { IGhostParticipant, IGhostMessage } from "@/lib/infra/db/models/ghost-room";
 
 // ── Re-export types for backward compatibility ───────────────────────
 

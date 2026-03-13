@@ -1,11 +1,11 @@
 import { NextRequest } from "next/server";
 import { z } from "zod";
-import { withHandler } from "@/lib/api/with-handler";
-import { successResponse } from "@/lib/api/response";
-import { checkRateLimit } from "@/lib/api/rate-limit";
-import { getUserIdFromRequest } from "@/lib/auth/middleware";
-import connectDB from "@/lib/db/client";
-import Workspace from "@/lib/db/models/workspace";
+import { withHandler } from "@/lib/infra/api/with-handler";
+import { successResponse } from "@/lib/infra/api/response";
+import { checkRateLimit } from "@/lib/infra/api/rate-limit";
+import { getUserIdFromRequest } from "@/lib/infra/auth/middleware";
+import connectDB from "@/lib/infra/db/client";
+import Workspace from "@/lib/infra/db/models/workspace";
 
 const createWorkspaceSchema = z.object({
   name: z.string().min(1, "Workspace name is required.").max(200),

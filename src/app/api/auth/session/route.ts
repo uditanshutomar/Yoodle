@@ -1,13 +1,13 @@
 import { NextRequest } from "next/server";
-import { withHandler } from "@/lib/api/with-handler";
-import { successResponse } from "@/lib/api/response";
-import { checkRateLimit } from "@/lib/api/rate-limit";
-import { getUserIdFromRequest } from "@/lib/auth/middleware";
-import { verifyAccessToken, verifyRefreshToken } from "@/lib/auth/jwt";
-import { tokenBlacklist } from "@/lib/redis/cache";
-import { NotFoundError } from "@/lib/api/errors";
-import connectDB from "@/lib/db/client";
-import User from "@/lib/db/models/user";
+import { withHandler } from "@/lib/infra/api/with-handler";
+import { successResponse } from "@/lib/infra/api/response";
+import { checkRateLimit } from "@/lib/infra/api/rate-limit";
+import { getUserIdFromRequest } from "@/lib/infra/auth/middleware";
+import { verifyAccessToken, verifyRefreshToken } from "@/lib/infra/auth/jwt";
+import { tokenBlacklist } from "@/lib/infra/redis/cache";
+import { NotFoundError } from "@/lib/infra/api/errors";
+import connectDB from "@/lib/infra/db/client";
+import User from "@/lib/infra/db/models/user";
 
 /**
  * GET /api/auth/session

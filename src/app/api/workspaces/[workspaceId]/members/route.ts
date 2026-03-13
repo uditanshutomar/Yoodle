@@ -1,14 +1,14 @@
 import { NextRequest } from "next/server";
 import { z } from "zod";
-import { withHandler } from "@/lib/api/with-handler";
-import { successResponse } from "@/lib/api/response";
-import { checkRateLimit } from "@/lib/api/rate-limit";
-import { getUserIdFromRequest } from "@/lib/auth/middleware";
-import { BadRequestError, NotFoundError, ForbiddenError } from "@/lib/api/errors";
-import connectDB from "@/lib/db/client";
-import Workspace from "@/lib/db/models/workspace";
-import User from "@/lib/db/models/user";
-import AuditLog from "@/lib/db/models/audit-log";
+import { withHandler } from "@/lib/infra/api/with-handler";
+import { successResponse } from "@/lib/infra/api/response";
+import { checkRateLimit } from "@/lib/infra/api/rate-limit";
+import { getUserIdFromRequest } from "@/lib/infra/auth/middleware";
+import { BadRequestError, NotFoundError, ForbiddenError } from "@/lib/infra/api/errors";
+import connectDB from "@/lib/infra/db/client";
+import Workspace from "@/lib/infra/db/models/workspace";
+import User from "@/lib/infra/db/models/user";
+import AuditLog from "@/lib/infra/db/models/audit-log";
 
 const addMemberSchema = z.object({
   email: z.string().email("Valid email is required."),

@@ -1,5 +1,5 @@
 import { getRedisClient } from "./client";
-import { createLogger } from "@/lib/logger";
+import { createLogger } from "@/lib/infra/logger";
 
 const logger = createLogger("redis-cache");
 

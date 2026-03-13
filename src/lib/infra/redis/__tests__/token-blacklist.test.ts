@@ -3,11 +3,11 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { tokenIsBlacklisted, tokenBlacklist } from "../cache";
 
 // Mock the Redis client
-vi.mock("@/lib/redis/client", () => ({
+vi.mock("@/lib/infra/redis/client", () => ({
   getRedisClient: vi.fn(),
 }));
 
-import { getRedisClient } from "@/lib/redis/client";
+import { getRedisClient } from "@/lib/infra/redis/client";
 
 const mockedGetRedisClient = vi.mocked(getRedisClient);
 

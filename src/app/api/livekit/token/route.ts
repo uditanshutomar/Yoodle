@@ -1,17 +1,17 @@
 import { NextRequest } from "next/server";
 import { z } from "zod";
 import { AccessToken, RoomServiceClient } from "livekit-server-sdk";
-import { withHandler } from "@/lib/api/with-handler";
-import { successResponse } from "@/lib/api/response";
-import { checkRateLimit } from "@/lib/api/rate-limit";
-import { getUserIdFromRequest } from "@/lib/auth/middleware";
+import { withHandler } from "@/lib/infra/api/with-handler";
+import { successResponse } from "@/lib/infra/api/response";
+import { checkRateLimit } from "@/lib/infra/api/rate-limit";
+import { getUserIdFromRequest } from "@/lib/infra/auth/middleware";
 import {
   BadRequestError,
   NotFoundError,
   ForbiddenError,
-} from "@/lib/api/errors";
-import connectDB from "@/lib/db/client";
-import Meeting from "@/lib/db/models/meeting";
+} from "@/lib/infra/api/errors";
+import connectDB from "@/lib/infra/db/client";
+import Meeting from "@/lib/infra/db/models/meeting";
 import mongoose from "mongoose";
 import {
   LIVEKIT_URL,

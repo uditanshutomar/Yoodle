@@ -1,5 +1,5 @@
 import { Queue } from "bullmq";
-import { getRedisClient } from "@/lib/redis/client";
+import { getRedisClient } from "@/lib/infra/redis/client";
 
 // -- Connection options -------------------------------------------------------
 

@@ -1,9 +1,9 @@
 import { NextRequest } from "next/server";
-import { withHandler } from "@/lib/api/with-handler";
-import { successResponse } from "@/lib/api/response";
-import { checkRateLimit } from "@/lib/api/rate-limit";
-import { getUserIdFromRequest } from "@/lib/auth/middleware";
-import { signRealtimeSessionToken } from "@/lib/auth/service-session";
+import { withHandler } from "@/lib/infra/api/with-handler";
+import { successResponse } from "@/lib/infra/api/response";
+import { checkRateLimit } from "@/lib/infra/api/rate-limit";
+import { getUserIdFromRequest } from "@/lib/infra/auth/middleware";
+import { signRealtimeSessionToken } from "@/lib/infra/auth/service-session";
 
 function getRealtimeUrl(req: NextRequest): string {
   return (

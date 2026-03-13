@@ -1,20 +1,20 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { authenticateRequest } from "../middleware";
-import { UnauthorizedError } from "@/lib/api/errors";
+import { UnauthorizedError } from "@/lib/infra/api/errors";
 
 // Mock the JWT verification module
-vi.mock("@/lib/auth/jwt", () => ({
+vi.mock("@/lib/infra/auth/jwt", () => ({
   verifyAccessToken: vi.fn(),
 }));
 
 // Mock the Redis cache module
-vi.mock("@/lib/redis/cache", () => ({
+vi.mock("@/lib/infra/redis/cache", () => ({
   tokenIsBlacklisted: vi.fn(),
 }));
 
 // Import the mocked modules to control their behavior in tests
-import { verifyAccessToken } from "@/lib/auth/jwt";
-import { tokenIsBlacklisted } from "@/lib/redis/cache";
+import { verifyAccessToken } from "@/lib/infra/auth/jwt";
+import { tokenIsBlacklisted } from "@/lib/infra/redis/cache";
 
 const mockedVerifyAccessToken = vi.mocked(verifyAccessToken);
 const mockedTokenIsBlacklisted = vi.mocked(tokenIsBlacklisted);

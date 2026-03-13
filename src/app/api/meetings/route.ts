@@ -1,13 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import mongoose from "mongoose";
-import { withHandler } from "@/lib/api/with-handler";
-import { successResponse } from "@/lib/api/response";
-import { checkRateLimit } from "@/lib/api/rate-limit";
-import { getUserIdFromRequest } from "@/lib/auth/middleware";
-import connectDB from "@/lib/db/client";
-import Meeting from "@/lib/db/models/meeting";
-import "@/lib/db/models/user"; // register User schema for .populate("hostId")
+import { withHandler } from "@/lib/infra/api/with-handler";
+import { successResponse } from "@/lib/infra/api/response";
+import { checkRateLimit } from "@/lib/infra/api/rate-limit";
+import { getUserIdFromRequest } from "@/lib/infra/auth/middleware";
+import connectDB from "@/lib/infra/db/client";
+import Meeting from "@/lib/infra/db/models/meeting";
+import "@/lib/infra/db/models/user"; // register User schema for .populate("hostId")
 import { generateMeetingCode } from "@/lib/utils/id";
 import { features } from "@/lib/features/flags";
 

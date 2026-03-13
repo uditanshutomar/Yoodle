@@ -1,6 +1,6 @@
 import mongoose from "mongoose";
-import connectDB from "@/lib/db/client";
-import Meeting from "@/lib/db/models/meeting";
+import connectDB from "@/lib/infra/db/client";
+import Meeting from "@/lib/infra/db/models/meeting";
 import type { GhostRoomData, GhostParticipant } from "./ephemeral-store";
 
 // ── Types ─────────────────────────────────────────────────────────────

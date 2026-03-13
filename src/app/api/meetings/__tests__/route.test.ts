@@ -3,7 +3,7 @@ import { NextRequest } from "next/server";
 
 // ── Mock dependencies before importing the route ──────────────────
 
-vi.mock("@/lib/logger", () => ({
+vi.mock("@/lib/infra/logger", () => ({
   createLogger: () => ({
     info: vi.fn(),
     warn: vi.fn(),
@@ -15,7 +15,7 @@ vi.mock("@sentry/nextjs", () => ({
   captureException: vi.fn(),
 }));
 
-vi.mock("@/lib/db/client", () => ({
+vi.mock("@/lib/infra/db/client", () => ({
   default: vi.fn().mockResolvedValue(undefined),
 }));
 
@@ -29,7 +29,7 @@ const mockMeetingChain = {
 };
 
 const mockMeetingCreate = vi.fn();
-vi.mock("@/lib/db/models/meeting", () => ({
+vi.mock("@/lib/infra/db/models/meeting", () => ({
   default: {
     find: vi.fn(() => mockMeetingChain),
     create: vi.fn((...args: unknown[]) => mockMeetingCreate(...args)),
@@ -37,12 +37,12 @@ vi.mock("@/lib/db/models/meeting", () => ({
   },
 }));
 
-vi.mock("@/lib/auth/middleware", () => ({
+vi.mock("@/lib/infra/auth/middleware", () => ({
   authenticateRequest: vi.fn(),
   getUserIdFromRequest: vi.fn(),
 }));
 
-vi.mock("@/lib/api/rate-limit", () => ({
+vi.mock("@/lib/infra/api/rate-limit", () => ({
   checkRateLimit: vi.fn().mockResolvedValue(undefined),
 }));
 
@@ -58,9 +58,9 @@ vi.mock("@/lib/features/flags", () => ({
 }));
 
 // Import mocked modules to control behavior
-import { getUserIdFromRequest } from "@/lib/auth/middleware";
-import { checkRateLimit } from "@/lib/api/rate-limit";
-import Meeting from "@/lib/db/models/meeting";
+import { getUserIdFromRequest } from "@/lib/infra/auth/middleware";
+import { checkRateLimit } from "@/lib/infra/api/rate-limit";
+import Meeting from "@/lib/infra/db/models/meeting";
 
 const mockedGetUserId = vi.mocked(getUserIdFromRequest);
 const mockedCheckRateLimit = vi.mocked(checkRateLimit);
@@ -104,7 +104,7 @@ describe("GET /api/meetings", () => {
   });
 
   it("requires authentication — returns 401 when no token provided", async () => {
-    const { UnauthorizedError } = await import("@/lib/api/errors");
+    const { UnauthorizedError } = await import("@/lib/infra/api/errors");
     mockedGetUserId.mockRejectedValue(
       new UnauthorizedError("Missing authentication credentials."),
     );
@@ -176,7 +176,7 @@ describe("GET /api/meetings", () => {
   });
 
   it("returns 429 when rate limit is exceeded", async () => {
-    const { RateLimitError } = await import("@/lib/api/errors");
+    const { RateLimitError } = await import("@/lib/infra/api/errors");
     mockedCheckRateLimit.mockRejectedValue(new RateLimitError(30));
 
     const req = createRequest("GET");
@@ -229,7 +229,7 @@ describe("POST /api/meetings", () => {
   });
 
   it("requires authentication — returns 401 when no token provided", async () => {
-    const { UnauthorizedError } = await import("@/lib/api/errors");
+    const { UnauthorizedError } = await import("@/lib/infra/api/errors");
     mockedGetUserId.mockRejectedValue(
       new UnauthorizedError("Missing authentication credentials."),
     );

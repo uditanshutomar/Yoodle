@@ -3,7 +3,7 @@ import { NextRequest } from "next/server";
 
 // ── Mock dependencies before importing the route ──────────────────
 
-vi.mock("@/lib/db/client", () => ({
+vi.mock("@/lib/infra/db/client", () => ({
   default: vi.fn().mockResolvedValue(undefined),
 }));
 
@@ -11,7 +11,7 @@ const mockWaitlistFindOne = vi.fn();
 const mockWaitlistCreate = vi.fn();
 const mockWaitlistCountDocuments = vi.fn();
 
-vi.mock("@/lib/db/models/waitlist", () => ({
+vi.mock("@/lib/infra/db/models/waitlist", () => ({
   default: {
     findOne: mockWaitlistFindOne,
     create: mockWaitlistCreate,

@@ -1,16 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
-import connectDB from "@/lib/db/client";
-import User from "@/lib/db/models/user";
+import connectDB from "@/lib/infra/db/client";
+import User from "@/lib/infra/db/models/user";
 import {
   verifyRefreshToken,
   signAccessToken,
   signRefreshToken,
-} from "@/lib/auth/jwt";
-import { tokenBlacklist, tokenIsBlacklisted } from "@/lib/redis/cache";
-import { UnauthorizedError } from "@/lib/api/errors";
-import { withHandler } from "@/lib/api/with-handler";
-import { successResponse } from "@/lib/api/response";
+} from "@/lib/infra/auth/jwt";
+import { tokenBlacklist, tokenIsBlacklisted } from "@/lib/infra/redis/cache";
+import { UnauthorizedError } from "@/lib/infra/api/errors";
+import { withHandler } from "@/lib/infra/api/with-handler";
+import { successResponse } from "@/lib/infra/api/response";
 
 export const POST = withHandler(async (req: NextRequest) => {
   const refreshTokenCookie = req.cookies.get("yoodle-refresh-token")?.value;

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
-import connectDB from "@/lib/db/client";
-import { isRedisAvailable } from "@/lib/redis/client";
+import connectDB from "@/lib/infra/db/client";
+import { isRedisAvailable } from "@/lib/infra/redis/client";
 
 /**
  * GET /api/health

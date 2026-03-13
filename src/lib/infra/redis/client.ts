@@ -1,5 +1,5 @@
 import Redis from "ioredis";
-import { createLogger } from "@/lib/logger";
+import { createLogger } from "@/lib/infra/logger";
 
 const logger = createLogger("redis-client");
 

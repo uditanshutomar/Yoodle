@@ -1,12 +1,12 @@
 import { NextRequest } from "next/server";
-import { withHandler } from "@/lib/api/with-handler";
-import { successResponse } from "@/lib/api/response";
-import { checkRateLimit } from "@/lib/api/rate-limit";
-import { getUserIdFromRequest } from "@/lib/auth/middleware";
-import connectDB from "@/lib/db/client";
-import AnalyticsEvent from "@/lib/db/models/analytics-event";
-import Meeting from "@/lib/db/models/meeting";
-import User from "@/lib/db/models/user";
+import { withHandler } from "@/lib/infra/api/with-handler";
+import { successResponse } from "@/lib/infra/api/response";
+import { checkRateLimit } from "@/lib/infra/api/rate-limit";
+import { getUserIdFromRequest } from "@/lib/infra/auth/middleware";
+import connectDB from "@/lib/infra/db/client";
+import AnalyticsEvent from "@/lib/infra/db/models/analytics-event";
+import Meeting from "@/lib/infra/db/models/meeting";
+import User from "@/lib/infra/db/models/user";
 
 const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
 const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;

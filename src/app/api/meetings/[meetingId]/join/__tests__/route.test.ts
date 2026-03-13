@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 
-vi.mock("@/lib/logger", () => ({
+vi.mock("@/lib/infra/logger", () => ({
   createLogger: () => ({
     info: vi.fn(),
     warn: vi.fn(),
@@ -13,19 +13,19 @@ vi.mock("@sentry/nextjs", () => ({
   captureException: vi.fn(),
 }));
 
-vi.mock("@/lib/db/client", () => ({
+vi.mock("@/lib/infra/db/client", () => ({
   default: vi.fn().mockResolvedValue(undefined),
 }));
 
-vi.mock("@/lib/auth/middleware", () => ({
+vi.mock("@/lib/infra/auth/middleware", () => ({
   getUserIdFromRequest: vi.fn(),
 }));
 
-vi.mock("@/lib/api/rate-limit", () => ({
+vi.mock("@/lib/infra/api/rate-limit", () => ({
   checkRateLimit: vi.fn().mockResolvedValue(undefined),
 }));
 
-vi.mock("@/lib/redis/cache", () => ({
+vi.mock("@/lib/infra/redis/cache", () => ({
   waitingConsumeAdmission: vi.fn(),
 }));
 
@@ -34,7 +34,7 @@ const findOneAndUpdate = vi.fn();
 const findById = vi.fn();
 const updateOne = vi.fn();
 
-vi.mock("@/lib/db/models/meeting", () => ({
+vi.mock("@/lib/infra/db/models/meeting", () => ({
   default: {
     findOne: (...args: unknown[]) => findOne(...args),
     findOneAndUpdate: (...args: unknown[]) => findOneAndUpdate(...args),
@@ -43,8 +43,8 @@ vi.mock("@/lib/db/models/meeting", () => ({
   },
 }));
 
-import { getUserIdFromRequest } from "@/lib/auth/middleware";
-import { waitingConsumeAdmission } from "@/lib/redis/cache";
+import { getUserIdFromRequest } from "@/lib/infra/auth/middleware";
+import { waitingConsumeAdmission } from "@/lib/infra/redis/cache";
 
 const mockedGetUserId = vi.mocked(getUserIdFromRequest);
 const mockedWaitingConsumeAdmission = vi.mocked(waitingConsumeAdmission);

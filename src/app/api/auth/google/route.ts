@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import crypto from "crypto";
 import { z } from "zod";
-import { withHandler } from "@/lib/api/with-handler";
-import { checkRateLimit } from "@/lib/api/rate-limit";
-import { getGoogleAuthUrl } from "@/lib/auth/google";
+import { withHandler } from "@/lib/infra/api/with-handler";
+import { checkRateLimit } from "@/lib/infra/api/rate-limit";
+import { getGoogleAuthUrl } from "@/lib/infra/auth/google";
 
 const querySchema = z.object({
   redirect: z.string().optional().default("/dashboard"),

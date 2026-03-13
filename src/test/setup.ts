@@ -9,7 +9,7 @@ process.env.LLM_PROVIDER = "claude";
 process.env.LLM_API_KEY = "test-key";
 
 // Mock Redis client
-vi.mock("@/lib/redis/client", () => ({
+vi.mock("@/lib/infra/redis/client", () => ({
   getRedisClient: vi.fn(() => ({
     get: vi.fn(),
     set: vi.fn(),

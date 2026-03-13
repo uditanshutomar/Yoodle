@@ -1,12 +1,12 @@
 import { NextRequest } from "next/server";
 import { z } from "zod";
-import { withHandler } from "@/lib/api/with-handler";
-import { successResponse, errorResponse } from "@/lib/api/response";
-import { checkRateLimit } from "@/lib/api/rate-limit";
-import { getUserIdFromRequest } from "@/lib/auth/middleware";
+import { withHandler } from "@/lib/infra/api/with-handler";
+import { successResponse, errorResponse } from "@/lib/infra/api/response";
+import { checkRateLimit } from "@/lib/infra/api/rate-limit";
+import { getUserIdFromRequest } from "@/lib/infra/auth/middleware";
 import { updateTask, deleteTask, completeTask } from "@/lib/google/tasks";
 import { hasGoogleAccess } from "@/lib/google/client";
-import { BadRequestError } from "@/lib/api/errors";
+import { BadRequestError } from "@/lib/infra/api/errors";
 
 // -- Validation ---------------------------------------------------------------
 

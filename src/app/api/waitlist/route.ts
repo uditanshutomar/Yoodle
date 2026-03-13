@@ -1,12 +1,12 @@
 import { NextRequest } from "next/server";
 import { z } from "zod";
-import connectDB from "@/lib/db/client";
-import Waitlist from "@/lib/db/models/waitlist";
+import connectDB from "@/lib/infra/db/client";
+import Waitlist from "@/lib/infra/db/models/waitlist";
 import {
   successResponse,
   errorResponse,
   internalError,
-} from "@/lib/api/response";
+} from "@/lib/infra/api/response";
 
 const waitlistSchema = z.object({
   email: z.string().email("Please enter a valid email address."),

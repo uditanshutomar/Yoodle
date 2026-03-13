@@ -1,14 +1,14 @@
 import { NextRequest } from "next/server";
 import { z } from "zod";
-import { withHandler } from "@/lib/api/with-handler";
-import { successResponse } from "@/lib/api/response";
-import { checkRateLimit } from "@/lib/api/rate-limit";
-import { getUserIdFromRequest } from "@/lib/auth/middleware";
-import { BadRequestError, NotFoundError, ForbiddenError } from "@/lib/api/errors";
+import { withHandler } from "@/lib/infra/api/with-handler";
+import { successResponse } from "@/lib/infra/api/response";
+import { checkRateLimit } from "@/lib/infra/api/rate-limit";
+import { getUserIdFromRequest } from "@/lib/infra/auth/middleware";
+import { BadRequestError, NotFoundError, ForbiddenError } from "@/lib/infra/api/errors";
 import { ephemeralStore } from "@/lib/ghost/ephemeral-store";
 import { checkConsensus, persistGhostData } from "@/lib/ghost/consensus";
-import connectDB from "@/lib/db/client";
-import User from "@/lib/db/models/user";
+import connectDB from "@/lib/infra/db/client";
+import User from "@/lib/infra/db/models/user";
 
 // -- Helpers -------------------------------------------------------------------
 

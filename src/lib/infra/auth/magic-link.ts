@@ -1,7 +1,7 @@
 import crypto from "crypto";
 import bcrypt from "bcryptjs";
-import User, { IUserDocument } from "@/lib/db/models/user";
-import connectDB from "@/lib/db/client";
+import User, { IUserDocument } from "@/lib/infra/db/models/user";
+import connectDB from "@/lib/infra/db/client";
 
 const MAGIC_LINK_EXPIRY_MINUTES = 15;
 

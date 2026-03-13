@@ -1,14 +1,14 @@
 import { NextRequest } from "next/server";
 import { z } from "zod";
-import { withHandler } from "@/lib/api/with-handler";
-import { successResponse, errorResponse } from "@/lib/api/response";
-import { checkRateLimit } from "@/lib/api/rate-limit";
-import { getUserIdFromRequest } from "@/lib/auth/middleware";
-import { BadRequestError } from "@/lib/api/errors";
+import { withHandler } from "@/lib/infra/api/with-handler";
+import { successResponse, errorResponse } from "@/lib/infra/api/response";
+import { checkRateLimit } from "@/lib/infra/api/rate-limit";
+import { getUserIdFromRequest } from "@/lib/infra/auth/middleware";
+import { BadRequestError } from "@/lib/infra/api/errors";
 import { listEvents, createEvent, updateEvent, deleteEvent } from "@/lib/google/calendar";
 import { hasGoogleAccess } from "@/lib/google/client";
-import connectDB from "@/lib/db/client";
-import User from "@/lib/db/models/user";
+import connectDB from "@/lib/infra/db/client";
+import User from "@/lib/infra/db/models/user";
 
 // ── Validation ──────────────────────────────────────────────────────
 

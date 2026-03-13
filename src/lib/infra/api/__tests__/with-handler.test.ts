@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { withHandler } from "../with-handler";
 
 // Mock the logger
-vi.mock("@/lib/logger", () => ({
+vi.mock("@/lib/infra/logger", () => ({
   createLogger: () => ({
     info: vi.fn(),
     warn: vi.fn(),

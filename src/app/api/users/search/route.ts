@@ -1,12 +1,12 @@
 import { NextRequest } from "next/server";
 import { z } from "zod";
-import { withHandler } from "@/lib/api/with-handler";
-import { successResponse } from "@/lib/api/response";
-import { checkRateLimit } from "@/lib/api/rate-limit";
-import { getUserIdFromRequest } from "@/lib/auth/middleware";
-import { BadRequestError } from "@/lib/api/errors";
-import connectDB from "@/lib/db/client";
-import User from "@/lib/db/models/user";
+import { withHandler } from "@/lib/infra/api/with-handler";
+import { successResponse } from "@/lib/infra/api/response";
+import { checkRateLimit } from "@/lib/infra/api/rate-limit";
+import { getUserIdFromRequest } from "@/lib/infra/auth/middleware";
+import { BadRequestError } from "@/lib/infra/api/errors";
+import connectDB from "@/lib/infra/db/client";
+import User from "@/lib/infra/db/models/user";
 
 const searchQuerySchema = z.object({
   q: z.string().min(1, "Search query is required. Provide a 'q' parameter with at least 1 character."),

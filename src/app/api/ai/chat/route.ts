@@ -1,10 +1,10 @@
 import { NextRequest } from "next/server";
 import { z } from "zod";
-import { withHandler } from "@/lib/api/with-handler";
-import { checkRateLimit } from "@/lib/api/rate-limit";
-import { getUserIdFromRequest } from "@/lib/auth/middleware";
-import connectDB from "@/lib/db/client";
-import AIMemory from "@/lib/db/models/ai-memory";
+import { withHandler } from "@/lib/infra/api/with-handler";
+import { checkRateLimit } from "@/lib/infra/api/rate-limit";
+import { getUserIdFromRequest } from "@/lib/infra/auth/middleware";
+import connectDB from "@/lib/infra/db/client";
+import AIMemory from "@/lib/infra/db/models/ai-memory";
 import { streamChatWithAssistant } from "@/lib/ai/gemini";
 import { createStreamingResponse } from "@/lib/ai/streaming";
 import { buildWorkspaceContext } from "@/lib/google/workspace-context";

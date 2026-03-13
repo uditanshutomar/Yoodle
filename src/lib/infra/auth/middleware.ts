@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
-import { verifyAccessToken } from "@/lib/auth/jwt";
-import { tokenIsBlacklisted } from "@/lib/redis/cache";
-import { UnauthorizedError } from "@/lib/api/errors";
+import { verifyAccessToken } from "@/lib/infra/auth/jwt";
+import { tokenIsBlacklisted } from "@/lib/infra/redis/cache";
+import { UnauthorizedError } from "@/lib/infra/api/errors";
 
 /**
  * Authenticate an incoming API request by extracting and verifying

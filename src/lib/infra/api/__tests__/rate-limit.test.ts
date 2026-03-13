@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { NextRequest } from "next/server";
 import { checkRateLimit, RATE_LIMITS } from "../rate-limit";
 import { RateLimitError } from "../errors";
-import { getRedisClient } from "@/lib/redis/client";
+import { getRedisClient } from "@/lib/infra/redis/client";
 
 // Access the mocked getRedisClient
 const mockedGetRedisClient = vi.mocked(getRedisClient);

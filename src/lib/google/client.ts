@@ -1,7 +1,7 @@
 import { google } from "googleapis";
-import { createAuthenticatedClient } from "@/lib/auth/google";
-import connectDB from "@/lib/db/client";
-import User, { IUserDocument } from "@/lib/db/models/user";
+import { createAuthenticatedClient } from "@/lib/infra/auth/google";
+import connectDB from "@/lib/infra/db/client";
+import User, { IUserDocument } from "@/lib/infra/db/models/user";
 
 /**
  * Get an authenticated Google OAuth2 client for a user.

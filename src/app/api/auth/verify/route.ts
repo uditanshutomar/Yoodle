@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { withHandler } from "@/lib/api/with-handler";
-import { checkRateLimit } from "@/lib/api/rate-limit";
-import { verifyMagicLink } from "@/lib/auth/magic-link";
-import { signAccessToken, signRefreshToken } from "@/lib/auth/jwt";
+import { withHandler } from "@/lib/infra/api/with-handler";
+import { checkRateLimit } from "@/lib/infra/api/rate-limit";
+import { verifyMagicLink } from "@/lib/infra/auth/magic-link";
+import { signAccessToken, signRefreshToken } from "@/lib/infra/auth/jwt";
 import bcrypt from "bcryptjs";
-import connectDB from "@/lib/db/client";
-import User from "@/lib/db/models/user";
+import connectDB from "@/lib/infra/db/client";
+import User from "@/lib/infra/db/models/user";
 
 const querySchema = z.object({
   token: z.string().min(1),

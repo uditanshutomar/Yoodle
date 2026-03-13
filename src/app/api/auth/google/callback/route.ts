@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
-import { withHandler } from "@/lib/api/with-handler";
-import { checkRateLimit } from "@/lib/api/rate-limit";
+import { withHandler } from "@/lib/infra/api/with-handler";
+import { checkRateLimit } from "@/lib/infra/api/rate-limit";
 import bcrypt from "bcryptjs";
-import connectDB from "@/lib/db/client";
-import User from "@/lib/db/models/user";
-import { exchangeCodeForTokens, getGoogleUserProfile } from "@/lib/auth/google";
-import { signAccessToken, signRefreshToken } from "@/lib/auth/jwt";
+import connectDB from "@/lib/infra/db/client";
+import User from "@/lib/infra/db/models/user";
+import { exchangeCodeForTokens, getGoogleUserProfile } from "@/lib/infra/auth/google";
+import { signAccessToken, signRefreshToken } from "@/lib/infra/auth/jwt";
 
 /**
  * GET /api/auth/google/callback

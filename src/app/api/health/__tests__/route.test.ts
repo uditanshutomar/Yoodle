@@ -7,7 +7,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 const mockConnection = vi.hoisted(() => ({ readyState: 1 }));
 
 // Mock the logger (used by with-handler if the health route ever wraps it)
-vi.mock("@/lib/logger", () => ({
+vi.mock("@/lib/infra/logger", () => ({
   createLogger: () => ({
     info: vi.fn(),
     warn: vi.fn(),
@@ -16,12 +16,12 @@ vi.mock("@/lib/logger", () => ({
 }));
 
 // Mock connectDB — returns a fake mongoose instance with a connection object
-vi.mock("@/lib/db/client", () => ({
+vi.mock("@/lib/infra/db/client", () => ({
   default: vi.fn().mockResolvedValue({ connection: mockConnection }),
 }));
 
 // Mock Redis client (isRedisAvailable is imported directly by the route)
-vi.mock("@/lib/redis/client", () => ({
+vi.mock("@/lib/infra/redis/client", () => ({
   getRedisClient: vi.fn(() => ({
     get: vi.fn(),
     set: vi.fn(),
@@ -40,8 +40,8 @@ vi.mock("@/lib/redis/client", () => ({
 }));
 
 // Import after mocks are defined
-import connectDB from "@/lib/db/client";
-import { isRedisAvailable } from "@/lib/redis/client";
+import connectDB from "@/lib/infra/db/client";
+import { isRedisAvailable } from "@/lib/infra/redis/client";
 const { GET } = await import("../route");
 
 const mockedConnectDB = vi.mocked(connectDB);
