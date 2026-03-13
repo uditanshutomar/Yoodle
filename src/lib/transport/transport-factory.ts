@@ -1,22 +1,19 @@
-import {
-  PARTICIPANT_THRESHOLD,
-  isLiveKitConfigured,
-} from "@/lib/livekit/config";
+import { isLiveKitConfigured } from "@/lib/livekit/config";
 import type { RoomTransport } from "./types";
 
-export type TransportMode = "p2p" | "livekit";
+export type TransportMode = "livekit";
 
 /**
- * Determines which transport mode to use based on the *actual*
- * number of joined participants (not the meeting's max capacity).
- *
- * - If LiveKit is not configured → always P2P.
- * - If participantCount >= PARTICIPANT_THRESHOLD → LiveKit.
- * - Otherwise → P2P.
+ * All calls use LiveKit. Returns "livekit" if configured,
+ * throws if LiveKit is not configured (no P2P fallback).
  */
-export function determineTransportMode(participantCount: number): TransportMode {
-  if (!isLiveKitConfigured()) return "p2p";
-  return participantCount >= PARTICIPANT_THRESHOLD ? "livekit" : "p2p";
+export function determineTransportMode(): TransportMode {
+  if (!isLiveKitConfigured()) {
+    throw new Error(
+      "LiveKit is not configured. Set LIVEKIT_URL, LIVEKIT_API_KEY, and LIVEKIT_API_SECRET.",
+    );
+  }
+  return "livekit";
 }
 
 /**

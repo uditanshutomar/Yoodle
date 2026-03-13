@@ -18,9 +18,6 @@ export const LIVEKIT_API_SECRET = process.env.LIVEKIT_API_SECRET || "";
 export const LIVEKIT_PUBLIC_URL =
   process.env.NEXT_PUBLIC_LIVEKIT_URL || LIVEKIT_URL;
 
-/** Participant count threshold: P2P below this, LiveKit at or above. */
-export const PARTICIPANT_THRESHOLD = 5;
-
 /** Returns true when all three LiveKit env vars are configured. */
 export function isLiveKitConfigured(): boolean {
   return Boolean(LIVEKIT_URL && LIVEKIT_API_KEY && LIVEKIT_API_SECRET);
