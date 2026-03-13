@@ -6,11 +6,9 @@ import type {
   TransportRoomUser,
   ConnectionState,
 } from "@/lib/transport/types";
-import type { TransportMode } from "@/lib/transport/transport-factory";
 
 interface UseTransportOptions {
   meetingId: string;
-  mode: TransportMode;
   localStream: MediaStream | null;
   user: TransportRoomUser;
   enabled: boolean;
@@ -28,16 +26,12 @@ interface UseTransportReturn {
 /**
  * React hook that manages the LiveKit transport lifecycle.
  *
- * For "p2p" mode, returns null transport — the room page handles P2P
- * signaling directly via Socket.io.
- *
- * For "livekit" mode, fetches a token from `/api/livekit/token`,
- * creates a LiveKitTransport, joins the room, and manages remote
- * participants + streams.
+ * All calls route through LiveKit SFU. The hook separates
+ * connection init from track replacement so toggling audio/video
+ * does NOT teardown + reconnect.
  */
 export function useTransport({
   meetingId,
-  mode,
   localStream,
   user,
   enabled,
@@ -70,14 +64,14 @@ export function useTransport({
     setConnectionState(t.connectionState);
   }, []);
 
+  // ── Effect 1: Init LiveKit connection (runs once per meeting) ────
   useEffect(() => {
-    if (mode !== "livekit" || !enabled || !localStream) return;
+    if (!enabled || !localStream) return;
 
     let cancelled = false;
 
     async function init() {
       try {
-        // 1. Fetch LiveKit token from our API
         const res = await fetch("/api/livekit/token", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -90,13 +84,14 @@ export function useTransport({
         });
 
         if (!res.ok) {
-          throw new Error("Failed to obtain LiveKit token");
+          const body = await res.json().catch(() => ({}));
+          throw new Error(
+            (body as { error?: string }).error || "Failed to obtain LiveKit token",
+          );
         }
 
         const { data } = await res.json();
-        const livekitUrl =
-          process.env.NEXT_PUBLIC_LIVEKIT_URL ||
-          "";
+        const livekitUrl = process.env.NEXT_PUBLIC_LIVEKIT_URL || "";
 
         if (!livekitUrl) {
           throw new Error("NEXT_PUBLIC_LIVEKIT_URL not configured");
@@ -104,7 +99,6 @@ export function useTransport({
 
         if (cancelled) return;
 
-        // 2. Create transport via dynamic import
         const { createLiveKitTransport } = await import(
           "@/lib/transport/transport-factory"
         );
@@ -115,7 +109,6 @@ export function useTransport({
           return;
         }
 
-        // 3. Wire up callbacks
         t.onParticipantJoined((joined) => {
           setRemoteParticipants((prev) => [...prev, joined]);
           updateRemoteState(t);
@@ -132,7 +125,10 @@ export function useTransport({
           updateRemoteState(t);
         });
 
-        // 4. Join the room
+        t.onConnectionStateChanged((state) => {
+          setConnectionState(state);
+        });
+
         await t.join(meetingId, localStream!, {
           id: userId,
           name: userName,
@@ -170,31 +166,30 @@ export function useTransport({
         setConnectionState("disconnected");
       }
     };
-  }, [
-    mode,
-    enabled,
-    localStream,
-    meetingId,
-    userId,
-    userName,
-    userAvatar,
-    userAudioEnabled,
-    userVideoEnabled,
-    userScreenSharing,
-    updateRemoteState,
-  ]);
+    // NOTE: Only re-run on meetingId/userId/enabled/localStream identity.
+    // Audio/video toggles are handled by Effect 2 via replaceTrack().
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [meetingId, userId, enabled, localStream]);
 
-  // For P2P mode, return null transport — the room page handles it
-  if (mode === "p2p") {
-    return {
-      transport: null,
-      connectionState: "disconnected",
-      remoteStreams: new Map(),
-      remoteParticipants: [],
-      participantCount: 1,
-      error: null,
-    };
-  }
+  // ── Effect 2: Track replacement on audio/video toggle ────────────
+  useEffect(() => {
+    const t = transportRef.current;
+    if (!t || !localStream) return;
+
+    const audioTrack = localStream.getAudioTracks()[0];
+    const videoTrack = localStream.getVideoTracks()[0];
+
+    if (audioTrack) {
+      t.replaceTrack("audio", audioTrack).catch((err) => {
+        console.warn("Failed to replace audio track:", err);
+      });
+    }
+    if (videoTrack) {
+      t.replaceTrack("video", videoTrack).catch((err) => {
+        console.warn("Failed to replace video track:", err);
+      });
+    }
+  }, [localStream, userAudioEnabled, userVideoEnabled]);
 
   return {
     transport,
