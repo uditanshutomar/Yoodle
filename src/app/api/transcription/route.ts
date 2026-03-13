@@ -9,7 +9,7 @@ import connectDB from "@/lib/db/client";
 import Transcript from "@/lib/db/models/transcript";
 import Meeting from "@/lib/db/models/meeting";
 import mongoose from "mongoose";
-import { getSTTProvider } from "@/lib/providers/stt";
+import { getSTTProvider } from "@/lib/stt";
 
 async function verifyMeetingParticipant(userId: string, meetingId: string): Promise<boolean> {
   const meeting = await Meeting.findById(meetingId);
