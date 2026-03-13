@@ -40,11 +40,6 @@ test.describe("Public API endpoints", () => {
     }
   });
 
-  test("TURN credentials endpoint requires auth", async ({ request }) => {
-    const response = await request.get("/api/turn-credentials");
-    expect(response.status()).toBe(401);
-  });
-
   test("login endpoint accepts valid email", async ({ request }) => {
     const response = await request.post("/api/auth/login", {
       data: { email: "test@example.com" },

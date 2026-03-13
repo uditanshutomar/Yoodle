@@ -11,11 +11,6 @@ export const SOCKET_EVENTS = {
   USER_JOINED: "room:user-joined",
   USER_LEFT: "room:user-left",
 
-  // WebRTC signaling
-  OFFER: "signal:offer",
-  ANSWER: "signal:answer",
-  ICE_CANDIDATE: "signal:ice-candidate",
-
   // Media state
   TOGGLE_VIDEO: "media:toggle-video",
   TOGGLE_AUDIO: "media:toggle-audio",
@@ -101,25 +96,6 @@ export interface ChatMessagePayload {
   content: string;
   type: "text" | "reaction" | "system";
   timestamp: number;
-}
-
-/** WebRTC signaling payloads */
-export interface SignalOfferPayload {
-  targetId: string;
-  senderId: string;
-  offer: RTCSessionDescriptionInit;
-}
-
-export interface SignalAnswerPayload {
-  targetId: string;
-  senderId: string;
-  answer: RTCSessionDescriptionInit;
-}
-
-export interface SignalIceCandidatePayload {
-  targetId: string;
-  senderId: string;
-  candidate: RTCIceCandidateInit;
 }
 
 /** Media state change payload */
