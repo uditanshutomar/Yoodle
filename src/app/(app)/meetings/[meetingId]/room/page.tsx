@@ -37,7 +37,6 @@ import {
   type RoomUser,
   type MediaStatePayload,
   type ReactionPayload,
-  type ScreenSharePayload,
   type HostMutePayload,
   type HostKickPayload,
   type WaitingRoomUser,
@@ -74,10 +73,8 @@ export default function MeetingRoomPage() {
     error: mediaDeviceError,
   } = useMediaDevices();
 
-  // Sync media device errors to local state for UI display
-  useEffect(() => {
-    if (mediaDeviceError) setMediaError(mediaDeviceError);
-  }, [mediaDeviceError]);
+  // Combine device hook error with local state error for display
+  const effectiveMediaError = mediaDeviceError || mediaError;
 
   // ── Voice activity (speaker detection for transcripts) ──────────────
   const {
@@ -100,6 +97,7 @@ export default function MeetingRoomPage() {
       return;
     }
 
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setRoomSession(session);
   }, [meetingId, router]);
 
@@ -111,7 +109,7 @@ export default function MeetingRoomPage() {
   const [isHandRaised, setIsHandRaised] = useState(false);
   const [showWaitingRoom, setShowWaitingRoom] = useState(false);
   const [waitingUsers, setWaitingUsers] = useState<WaitingUser[]>([]);
-  const [isLocalHost, setIsLocalHost] = useState(false);
+  const isLocalHost = !!(user && roomSession && user.id === roomSession.hostUserId);
   const [reconnectAttempts, setReconnectAttempts] = useState(0);
   const MAX_RECONNECT_ATTEMPTS = 5;
   const reactionRef = useRef<((emoji: string, userName: string) => void) | null>(null);
@@ -120,8 +118,12 @@ export default function MeetingRoomPage() {
   // ── Bubble layout container measurement ─────────────────────────────
   const containerRef = useRef<HTMLDivElement>(null);
   const [containerSize, setContainerSize] = useState({ width: 0, height: 0 });
-  const joinTimeRef = useRef(Date.now());
+  const joinTimeRef = useRef(0);
   const [elapsedTime, setElapsedTime] = useState(0);
+
+  useEffect(() => {
+    joinTimeRef.current = Date.now();
+  }, []);
 
   useEffect(() => {
     const el = containerRef.current;
@@ -158,11 +160,6 @@ export default function MeetingRoomPage() {
     : { id: "local", name: "You", displayName: "You", avatar: undefined };
   const canRecord = roomSession?.permissions.allowRecording ?? false;
   const canScreenShare = roomSession?.permissions.allowScreenShare ?? true;
-
-  useEffect(() => {
-    if (!roomSession || !user) return;
-    setIsLocalHost(user.id === roomSession.hostUserId);
-  }, [roomSession, user]);
 
   // ── LiveKit transport ──────────────────────────────────────────────
   const {
@@ -221,6 +218,7 @@ export default function MeetingRoomPage() {
   const joinedRef = useRef(false);
   const mediaStartedRef = useRef(false);
   const screenStreamRef = useRef<MediaStream | null>(null);
+  const [screenStream, setScreenStream] = useState<MediaStream | null>(null);
 
   // Track speech segments for recording (ref to avoid re-renders)
   const speechSegmentsRef = useRef<SpeechSegment[]>([]);
@@ -348,8 +346,8 @@ export default function MeetingRoomPage() {
 
     // Screen share start/stop handled natively by LiveKit transport.
     // Socket events still broadcast for waiting room / UI sync.
-    const handleScreenShareStart = (_payload: ScreenSharePayload) => {};
-    const handleScreenShareStop = (_payload: ScreenSharePayload) => {};
+    const handleScreenShareStart = () => {};
+    const handleScreenShareStop = () => {};
 
     // ── Hand raise events (tracked locally, not part of LiveKit) ────
     const handleHandRaised = (payload: HandRaisePayload) => {
@@ -478,6 +476,7 @@ export default function MeetingRoomPage() {
       }
       screenStreamRef.current?.getTracks().forEach((t) => t.stop());
       screenStreamRef.current = null;
+      setScreenStream(null);
       setIsScreenSharing(false);
 
       // Broadcast screen share stop to other participants
@@ -491,6 +490,7 @@ export default function MeetingRoomPage() {
           audio: true,
         });
         screenStreamRef.current = screenStream;
+        setScreenStream(screenStream);
         setIsScreenSharing(true);
 
         // Publish screen share tracks via LiveKit transport
@@ -511,6 +511,7 @@ export default function MeetingRoomPage() {
           }
           setIsScreenSharing(false);
           screenStreamRef.current = null;
+          setScreenStream(null);
           // Broadcast screen share stop when user clicks browser's native stop button
           if (socket && user) {
             socket.emit(SOCKET_EVENTS.SCREEN_SHARE_STOP);
@@ -687,7 +688,7 @@ export default function MeetingRoomPage() {
   const screenSharePresenter = participants.find((p) => p.isScreenSharing);
   const screenShareStream = screenSharePresenter
     ? screenSharePresenter.id === localUser.id
-      ? screenStreamRef.current
+      ? screenStream
       : effectiveRemoteStreams.get(screenSharePresenter.id) || null
     : null;
 
@@ -698,7 +699,7 @@ export default function MeetingRoomPage() {
       isSpeaking: speakingPeers.has(p.id),
       stream:
         p.id === localUser.id
-          ? (isScreenSharing ? screenStreamRef.current : localStream)
+          ? (isScreenSharing ? screenStream : localStream)
           : effectiveRemoteStreams.get(p.id) || null,
     })
   );
@@ -722,7 +723,7 @@ export default function MeetingRoomPage() {
       </div>
 
       {/* Bug #6: Media error banner */}
-      {mediaError && (
+      {effectiveMediaError && (
         <motion.div
           role="alert"
           className="relative z-30 mx-6 mt-2 flex items-center gap-2 rounded-xl border-2 border-[#FF6B6B] bg-[#FF6B6B]/10 px-4 py-2 text-sm text-[#FF6B6B]"
@@ -730,7 +731,7 @@ export default function MeetingRoomPage() {
           animate={{ opacity: 1, y: 0 }}
         >
           <AlertTriangle size={16} />
-          <span>{mediaError}</span>
+          <span>{effectiveMediaError}</span>
           <button
             className="ml-auto text-xs underline hover:no-underline cursor-pointer"
             onClick={() => {

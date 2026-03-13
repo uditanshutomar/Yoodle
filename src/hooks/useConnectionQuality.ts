@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useSyncExternalStore, useCallback } from "react";
 import type { RoomTransport } from "@/lib/transport/types";
 
 export type ConnectionQuality = "good" | "fair" | "poor" | "unknown";
@@ -17,6 +17,19 @@ const UNKNOWN_STATS: ConnectionStats = {
   packetLoss: null,
 };
 
+function mapTransportState(transport: RoomTransport): ConnectionStats {
+  switch (transport.connectionState) {
+    case "connected":
+      return { quality: "good", rtt: null, packetLoss: null };
+    case "reconnecting":
+      return { quality: "fair", rtt: null, packetLoss: null };
+    case "disconnected":
+      return { quality: "poor", rtt: null, packetLoss: null };
+    default:
+      return UNKNOWN_STATS;
+  }
+}
+
 /**
  * Derives connection quality from the LiveKit transport's connection state.
  *
@@ -29,34 +42,22 @@ const UNKNOWN_STATS: ConnectionStats = {
 export function useConnectionQuality(
   transport: RoomTransport | null,
 ): ConnectionStats {
-  const [stats, setStats] = useState<ConnectionStats>(UNKNOWN_STATS);
+  const subscribe = useCallback(
+    (onStoreChange: () => void) => {
+      if (!transport) return () => {};
+      transport.onConnectionStateChanged(onStoreChange);
+      // No unsubscribe available — return noop cleanup
+      return () => {};
+    },
+    [transport],
+  );
 
-  useEffect(() => {
-    if (!transport) {
-      setStats(UNKNOWN_STATS);
-      return;
-    }
+  const getSnapshot = useCallback(
+    () => (transport ? mapTransportState(transport) : UNKNOWN_STATS),
+    [transport],
+  );
 
-    function mapState(): ConnectionStats {
-      const state = transport!.connectionState;
-      switch (state) {
-        case "connected":
-          return { quality: "good", rtt: null, packetLoss: null };
-        case "reconnecting":
-          return { quality: "fair", rtt: null, packetLoss: null };
-        case "disconnected":
-          return { quality: "poor", rtt: null, packetLoss: null };
-        default:
-          return UNKNOWN_STATS;
-      }
-    }
+  const getServerSnapshot = useCallback(() => UNKNOWN_STATS, []);
 
-    setStats(mapState());
-
-    transport.onConnectionStateChanged(() => {
-      setStats(mapState());
-    });
-  }, [transport]);
-
-  return stats;
+  return useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
 }
