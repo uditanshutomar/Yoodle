@@ -45,6 +45,7 @@ export function useRecording(
   const audioContextRef = useRef<AudioContext | null>(null);
   const mixedDestRef = useRef<MediaStreamAudioDestinationNode | null>(null);
   const audioSourcesRef = useRef<MediaStreamAudioSourceNode[]>([]);
+  const clonedTracksRef = useRef<MediaStreamTrack[]>([]);
   const recordingTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const localStreamRef = useRef<MediaStream | null>(null);
 
@@ -83,6 +84,8 @@ export function useRecording(
       mixedDestRef.current = dest;
       const sources: MediaStreamAudioSourceNode[] = [];
 
+      const clonedTracks: MediaStreamTrack[] = [];
+
       // Add local audio — use a *clone* of the track so that
       // toggling track.enabled on the original (mute/unmute) does
       // not cut audio to the recording destination.
@@ -92,6 +95,7 @@ export function useRecording(
           const clonedTrack = localAudioTracks[0].clone();
           // Ensure the cloned track is always enabled for recording
           clonedTrack.enabled = true;
+          clonedTracks.push(clonedTrack);
           const localSource = audioCtx.createMediaStreamSource(
             new MediaStream([clonedTrack]),
           );
@@ -114,11 +118,19 @@ export function useRecording(
 
       audioSourcesRef.current = sources;
 
-      // Combine mixed audio + local video
-      const videoTrack = localStreamRef.current?.getVideoTracks()[0];
+      // Combine mixed audio + cloned local video (clone so muting
+      // video in the call doesn't kill the recording video track)
+      const origVideoTrack = localStreamRef.current?.getVideoTracks()[0];
+      const clonedVideo = origVideoTrack?.clone();
+      if (clonedVideo) {
+        clonedVideo.enabled = true;
+        clonedTracks.push(clonedVideo);
+      }
+      clonedTracksRef.current = clonedTracks;
+
       const combinedStream = new MediaStream([
         ...dest.stream.getTracks(),
-        ...(videoTrack ? [videoTrack] : []),
+        ...(clonedVideo ? [clonedVideo] : []),
       ]);
 
       const mimeType = MediaRecorder.isTypeSupported("video/webm;codecs=vp9,opus")
@@ -175,6 +187,11 @@ export function useRecording(
           }
         }
         audioSourcesRef.current = [];
+        // Stop cloned tracks to release hardware resources
+        for (const t of clonedTracksRef.current) {
+          t.stop();
+        }
+        clonedTracksRef.current = [];
         audioContextRef.current?.close();
         audioContextRef.current = null;
         mixedDestRef.current = null;
@@ -231,6 +248,10 @@ export function useRecording(
         }
       }
       audioSourcesRef.current = [];
+      for (const t of clonedTracksRef.current) {
+        t.stop();
+      }
+      clonedTracksRef.current = [];
       audioContextRef.current?.close();
       audioContextRef.current = null;
       mixedDestRef.current = null;

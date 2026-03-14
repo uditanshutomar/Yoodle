@@ -20,6 +20,7 @@ interface UseTransportReturn {
   room: Room | null;
   connectionState: ConnectionState;
   remoteStreams: Map<string, MediaStream>;
+  screenShareStreams: Map<string, MediaStream>;
   remoteParticipants: TransportRoomUser[];
   participantCount: number;
   error: string | null;
@@ -52,6 +53,9 @@ export function useTransport({
   const [remoteStreams, setRemoteStreams] = useState<
     Map<string, MediaStream>
   >(new Map());
+  const [screenShareStreams, setScreenShareStreams] = useState<
+    Map<string, MediaStream>
+  >(new Map());
   const [remoteParticipants, setRemoteParticipants] = useState<
     TransportRoomUser[]
   >([]);
@@ -62,6 +66,7 @@ export function useTransport({
 
   const updateRemoteState = useCallback((t: RoomTransport) => {
     setRemoteStreams(new Map(t.getRemoteStreams()));
+    setScreenShareStreams(new Map(t.getScreenShareStreams()));
     setParticipantCount(t.participantCount);
     setConnectionState(t.connectionState);
   }, []);
@@ -239,6 +244,7 @@ export function useTransport({
     room,
     connectionState,
     remoteStreams,
+    screenShareStreams,
     remoteParticipants,
     participantCount,
     error,

@@ -97,6 +97,7 @@ export default function MeetingRoomPage() {
     room,
     connectionState: livekitConnectionState,
     remoteStreams: livekitRemoteStreams,
+    screenShareStreams: livekitScreenShareStreams,
     remoteParticipants: livekitRemoteParticipants,
     error: livekitError,
   } = useTransport({
@@ -194,11 +195,16 @@ export default function MeetingRoomPage() {
     sendMessage: handleSendMessage,
     unreadCount: chatUnreadCount,
     markRead: markChatRead,
+    markUnread: markChatUnread,
   } = useChat(room, localUser.id, localUser.displayName);
 
   useEffect(() => {
-    if (showChat) markChatRead();
-  }, [showChat, markChatRead]);
+    if (showChat) {
+      markChatRead();
+    } else {
+      markChatUnread();
+    }
+  }, [showChat, markChatRead, markChatUnread]);
 
   // ── Remote participants (from LiveKit transport) ────────────────────
   const effectiveRemoteStreams = livekitRemoteStreams;
@@ -631,7 +637,7 @@ export default function MeetingRoomPage() {
   const screenShareStream = screenSharePresenter
     ? screenSharePresenter.id === localUser.id
       ? screenStream
-      : effectiveRemoteStreams.get(screenSharePresenter.id) || null
+      : livekitScreenShareStreams.get(screenSharePresenter.id) || null
     : null;
 
   // ── Build bubble participants via adapter ─────────────────────────

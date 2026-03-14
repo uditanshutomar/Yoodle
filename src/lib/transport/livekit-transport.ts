@@ -33,14 +33,39 @@ function mapConnectionState(lk: LKConnectionState): ConnectionState {
   }
 }
 
+/**
+ * Build a MediaStream containing only camera + microphone tracks
+ * (excludes screen share tracks so they don't leak into participant bubbles).
+ */
 function buildStreamForParticipant(p: RemoteParticipant): MediaStream {
   const stream = new MediaStream();
   for (const pub of p.trackPublications.values()) {
-    if (pub.track?.mediaStreamTrack) {
+    if (
+      pub.track?.mediaStreamTrack &&
+      pub.source !== Track.Source.ScreenShare &&
+      pub.source !== Track.Source.ScreenShareAudio
+    ) {
       stream.addTrack(pub.track.mediaStreamTrack);
     }
   }
   return stream;
+}
+
+/**
+ * Build a MediaStream containing only screen share tracks for a participant.
+ */
+function buildScreenShareStream(p: RemoteParticipant): MediaStream | null {
+  const stream = new MediaStream();
+  for (const pub of p.trackPublications.values()) {
+    if (
+      pub.track?.mediaStreamTrack &&
+      (pub.source === Track.Source.ScreenShare ||
+        pub.source === Track.Source.ScreenShareAudio)
+    ) {
+      stream.addTrack(pub.track.mediaStreamTrack);
+    }
+  }
+  return stream.getTracks().length > 0 ? stream : null;
 }
 
 function participantToUser(p: RemoteParticipant): TransportRoomUser {
@@ -125,6 +150,15 @@ export class LiveKitTransport implements RoomTransport {
     const streams = new Map<string, MediaStream>();
     for (const p of this.room.remoteParticipants.values()) {
       streams.set(p.identity, buildStreamForParticipant(p));
+    }
+    return streams;
+  }
+
+  getScreenShareStreams(): Map<string, MediaStream> {
+    const streams = new Map<string, MediaStream>();
+    for (const p of this.room.remoteParticipants.values()) {
+      const ss = buildScreenShareStream(p);
+      if (ss) streams.set(p.identity, ss);
     }
     return streams;
   }
@@ -215,38 +249,54 @@ export class LiveKitTransport implements RoomTransport {
 
   async stopScreenShare(): Promise<void> {
     const local = this.room.localParticipant;
-    for (const pub of local.trackPublications.values()) {
-      if (
+    // Collect pubs first to avoid mutating the map during iteration
+    const screenPubs = Array.from(local.trackPublications.values()).filter(
+      (pub) =>
         pub.source === Track.Source.ScreenShare ||
-        pub.source === Track.Source.ScreenShareAudio
-      ) {
-        if (pub.track) {
-          await local.unpublishTrack(pub.track.mediaStreamTrack);
-        }
+        pub.source === Track.Source.ScreenShareAudio,
+    );
+    for (const pub of screenPubs) {
+      if (pub.track) {
+        await local.unpublishTrack(pub.track.mediaStreamTrack);
       }
     }
   }
 
-  onParticipantJoined = (cb: (user: TransportRoomUser) => void): void => {
+  onParticipantJoined = (cb: (user: TransportRoomUser) => void): (() => void) => {
     this.joinedCallbacks.push(cb);
+    return () => {
+      this.joinedCallbacks = this.joinedCallbacks.filter((c) => c !== cb);
+    };
   };
 
-  onParticipantLeft = (cb: (userId: string) => void): void => {
+  onParticipantLeft = (cb: (userId: string) => void): (() => void) => {
     this.leftCallbacks.push(cb);
+    return () => {
+      this.leftCallbacks = this.leftCallbacks.filter((c) => c !== cb);
+    };
   };
 
   onStreamUpdated = (
     cb: (userId: string, stream: MediaStream) => void,
-  ): void => {
+  ): (() => void) => {
     this.streamCallbacks.push(cb);
+    return () => {
+      this.streamCallbacks = this.streamCallbacks.filter((c) => c !== cb);
+    };
   };
 
-  onParticipantUpdated = (cb: (user: TransportRoomUser) => void): void => {
+  onParticipantUpdated = (cb: (user: TransportRoomUser) => void): (() => void) => {
     this.participantUpdatedCallbacks.push(cb);
+    return () => {
+      this.participantUpdatedCallbacks = this.participantUpdatedCallbacks.filter((c) => c !== cb);
+    };
   };
 
-  onConnectionStateChanged = (cb: (state: ConnectionState) => void): void => {
+  onConnectionStateChanged = (cb: (state: ConnectionState) => void): (() => void) => {
     this.connectionStateCallbacks.push(cb);
+    return () => {
+      this.connectionStateCallbacks = this.connectionStateCallbacks.filter((c) => c !== cb);
+    };
   };
 
   getRoom(): Room {
@@ -322,11 +372,9 @@ export class LiveKitTransport implements RoomTransport {
         },
       )
       .on(RoomEvent.ConnectionQualityChanged, () => {
-        // Forward as a stream update so UI can react to quality changes
-        for (const p of this.room.remoteParticipants.values()) {
-          const stream = buildStreamForParticipant(p);
-          this.streamCallbacks.forEach((cb) => cb(p.identity, stream));
-        }
+        // Fire connection state change so UI can react; no need to
+        // rebuild every remote stream on quality change.
+        this.connectionStateCallbacks.forEach((cb) => cb(this.connectionState));
       });
   }
 }

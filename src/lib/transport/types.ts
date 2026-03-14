@@ -31,8 +31,11 @@ export interface RoomTransport {
   /** Leave the room and tear down all connections. */
   leave(): void;
 
-  /** Get a snapshot of every remote participant's MediaStream, keyed by userId. */
+  /** Get a snapshot of every remote participant's camera+mic MediaStream, keyed by userId. */
   getRemoteStreams(): Map<string, MediaStream>;
+
+  /** Get a snapshot of remote screen-share MediaStreams, keyed by userId. */
+  getScreenShareStreams(): Map<string, MediaStream>;
 
   /** Get a snapshot of all current remote participants. */
   getRemoteParticipants(): TransportRoomUser[];
@@ -52,22 +55,22 @@ export interface RoomTransport {
   /** Stop sharing and revert to camera track. */
   stopScreenShare(): Promise<void>;
 
-  /** Subscribe to a new participant joining the room. */
-  onParticipantJoined: (cb: (user: TransportRoomUser) => void) => void;
+  /** Subscribe to a new participant joining the room. Returns unsubscribe fn. */
+  onParticipantJoined: (cb: (user: TransportRoomUser) => void) => () => void;
 
-  /** Subscribe to a participant leaving the room. */
-  onParticipantLeft: (cb: (userId: string) => void) => void;
+  /** Subscribe to a participant leaving the room. Returns unsubscribe fn. */
+  onParticipantLeft: (cb: (userId: string) => void) => () => void;
 
-  /** Subscribe to a remote stream being added or updated. */
+  /** Subscribe to a remote stream being added or updated. Returns unsubscribe fn. */
   onStreamUpdated: (
     cb: (userId: string, stream: MediaStream) => void
-  ) => void;
+  ) => () => void;
 
-  /** Subscribe to a remote participant's media state changing (mute/unmute). */
-  onParticipantUpdated: (cb: (user: TransportRoomUser) => void) => void;
+  /** Subscribe to a remote participant's media state changing. Returns unsubscribe fn. */
+  onParticipantUpdated: (cb: (user: TransportRoomUser) => void) => () => void;
 
-  /** Subscribe to connection state changes. */
-  onConnectionStateChanged: (cb: (state: ConnectionState) => void) => void;
+  /** Subscribe to connection state changes. Returns unsubscribe fn. */
+  onConnectionStateChanged: (cb: (state: ConnectionState) => void) => () => void;
 
   /** Current number of participants (including local). */
   participantCount: number;

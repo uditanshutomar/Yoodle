@@ -29,16 +29,24 @@ export default function ScreenShareView({
 
     // Attach screen stream to video element
     useEffect(() => {
-        if (screenVideoRef.current && screenStream) {
-            screenVideoRef.current.srcObject = screenStream;
+        const el = screenVideoRef.current;
+        if (el && screenStream) {
+            el.srcObject = screenStream;
+            el.play().catch(() => {
+                // Autoplay blocked — user will see a still frame until interaction
+            });
         }
     }, [screenStream]);
 
     // Attach presenter camera stream to PiP video
     // Must depend on isVideoOff so srcObject is re-assigned when <video> remounts
     useEffect(() => {
-        if (presenterVideoRef.current && presenter.stream) {
-            presenterVideoRef.current.srcObject = presenter.stream;
+        const el = presenterVideoRef.current;
+        if (el && presenter.stream) {
+            el.srcObject = presenter.stream;
+            el.play().catch(() => {
+                // Autoplay blocked — user will see a still frame until interaction
+            });
         }
     }, [presenter.stream, presenter.isVideoOff]);
 

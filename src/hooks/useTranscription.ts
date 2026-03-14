@@ -55,7 +55,8 @@ export function useTranscription(
       if (active) setIsTranscribing(true);
     });
 
-    let stopTimer: ReturnType<typeof setTimeout> | null = null;
+    // Track ALL stop timers so cleanup can clear them all
+    const stopTimers: ReturnType<typeof setTimeout>[] = [];
 
     const captureAndSend = () => {
       const stream = localStreamRef.current;
@@ -111,9 +112,10 @@ export function useTranscription(
       recorder.start();
       transcriptionRecorderRef.current = recorder;
 
-      stopTimer = setTimeout(() => {
+      const timer = setTimeout(() => {
         if (recorder.state === "recording") recorder.stop();
       }, 3000);
+      stopTimers.push(timer);
     };
 
     // Start immediately, then every 3.5s (3s record + 0.5s gap)
@@ -122,7 +124,8 @@ export function useTranscription(
 
     return () => {
       active = false;
-      if (stopTimer) clearTimeout(stopTimer);
+      // Clear ALL pending stop timers, not just the last one
+      for (const t of stopTimers) clearTimeout(t);
       if (intervalRef.current) {
         clearInterval(intervalRef.current);
         intervalRef.current = null;

@@ -24,6 +24,7 @@ export interface UseChatReturn {
   sendMessage: (content: string) => void;
   unreadCount: number;
   markRead: () => void;
+  markUnread: () => void;
 }
 
 /**
@@ -39,7 +40,9 @@ export function useChat(
 ): UseChatReturn {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
-  const isReadRef = useRef(true);
+  // Tracks whether the chat panel is currently open/visible.
+  // When true, incoming messages do NOT increment unread count.
+  const isChatOpenRef = useRef(false);
 
   const { sendReliable, onMessage } = useDataChannel(room);
 
@@ -68,8 +71,8 @@ export function useChat(
           ];
         });
 
-        // Increment unread if from someone else and panel not actively read
-        if (chat.senderId !== userId && !isReadRef.current) {
+        // Increment unread if from someone else and chat panel is closed
+        if (chat.senderId !== userId && !isChatOpenRef.current) {
           setUnreadCount((prev) => prev + 1);
         }
       },
@@ -115,28 +118,23 @@ export function useChat(
     [room, userId, userName, sendReliable],
   );
 
-  // ── Mark as read ───────────────────────────────────────────────────
+  // ── Mark as read / unread tracking ─────────────────────────────────
 
   const markRead = useCallback(() => {
-    isReadRef.current = true;
+    isChatOpenRef.current = true;
     setUnreadCount(0);
   }, []);
 
-  // After marking read, flip back to "not actively reading" so future
-  // messages from others increment the counter.
-  useEffect(() => {
-    if (unreadCount === 0 && isReadRef.current) {
-      const timer = setTimeout(() => {
-        isReadRef.current = false;
-      }, 100);
-      return () => clearTimeout(timer);
-    }
-  }, [unreadCount]);
+  /** Call when the chat panel is closed to resume unread counting. */
+  const markUnread = useCallback(() => {
+    isChatOpenRef.current = false;
+  }, []);
 
   return {
     messages,
     sendMessage,
     unreadCount,
     markRead,
+    markUnread,
   };
 }

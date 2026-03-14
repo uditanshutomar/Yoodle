@@ -70,8 +70,8 @@ export function useConnectionQuality(
   const subscribe = useCallback(
     (onStoreChange: () => void) => {
       if (!transport) return () => {};
-      transport.onConnectionStateChanged(onStoreChange);
-      return () => {};
+      const unsub = transport.onConnectionStateChanged(onStoreChange);
+      return unsub;
     },
     [transport],
   );
