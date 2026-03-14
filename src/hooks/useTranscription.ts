@@ -104,6 +104,9 @@ export function useTranscription(
   }, []);
 
   // ── Start recording a new segment ─────────────────────────────────
+  // Use a ref so the safety timer can call startSegment without a
+  // circular useCallback dependency (startSegment → startSegment).
+  const startSegmentRef = useRef<() => void>(() => {});
 
   const startSegment = useCallback(() => {
     const stream = localStreamRef.current;
@@ -139,10 +142,15 @@ export function useTranscription(
       stopAndFlush();
       // If still speaking, start a new segment right away
       if (isEnabledRef.current) {
-        startSegment();
+        startSegmentRef.current();
       }
     }, MAX_SEGMENT_MS);
   }, [sendChunk, stopAndFlush]);
+
+  // Keep ref in sync
+  useEffect(() => {
+    startSegmentRef.current = startSegment;
+  }, [startSegment]);
 
   // ── React to VAD isSpeaking changes ───────────────────────────────
 
@@ -150,7 +158,9 @@ export function useTranscription(
     if (!isLivekitConnected || !isAudioEnabled || !localStream || !userId) {
       isEnabledRef.current = false;
       stopAndFlush();
-      setIsTranscribing(false);
+      queueMicrotask(() => {
+        if (!isEnabledRef.current) setIsTranscribing(false);
+      });
       return;
     }
 

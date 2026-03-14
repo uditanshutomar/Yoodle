@@ -36,7 +36,6 @@ export function useRecording(
   meetingId: string,
   room: Room | null,
   speechSegmentsRef: React.RefObject<SpeechSegment[]>,
-  activeScreenShareStream: MediaStream | null = null,
 ): UseRecordingReturn {
   const [isRecording, setIsRecording] = useState(false);
   const [recordingDuration, setRecordingDuration] = useState(0);
@@ -75,6 +74,20 @@ export function useRecording(
     );
     return unsub;
   }, [onMessage]);
+
+  // ── Internal stop (also called when user clicks browser "Stop sharing") ─
+
+  const stopRecordingInternal = useCallback(() => {
+    if (mediaRecorderRef.current?.state === "recording") {
+      mediaRecorderRef.current.stop();
+    }
+    if (recordingTimerRef.current) {
+      clearInterval(recordingTimerRef.current);
+      recordingTimerRef.current = null;
+    }
+    setIsRecording(false);
+    setRecordingDuration(0);
+  }, []);
 
   // ── Start recording ────────────────────────────────────────────────
 
@@ -276,21 +289,7 @@ export function useRecording(
         "Failed to start recording. Please check your permissions.",
       );
     }
-  }, [meetingId, remoteStreams, sendReliable, speechSegmentsRef]);
-
-  // ── Internal stop (also called when user clicks browser "Stop sharing") ─
-
-  const stopRecordingInternal = useCallback(() => {
-    if (mediaRecorderRef.current?.state === "recording") {
-      mediaRecorderRef.current.stop();
-    }
-    if (recordingTimerRef.current) {
-      clearInterval(recordingTimerRef.current);
-      recordingTimerRef.current = null;
-    }
-    setIsRecording(false);
-    setRecordingDuration(0);
-  }, []);
+  }, [meetingId, remoteStreams, sendReliable, speechSegmentsRef, stopRecordingInternal]);
 
   // ── Stop recording (user-facing — also broadcasts status) ─────────
 
