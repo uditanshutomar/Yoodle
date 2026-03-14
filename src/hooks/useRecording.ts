@@ -20,13 +20,15 @@ export interface UseRecordingReturn {
 }
 
 /**
- * Manages meeting recording with mixed audio via Web Audio API.
+ * Manages meeting recording via browser tab capture (getDisplayMedia).
+ *
+ * When the user clicks "Record", the browser prompts them to share their
+ * tab. The recording then captures exactly what they see on screen —
+ * all participants, screen shares, chat, etc. — plus mixed audio from
+ * every participant via Web Audio API.
  *
  * Uses LiveKit data channels to broadcast recording status to all
  * participants so everyone sees the recording indicator.
- *
- * When a screen share is active, the recording captures the screen share
- * video track instead of (or alongside) the local camera feed.
  */
 export function useRecording(
   localStream: MediaStream | null,
@@ -50,18 +52,16 @@ export function useRecording(
   const mixedDestRef = useRef<MediaStreamAudioDestinationNode | null>(null);
   const audioSourcesRef = useRef<MediaStreamAudioSourceNode[]>([]);
   const clonedTracksRef = useRef<MediaStreamTrack[]>([]);
-  const recordingTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const displayStreamRef = useRef<MediaStream | null>(null);
+  const recordingTimerRef = useRef<ReturnType<typeof setInterval> | null>(
+    null,
+  );
   const localStreamRef = useRef<MediaStream | null>(null);
-  const screenShareStreamRef = useRef<MediaStream | null>(null);
 
-  // Keep refs in sync
+  // Keep localStreamRef in sync
   useEffect(() => {
     localStreamRef.current = localStream;
   }, [localStream]);
-
-  useEffect(() => {
-    screenShareStreamRef.current = activeScreenShareStream;
-  }, [activeScreenShareStream]);
 
   // Listen for recording status from other participants
   useEffect(() => {
@@ -78,13 +78,46 @@ export function useRecording(
 
   // ── Start recording ────────────────────────────────────────────────
 
-  const startRecording = useCallback(() => {
+  const startRecording = useCallback(async () => {
     try {
+      // ── Step 1: Capture the browser tab via getDisplayMedia ───────
+      // This prompts the user to pick their tab. The resulting stream
+      // contains the tab's video (everything they see) and optionally
+      // system audio from that tab.
+      let displayStream: MediaStream;
+      try {
+        displayStream = await navigator.mediaDevices.getDisplayMedia({
+          video: {
+            // Prefer current tab capture for best experience
+            displaySurface: "browser",
+          } as MediaTrackConstraints,
+          audio: true, // capture tab audio if available
+          // Chrome-specific: prefer current tab
+          preferCurrentTab: true,
+        } as DisplayMediaStreamOptions);
+      } catch {
+        // User cancelled the picker or browser doesn't support it
+        setError(
+          "Recording requires screen sharing permission. Please select your browser tab when prompted.",
+        );
+        return;
+      }
+
+      displayStreamRef.current = displayStream;
+
+      // If the user stops sharing via the browser's native "Stop sharing"
+      // button, cleanly stop the recording.
+      const displayVideoTrack = displayStream.getVideoTracks()[0];
+      if (displayVideoTrack) {
+        displayVideoTrack.onended = () => {
+          stopRecordingInternal();
+        };
+      }
+
+      // ── Step 2: Mix all participant audio via Web Audio API ───────
       const audioCtx = new AudioContext();
       audioContextRef.current = audioCtx;
 
-      // Modern browsers start AudioContext in a suspended state.
-      // We must resume it for the mixing destination to produce data.
       if (audioCtx.state === "suspended") {
         void audioCtx.resume();
       }
@@ -92,17 +125,13 @@ export function useRecording(
       const dest = audioCtx.createMediaStreamDestination();
       mixedDestRef.current = dest;
       const sources: MediaStreamAudioSourceNode[] = [];
-
       const clonedTracks: MediaStreamTrack[] = [];
 
-      // Add local audio — use a *clone* of the track so that
-      // toggling track.enabled on the original (mute/unmute) does
-      // not cut audio to the recording destination.
+      // Add local mic audio (cloned so mute/unmute doesn't affect recording)
       if (localStreamRef.current) {
         const localAudioTracks = localStreamRef.current.getAudioTracks();
         if (localAudioTracks.length > 0) {
           const clonedTrack = localAudioTracks[0].clone();
-          // Ensure the cloned track is always enabled for recording
           clonedTrack.enabled = true;
           clonedTracks.push(clonedTrack);
           const localSource = audioCtx.createMediaStreamSource(
@@ -113,7 +142,7 @@ export function useRecording(
         }
       }
 
-      // Add all remote audio
+      // Add all remote participant audio
       remoteStreams.forEach((stream) => {
         const audioTracks = stream.getAudioTracks();
         if (audioTracks.length > 0) {
@@ -125,47 +154,30 @@ export function useRecording(
         }
       });
 
+      // Add tab audio from getDisplayMedia (system/tab sounds) if present
+      const displayAudioTracks = displayStream.getAudioTracks();
+      for (const displayAudio of displayAudioTracks) {
+        const displaySource = audioCtx.createMediaStreamSource(
+          new MediaStream([displayAudio]),
+        );
+        displaySource.connect(dest);
+        sources.push(displaySource);
+      }
+
       audioSourcesRef.current = sources;
-
-      // ── Choose video track for recording ────────────────────────
-      // Priority: active screen share > local camera.
-      // Clone tracks so mute/unmute in the call doesn't affect recording.
-      const screenShareTrack =
-        screenShareStreamRef.current?.getVideoTracks()[0];
-      const cameraTrack = localStreamRef.current?.getVideoTracks()[0];
-
-      const videoTrackToRecord = screenShareTrack ?? cameraTrack;
-      const clonedVideo = videoTrackToRecord?.clone();
-      if (clonedVideo) {
-        clonedVideo.enabled = true;
-        clonedTracks.push(clonedVideo);
-      }
-
-      // If screen share is active AND we also have a camera, include
-      // the screen share audio track (if any) in the mix.
-      if (screenShareStreamRef.current) {
-        const ssAudioTracks =
-          screenShareStreamRef.current.getAudioTracks();
-        for (const ssAudio of ssAudioTracks) {
-          const clonedSsAudio = ssAudio.clone();
-          clonedSsAudio.enabled = true;
-          clonedTracks.push(clonedSsAudio);
-          const ssSource = audioCtx.createMediaStreamSource(
-            new MediaStream([clonedSsAudio]),
-          );
-          ssSource.connect(dest);
-          sources.push(ssSource);
-        }
-      }
-
       clonedTracksRef.current = clonedTracks;
 
+      // ── Step 3: Combine tab video + mixed audio into one stream ──
       const combinedStream = new MediaStream([
+        // Tab video (shows the full meeting UI)
+        ...displayStream.getVideoTracks(),
+        // Mixed audio from all participants + tab audio
         ...dest.stream.getTracks(),
-        ...(clonedVideo ? [clonedVideo] : []),
       ]);
 
-      const mimeType = MediaRecorder.isTypeSupported("video/webm;codecs=vp9,opus")
+      const mimeType = MediaRecorder.isTypeSupported(
+        "video/webm;codecs=vp9,opus",
+      )
         ? "video/webm;codecs=vp9,opus"
         : MediaRecorder.isTypeSupported("video/webm;codecs=vp8,opus")
           ? "video/webm;codecs=vp8,opus"
@@ -190,7 +202,11 @@ export function useRecording(
 
         try {
           const formData = new FormData();
-          formData.append("file", blob, `recording.${mimeType.includes("webm") ? "webm" : "mp4"}`);
+          formData.append(
+            "file",
+            blob,
+            `recording.${mimeType.includes("webm") ? "webm" : "mp4"}`,
+          );
           formData.append("meetingId", meetingId);
           if (segments.length > 0) {
             formData.append("speechSegments", JSON.stringify(segments));
@@ -203,7 +219,9 @@ export function useRecording(
           });
 
           if (!uploadRes.ok) {
-            setError("Cloud upload failed. Recording saved locally instead.");
+            setError(
+              "Cloud upload failed. Recording saved locally instead.",
+            );
             downloadRecording(blob);
           }
         } catch {
@@ -211,6 +229,7 @@ export function useRecording(
           downloadRecording(blob);
         }
 
+        // Cleanup audio sources
         for (const source of audioSourcesRef.current) {
           try {
             source.disconnect();
@@ -219,11 +238,19 @@ export function useRecording(
           }
         }
         audioSourcesRef.current = [];
+
         // Stop cloned tracks to release hardware resources
         for (const t of clonedTracksRef.current) {
           t.stop();
         }
         clonedTracksRef.current = [];
+
+        // Stop display capture tracks
+        displayStreamRef.current
+          ?.getTracks()
+          .forEach((t) => t.stop());
+        displayStreamRef.current = null;
+
         audioContextRef.current?.close();
         audioContextRef.current = null;
         mixedDestRef.current = null;
@@ -245,13 +272,15 @@ export function useRecording(
         startedAt: Date.now(),
       });
     } catch {
-      setError("Failed to start recording. Please check your microphone/camera permissions.");
+      setError(
+        "Failed to start recording. Please check your permissions.",
+      );
     }
-  }, [meetingId, remoteStreams, sendReliable, speechSegmentsRef, activeScreenShareStream]);
+  }, [meetingId, remoteStreams, sendReliable, speechSegmentsRef]);
 
-  // ── Stop recording ─────────────────────────────────────────────────
+  // ── Internal stop (also called when user clicks browser "Stop sharing") ─
 
-  const stopRecording = useCallback(() => {
+  const stopRecordingInternal = useCallback(() => {
     if (mediaRecorderRef.current?.state === "recording") {
       mediaRecorderRef.current.stop();
     }
@@ -261,12 +290,18 @@ export function useRecording(
     }
     setIsRecording(false);
     setRecordingDuration(0);
+  }, []);
+
+  // ── Stop recording (user-facing — also broadcasts status) ─────────
+
+  const stopRecording = useCallback(() => {
+    stopRecordingInternal();
 
     void sendReliable({
       type: DataMessageType.RECORDING_STATUS,
       isRecording: false,
     });
-  }, [sendReliable]);
+  }, [sendReliable, stopRecordingInternal]);
 
   // ── Cleanup on unmount ─────────────────────────────────────────────
 
@@ -284,6 +319,8 @@ export function useRecording(
         t.stop();
       }
       clonedTracksRef.current = [];
+      displayStreamRef.current?.getTracks().forEach((t) => t.stop());
+      displayStreamRef.current = null;
       audioContextRef.current?.close();
       audioContextRef.current = null;
       mixedDestRef.current = null;
