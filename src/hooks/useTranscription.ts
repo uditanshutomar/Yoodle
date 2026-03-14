@@ -10,11 +10,21 @@ export interface UseTranscriptionReturn {
 }
 
 /**
- * Background transcription hook.
+ * VAD-driven background transcription hook.
  *
- * Captures the local microphone in 3-second chunks and POSTs each chunk
- * to /api/transcription so every participant contributes to the same
- * meeting transcript. No captions UI -- just silent background capture.
+ * Instead of recording fixed 3-second chunks (wasteful + cuts mid-word),
+ * this listens to the voice activity detection signal (`isSpeaking`) and
+ * records only while the user is actually talking. When they stop speaking,
+ * the recorded segment is POSTed to /api/transcription.
+ *
+ * Benefits:
+ * - No wasted API calls during silence
+ * - Natural sentence boundaries → better transcription quality
+ * - Speaker attribution is accurate (we know exactly who was speaking)
+ *
+ * A safety cap of 30 seconds per segment prevents runaway recordings
+ * (e.g. background noise keeping VAD active). If the cap is hit the
+ * chunk is sent and a new recording starts immediately.
  */
 export function useTranscription(
   localStream: MediaStream | null,
@@ -23,138 +33,183 @@ export function useTranscription(
   userName: string,
   isAudioEnabled: boolean,
   isLivekitConnected: boolean,
+  isSpeaking: boolean,
 ): UseTranscriptionReturn {
   const [transcriptText, setTranscriptText] = useState("");
   const [isTranscribing, setIsTranscribing] = useState(false);
 
-  const transcriptionRecorderRef = useRef<MediaRecorder | null>(null);
+  const recorderRef = useRef<MediaRecorder | null>(null);
+  const chunksRef = useRef<Blob[]>([]);
   const localStreamRef = useRef<MediaStream | null>(null);
-  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const safetyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const isEnabledRef = useRef(false);
+
+  /** Max duration per segment (prevents runaway recording). */
+  const MAX_SEGMENT_MS = 30_000;
 
   // Keep stream ref in sync
   useEffect(() => {
     localStreamRef.current = localStream;
   }, [localStream]);
 
-  // ── Automatic background transcription ─────────────────────────────
-  //
-  // Each participant captures their OWN mic in 3-second chunks and
-  // POSTs to /api/transcription with their name/ID. The API stores
-  // every segment under the same meetingId so everyone shares one
-  // transcript afterwards.
+  // ── Send a recorded audio blob to the transcription API ───────────
+
+  const sendChunk = useCallback(
+    async (blob: Blob) => {
+      // Skip near-silent chunks (< 1 KB is essentially silence)
+      if (blob.size < 1000) return;
+
+      const formData = new FormData();
+      formData.append("audio", blob, "chunk.webm");
+      formData.append("meetingId", meetingId);
+      formData.append("speakerName", userName);
+      formData.append("speakerId", userId);
+      formData.append("timestamp", String(Date.now()));
+
+      try {
+        const res = await fetch("/api/transcription", {
+          method: "POST",
+          credentials: "include",
+          body: formData,
+        });
+
+        if (res.ok) {
+          const data = await res.json();
+          if (data.text) {
+            setTranscriptText((prev) =>
+              prev ? `${prev} ${data.text}` : data.text,
+            );
+          }
+        }
+      } catch {
+        // Transcription is best-effort — silent fail
+      }
+    },
+    [meetingId, userId, userName],
+  );
+
+  // ── Stop and flush the current recorder ───────────────────────────
+
+  const stopAndFlush = useCallback(() => {
+    if (safetyTimerRef.current) {
+      clearTimeout(safetyTimerRef.current);
+      safetyTimerRef.current = null;
+    }
+
+    const recorder = recorderRef.current;
+    if (recorder && recorder.state === "recording") {
+      recorder.stop(); // triggers onstop → sendChunk
+    }
+    recorderRef.current = null;
+  }, []);
+
+  // ── Start recording a new segment ─────────────────────────────────
+
+  const startSegment = useCallback(() => {
+    const stream = localStreamRef.current;
+    if (!stream) return;
+    const track = stream.getAudioTracks()[0];
+    if (!track || !track.enabled) return;
+
+    const audioStream = new MediaStream([track]);
+    const mimeType = MediaRecorder.isTypeSupported("audio/webm;codecs=opus")
+      ? "audio/webm;codecs=opus"
+      : "audio/webm";
+
+    const recorder = new MediaRecorder(audioStream, { mimeType });
+    chunksRef.current = [];
+
+    recorder.ondataavailable = (e) => {
+      if (e.data.size > 0) chunksRef.current.push(e.data);
+    };
+
+    recorder.onstop = () => {
+      if (chunksRef.current.length === 0) return;
+      const blob = new Blob(chunksRef.current, { type: mimeType });
+      chunksRef.current = [];
+      void sendChunk(blob);
+    };
+
+    recorder.start();
+    recorderRef.current = recorder;
+
+    // Safety cap — if someone talks for 30+ seconds non-stop, flush
+    // the current segment and start a new one immediately.
+    safetyTimerRef.current = setTimeout(() => {
+      stopAndFlush();
+      // If still speaking, start a new segment right away
+      if (isEnabledRef.current) {
+        startSegment();
+      }
+    }, MAX_SEGMENT_MS);
+  }, [sendChunk, stopAndFlush]);
+
+  // ── React to VAD isSpeaking changes ───────────────────────────────
 
   useEffect(() => {
-    if (!isLivekitConnected || !isAudioEnabled || !localStream || !userId) return;
+    if (!isLivekitConnected || !isAudioEnabled || !localStream || !userId) {
+      isEnabledRef.current = false;
+      stopAndFlush();
+      setIsTranscribing(false);
+      return;
+    }
 
-    const audioTrack = localStream.getAudioTracks()[0];
-    if (!audioTrack) return;
+    isEnabledRef.current = true;
 
     // Use a microtask to avoid synchronous setState in effect body
-    let active = true;
     queueMicrotask(() => {
-      if (active) setIsTranscribing(true);
+      if (isEnabledRef.current) setIsTranscribing(true);
     });
 
-    // Track ALL stop timers so cleanup can clear them all
-    const stopTimers: ReturnType<typeof setTimeout>[] = [];
-
-    const captureAndSend = () => {
-      const stream = localStreamRef.current;
-      if (!stream) return;
-      const track = stream.getAudioTracks()[0];
-      if (!track || !track.enabled) return;
-
-      const audioStream = new MediaStream([track]);
-      const mimeType = MediaRecorder.isTypeSupported("audio/webm;codecs=opus")
-        ? "audio/webm;codecs=opus"
-        : "audio/webm";
-      const recorder = new MediaRecorder(audioStream, { mimeType });
-      const chunks: Blob[] = [];
-
-      recorder.ondataavailable = (e) => {
-        if (e.data.size > 0) chunks.push(e.data);
-      };
-
-      recorder.onstop = async () => {
-        if (chunks.length === 0) return;
-        const blob = new Blob(chunks, { type: mimeType });
-
-        // Skip silent chunks (< 1 KB is essentially silence)
-        if (blob.size < 1000) return;
-
-        const formData = new FormData();
-        formData.append("audio", blob, "chunk.webm");
-        formData.append("meetingId", meetingId);
-        formData.append("speakerName", userName);
-        formData.append("speakerId", userId);
-        formData.append("timestamp", String(Date.now()));
-
-        try {
-          const res = await fetch("/api/transcription", {
-            method: "POST",
-            credentials: "include",
-            body: formData,
-          });
-
-          if (res.ok) {
-            const data = await res.json();
-            if (data.text) {
-              setTranscriptText((prev) =>
-                prev ? `${prev} ${data.text}` : data.text
-              );
-            }
-          }
-        } catch {
-          // Transcription is best-effort -- silent fail
-        }
-      };
-
-      recorder.start();
-      transcriptionRecorderRef.current = recorder;
-
-      const timer = setTimeout(() => {
-        if (recorder.state === "recording") recorder.stop();
-      }, 3000);
-      stopTimers.push(timer);
-    };
-
-    // Start immediately, then every 3.5s (3s record + 0.5s gap)
-    captureAndSend();
-    intervalRef.current = setInterval(captureAndSend, 3500);
+    if (isSpeaking) {
+      // User started speaking — begin recording if not already
+      if (!recorderRef.current || recorderRef.current.state !== "recording") {
+        startSegment();
+      }
+    } else {
+      // User stopped speaking — flush the segment
+      stopAndFlush();
+    }
 
     return () => {
-      active = false;
-      // Clear ALL pending stop timers, not just the last one
-      for (const t of stopTimers) clearTimeout(t);
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current);
-        intervalRef.current = null;
-      }
-      if (transcriptionRecorderRef.current?.state === "recording") {
-        transcriptionRecorderRef.current.stop();
-      }
-      setIsTranscribing(false);
+      // Don't cleanup here — we only want to stop when the whole
+      // effect deps change (audio disabled, disconnected, etc.)
     };
-  }, [isAudioEnabled, isLivekitConnected, localStream, userId, userName, meetingId]);
+  }, [
+    isSpeaking,
+    isAudioEnabled,
+    isLivekitConnected,
+    localStream,
+    userId,
+    startSegment,
+    stopAndFlush,
+  ]);
+
+  // ── Cleanup on unmount ────────────────────────────────────────────
+
+  useEffect(() => {
+    return () => {
+      if (safetyTimerRef.current) {
+        clearTimeout(safetyTimerRef.current);
+        safetyTimerRef.current = null;
+      }
+      if (recorderRef.current?.state === "recording") {
+        recorderRef.current.stop();
+      }
+      recorderRef.current = null;
+    };
+  }, []);
 
   // ── Manual start/stop (for future UI toggle) ──────────────────────
 
   const startTranscription = useCallback(() => {
-    // Currently handled automatically by the effect above.
-    // This is a placeholder for explicit start control.
     setIsTranscribing(true);
   }, []);
 
   const stopTranscription = useCallback(() => {
-    if (intervalRef.current) {
-      clearInterval(intervalRef.current);
-      intervalRef.current = null;
-    }
-    if (transcriptionRecorderRef.current?.state === "recording") {
-      transcriptionRecorderRef.current.stop();
-    }
+    stopAndFlush();
     setIsTranscribing(false);
-  }, []);
+  }, [stopAndFlush]);
 
   return {
     transcriptText,

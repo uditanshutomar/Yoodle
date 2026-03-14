@@ -257,7 +257,7 @@ export default function MeetingRoomPage() {
   useEffect(() => { isRecordingRef.current = isRecording; }, [isRecording]);
   useEffect(() => { handleStopRecordingRef.current = handleStopRecording; }, [handleStopRecording]);
 
-  // ── Transcription hook ──────────────────────────────────────────────
+  // ── Transcription hook (VAD-driven: records only while speaking) ────
   useTranscription(
     localStream,
     meetingId,
@@ -265,6 +265,7 @@ export default function MeetingRoomPage() {
     user?.displayName || user?.name || "You",
     isAudioEnabled,
     isLivekitConnected,
+    isLocalSpeaking,
   );
 
   // ── Build full participants list ─────────────────────────────────────
