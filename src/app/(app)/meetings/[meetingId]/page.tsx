@@ -115,16 +115,17 @@ export default function MeetingLobbyPage() {
           { credentials: "include" },
         );
         if (!res.ok || !active) return;
-        const data = await res.json();
+        const json = await res.json();
+        const status = json.data?.status ?? json.status;
 
-        if (data.status === "admitted") {
+        if (status === "admitted") {
           pollingRef.current = false;
           setWaitingForAdmission(false);
           await submitJoin(pendingJoinSettings);
           return;
         }
 
-        if (data.status === "denied") {
+        if (status === "denied") {
           pollingRef.current = false;
           setWaitingForAdmission(false);
           setPendingJoinSettings(null);

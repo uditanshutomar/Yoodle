@@ -8,8 +8,8 @@ import { getUserIdFromRequest } from "@/lib/infra/auth/middleware";
 import { BadRequestError, NotFoundError } from "@/lib/infra/api/errors";
 import connectDB from "@/lib/infra/db/client";
 import Meeting from "@/lib/infra/db/models/meeting";
-import "@/lib/infra/db/models/user"; // register User schema for .populate("hostId")
-import { waitingConsumeAdmission } from "@/lib/infra/redis/cache";
+import User from "@/lib/infra/db/models/user"; // also registers schema for .populate("hostId")
+import { waitingConsumeAdmission, waitingAddToQueue } from "@/lib/infra/redis/cache";
 
 // ── Helpers ─────────────────────────────────────────────────────────
 
@@ -159,6 +159,20 @@ export const POST = withHandler(async (req: NextRequest, context) => {
   );
 
   if (meetingForAccess.settings?.waitingRoom && !isHost && !admissionGranted) {
+    // Add the user to the waiting room queue so the host can see them
+    const userDoc = await User.findById(userId)
+      .select("name displayName avatarUrl")
+      .lean();
+    await waitingAddToQueue(
+      meetingForAccess._id.toString(),
+      userId,
+      {
+        name: userDoc?.name ?? "Unknown",
+        displayName: userDoc?.displayName ?? userDoc?.name ?? "Unknown",
+        avatar: userDoc?.avatarUrl ?? null,
+      },
+    );
+
     return successResponse({
       joinDisposition: "waiting" as const,
       roomSession: buildRoomSession(

@@ -389,8 +389,9 @@ export default function MeetingRoomPage() {
           credentials: "include",
         });
         if (res.ok && active) {
-          const data = await res.json();
-          const users: WaitingUser[] = (data.users ?? []).map((u: WaitingUser) => ({
+          const json = await res.json();
+          const rawUsers = json.data?.users ?? json.users ?? [];
+          const users: WaitingUser[] = rawUsers.map((u: WaitingUser) => ({
             id: u.id,
             name: u.name,
             displayName: u.displayName,
