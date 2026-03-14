@@ -27,6 +27,14 @@ vi.mock("@/lib/infra/api/rate-limit", () => ({
 
 vi.mock("@/lib/infra/redis/cache", () => ({
   waitingConsumeAdmission: vi.fn(),
+  waitingAddToQueue: vi.fn().mockResolvedValue(undefined),
+}));
+
+const userFindById = vi.fn();
+vi.mock("@/lib/infra/db/models/user", () => ({
+  default: {
+    findById: (...args: unknown[]) => userFindById(...args),
+  },
 }));
 
 const findOne = vi.fn();
@@ -119,6 +127,14 @@ describe("POST /api/meetings/[meetingId]/join", () => {
           },
         }),
       );
+
+    userFindById.mockReturnValueOnce(
+      createLeanQuery({
+        name: "Test User",
+        displayName: "Test User",
+        avatarUrl: null,
+      }),
+    );
 
     const response = await POST(
       createRequest({
