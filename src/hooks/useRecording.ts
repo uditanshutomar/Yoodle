@@ -24,6 +24,9 @@ export interface UseRecordingReturn {
  *
  * Uses LiveKit data channels to broadcast recording status to all
  * participants so everyone sees the recording indicator.
+ *
+ * When a screen share is active, the recording captures the screen share
+ * video track instead of (or alongside) the local camera feed.
  */
 export function useRecording(
   localStream: MediaStream | null,
@@ -31,6 +34,7 @@ export function useRecording(
   meetingId: string,
   room: Room | null,
   speechSegmentsRef: React.RefObject<SpeechSegment[]>,
+  activeScreenShareStream: MediaStream | null = null,
 ): UseRecordingReturn {
   const [isRecording, setIsRecording] = useState(false);
   const [recordingDuration, setRecordingDuration] = useState(0);
@@ -48,11 +52,16 @@ export function useRecording(
   const clonedTracksRef = useRef<MediaStreamTrack[]>([]);
   const recordingTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const localStreamRef = useRef<MediaStream | null>(null);
+  const screenShareStreamRef = useRef<MediaStream | null>(null);
 
-  // Keep localStreamRef in sync
+  // Keep refs in sync
   useEffect(() => {
     localStreamRef.current = localStream;
   }, [localStream]);
+
+  useEffect(() => {
+    screenShareStreamRef.current = activeScreenShareStream;
+  }, [activeScreenShareStream]);
 
   // Listen for recording status from other participants
   useEffect(() => {
@@ -118,14 +127,37 @@ export function useRecording(
 
       audioSourcesRef.current = sources;
 
-      // Combine mixed audio + cloned local video (clone so muting
-      // video in the call doesn't kill the recording video track)
-      const origVideoTrack = localStreamRef.current?.getVideoTracks()[0];
-      const clonedVideo = origVideoTrack?.clone();
+      // ── Choose video track for recording ────────────────────────
+      // Priority: active screen share > local camera.
+      // Clone tracks so mute/unmute in the call doesn't affect recording.
+      const screenShareTrack =
+        screenShareStreamRef.current?.getVideoTracks()[0];
+      const cameraTrack = localStreamRef.current?.getVideoTracks()[0];
+
+      const videoTrackToRecord = screenShareTrack ?? cameraTrack;
+      const clonedVideo = videoTrackToRecord?.clone();
       if (clonedVideo) {
         clonedVideo.enabled = true;
         clonedTracks.push(clonedVideo);
       }
+
+      // If screen share is active AND we also have a camera, include
+      // the screen share audio track (if any) in the mix.
+      if (screenShareStreamRef.current) {
+        const ssAudioTracks =
+          screenShareStreamRef.current.getAudioTracks();
+        for (const ssAudio of ssAudioTracks) {
+          const clonedSsAudio = ssAudio.clone();
+          clonedSsAudio.enabled = true;
+          clonedTracks.push(clonedSsAudio);
+          const ssSource = audioCtx.createMediaStreamSource(
+            new MediaStream([clonedSsAudio]),
+          );
+          ssSource.connect(dest);
+          sources.push(ssSource);
+        }
+      }
+
       clonedTracksRef.current = clonedTracks;
 
       const combinedStream = new MediaStream([
@@ -215,7 +247,7 @@ export function useRecording(
     } catch {
       setError("Failed to start recording. Please check your microphone/camera permissions.");
     }
-  }, [meetingId, remoteStreams, sendReliable, speechSegmentsRef]);
+  }, [meetingId, remoteStreams, sendReliable, speechSegmentsRef, activeScreenShareStream]);
 
   // ── Stop recording ─────────────────────────────────────────────────
 

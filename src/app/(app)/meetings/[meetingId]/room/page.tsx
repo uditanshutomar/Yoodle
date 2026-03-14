@@ -236,12 +236,21 @@ export default function MeetingRoomPage() {
     speechSegmentsRef.current = speechSegments;
   }, [speechSegments]);
 
+  // ── Active screen share stream for recording ──────────────────────
+  // Prefer local screen share; fall back to the first remote screen share.
+  const recordingScreenShareStream: MediaStream | null =
+    isScreenSharing && screenStream
+      ? screenStream
+      : livekitScreenShareStreams.size > 0
+        ? livekitScreenShareStreams.values().next().value ?? null
+        : null;
+
   // ── Recording hook ─────────────────────────────────────────────────
   const {
     isRecording,
     startRecording: handleStartRecording,
     stopRecording: handleStopRecording,
-  } = useRecording(localStream, effectiveRemoteStreams, meetingId, room, speechSegmentsRef);
+  } = useRecording(localStream, effectiveRemoteStreams, meetingId, room, speechSegmentsRef, recordingScreenShareStream);
 
   const isRecordingRef = useRef(isRecording);
   const handleStopRecordingRef = useRef(handleStopRecording);
