@@ -164,6 +164,38 @@ export class LiveKitTransport implements RoomTransport {
     }
   }
 
+  async muteTrack(
+    kind: "video" | "audio",
+    muted: boolean,
+  ): Promise<void> {
+    const source =
+      kind === "video" ? Track.Source.Camera : Track.Source.Microphone;
+    const pub = this.room.localParticipant.getTrackPublication(source);
+    if (!pub) return;
+
+    if (muted) {
+      // For audio: mute the publication so the SFU stops forwarding audio.
+      // For video: only toggle the MediaStreamTrack — LiveKit's video mute()
+      // stops the camera hardware and re-acquires on unmute, which would
+      // conflict with our manually-managed localStream track.
+      if (kind === "audio") {
+        await pub.mute();
+      } else {
+        if (pub.track?.mediaStreamTrack) {
+          pub.track.mediaStreamTrack.enabled = false;
+        }
+      }
+    } else {
+      if (kind === "audio") {
+        await pub.unmute();
+      } else {
+        if (pub.track?.mediaStreamTrack) {
+          pub.track.mediaStreamTrack.enabled = true;
+        }
+      }
+    }
+  }
+
   async startScreenShare(stream: MediaStream): Promise<void> {
     const videoTrack = stream.getVideoTracks()[0];
     if (videoTrack) {

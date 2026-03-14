@@ -43,6 +43,9 @@ export interface RoomTransport {
     track: MediaStreamTrack
   ): Promise<void>;
 
+  /** Signal mute/unmute to the SFU so remote participants stop receiving media. */
+  muteTrack(kind: "video" | "audio", muted: boolean): Promise<void>;
+
   /** Begin sharing a screen stream with all peers. */
   startScreenShare(stream: MediaStream): Promise<void>;
 

@@ -36,8 +36,14 @@ export default function ParticipantBubble({
     // Must depend on isVideoOff so srcObject is re-assigned when <video> remounts
     // after being conditionally removed (toggle off → avatar → toggle on → new <video>)
     useEffect(() => {
-        if (videoRef.current && stream) {
-            videoRef.current.srcObject = stream;
+        const el = videoRef.current;
+        if (el && stream) {
+            el.srcObject = stream;
+            // Browsers may not honour autoPlay when srcObject is set
+            // programmatically — an explicit play() guarantees playback.
+            el.play().catch(() => {
+                // Autoplay blocked — user will see a still frame until interaction
+            });
         }
     }, [stream, isVideoOff]);
 

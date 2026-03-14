@@ -159,6 +159,15 @@ export function useTransport({
         // we do an explicit sync here to guarantee we never miss anyone.
         setRemoteParticipants(t.getRemoteParticipants());
         updateRemoteState(t);
+
+        // Track subscriptions can finalise after connect() resolves.
+        // Do a second sync shortly after to pick up any late tracks.
+        setTimeout(() => {
+          if (!cancelled) {
+            setRemoteParticipants(t.getRemoteParticipants());
+            updateRemoteState(t);
+          }
+        }, 1000);
       } catch (err) {
         if (!cancelled) {
           setError(
@@ -205,20 +214,19 @@ export function useTransport({
   }, [localStream]);
 
   // ── Effect 3: Sync mute/unmute with LiveKit SFU ─────────────────
+  // Uses publication-level mute/unmute instead of setCameraEnabled /
+  // setMicrophoneEnabled which can stop & re-acquire tracks, conflicting
+  // with our manually-managed localStream.
   useEffect(() => {
-    const room = (transportRef.current?.getRoom() as Room) ?? null;
-    if (!room?.localParticipant) return;
-    room.localParticipant.setMicrophoneEnabled(userAudioEnabled).catch(() => {
-      // Ignore — track may not be published yet during init
-    });
+    const t = transportRef.current;
+    if (!t) return;
+    t.muteTrack("audio", !userAudioEnabled).catch(() => {});
   }, [userAudioEnabled]);
 
   useEffect(() => {
-    const room = (transportRef.current?.getRoom() as Room) ?? null;
-    if (!room?.localParticipant) return;
-    room.localParticipant.setCameraEnabled(userVideoEnabled).catch(() => {
-      // Ignore — track may not be published yet during init
-    });
+    const t = transportRef.current;
+    if (!t) return;
+    t.muteTrack("video", !userVideoEnabled).catch(() => {});
   }, [userVideoEnabled]);
 
   const room = useMemo(() => {
