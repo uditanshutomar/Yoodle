@@ -22,9 +22,14 @@ export default function Dashboard() {
         (user?.mode as "lockin" | "invisible" | "social") || "social"
     );
     // Sync mode from server when user data loads
+    const userMode = user?.mode as "lockin" | "invisible" | "social" | undefined;
+    const prevUserModeRef = useRef(userMode);
     useEffect(() => {
-        if (user?.mode) setMode(user.mode as "lockin" | "invisible" | "social");
-    }, [user?.mode]);
+        if (userMode && userMode !== prevUserModeRef.current) {
+            prevUserModeRef.current = userMode;
+            queueMicrotask(() => setMode(userMode));
+        }
+    }, [userMode]);
 
     const handleModeChange = useCallback((newMode: "lockin" | "invisible" | "social") => {
         setMode(newMode);
