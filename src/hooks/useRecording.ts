@@ -248,9 +248,12 @@ export function useRecording(
           });
 
           if (!uploadRes.ok) {
-            setError(
-              "Cloud upload failed. Recording saved locally instead.",
-            );
+            let errMsg = "Cloud upload failed.";
+            try {
+              const errData = await uploadRes.json();
+              errMsg = errData.error?.message || errMsg;
+            } catch { /* ignore parse error */ }
+            setError(`${errMsg} Recording saved locally instead.`);
             downloadRecording(blob);
           }
         } catch {

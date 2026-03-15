@@ -171,7 +171,7 @@ const meetingSchema = new Schema<IMeetingDocument>(
       type: meetingSettingsSchema,
       default: () => ({
         maxParticipants: 25,
-        allowRecording: false,
+        allowRecording: true,
         allowScreenShare: true,
         waitingRoom: false,
         muteOnJoin: false,

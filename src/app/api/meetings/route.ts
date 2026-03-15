@@ -142,7 +142,7 @@ export const POST = withHandler(async (req: NextRequest) => {
     settings: settings
       ? {
           maxParticipants: settings.maxParticipants ?? 25,
-          allowRecording: settings.allowRecording ?? false,
+          allowRecording: settings.allowRecording ?? true,
           allowScreenShare: settings.allowScreenShare ?? true,
           waitingRoom: settings.waitingRoom ?? false,
           muteOnJoin: settings.muteOnJoin ?? false,
