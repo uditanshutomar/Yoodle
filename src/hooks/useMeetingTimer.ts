@@ -34,12 +34,19 @@ export function useMeetingTimer({
   scheduledDuration: initialDuration,
   onTimeWarning,
 }: MeetingTimerOptions): MeetingTimerState {
-  const joinTimeRef = useRef(Date.now());
+  const joinTimeRef = useRef(0);
+
+  // Initialize join time on mount (outside render to avoid impure function call)
+  useEffect(() => {
+    if (joinTimeRef.current === 0) {
+      joinTimeRef.current = Date.now();
+    }
+  }, []);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [scheduledDuration, setScheduledDuration] = useState(initialDuration || 15);
   const warningFiredRef = useRef(false);
   const onTimeWarningRef = useRef(onTimeWarning);
-  onTimeWarningRef.current = onTimeWarning;
+  useEffect(() => { onTimeWarningRef.current = onTimeWarning; }, [onTimeWarning]);
 
   // Tick every second
   useEffect(() => {

@@ -124,7 +124,9 @@ export function useGeolocation(options: UseGeolocationOptions = {}) {
     return () => {
       stopWatching();
     };
-  }, [autoRequest, startWatching, stopWatching]);
+    // Only run on mount — startWatching/stopWatching are stable callbacks
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoRequest]);
 
   return {
     ...state,

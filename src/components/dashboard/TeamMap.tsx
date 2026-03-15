@@ -78,12 +78,15 @@ export default function TeamMap({ active }: TeamMapProps) {
     }
   }, [latitude, longitude, active]);
 
+  const fetchNearbyRef = useRef(fetchNearby);
+  useEffect(() => { fetchNearbyRef.current = fetchNearby; }, [fetchNearby]);
+
   useEffect(() => {
-    fetchNearby();
+    void fetchNearbyRef.current();
     if (!active) return;
-    const interval = setInterval(fetchNearby, 15_000); // refresh every 15s
+    const interval = setInterval(() => void fetchNearbyRef.current(), 15_000);
     return () => clearInterval(interval);
-  }, [fetchNearby, active]);
+  }, [active]);
 
   // No API key configured
   if (!MAPS_API_KEY) {
