@@ -190,6 +190,88 @@ export async function getUnreadCount(userId: string): Promise<number> {
 }
 
 /**
+ * Get a single email by its message ID (full content).
+ */
+export async function getEmail(
+  userId: string,
+  messageId: string
+): Promise<EmailMessage | null> {
+  const { gmail } = await getGoogleServices(userId);
+  return getEmailDetails(gmail, messageId);
+}
+
+/**
+ * Reply to an existing email thread.
+ * Fetches the original message's headers to build a proper reply
+ * (sets threadId, In-Reply-To, References, and prefixes "Re:" on subject).
+ */
+export async function replyToEmail(
+  userId: string,
+  messageId: string,
+  body: string,
+  options: { cc?: string[]; bcc?: string[]; isHtml?: boolean } = {}
+): Promise<{ messageId: string; threadId: string }> {
+  const { gmail } = await getGoogleServices(userId);
+
+  // Fetch original message headers
+  const res = await gmail.users.messages.get({
+    userId: "me",
+    id: messageId,
+    format: "metadata",
+    metadataHeaders: ["Message-ID", "References", "Subject", "From", "Reply-To"],
+  });
+
+  const headers = res.data.payload?.headers || [];
+  const getHeader = (name: string) =>
+    headers.find((h) => h.name?.toLowerCase() === name.toLowerCase())?.value || "";
+
+  const rfcMessageId = getHeader("Message-ID");
+  const existingRefs = getHeader("References");
+  const originalSubject = getHeader("Subject");
+  // Reply-To takes precedence over From for the reply recipient
+  const replyTo = getHeader("Reply-To") || getHeader("From");
+  const threadId = res.data.threadId || undefined;
+
+  const subject = originalSubject.toLowerCase().startsWith("re:")
+    ? originalSubject
+    : `Re: ${originalSubject}`;
+
+  // Build References header: original References + original Message-ID
+  const references = existingRefs
+    ? `${existingRefs} ${rfcMessageId}`
+    : rfcMessageId;
+
+  const messageParts = [
+    `To: ${replyTo}`,
+    options.cc ? `Cc: ${options.cc.join(", ")}` : "",
+    options.bcc ? `Bcc: ${options.bcc.join(", ")}` : "",
+    `Subject: ${subject}`,
+    `Content-Type: ${options.isHtml ? "text/html" : "text/plain"}; charset=utf-8`,
+    rfcMessageId ? `In-Reply-To: ${rfcMessageId}` : "",
+    references ? `References: ${references}` : "",
+    "",
+    body,
+  ]
+    .filter(Boolean)
+    .join("\r\n");
+
+  const encodedMessage = Buffer.from(messageParts).toString("base64url");
+
+  const sendRes = await gmail.users.messages.send({
+    userId: "me",
+    requestBody: {
+      raw: encodedMessage,
+      threadId,
+    },
+  });
+
+  return {
+    messageId: sendRes.data.id!,
+    threadId: sendRes.data.threadId!,
+  };
+}
+
+/**
  * Modify email labels (mark read/unread, archive, etc.).
  */
 export async function modifyEmailLabels(

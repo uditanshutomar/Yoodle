@@ -10,7 +10,7 @@ const YOODLE_FOLDER_NAME = "Yoodle Recordings";
  */
 const folderCache = new Map<string, string>();
 
-export async function ensureYoodleFolder(userId: string): Promise<string> {
+async function ensureYoodleFolder(userId: string): Promise<string> {
   const cached = folderCache.get(userId);
   if (cached) return cached;
 
@@ -46,7 +46,7 @@ export async function ensureYoodleFolder(userId: string): Promise<string> {
 /**
  * Ensure a sub-folder for a specific meeting exists inside "Yoodle Recordings".
  */
-export async function ensureMeetingFolder(
+async function ensureMeetingFolder(
   userId: string,
   meetingId: string,
   meetingTitle?: string
@@ -188,25 +188,3 @@ export async function listMeetingRecordings(
   }
 }
 
-/**
- * Get a temporary download link for a recording file.
- * Returns a webContentLink that can be used for direct download.
- */
-export async function getRecordingDownloadUrl(
-  userId: string,
-  fileId: string
-): Promise<string | null> {
-  try {
-    const { drive } = await getGoogleServices(userId);
-
-    // Make the file accessible via a direct download link
-    const file = await drive.files.get({
-      fileId,
-      fields: "webContentLink, webViewLink",
-    });
-
-    return file.data.webContentLink || file.data.webViewLink || null;
-  } catch {
-    return null;
-  }
-}

@@ -103,16 +103,17 @@ export async function updateEvent(
 ): Promise<CalendarEvent> {
   const { calendar } = await getGoogleServices(userId);
 
+  const timeZone = updates.timeZone || Intl.DateTimeFormat().resolvedOptions().timeZone;
   const requestBody: Record<string, unknown> = {};
 
   if (updates.title) requestBody.summary = updates.title;
   if (updates.description) requestBody.description = updates.description;
   if (updates.location) requestBody.location = updates.location;
   if (updates.start) {
-    requestBody.start = { dateTime: updates.start };
+    requestBody.start = { dateTime: updates.start, timeZone };
   }
   if (updates.end) {
-    requestBody.end = { dateTime: updates.end };
+    requestBody.end = { dateTime: updates.end, timeZone };
   }
   if (updates.attendees) {
     requestBody.attendees = updates.attendees.map((email) => ({ email }));

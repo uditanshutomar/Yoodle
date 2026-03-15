@@ -18,8 +18,9 @@ function getClient(): GoogleGenerativeAI {
   return genAI;
 }
 
-function getModel(modelName = "gemini-3.1-pro-preview"): GenerativeModel {
-  return getClient().getGenerativeModel({ model: modelName });
+function getModel(modelName?: string): GenerativeModel {
+  const model = modelName || process.env.GEMINI_MODEL || "gemini-3.1-pro-preview";
+  return getClient().getGenerativeModel({ model });
 }
 
 // ── User context type shared by chat functions ─────────────────────
@@ -105,7 +106,7 @@ export async function* streamChatWithAssistant(
   // Function calling loop — max 5 rounds to prevent infinite loops
   const MAX_TOOL_ROUNDS = 5;
 
-  for (let round = 0; round <= MAX_TOOL_ROUNDS; round++) {
+  for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
     const result = await model.generateContentStream(requestConfig);
 
     const responseParts: Part[] = [];
@@ -183,6 +184,18 @@ export async function* streamChatWithAssistant(
       role: "user",
       parts: functionResponseParts,
     });
+
+    // Check if this was the last allowed round
+    if (round === MAX_TOOL_ROUNDS - 1) {
+      log.warn("tool calling loop reached max rounds, forcing final text response");
+      // Do one final generation so Gemini can summarize the tool results as text
+      const finalResult = await model.generateContentStream(requestConfig);
+      for await (const chunk of finalResult.stream) {
+        const text = chunk.text();
+        if (text) yield text;
+      }
+      break;
+    }
 
     // Loop to let Gemini process the function results and respond
     log.info({ round: round + 1 }, "continuing function calling loop");

@@ -50,6 +50,12 @@ export function useAIChat() {
         toolCalls: [],
       };
 
+      // Snapshot history BEFORE appending new messages to avoid sending the
+      // current user message twice (once in history, once as `message`).
+      const history = messagesRef.current
+        .filter((m) => m.content.trim() !== "")
+        .map((m) => ({ role: m.role, content: m.content }));
+
       setMessages((prev) => [...prev, userMsg, assistantMsg]);
       setIsStreaming(true);
 
@@ -65,12 +71,7 @@ export function useAIChat() {
           credentials: "include",
           body: JSON.stringify({
             message: content.trim(),
-            history: messagesRef.current
-              .filter((m) => m.content.trim() !== "")
-              .map((m) => ({
-                role: m.role,
-                content: m.content,
-              })),
+            history,
             context: {
               name: user.displayName || user.name || undefined,
             },
@@ -108,59 +109,65 @@ export function useAIChat() {
               const data = trimmed.slice(6);
               if (data === "[DONE]") continue;
 
+              let parsed: Record<string, unknown>;
               try {
-                const parsed = JSON.parse(data);
-
-                if (parsed.error) {
-                  // Server-side error (Gemini failure, missing config, etc.)
-                  throw new Error(parsed.error);
-                } else if (parsed.text) {
-                  // Text chunk — append to message content
-                  accumulated += parsed.text;
-                  setMessages((prev) =>
-                    prev.map((m) =>
-                      m.id === assistantMsg.id
-                        ? { ...m, content: accumulated, toolCalls: [...toolCalls] }
-                        : m
-                    )
-                  );
-                } else if (parsed.type === "tool_call") {
-                  // Tool is being called — add a pending indicator
-                  const tc: ToolCall = {
-                    id: `tc-${Date.now()}-${parsed.name}`,
-                    name: parsed.name,
-                    args: parsed.args || {},
-                    status: "calling",
-                  };
-                  toolCalls = [...toolCalls, tc];
-                  setMessages((prev) =>
-                    prev.map((m) =>
-                      m.id === assistantMsg.id
-                        ? { ...m, content: accumulated, toolCalls: [...toolCalls] }
-                        : m
-                    )
-                  );
-                } else if (parsed.type === "tool_result") {
-                  // Tool finished — update the last matching tool call
-                  toolCalls = toolCalls.map((tc) =>
-                    tc.name === parsed.name && tc.status === "calling"
-                      ? {
-                          ...tc,
-                          status: parsed.success ? ("success" as const) : ("error" as const),
-                          summary: parsed.summary,
-                        }
-                      : tc
-                  );
-                  setMessages((prev) =>
-                    prev.map((m) =>
-                      m.id === assistantMsg.id
-                        ? { ...m, content: accumulated, toolCalls: [...toolCalls] }
-                        : m
-                    )
-                  );
-                }
+                parsed = JSON.parse(data);
               } catch {
                 // Skip malformed JSON
+                continue;
+              }
+
+              if (parsed.error) {
+                // Server-side error (Gemini failure, missing config, etc.)
+                // Throw to the outer catch so it displays an error message
+                throw new Error(parsed.error as string);
+              } else if (parsed.text) {
+                // Text chunk — append to message content
+                accumulated += parsed.text as string;
+                setMessages((prev) =>
+                  prev.map((m) =>
+                    m.id === assistantMsg.id
+                      ? { ...m, content: accumulated, toolCalls: [...toolCalls] }
+                      : m
+                  )
+                );
+              } else if (parsed.type === "tool_call") {
+                // Tool is being called — add a pending indicator
+                const tc: ToolCall = {
+                  id: `tc-${Date.now()}-${parsed.name}`,
+                  name: parsed.name as string,
+                  args: (parsed.args || {}) as Record<string, unknown>,
+                  status: "calling",
+                };
+                toolCalls = [...toolCalls, tc];
+                setMessages((prev) =>
+                  prev.map((m) =>
+                    m.id === assistantMsg.id
+                      ? { ...m, content: accumulated, toolCalls: [...toolCalls] }
+                      : m
+                  )
+                );
+              } else if (parsed.type === "tool_result") {
+                // Tool finished — update only the FIRST matching "calling" entry with this name
+                let matched = false;
+                toolCalls = toolCalls.map((tc) => {
+                  if (!matched && tc.name === (parsed.name as string) && tc.status === "calling") {
+                    matched = true;
+                    return {
+                      ...tc,
+                      status: parsed.success ? ("success" as const) : ("error" as const),
+                      summary: parsed.summary as string,
+                    };
+                  }
+                  return tc;
+                });
+                setMessages((prev) =>
+                  prev.map((m) =>
+                    m.id === assistantMsg.id
+                      ? { ...m, content: accumulated, toolCalls: [...toolCalls] }
+                      : m
+                  )
+                );
               }
             }
           }

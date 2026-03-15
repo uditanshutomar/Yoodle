@@ -37,7 +37,9 @@ export async function listFiles(
     queryParts.push(`mimeType = '${options.mimeType}'`);
   }
   if (options.query) {
-    queryParts.push(`fullText contains '${options.query.replace(/'/g, "\\'")}'`);
+    const escaped = options.query.replace(/'/g, "\\'");
+    // Search both file name and content for broader matches
+    queryParts.push(`(name contains '${escaped}' or fullText contains '${escaped}')`);
   }
 
   const res = await drive.files.list({

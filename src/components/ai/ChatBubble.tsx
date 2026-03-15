@@ -14,17 +14,41 @@ interface ChatBubbleProps {
 
 /** Map tool names to human-readable labels and icons */
 const TOOL_DISPLAY: Record<string, { label: string; icon: React.ElementType }> = {
+  // Gmail
   send_email: { label: "Sending email", icon: Mail },
   search_emails: { label: "Searching emails", icon: Search },
+  list_emails: { label: "Fetching emails", icon: Mail },
+  get_unread_count: { label: "Checking unread count", icon: Mail },
   mark_email_read: { label: "Marking email as read", icon: Mail },
+  get_email: { label: "Reading email", icon: Mail },
+  reply_to_email: { label: "Replying to email", icon: Mail },
+  // Calendar
   create_calendar_event: { label: "Creating calendar event", icon: Calendar },
   list_calendar_events: { label: "Listing calendar events", icon: Calendar },
+  update_calendar_event: { label: "Updating calendar event", icon: Calendar },
   delete_calendar_event: { label: "Deleting calendar event", icon: Calendar },
+  // Tasks
   create_task: { label: "Creating task", icon: CheckSquare },
   complete_task: { label: "Completing task", icon: CheckSquare },
+  update_task: { label: "Updating task", icon: CheckSquare },
+  delete_task: { label: "Deleting task", icon: CheckSquare },
   list_tasks: { label: "Listing tasks", icon: CheckSquare },
+  list_task_lists: { label: "Listing task lists", icon: CheckSquare },
+  // Drive
   search_drive_files: { label: "Searching Drive files", icon: FileText },
+  list_drive_files: { label: "Listing Drive files", icon: FileText },
   create_google_doc: { label: "Creating Google Doc", icon: FileText },
+  // Docs
+  read_doc: { label: "Reading document", icon: FileText },
+  append_to_doc: { label: "Appending to document", icon: FileText },
+  find_replace_in_doc: { label: "Find & replace in doc", icon: FileText },
+  // Sheets
+  read_sheet: { label: "Reading spreadsheet", icon: FileText },
+  write_sheet: { label: "Writing to spreadsheet", icon: FileText },
+  append_to_sheet: { label: "Appending to spreadsheet", icon: FileText },
+  create_spreadsheet: { label: "Creating spreadsheet", icon: FileText },
+  clear_sheet_range: { label: "Clearing spreadsheet range", icon: FileText },
+  // Contacts
   search_contacts: { label: "Searching contacts", icon: Users },
 };
 
