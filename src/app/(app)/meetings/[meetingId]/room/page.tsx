@@ -466,13 +466,15 @@ export default function MeetingRoomPage() {
     }
 
     if (isScreenSharing) {
-      if (transport) {
-        await transport.stopScreenShare().catch(() => {});
-      }
+      // Update state FIRST so the overlay is removed immediately,
+      // then clean up transport in the background.
+      setIsScreenSharing(false);
+      setScreenStream(null);
       screenStreamRef.current?.getTracks().forEach((t) => t.stop());
       screenStreamRef.current = null;
-      setScreenStream(null);
-      setIsScreenSharing(false);
+      if (transport) {
+        transport.stopScreenShare().catch(() => {});
+      }
     } else {
       try {
         const stream = await navigator.mediaDevices.getDisplayMedia({
@@ -489,13 +491,15 @@ export default function MeetingRoomPage() {
 
         // Handle native "stop sharing" browser button
         const screenTrack = stream.getVideoTracks()[0];
-        screenTrack.onended = async () => {
-          if (transport) {
-            await transport.stopScreenShare().catch(() => {});
-          }
+        screenTrack.onended = () => {
+          // Update state FIRST, then clean up transport
           setIsScreenSharing(false);
-          screenStreamRef.current = null;
           setScreenStream(null);
+          screenStreamRef.current?.getTracks().forEach((t) => t.stop());
+          screenStreamRef.current = null;
+          if (transport) {
+            transport.stopScreenShare().catch(() => {});
+          }
         };
       } catch (err) {
         if (!(err instanceof DOMException && err.name === "NotAllowedError")) {

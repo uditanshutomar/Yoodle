@@ -351,6 +351,9 @@ export class LiveKitTransport implements RoomTransport {
           this.streamCallbacks.forEach((cb) =>
             cb(participant.identity, stream),
           );
+          // Update participant media state (e.g. isScreenSharing → false)
+          const user = participantToUser(participant);
+          this.participantUpdatedCallbacks.forEach((cb) => cb(user));
         },
       )
       .on(
