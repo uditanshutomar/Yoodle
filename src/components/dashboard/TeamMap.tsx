@@ -5,7 +5,7 @@ import { motion } from "framer-motion";
 import {
   APIProvider,
   Map,
-  AdvancedMarker,
+  Marker,
   InfoWindow,
   useMap,
 } from "@vis.gl/react-google-maps";
@@ -190,28 +190,44 @@ export default function TeamMap({ active }: TeamMapProps) {
           <Map
             defaultCenter={center}
             defaultZoom={13}
-            mapId="yoodle-team-map"
             disableDefaultUI={true}
             zoomControl={true}
             gestureHandling="greedy"
             styles={MAP_STYLES}
             className="w-full h-full"
           >
-            {/* Your location marker */}
-            <AdvancedMarker position={center}>
-              <div className="relative">
-                <div className="w-4 h-4 rounded-full bg-[#FFE600] border-2 border-[#0A0A0A] shadow-lg" />
-                <div className="absolute inset-0 w-4 h-4 rounded-full bg-[#FFE600] animate-ping opacity-40" />
-              </div>
-            </AdvancedMarker>
+            {/* Your location — yellow dot */}
+            <Marker
+              position={center}
+              icon={{
+                path: 0, // google.maps.SymbolPath.CIRCLE
+                scale: 8,
+                fillColor: "#FFE600",
+                fillOpacity: 1,
+                strokeColor: "#0A0A0A",
+                strokeWeight: 2,
+              }}
+              title="You"
+            />
 
             {/* Nearby Yoodler markers */}
             {nearbyUsers.map((user) => (
-              <TeammateMarker
+              <Marker
                 key={user.id}
-                user={user}
-                selected={selectedUser?.id === user.id}
-                onSelect={() => setSelectedUser(selectedUser?.id === user.id ? null : user)}
+                position={{
+                  lat: user.location.coordinates[1],
+                  lng: user.location.coordinates[0],
+                }}
+                icon={{
+                  path: 0, // google.maps.SymbolPath.CIRCLE
+                  scale: 10,
+                  fillColor: "#7C3AED",
+                  fillOpacity: 1,
+                  strokeColor: "#FFFFFF",
+                  strokeWeight: 2,
+                }}
+                title={user.displayName || user.name}
+                onClick={() => setSelectedUser(selectedUser?.id === user.id ? null : user)}
               />
             ))}
 
@@ -223,7 +239,7 @@ export default function TeamMap({ active }: TeamMapProps) {
                   lng: selectedUser.location.coordinates[0],
                 }}
                 onCloseClick={() => setSelectedUser(null)}
-                pixelOffset={[0, -30]}
+                pixelOffset={[0, -14]}
               >
                 <UserInfoCard user={selectedUser} />
               </InfoWindow>
@@ -247,7 +263,7 @@ export default function TeamMap({ active }: TeamMapProps) {
               {/* Avatar */}
               <div className="relative flex-shrink-0">
                 {user.avatarUrl ? (
-                  <Image src={user.avatarUrl!} alt="" width={24} height={24} className="w-6 h-6 rounded-full border border-[var(--border)]" />
+                  <Image src={user.avatarUrl} alt="" width={24} height={24} className="w-6 h-6 rounded-full border border-[var(--border)]" />
                 ) : (
                   <div className="w-6 h-6 rounded-full bg-[#7C3AED] border border-[var(--border)] flex items-center justify-center text-[10px] font-bold text-white">
                     {user.displayName?.[0] || user.name?.[0] || "?"}
@@ -289,56 +305,12 @@ export default function TeamMap({ active }: TeamMapProps) {
 
 /* ─── Sub-components ─── */
 
-function TeammateMarker({
-  user,
-  selected,
-  onSelect,
-}: {
-  user: NearbyUser;
-  selected: boolean;
-  onSelect: () => void;
-}) {
-  const position = {
-    lat: user.location.coordinates[1],
-    lng: user.location.coordinates[0],
-  };
-
-  return (
-    <AdvancedMarker position={position} onClick={onSelect}>
-      <motion.div
-        animate={selected ? { scale: 1.2 } : { scale: 1 }}
-        className="relative cursor-pointer"
-      >
-        {user.avatarUrl ? (
-          <Image
-            src={user.avatarUrl!}
-            alt={user.displayName}
-            width={32}
-            height={32}
-            className="w-8 h-8 rounded-full border-2 border-[#7C3AED] shadow-lg"
-          />
-        ) : (
-          <div className="w-8 h-8 rounded-full bg-[#7C3AED] border-2 border-white shadow-lg flex items-center justify-center text-xs font-bold text-white">
-            {user.displayName?.[0] || user.name?.[0] || "?"}
-          </div>
-        )}
-        {/* Status ring */}
-        <div
-          className={`absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-white ${
-            user.status === "online" ? "bg-emerald-400" : user.status === "dnd" ? "bg-red-400" : "bg-gray-400"
-          }`}
-        />
-      </motion.div>
-    </AdvancedMarker>
-  );
-}
-
 function UserInfoCard({ user }: { user: NearbyUser }) {
   return (
     <div className="p-1 min-w-[140px]">
       <div className="flex items-center gap-2">
         {user.avatarUrl ? (
-          <Image src={user.avatarUrl!} alt="" width={28} height={28} className="w-7 h-7 rounded-full" />
+          <Image src={user.avatarUrl} alt="" width={28} height={28} className="w-7 h-7 rounded-full" />
         ) : (
           <div className="w-7 h-7 rounded-full bg-[#7C3AED] flex items-center justify-center text-xs font-bold text-white">
             {user.displayName?.[0] || "?"}
