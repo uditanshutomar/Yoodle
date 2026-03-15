@@ -1,10 +1,11 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { Bot, User, Mail, Calendar, CheckSquare, Search, FileText, Users, Loader2, Check, X } from "lucide-react";
+import { Bot, User, Mail, Calendar, CheckSquare, Search, FileText, Users, Loader2, Check, X, ClipboardList } from "lucide-react";
 import type { ToolCall } from "@/hooks/useAIChat";
 
 interface ChatBubbleProps {
+  id?: string;
   role: "user" | "assistant";
   content: string;
   timestamp?: number;
@@ -91,9 +92,44 @@ function ToolCallIndicator({ toolCall }: { toolCall: ToolCall }) {
   );
 }
 
-export default function ChatBubble({ role, content, timestamp, isStreaming, toolCalls }: ChatBubbleProps) {
+export default function ChatBubble({ id, role, content, timestamp, isStreaming, toolCalls }: ChatBubbleProps) {
   const isAssistant = role === "assistant";
   const hasToolCalls = toolCalls && toolCalls.length > 0;
+  const isBriefing = id?.startsWith("briefing-");
+
+  // Briefing card — compact, left yellow border, no bubble shape
+  if (isBriefing && isAssistant) {
+    return (
+      <motion.div
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="max-w-[90%]"
+      >
+        <div
+          className="border-l-[3px] border-l-[#FFE600] rounded-lg bg-[var(--surface-elevated)] px-4 py-3"
+          style={{ fontFamily: "var(--font-body)" }}
+        >
+          <div className="flex items-center gap-1.5 mb-1.5">
+            <ClipboardList size={12} className="text-[#FFE600]" />
+            <span
+              className="text-[10px] font-bold uppercase tracking-wide text-[var(--text-secondary)]"
+              style={{ fontFamily: "var(--font-heading)" }}
+            >
+              Morning Briefing
+            </span>
+          </div>
+          <div className="text-xs leading-relaxed text-[var(--text-primary)] whitespace-pre-wrap">
+            {content}
+          </div>
+          {timestamp && (
+            <p className="text-[9px] text-[var(--text-muted)] mt-2">
+              {new Date(timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+            </p>
+          )}
+        </div>
+      </motion.div>
+    );
+  }
 
   return (
     <motion.div

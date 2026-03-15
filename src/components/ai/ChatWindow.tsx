@@ -89,6 +89,7 @@ export default function ChatWindow({
         {messages.map((msg) => (
           <ChatBubble
             key={msg.id}
+            id={msg.id}
             role={msg.role}
             content={msg.content}
             timestamp={msg.timestamp}
