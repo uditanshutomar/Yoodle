@@ -282,7 +282,7 @@ export default function MeetingControls({
         {/* Record */}
         <ControlButton
           onClick={isRecording ? onStopRecording : onStartRecording}
-          active={!isRecording}
+          active={isRecording}
           label={
             canRecord
               ? isRecording

@@ -192,21 +192,23 @@ export const POST = withHandler(async (req: NextRequest, context) => {
         log.warn({ err, meetingId: result._id }, "failed to post meeting end to conversation");
       }
     })();
-  } else if (isHost) {
+  } else if (isHost && remainingParticipants.length > 0) {
     // Host left but others remain — transfer host to the earliest-joined participant
     const newHost = remainingParticipants.sort(
       (a, b) => (a.joinedAt?.getTime() ?? 0) - (b.joinedAt?.getTime() ?? 0),
     )[0];
 
-    await Meeting.updateOne(
-      { _id: result._id },
-      { $set: { hostId: newHost.userId } },
-    );
+    if (newHost) {
+      await Meeting.updateOne(
+        { _id: result._id },
+        { $set: { hostId: newHost.userId } },
+      );
 
-    log.info(
-      { meetingId: result._id.toString(), newHostId: newHost.userId.toString() },
-      "host transferred after original host left",
-    );
+      log.info(
+        { meetingId: result._id.toString(), newHostId: newHost.userId.toString() },
+        "host transferred after original host left",
+      );
+    }
   }
 
   // Fetch final state with populated fields

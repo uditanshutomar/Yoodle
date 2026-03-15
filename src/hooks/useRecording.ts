@@ -113,11 +113,12 @@ export function useRecording(
           // Chrome-specific: prefer current tab
           preferCurrentTab: true,
         } as DisplayMediaStreamOptions);
-      } catch {
+      } catch (err) {
         // User cancelled the picker or browser doesn't support it
-        setError(
-          "Recording requires screen sharing permission. Please select your browser tab when prompted.",
-        );
+        const msg = err instanceof DOMException && err.name === "NotAllowedError"
+          ? "Screen sharing was cancelled. Please select your browser tab to start recording."
+          : "Recording requires screen sharing permission. Please check your browser settings.";
+        setError(msg);
         return;
       }
 
@@ -137,7 +138,7 @@ export function useRecording(
       audioContextRef.current = audioCtx;
 
       if (audioCtx.state === "suspended") {
-        void audioCtx.resume();
+        await audioCtx.resume();
       }
 
       const dest = audioCtx.createMediaStreamDestination();
@@ -294,6 +295,10 @@ export function useRecording(
       setIsRecording(true);
 
       setRecordingDuration(0);
+      // Clear any stale timer before starting a new one
+      if (recordingTimerRef.current) {
+        clearInterval(recordingTimerRef.current);
+      }
       recordingTimerRef.current = setInterval(() => {
         setRecordingDuration((prev) => prev + 1);
       }, 1000);
