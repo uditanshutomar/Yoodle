@@ -193,6 +193,7 @@ export default function TeamMap({ active }: TeamMapProps) {
             disableDefaultUI={true}
             zoomControl={true}
             gestureHandling="greedy"
+            styles={MAP_STYLES}
             style={{ width: "100%", height: "100%" }}
           >
             {/* Your location — yellow dot */}

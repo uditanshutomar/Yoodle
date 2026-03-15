@@ -14,7 +14,7 @@ const securityHeaders = [
   {
     key: "Permissions-Policy",
     value:
-      "camera=(self), microphone=(self), geolocation=(), payment=(), usb=(), magnetometer=(), gyroscope=(), accelerometer=()",
+      "camera=(self), microphone=(self), geolocation=(self), payment=(), usb=(), magnetometer=(), gyroscope=(), accelerometer=()",
   },
   // HSTS — enforce HTTPS for 1 year, include subdomains
   {
@@ -26,11 +26,11 @@ const securityHeaders = [
     key: "Content-Security-Policy",
     value: [
       "default-src 'self'",
-      "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
+      "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://maps.googleapis.com",
       "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
       "font-src 'self' https://fonts.gstatic.com",
-      "img-src 'self' data: blob: https://lh3.googleusercontent.com",
-      "connect-src 'self' wss: ws: https://accounts.google.com https://www.googleapis.com https://*.ingest.sentry.io",
+      "img-src 'self' data: blob: https://lh3.googleusercontent.com https://maps.gstatic.com https://maps.googleapis.com https://*.ggpht.com https://*.googleapis.com",
+      "connect-src 'self' wss: ws: https://accounts.google.com https://www.googleapis.com https://maps.googleapis.com https://*.googleapis.com https://*.ingest.sentry.io",
       "frame-src 'self' https://accounts.google.com",
       "media-src 'self' blob:",
       "object-src 'none'",
