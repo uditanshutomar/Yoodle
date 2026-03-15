@@ -4,6 +4,7 @@ import { useState, useRef, useEffect } from "react";
 import { motion } from "framer-motion";
 import { Send, Square, Trash2, Bot } from "lucide-react";
 import ChatBubble from "./ChatBubble";
+import VoiceInputButton from "@/components/chat/VoiceInputButton";
 import type { ChatMessage } from "@/hooks/useAIChat";
 
 interface ChatWindowProps {
@@ -22,6 +23,7 @@ export default function ChatWindow({
   onClear,
 }: ChatWindowProps) {
   const [input, setInput] = useState("");
+  const [voiceInterim, setVoiceInterim] = useState("");
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -32,6 +34,11 @@ export default function ChatWindow({
     if (!input.trim() || isStreaming) return;
     onSend(input);
     setInput("");
+  };
+
+  const handleVoiceTranscript = (text: string) => {
+    setInput((prev) => (prev ? `${prev} ${text}` : text));
+    setVoiceInterim("");
   };
 
   return (
@@ -113,6 +120,11 @@ export default function ChatWindow({
             className="flex-1 px-4 py-2.5 text-sm border-2 border-[var(--border)] rounded-xl bg-[var(--surface)] focus:border-[#FFE600] focus:outline-none transition-colors disabled:opacity-50"
             style={{ fontFamily: "var(--font-body)" }}
           />
+          <VoiceInputButton
+            onTranscript={handleVoiceTranscript}
+            onInterim={setVoiceInterim}
+            onRecordingEnd={() => setVoiceInterim("")}
+          />
           {isStreaming ? (
             <button
               onClick={onStop}
@@ -130,6 +142,14 @@ export default function ChatWindow({
             </button>
           )}
         </div>
+        {voiceInterim && (
+          <p
+            className="text-[10px] text-[var(--text-muted)] mt-1 italic truncate px-4"
+            style={{ fontFamily: "var(--font-body)" }}
+          >
+            🎙️ {voiceInterim}
+          </p>
+        )}
       </div>
     </div>
   );
