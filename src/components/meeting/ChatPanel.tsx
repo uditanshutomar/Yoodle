@@ -3,6 +3,7 @@
 import { motion, AnimatePresence } from "framer-motion";
 import { useState, useRef, useEffect } from "react";
 import type { ChatMessage } from "@/hooks/useChat";
+import VoiceInputButton from "@/components/chat/VoiceInputButton";
 
 interface ChatPanelProps {
     isOpen: boolean;
@@ -22,6 +23,7 @@ function getInitialColor(name: string): string {
 
 export default function ChatPanel({ isOpen, onClose, messages, onSendMessage, currentUserId }: ChatPanelProps) {
     const [message, setMessage] = useState("");
+    const [voiceInterim, setVoiceInterim] = useState("");
     const scrollRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
@@ -34,6 +36,11 @@ export default function ChatPanel({ isOpen, onClose, messages, onSendMessage, cu
         if (!message.trim()) return;
         onSendMessage(message.trim());
         setMessage("");
+    };
+
+    const handleVoiceTranscript = (text: string) => {
+        setMessage((prev) => (prev ? `${prev} ${text}` : text));
+        setVoiceInterim("");
     };
 
     return (
@@ -128,6 +135,12 @@ export default function ChatPanel({ isOpen, onClose, messages, onSendMessage, cu
                                 className="flex-1 bg-transparent text-sm text-[#0A0A0A] outline-none placeholder:text-[#0A0A0A]/30"
                                 style={{ fontFamily: "var(--font-body)" }}
                             />
+                            <VoiceInputButton
+                                onTranscript={handleVoiceTranscript}
+                                onInterim={setVoiceInterim}
+                                onRecordingEnd={() => setVoiceInterim("")}
+                                className="!p-1"
+                            />
                             <motion.button
                                 whileHover={{ scale: 1.1 }}
                                 whileTap={{ scale: 0.9 }}
@@ -141,6 +154,11 @@ export default function ChatPanel({ isOpen, onClose, messages, onSendMessage, cu
                                 </svg>
                             </motion.button>
                         </div>
+                        {voiceInterim && (
+                            <p className="text-[10px] text-[#0A0A0A]/40 mt-1 italic truncate px-1">
+                                🎙️ {voiceInterim}
+                            </p>
+                        )}
                     </div>
                 </motion.div>
             )}
