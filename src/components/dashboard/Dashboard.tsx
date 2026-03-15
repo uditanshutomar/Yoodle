@@ -10,6 +10,7 @@ import MeetingDetail from "./MeetingDetail";
 import { MeetingRecord } from "./meetingsData";
 import TeamMap from "./TeamMap";
 import { DoodleStar, DoodleSquiggle, DoodleSparkles } from "@/components/Doodles";
+import VoiceInputButton from "@/components/chat/VoiceInputButton";
 import { useAuth } from "@/hooks/useAuth";
 import { useAIChat, ChatMessage } from "@/hooks/useAIChat";
 import { usePendingActions } from "@/hooks/usePendingActions";
@@ -330,6 +331,7 @@ interface MascotChatProps {
 
 function MascotChat({ onClose, messages, isStreaming, sendMessage, stopStreaming }: MascotChatProps) {
     const [input, setInput] = useState("");
+    const [voiceInterim, setVoiceInterim] = useState("");
     const scrollRef = useRef<HTMLDivElement>(null);
 
     // Auto-scroll to bottom on new messages
@@ -344,6 +346,11 @@ function MascotChat({ onClose, messages, isStreaming, sendMessage, stopStreaming
         if (!msg.trim() || isStreaming) return;
         sendMessage(msg);
         setInput("");
+    };
+
+    const handleVoiceTranscript = (text: string) => {
+        setInput((prev) => (prev ? `${prev} ${text}` : text));
+        setVoiceInterim("");
     };
 
     return (
@@ -409,6 +416,12 @@ function MascotChat({ onClose, messages, isStreaming, sendMessage, stopStreaming
                         placeholder={isStreaming ? "Thinking..." : "Ask anything..."}
                         disabled={isStreaming}
                         className="flex-1 bg-transparent text-xs text-[var(--text-primary)] outline-none placeholder:text-[var(--text-muted)] disabled:opacity-50" />
+                    <VoiceInputButton
+                        onTranscript={handleVoiceTranscript}
+                        onInterim={setVoiceInterim}
+                        onRecordingEnd={() => setVoiceInterim("")}
+                        className="!p-0.5"
+                    />
                     {isStreaming ? (
                         <motion.button whileTap={{ scale: 0.9 }} onClick={stopStreaming}
                             className="flex h-5 w-5 items-center justify-center rounded-full bg-[#EF4444] border border-[var(--border-strong)]">
@@ -421,6 +434,11 @@ function MascotChat({ onClose, messages, isStreaming, sendMessage, stopStreaming
                         </motion.button>
                     )}
                 </div>
+                {voiceInterim && (
+                    <p className="text-[9px] text-[var(--text-muted)] mt-1 italic truncate px-1">
+                        🎙️ {voiceInterim}
+                    </p>
+                )}
             </div>
         </motion.div>
     );
