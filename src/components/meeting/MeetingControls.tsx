@@ -121,12 +121,12 @@ export default function MeetingControls({
   const [showReactions, setShowReactions] = useState(false);
 
   return (
-    <div className="relative flex justify-center px-2 pb-2 sm:px-4 sm:pb-4">
+    <div className="relative z-20 flex justify-center px-2 pb-2 sm:px-4 sm:pb-4">
       {/* Emoji picker popup */}
       <AnimatePresence>
         {showReactions && (
           <motion.div
-            className="absolute bottom-full mb-3 flex gap-2 rounded-2xl bg-white border-2 border-[#0A0A0A] shadow-[4px_4px_0_#0A0A0A] px-3 py-2"
+            className="absolute bottom-full mb-3 z-50 flex gap-2 rounded-2xl bg-white border-2 border-[#0A0A0A] shadow-[4px_4px_0_#0A0A0A] px-3 py-2"
             initial={{ opacity: 0, y: 10, scale: 0.9 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 10, scale: 0.9 }}

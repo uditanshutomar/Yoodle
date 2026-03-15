@@ -466,40 +466,40 @@ export default function MeetingRoomPage() {
 
   const handleReaction = useCallback(
     (emoji: string) => {
-      if (!user) return;
       const data: ReactionData = {
         type: DataMessageType.REACTION,
-        userId: user.id,
-        userName: user.displayName || user.name,
+        userId: localUser.id,
+        userName: localUser.displayName || localUser.name,
         emoji,
         timestamp: Date.now(),
       };
       void sendLossy(data);
+      // Show locally immediately regardless of data channel state
       reactionRef.current?.(emoji, data.userName);
     },
-    [user, sendLossy],
+    [localUser.id, localUser.displayName, localUser.name, sendLossy],
   );
 
   // ── Hand raise ─────────────────────────────────────────────────────
 
   const handleToggleHandRaise = useCallback(() => {
-    if (!user) return;
     if (isHandRaised) {
       void sendReliable({
         type: DataMessageType.HAND_LOWER,
-        userId: user.id,
+        userId: localUser.id,
         timestamp: Date.now(),
       });
     } else {
       void sendReliable({
         type: DataMessageType.HAND_RAISE,
-        userId: user.id,
-        userName: user.displayName || user.name,
+        userId: localUser.id,
+        userName: localUser.displayName || localUser.name,
         timestamp: Date.now(),
       });
     }
+    // Toggle local state immediately regardless of data channel state
     setIsHandRaised(!isHandRaised);
-  }, [user, isHandRaised, sendReliable]);
+  }, [localUser.id, localUser.displayName, localUser.name, isHandRaised, sendReliable]);
 
   // ── Layout toggle ─────────────────────────────────────────────────
 

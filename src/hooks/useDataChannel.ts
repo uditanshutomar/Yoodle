@@ -27,7 +27,10 @@ export function useDataChannel(room: Room | null) {
 
   const sendReliable = useCallback(
     async (msg: DataMessage, destinationIdentities?: string[]) => {
-      if (!room) return;
+      if (!room) {
+        console.warn("[DataChannel] sendReliable: room is null, dropping message:", msg.type);
+        return;
+      }
       const payload = encodeMessage(msg);
       await room.localParticipant.publishData(payload, {
         reliable: true,
@@ -39,7 +42,10 @@ export function useDataChannel(room: Room | null) {
 
   const sendLossy = useCallback(
     async (msg: DataMessage, destinationIdentities?: string[]) => {
-      if (!room) return;
+      if (!room) {
+        console.warn("[DataChannel] sendLossy: room is null, dropping message:", msg.type);
+        return;
+      }
       const payload = encodeMessage(msg);
       await room.localParticipant.publishData(payload, {
         reliable: false,
