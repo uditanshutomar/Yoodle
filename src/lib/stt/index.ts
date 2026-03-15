@@ -1,38 +1,15 @@
-import type { STTProvider } from "./types";
+import { DeepgramSTTProvider } from "./deepgram";
 
-let cachedProvider: STTProvider | null = null;
+let cached: DeepgramSTTProvider | null = null;
 
 /**
- * Get the configured STT provider.
- * Selection via STT_PROVIDER env var: "elevenlabs" | "deepgram" | "whisper"
- * Defaults to "elevenlabs" if not specified.
+ * Get the Deepgram STT provider (singleton).
+ * Used for batch meeting transcription.
  */
-export async function getSTTProvider(): Promise<STTProvider> {
-  if (cachedProvider) return cachedProvider;
-
-  const provider = process.env.STT_PROVIDER || "elevenlabs";
-
-  switch (provider) {
-    case "elevenlabs": {
-      const { ElevenLabsSTTProvider } = await import("./elevenlabs");
-      cachedProvider = new ElevenLabsSTTProvider();
-      break;
-    }
-    case "deepgram": {
-      const { DeepgramSTTProvider } = await import("./deepgram");
-      cachedProvider = new DeepgramSTTProvider();
-      break;
-    }
-    case "whisper": {
-      const { WhisperSTTProvider } = await import("./whisper");
-      cachedProvider = new WhisperSTTProvider();
-      break;
-    }
-    default:
-      throw new Error(
-        `Unknown STT_PROVIDER: "${provider}". Supported: elevenlabs, deepgram, whisper`,
-      );
-  }
-
-  return cachedProvider;
+export function getSTTProvider(): DeepgramSTTProvider {
+  if (!cached) cached = new DeepgramSTTProvider();
+  return cached;
 }
+
+export { DeepgramSTTProvider } from "./deepgram";
+export type { STTProvider, TranscriptResult, TranscriptSegment } from "./types";

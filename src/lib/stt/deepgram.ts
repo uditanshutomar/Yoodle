@@ -3,10 +3,10 @@ import type { STTProvider, TranscriptResult, TranscriptSegment } from "./types";
 const DEEPGRAM_BASE_URL = "https://api.deepgram.com/v1";
 
 function getApiKey(): string {
-  const apiKey = process.env.STT_API_KEY || process.env.DEEPGRAM_API_KEY;
+  const apiKey = process.env.DEEPGRAM_API_KEY;
   if (!apiKey) {
     throw new Error(
-      "Deepgram STT not configured. Set STT_API_KEY or DEEPGRAM_API_KEY."
+      "Deepgram not configured. Set DEEPGRAM_API_KEY."
     );
   }
   return apiKey;
