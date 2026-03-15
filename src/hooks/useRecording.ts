@@ -36,6 +36,7 @@ export function useRecording(
   meetingId: string,
   room: Room | null,
   speechSegmentsRef: React.RefObject<SpeechSegment[]>,
+  meetingTitle?: string,
 ): UseRecordingReturn {
   const [isRecording, setIsRecording] = useState(false);
   const [recordingDuration, setRecordingDuration] = useState(0);
@@ -254,7 +255,7 @@ export function useRecording(
               errMsg = errData.error?.message || errMsg;
             } catch { /* ignore parse error */ }
             setError(`${errMsg} Recording saved locally instead.`);
-            downloadRecording(blob);
+            downloadRecording(blob, meetingTitle);
           }
         } catch {
           setError("Cloud upload failed. Recording saved locally instead.");
@@ -308,7 +309,7 @@ export function useRecording(
         "Failed to start recording. Please check your permissions.",
       );
     }
-  }, [meetingId, sendReliable, speechSegmentsRef, stopRecordingInternal]);
+  }, [meetingId, meetingTitle, sendReliable, speechSegmentsRef, stopRecordingInternal]);
 
   // ── Stop recording (user-facing — also broadcasts status) ─────────
 
@@ -364,11 +365,17 @@ export function useRecording(
 
 // ── Helper: download recording blob locally ──────────────────────────
 
-function downloadRecording(blob: Blob) {
+function downloadRecording(blob: Blob, title?: string) {
+  const now = new Date();
+  const datePart = now.toISOString().slice(0, 10);
+  const timePart = now.toTimeString().slice(0, 5).replace(":", "-");
+  const safeName = title
+    ? title.replace(/[^a-zA-Z0-9 _-]/g, "").replace(/\s+/g, "_")
+    : "Recording";
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
-  a.download = `yoodle-recording-${Date.now()}.webm`;
+  a.download = `${safeName}_${datePart}_${timePart}.webm`;
   a.click();
   URL.revokeObjectURL(url);
 }

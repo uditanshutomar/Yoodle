@@ -33,18 +33,29 @@ export default function RecordingPage() {
 
   const [segments, setSegments] = useState<TranscriptSegment[]>([]);
   const [recordings, setRecordings] = useState<Recording[]>([]);
+  const [meetingTitle, setMeetingTitle] = useState("");
+  const [meetingDate, setMeetingDate] = useState<Date | null>(null);
   const [loading, setLoading] = useState(true);
   const [isPlaying, setIsPlaying] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
 
-  // Fetch transcript and recordings in parallel
+  // Fetch meeting info, transcript, and recordings in parallel
   useEffect(() => {
     async function fetchData() {
       try {
-        const [transcriptRes, recordingsRes] = await Promise.allSettled([
+        const [meetingRes, transcriptRes, recordingsRes] = await Promise.allSettled([
+          fetch(`/api/meetings/${meetingId}`, { credentials: "include" }),
           fetch(`/api/transcription?meetingId=${meetingId}`, { credentials: "include" }),
           fetch(`/api/recordings/${meetingId}`, { credentials: "include" }),
         ]);
+
+        if (meetingRes.status === "fulfilled" && meetingRes.value.ok) {
+          const data = await meetingRes.value.json();
+          if (data.success && data.data) {
+            setMeetingTitle(data.data.title || "");
+            setMeetingDate(new Date(data.data.startedAt || data.data.createdAt));
+          }
+        }
 
         if (transcriptRes.status === "fulfilled" && transcriptRes.value.ok) {
           const data = await transcriptRes.value.json();
@@ -95,10 +106,16 @@ export default function RecordingPage() {
       (seg) => `[${formatTimestamp(seg.timestamp)}] ${seg.speaker}: ${seg.text}`
     );
     const blob = new Blob([lines.join("\n")], { type: "text/plain" });
+    const d = meetingDate || new Date();
+    const datePart = d.toISOString().slice(0, 10);
+    const timePart = d.toTimeString().slice(0, 5).replace(":", "-");
+    const safeName = meetingTitle
+      ? meetingTitle.replace(/[^a-zA-Z0-9 _-]/g, "").replace(/\s+/g, "_")
+      : "Transcript";
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `yoodle-transcript-${meetingId.slice(0, 8)}.txt`;
+    a.download = `${safeName}_${datePart}_${timePart}.txt`;
     a.click();
     URL.revokeObjectURL(url);
   };

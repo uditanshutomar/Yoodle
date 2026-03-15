@@ -61,6 +61,15 @@ export default function MeetingRoomPage() {
     loadRoomJoinSession(meetingId),
   );
 
+  // ── Fetch meeting title for recording file names ───────────────────
+  const [meetingTitle, setMeetingTitle] = useState("");
+  useEffect(() => {
+    fetch(`/api/meetings/${meetingId}`, { credentials: "include" })
+      .then((r) => r.json())
+      .then((d) => { if (d.success && d.data?.title) setMeetingTitle(d.data.title); })
+      .catch(() => {});
+  }, [meetingId]);
+
   // ── Bug #6 fix: media error state ──────────────────────────────────
   const [mediaError, setMediaError] = useState<string | null>(null);
 
@@ -245,7 +254,7 @@ export default function MeetingRoomPage() {
     isRecording,
     startRecording: handleStartRecording,
     stopRecording: handleStopRecording,
-  } = useRecording(localStream, effectiveRemoteStreams, meetingId, room, speechSegmentsRef);
+  } = useRecording(localStream, effectiveRemoteStreams, meetingId, room, speechSegmentsRef, meetingTitle);
 
   const isRecordingRef = useRef(isRecording);
   const handleStopRecordingRef = useRef(handleStopRecording);

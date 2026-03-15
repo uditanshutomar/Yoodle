@@ -76,7 +76,7 @@ export const POST = withHandler(async (req: NextRequest) => {
   const arrayBuffer = await file.arrayBuffer();
   const buffer = Buffer.from(arrayBuffer);
 
-  // Generate file name
+  // Generate file name: MeetingTitle_YYYY-MM-DD_HH-MM
   const ext = file.type.includes("webm")
     ? "webm"
     : file.type.includes("mp4")
@@ -85,12 +85,11 @@ export const POST = withHandler(async (req: NextRequest) => {
         ? "ogg"
         : "webm";
 
-  const timestamp = new Date()
-    .toISOString()
-    .replace(/[:.]/g, "-")
-    .slice(0, 19);
-
-  const fileName = `recording-${timestamp}.${ext}`;
+  const now = new Date();
+  const datePart = now.toISOString().slice(0, 10); // YYYY-MM-DD
+  const timePart = now.toTimeString().slice(0, 5).replace(":", "-"); // HH-MM
+  const safeName = meeting.title.replace(/[^a-zA-Z0-9 _-]/g, "").replace(/\s+/g, "_");
+  const fileName = `${safeName}_${datePart}_${timePart}.${ext}`;
 
   // Upload to Google Drive
   const driveFile = await uploadRecordingToDrive(userId, meetingId, {

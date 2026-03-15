@@ -235,6 +235,8 @@ export default function MeetingDetail({
                                     searchQuery={searchQuery}
                                     setSearchQuery={setSearchQuery}
                                     meetingId={meeting.id}
+                                    meetingTitle={meeting.title}
+                                    meetingDate={meeting.date}
                                 />
                             )}
                             {tab === "recording" && (
@@ -413,12 +415,16 @@ function RealTranscriptTab({
     searchQuery,
     setSearchQuery,
     meetingId,
+    meetingTitle,
+    meetingDate,
 }: {
     segments: TranscriptSegment[];
     loading: boolean;
     searchQuery: string;
     setSearchQuery: (q: string) => void;
     meetingId: string;
+    meetingTitle?: string;
+    meetingDate?: string;
 }) {
     const formatTimestamp = (ts: number) => {
         const totalSeconds = Math.floor(ts / 1000);
@@ -436,7 +442,13 @@ function RealTranscriptTab({
         const url = URL.createObjectURL(blob);
         const a = document.createElement("a");
         a.href = url;
-        a.download = `yoodle-transcript-${meetingId.slice(0, 8)}.txt`;
+        const d = meetingDate ? new Date(meetingDate) : new Date();
+        const datePart = d.toISOString().slice(0, 10);
+        const timePart = d.toTimeString().slice(0, 5).replace(":", "-");
+        const safeName = meetingTitle
+            ? meetingTitle.replace(/[^a-zA-Z0-9 _-]/g, "").replace(/\s+/g, "_")
+            : "Transcript";
+        a.download = `${safeName}_${datePart}_${timePart}.txt`;
         a.click();
         URL.revokeObjectURL(url);
     };

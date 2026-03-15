@@ -54,9 +54,13 @@ async function ensureMeetingFolder(
   const parentId = await ensureYoodleFolder(userId);
   const { drive } = await getGoogleServices(userId);
 
-  const folderName = meetingTitle
-    ? `${meetingTitle} (${meetingId.slice(-6)})`
-    : `Meeting ${meetingId.slice(-6)}`;
+  const now = new Date();
+  const datePart = now.toISOString().slice(0, 10);
+  const timePart = now.toTimeString().slice(0, 5).replace(":", "-");
+  const safeName = meetingTitle
+    ? meetingTitle.replace(/[^a-zA-Z0-9 _-]/g, "").replace(/\s+/g, "_")
+    : "Meeting";
+  const folderName = `${safeName}_${datePart}_${timePart}`;
 
   // Check if the meeting sub-folder already exists
   const search = await drive.files.list({

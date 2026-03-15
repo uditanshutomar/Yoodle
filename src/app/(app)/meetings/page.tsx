@@ -158,9 +158,10 @@ export default function MeetingsPage() {
 
   // Split meetings into upcoming (scheduled/live) and past (ended/cancelled)
   // Past meetings only show for 24 hours — after that they're only in Meeting History
-  const upcoming = meetings.filter((m) => m.status === "scheduled" || m.status === "live");
-  const now = Date.now();
+  // Capture "now" once on mount so the filter is stable across re-renders
+  const [now] = useState(() => Date.now());
   const TWENTY_FOUR_HOURS = 24 * 60 * 60 * 1000;
+  const upcoming = meetings.filter((m) => m.status === "scheduled" || m.status === "live");
   const past = meetings.filter((m) => {
     if (m.status !== "ended" && m.status !== "cancelled") return false;
     const endTime = m.endedAt || m.startedAt || m.createdAt;
