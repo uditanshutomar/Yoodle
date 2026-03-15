@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 import Avatar from "@/components/ui/Avatar";
 import MessageBubble from "@/components/chat/MessageBubble";
+import VoiceInputButton from "@/components/chat/VoiceInputButton";
 import { useAuth } from "@/hooks/useAuth";
 import { useMessages, type ChatMsg } from "@/hooks/useMessages";
 import type {
@@ -195,6 +196,8 @@ export default function ChatThread({
   const [inputValue, setInputValue] = useState("");
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [voiceInterim, setVoiceInterim] = useState("");
+  const isVoiceRecordingRef = useRef(false);
 
   const handleInputChange = useCallback(
     (e: ChangeEvent<HTMLTextAreaElement>) => {
@@ -242,6 +245,12 @@ export default function ChatThread({
     },
     [handleSend],
   );
+
+  const handleVoiceTranscript = useCallback((text: string) => {
+    setInputValue((prev) => (prev ? `${prev} ${text}` : text));
+    setVoiceInterim("");
+    isVoiceRecordingRef.current = false;
+  }, []);
 
   // Cleanup typing timeout
   useEffect(() => {
@@ -538,10 +547,16 @@ export default function ChatThread({
             value={inputValue}
             onChange={handleInputChange}
             onKeyDown={handleKeyDown}
-            placeholder="Type a message..."
+            placeholder={voiceInterim ? "" : "Type a message..."}
             rows={1}
             className="flex-1 bg-transparent border-none outline-none resize-none text-sm text-[var(--text-primary)] placeholder:text-[var(--text-muted)] max-h-[120px]"
             style={{ fontFamily: "var(--font-body)" }}
+          />
+          <VoiceInputButton
+            onTranscript={handleVoiceTranscript}
+            onInterim={setVoiceInterim}
+            onRecordingStart={() => { isVoiceRecordingRef.current = true; }}
+            onRecordingEnd={() => { isVoiceRecordingRef.current = false; setVoiceInterim(""); }}
           />
           <button
             onClick={handleSend}
@@ -555,6 +570,15 @@ export default function ChatThread({
             <SendHorizontal className="h-5 w-5" />
           </button>
         </div>
+        {/* Voice interim preview */}
+        {voiceInterim && (
+          <p
+            className="text-xs text-[var(--text-muted)] mt-1 italic truncate"
+            style={{ fontFamily: "var(--font-body)" }}
+          >
+            🎙️ {voiceInterim}
+          </p>
+        )}
       </div>
     </div>
   );
