@@ -56,11 +56,15 @@ export function useRecording(
     null,
   );
   const localStreamRef = useRef<MediaStream | null>(null);
+  const remoteStreamsRef = useRef<Map<string, MediaStream>>(remoteStreams);
 
-  // Keep localStreamRef in sync
+  // Keep refs in sync
   useEffect(() => {
     localStreamRef.current = localStream;
   }, [localStream]);
+  useEffect(() => {
+    remoteStreamsRef.current = remoteStreams;
+  }, [remoteStreams]);
 
   // Listen for recording status from other participants
   useEffect(() => {
@@ -140,7 +144,9 @@ export function useRecording(
       const sources: MediaStreamAudioSourceNode[] = [];
       const clonedTracks: MediaStreamTrack[] = [];
 
-      // Add local mic audio (cloned so mute/unmute doesn't affect recording)
+      // Add local mic audio (cloned so mute/unmute doesn't affect recording).
+      // The local user's <video> is muted={isSelf}, so tab audio does NOT
+      // include it — we always need to mix it in explicitly.
       if (localStreamRef.current) {
         const localAudioTracks = localStreamRef.current.getAudioTracks();
         if (localAudioTracks.length > 0) {
@@ -155,26 +161,36 @@ export function useRecording(
         }
       }
 
-      // Add all remote participant audio
-      remoteStreams.forEach((stream) => {
-        const audioTracks = stream.getAudioTracks();
-        if (audioTracks.length > 0) {
-          const remoteSource = audioCtx.createMediaStreamSource(
-            new MediaStream(audioTracks),
-          );
-          remoteSource.connect(dest);
-          sources.push(remoteSource);
-        }
-      });
-
-      // Add tab audio from getDisplayMedia (system/tab sounds) if present
+      // Tab audio from getDisplayMedia already contains all remote
+      // participant audio (LiveKit plays remote tracks through <video>
+      // elements in the tab, and getDisplayMedia captures the tab's
+      // audio output).  Adding remote tracks again would double-mix
+      // and cause reverb/echo.  Only fall back to individual remote
+      // stream mixing when the tab provides no audio track.
       const displayAudioTracks = displayStream.getAudioTracks();
-      for (const displayAudio of displayAudioTracks) {
-        const displaySource = audioCtx.createMediaStreamSource(
-          new MediaStream([displayAudio]),
-        );
-        displaySource.connect(dest);
-        sources.push(displaySource);
+      const hasTabAudio = displayAudioTracks.length > 0;
+
+      if (hasTabAudio) {
+        // Use tab audio for all remote participant audio
+        for (const displayAudio of displayAudioTracks) {
+          const displaySource = audioCtx.createMediaStreamSource(
+            new MediaStream([displayAudio]),
+          );
+          displaySource.connect(dest);
+          sources.push(displaySource);
+        }
+      } else {
+        // No tab audio — mix remote streams individually as fallback
+        remoteStreamsRef.current.forEach((stream) => {
+          const audioTracks = stream.getAudioTracks();
+          if (audioTracks.length > 0) {
+            const remoteSource = audioCtx.createMediaStreamSource(
+              new MediaStream(audioTracks),
+            );
+            remoteSource.connect(dest);
+            sources.push(remoteSource);
+          }
+        });
       }
 
       audioSourcesRef.current = sources;
@@ -289,7 +305,7 @@ export function useRecording(
         "Failed to start recording. Please check your permissions.",
       );
     }
-  }, [meetingId, remoteStreams, sendReliable, speechSegmentsRef, stopRecordingInternal]);
+  }, [meetingId, sendReliable, speechSegmentsRef, stopRecordingInternal]);
 
   // ── Stop recording (user-facing — also broadcasts status) ─────────
 
