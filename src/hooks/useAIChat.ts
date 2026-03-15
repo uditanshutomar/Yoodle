@@ -27,6 +27,13 @@ export function useAIChat() {
   const messagesRef = useRef<ChatMessage[]>([]);
   const isStreamingRef = useRef(false);
 
+  // Pending action detection callback
+  const onPendingActionRef = useRef<((data: Record<string, unknown>) => void) | null>(null);
+
+  const setOnPendingAction = useCallback((cb: (data: Record<string, unknown>) => void) => {
+    onPendingActionRef.current = cb;
+  }, []);
+
   // Keep refs in sync with state
   useEffect(() => { messagesRef.current = messages; }, [messages]);
   useEffect(() => { isStreamingRef.current = isStreaming; }, [isStreaming]);
@@ -168,6 +175,16 @@ export function useAIChat() {
                       : m
                   )
                 );
+
+                // Detect pending action proposals
+                if (
+                  parsed.name === "propose_action" &&
+                  parsed.success &&
+                  parsed.data &&
+                  (parsed.data as Record<string, unknown>).pendingAction
+                ) {
+                  onPendingActionRef.current?.(parsed.data as Record<string, unknown>);
+                }
               }
             }
           }
@@ -221,5 +238,35 @@ export function useAIChat() {
     setMessages([]);
   }, []);
 
-  return { messages, isStreaming, sendMessage, stopStreaming, clearMessages };
+  const fetchBriefing = useCallback(async () => {
+    try {
+      const res = await fetch("/api/ai/briefing", {
+        method: "POST",
+        credentials: "include",
+      });
+      if (!res.ok) return;
+      const data = await res.json();
+      if (data.data?.briefing) {
+        const briefingMsg: ChatMessage = {
+          id: `briefing-${Date.now()}`,
+          role: "assistant",
+          content: data.data.briefing,
+          timestamp: Date.now(),
+        };
+        setMessages((prev) => [briefingMsg, ...prev]);
+      }
+    } catch {
+      // Silent fail — briefing is best-effort
+    }
+  }, []);
+
+  // Fetch briefing on mount and every 15 minutes
+  useEffect(() => {
+    if (!user) return;
+    fetchBriefing();
+    const interval = setInterval(fetchBriefing, 15 * 60 * 1000);
+    return () => clearInterval(interval);
+  }, [user, fetchBriefing]);
+
+  return { messages, isStreaming, sendMessage, stopStreaming, clearMessages, setOnPendingAction, fetchBriefing };
 }

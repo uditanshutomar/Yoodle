@@ -10,7 +10,8 @@ import MeetingDetail from "./MeetingDetail";
 import { MeetingRecord } from "./meetingsData";
 import { DoodleStar, DoodleSquiggle, DoodleSparkles } from "@/components/Doodles";
 import { useAuth } from "@/hooks/useAuth";
-import { useAIChat } from "@/hooks/useAIChat";
+import { useAIChat, ChatMessage } from "@/hooks/useAIChat";
+import { usePendingActions } from "@/hooks/usePendingActions";
 import { useRouter } from "next/navigation";
 
 export default function Dashboard() {
@@ -22,6 +23,24 @@ export default function Dashboard() {
     const [mascotMsg, setMascotMsg] = useState("");
     const [greeting, setGreeting] = useState("");
     const [selectedMeeting, setSelectedMeeting] = useState<MeetingRecord | null>(null);
+
+    // Lifted AI chat state — shared with MascotChat
+    const { messages, isStreaming, sendMessage, stopStreaming, clearMessages, setOnPendingAction } = useAIChat();
+
+    // Pending actions state
+    const { pendingActions, addAction, confirmAction, denyAction, reviseAction } = usePendingActions();
+
+    // Wire pending action callback from AI chat to pending actions store
+    useEffect(() => {
+        setOnPendingAction((data: Record<string, unknown>) => {
+            addAction({
+                actionId: data.actionId as string,
+                actionType: data.actionType as string,
+                args: data.args as Record<string, unknown>,
+                summary: data.summary as string,
+            });
+        });
+    }, [setOnPendingAction, addAction]);
 
     const firstName = user?.name?.split(" ")[0] || user?.displayName?.split(" ")[0] || "";
 
@@ -191,7 +210,12 @@ export default function Dashboard() {
                 <div className="w-[380px] flex-shrink-0 py-2 overflow-y-auto" style={{ maxHeight: "calc(100vh - 136px)" }}>
                     <CalendarPanel />
                     <div className="mt-4">
-                        <TasksPanel />
+                        <TasksPanel
+                            pendingActions={pendingActions}
+                            onConfirmAction={confirmAction}
+                            onDenyAction={denyAction}
+                            onReviseAction={reviseAction}
+                        />
                     </div>
                 </div>
             </div>
@@ -237,7 +261,13 @@ export default function Dashboard() {
                 {/* Expanded chat */}
                 <AnimatePresence>
                     {showMascotChat && (
-                        <MascotChat onClose={() => setShowMascotChat(false)} />
+                        <MascotChat
+                            onClose={() => setShowMascotChat(false)}
+                            messages={messages}
+                            isStreaming={isStreaming}
+                            sendMessage={sendMessage}
+                            stopStreaming={stopStreaming}
+                        />
                     )}
                 </AnimatePresence>
             </div>
@@ -253,9 +283,16 @@ export default function Dashboard() {
 }
 
 /* ─── Inline Mascot Chat (Real AI via useAIChat) ─── */
-function MascotChat({ onClose }: { onClose: () => void }) {
+interface MascotChatProps {
+    onClose: () => void;
+    messages: ChatMessage[];
+    isStreaming: boolean;
+    sendMessage: (content: string) => void;
+    stopStreaming: () => void;
+}
+
+function MascotChat({ onClose, messages, isStreaming, sendMessage, stopStreaming }: MascotChatProps) {
     const [input, setInput] = useState("");
-    const { messages, isStreaming, sendMessage, stopStreaming } = useAIChat();
     const scrollRef = useRef<HTMLDivElement>(null);
 
     // Auto-scroll to bottom on new messages
