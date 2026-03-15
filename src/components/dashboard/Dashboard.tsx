@@ -58,7 +58,7 @@ export default function Dashboard() {
     const [selectedMeeting, setSelectedMeeting] = useState<MeetingRecord | null>(null);
 
     // Lifted AI chat state — shared with MascotChat
-    const { messages, isStreaming, sendMessage, stopStreaming, setOnPendingAction } = useAIChat();
+    const { messages, isStreaming, sendMessage, stopStreaming, clearMessages, setOnPendingAction } = useAIChat();
 
     // Pending actions state
     const { pendingActions, addAction, confirmAction, denyAction, reviseAction } = usePendingActions();
@@ -305,6 +305,7 @@ export default function Dashboard() {
                             isStreaming={isStreaming}
                             sendMessage={sendMessage}
                             stopStreaming={stopStreaming}
+                            clearMessages={clearMessages}
                         />
                     )}
                 </AnimatePresence>
@@ -327,9 +328,10 @@ interface MascotChatProps {
     isStreaming: boolean;
     sendMessage: (content: string) => void;
     stopStreaming: () => void;
+    clearMessages: () => void;
 }
 
-function MascotChat({ onClose, messages, isStreaming, sendMessage, stopStreaming }: MascotChatProps) {
+function MascotChat({ onClose, messages, isStreaming, sendMessage, stopStreaming, clearMessages }: MascotChatProps) {
     const [input, setInput] = useState("");
     const [voiceInterim, setVoiceInterim] = useState("");
     const scrollRef = useRef<HTMLDivElement>(null);
@@ -364,10 +366,25 @@ function MascotChat({ onClose, messages, isStreaming, sendMessage, stopStreaming
             {/* Header */}
             <div className="flex items-center justify-between border-b-2 border-[var(--border-strong)] px-4 py-2.5 bg-[#FFE600]">
                 <span className="text-sm font-bold text-[#0A0A0A]" style={{ fontFamily: "var(--font-heading)" }}>🤖 Yoodle AI</span>
-                <motion.button whileHover={{ rotate: 90 }} whileTap={{ scale: 0.9 }} onClick={onClose}
-                    className="flex h-5 w-5 items-center justify-center rounded-full border border-[#0A0A0A] bg-white text-[8px] font-bold">
-                    ✕
-                </motion.button>
+                <div className="flex items-center gap-1.5">
+                    {messages.length > 0 && (
+                        <motion.button
+                            whileHover={{ scale: 1.1 }}
+                            whileTap={{ scale: 0.9 }}
+                            onClick={clearMessages}
+                            className="flex h-5 w-5 items-center justify-center rounded-full border border-[#0A0A0A] bg-white"
+                            title="Clear conversation"
+                        >
+                            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#0A0A0A" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                <polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                            </svg>
+                        </motion.button>
+                    )}
+                    <motion.button whileHover={{ rotate: 90 }} whileTap={{ scale: 0.9 }} onClick={onClose}
+                        className="flex h-5 w-5 items-center justify-center rounded-full border border-[#0A0A0A] bg-white text-[8px] font-bold">
+                        ✕
+                    </motion.button>
+                </div>
             </div>
 
             {/* Messages */}

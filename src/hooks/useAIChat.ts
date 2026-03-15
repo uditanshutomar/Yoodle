@@ -19,9 +19,34 @@ export interface ChatMessage {
   toolCalls?: ToolCall[];
 }
 
+const STORAGE_KEY = "yoodle-ai-chat-messages";
+
+function loadPersistedMessages(): ChatMessage[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const raw = sessionStorage.getItem(STORAGE_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw) as ChatMessage[];
+    // Only keep messages from the last 24 hours
+    const cutoff = Date.now() - 24 * 60 * 60 * 1000;
+    return parsed.filter((m) => m.timestamp > cutoff);
+  } catch {
+    return [];
+  }
+}
+
+function persistMessages(messages: ChatMessage[]) {
+  if (typeof window === "undefined") return;
+  try {
+    sessionStorage.setItem(STORAGE_KEY, JSON.stringify(messages));
+  } catch {
+    // Storage full or unavailable — silently ignore
+  }
+}
+
 export function useAIChat() {
   const { user } = useAuth();
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [messages, setMessages] = useState<ChatMessage[]>(loadPersistedMessages);
   const [isStreaming, setIsStreaming] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
   const messagesRef = useRef<ChatMessage[]>([]);
@@ -34,9 +59,16 @@ export function useAIChat() {
     onPendingActionRef.current = cb;
   }, []);
 
-  // Keep refs in sync with state
+  // Keep refs in sync with state + persist to sessionStorage
   useEffect(() => { messagesRef.current = messages; }, [messages]);
   useEffect(() => { isStreamingRef.current = isStreaming; }, [isStreaming]);
+
+  // Persist messages whenever they change (skip during streaming for perf)
+  useEffect(() => {
+    if (!isStreaming && messages.length > 0) {
+      persistMessages(messages);
+    }
+  }, [messages, isStreaming]);
 
   const sendMessage = useCallback(
     async (content: string) => {
@@ -236,6 +268,7 @@ export function useAIChat() {
 
   const clearMessages = useCallback(() => {
     setMessages([]);
+    try { sessionStorage.removeItem(STORAGE_KEY); } catch { /* ignore */ }
   }, []);
 
   const fetchBriefing = useCallback(async () => {
