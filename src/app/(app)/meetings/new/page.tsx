@@ -22,6 +22,7 @@ export default function NewMeetingPage() {
     muteOnJoin: false,
   });
   const [loading, setLoading] = useState(false);
+  const [startingNow, setStartingNow] = useState(false);
   const [error, setError] = useState("");
   const [titleError, setTitleError] = useState("");
 
@@ -33,8 +34,70 @@ export default function NewMeetingPage() {
   } | null>(null);
   const [copied, setCopied] = useState(false);
 
+  const createMeeting = async (meetingTitle: string, isScheduled: boolean) => {
+    const body: Record<string, unknown> = {
+      title: meetingTitle,
+      description: description.trim() || undefined,
+      type: "regular",
+      settings,
+    };
+
+    if (isScheduled && scheduledAt) {
+      body.scheduledAt = new Date(scheduledAt).toISOString();
+    }
+
+    let res = await fetch("/api/meetings", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify(body),
+    });
+
+    // If access token expired, try refreshing and retry once
+    if (res.status === 401) {
+      const refreshRes = await fetch("/api/auth/refresh", {
+        method: "POST",
+        credentials: "include",
+      });
+      if (refreshRes.ok) {
+        res = await fetch("/api/meetings", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify(body),
+        });
+      }
+    }
+
+    return res.json();
+  };
+
+  // Instant meeting — "Start Now" button creates and joins immediately
+  const handleStartNow = async () => {
+    setError("");
+    setStartingNow(true);
+
+    try {
+      const meetingTitle = title.trim() || "Quick Meeting";
+      const data = await createMeeting(meetingTitle, false);
+
+      if (data.success && data.data) {
+        const meeting = data.data;
+        const id = meeting._id || meeting.id;
+        const code = meeting.code;
+        setCreatedMeeting({ id, code, title: meetingTitle });
+      } else {
+        setError(data.error?.message || data.message || "Failed to create meeting");
+      }
+    } catch {
+      setError("Something went wrong. Please try again.");
+    } finally {
+      setStartingNow(false);
+    }
+  };
+
+  // Scheduled meeting — requires a title
   const handleCreate = async () => {
-    // Clear previous errors
     setTitleError("");
     setError("");
 
@@ -48,51 +111,16 @@ export default function NewMeetingPage() {
     setLoading(true);
 
     try {
-      const body: Record<string, unknown> = {
-        title: title.trim(),
-        description: description.trim() || undefined,
-        type: "regular",
-        settings,
-      };
+      const data = await createMeeting(title.trim(), scheduleMode === "later");
 
-      if (scheduleMode === "later" && scheduledAt) {
-        body.scheduledAt = new Date(scheduledAt).toISOString();
-      }
-
-      let res = await fetch("/api/meetings", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify(body),
-      });
-
-      // If access token expired, try refreshing and retry once
-      if (res.status === 401) {
-        const refreshRes = await fetch("/api/auth/refresh", {
-          method: "POST",
-          credentials: "include",
-        });
-        if (refreshRes.ok) {
-          res = await fetch("/api/meetings", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            credentials: "include",
-            body: JSON.stringify(body),
-          });
-        }
-      }
-
-      const data = await res.json();
       if (data.success && data.data) {
         const meeting = data.data;
         const id = meeting._id || meeting.id;
         const code = meeting.code;
 
         if (scheduleMode === "now") {
-          // Show the meeting code/link sharing card before joining
           setCreatedMeeting({ id, code, title: title.trim() });
         } else {
-          // Scheduled meetings go to the meeting list
           router.push(`/meetings`);
         }
       } else {
@@ -226,6 +254,32 @@ export default function NewMeetingPage() {
         </h1>
       </div>
 
+      {/* Start Now — instant meeting */}
+      <Card className="!p-6">
+        <Button
+          variant="primary"
+          size="lg"
+          loading={startingNow}
+          onClick={handleStartNow}
+          className="w-full"
+          icon={Video}
+        >
+          Start Meeting Now
+        </Button>
+        <p className="text-xs text-center text-[#0A0A0A]/40 mt-2" style={{ fontFamily: "var(--font-body)" }}>
+          Creates an instant meeting{title.trim() ? "" : " titled \"Quick Meeting\""}
+        </p>
+      </Card>
+
+      {/* Divider */}
+      <div className="flex items-center gap-4">
+        <div className="flex-1 h-px bg-[#0A0A0A]/10" />
+        <span className="text-xs font-bold text-[#0A0A0A]/30" style={{ fontFamily: "var(--font-heading)" }}>
+          OR CUSTOMIZE
+        </span>
+        <div className="flex-1 h-px bg-[#0A0A0A]/10" />
+      </div>
+
       {/* Form */}
       <Card>
         <div className="space-y-5">
@@ -271,7 +325,7 @@ export default function NewMeetingPage() {
                 }`}
                 style={{ fontFamily: "var(--font-heading)" }}
               >
-                <Video size={16} /> Start Now
+                <Video size={16} /> Now
               </button>
               <button
                 onClick={() => setScheduleMode("later")}
@@ -335,7 +389,7 @@ export default function NewMeetingPage() {
         </div>
       </Card>
 
-      {/* Error banner — prominent, above the button */}
+      {/* Error banner */}
       {error && (
         <motion.div
           role="alert"
@@ -349,7 +403,7 @@ export default function NewMeetingPage() {
         </motion.div>
       )}
 
-      {/* Create button */}
+      {/* Create button — for the form below */}
       <Button variant="primary" size="lg" loading={loading} onClick={handleCreate} className="w-full" icon={Users}>
         {scheduleMode === "now" ? "Create & Join Meeting" : "Schedule Meeting"}
       </Button>
