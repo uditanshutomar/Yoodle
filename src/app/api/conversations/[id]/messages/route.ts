@@ -131,7 +131,7 @@ export const POST = withHandler(async (req: NextRequest, context) => {
 
   // Fire-and-forget: trigger agent responses
   const mentionsDoodle = content.toLowerCase().includes("@doodle");
-  if (mentionsDoodle || conversation.participants.some((p: any) => p.agentEnabled && p.userId.toString() !== userId)) {
+  if (mentionsDoodle || conversation.participants.some((p: { agentEnabled?: boolean; userId: { toString(): string } }) => p.agentEnabled && p.userId.toString() !== userId)) {
     import("@/lib/chat/agent-processor").then(({ processAgentResponses }) => {
       processAgentResponses(id, { senderId: userId, content }).catch(() => {});
     });

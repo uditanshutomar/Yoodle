@@ -31,7 +31,8 @@ export interface ChatMsg {
 // ── Hook ─────────────────────────────────────────────────────────────────
 
 export function useMessages(conversationId: string | null) {
-  const { user } = useAuth();
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const { user: _user } = useAuth();
   const [messages, setMessages] = useState<ChatMsg[]>([]);
   const [loading, setLoading] = useState(false);
   const [hasMore, setHasMore] = useState(true);
@@ -262,8 +263,10 @@ export function useMessages(conversationId: string | null) {
     return () => {
       isMountedRef.current = false;
       // Clear all typing timers
-      typingTimersRef.current.forEach((t) => clearTimeout(t));
-      typingTimersRef.current.clear();
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+      const timers = typingTimersRef.current;
+      timers.forEach((t) => clearTimeout(t));
+      timers.clear();
     };
   }, [conversationId, fetchMessages]);
 

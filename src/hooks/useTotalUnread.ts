@@ -12,10 +12,7 @@ export function useTotalUnread() {
   const [totalUnread, setTotalUnread] = useState(0);
 
   useEffect(() => {
-    if (!user) {
-      setTotalUnread(0);
-      return;
-    }
+    if (!user) return;
 
     let active = true;
 

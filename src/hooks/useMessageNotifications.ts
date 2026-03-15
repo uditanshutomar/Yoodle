@@ -4,6 +4,16 @@ import { useEffect, useRef } from "react";
 import { useAuth } from "./useAuth";
 import { toast } from "sonner";
 
+interface ConversationData {
+  unreadCount?: number;
+  lastMessagePreview?: string;
+  name?: string;
+  participants?: Array<{
+    userId?: { _id?: string } | string;
+    muted?: boolean;
+  }>;
+}
+
 export function useMessageNotifications() {
   const { user } = useAuth();
   const prevUnreadRef = useRef<number>(0);
@@ -18,25 +28,26 @@ export function useMessageNotifications() {
         });
         if (!res.ok) return;
         const data = await res.json();
-        const conversations = data.data || [];
+        const conversations: ConversationData[] = data.data || [];
         const totalUnread = conversations.reduce(
-          (sum: number, c: any) => sum + (c.unreadCount || 0),
+          (sum, c) => sum + (c.unreadCount || 0),
           0
         );
 
         // If unread count increased, find which conversation has new messages
         if (totalUnread > prevUnreadRef.current && prevUnreadRef.current > 0) {
           const newConv = conversations.find(
-            (c: any) =>
+            (c) =>
+              c.unreadCount &&
               c.unreadCount > 0 &&
-              !c.participants?.find(
-                (p: any) =>
-                  p.userId?._id === user.id || p.userId === user.id
-              )?.muted
+              !c.participants?.find((p) => {
+                const uid =
+                  typeof p.userId === "object" ? p.userId?._id : p.userId;
+                return uid === user.id;
+              })?.muted
           );
           if (newConv) {
-            const preview =
-              (newConv.lastMessagePreview as string) || "New message";
+            const preview = newConv.lastMessagePreview || "New message";
             toast(preview.slice(0, 60), {
               description: newConv.name || "New message",
               duration: 4000,
