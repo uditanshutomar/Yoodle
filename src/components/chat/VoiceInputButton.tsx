@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useRef } from "react";
+import { useCallback, useEffect } from "react";
 import { motion } from "framer-motion";
 import { Mic } from "lucide-react";
 import { useSpeechToText } from "@/hooks/useSpeechToText";
@@ -26,13 +26,10 @@ export default function VoiceInputButton({
 }: VoiceInputButtonProps) {
   const { interimText, isRecording, startRecording, stopRecording } =
     useSpeechToText();
-  const lastInterimRef = useRef("");
-
-  // Push interim updates to parent
-  if (interimText !== lastInterimRef.current) {
-    lastInterimRef.current = interimText;
+  // Push interim updates to parent via effect (refs can't be accessed during render)
+  useEffect(() => {
     onInterim?.(interimText);
-  }
+  }, [interimText, onInterim]);
 
   const handlePointerDown = useCallback(
     async (e: React.PointerEvent) => {
