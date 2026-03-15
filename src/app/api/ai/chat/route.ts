@@ -90,7 +90,18 @@ export const POST = withHandler(async (req: NextRequest) => {
       .lean(),
     buildWorkspaceContext(userId).catch((err) => {
       log.error({ err }, "failed to build workspace context");
-      return "";
+      return {
+        contextString: "",
+        snapshot: {
+          unreadCount: 0,
+          emailIds: [],
+          nextMeetingId: null,
+          nextMeetingTime: null,
+          overdueTaskCount: 0,
+          taskIds: [],
+          timestamp: Date.now(),
+        },
+      };
     }),
     hasGoogleAccess(userId).catch(() => false),
   ]);
@@ -105,7 +116,7 @@ export const POST = withHandler(async (req: NextRequest) => {
     memories: memoryStrings.length > 0 ? memoryStrings : undefined,
     upcomingMeetings: context?.upcomingMeetings,
     recentNotes: context?.recentNotes,
-    workspaceContext: workspaceContext || undefined,
+    workspaceContext: workspaceContext.contextString || undefined,
   };
 
   // Stream the response — enable Google Workspace tools if user has access
