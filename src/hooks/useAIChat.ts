@@ -3,11 +3,20 @@
 import { useState, useCallback, useRef, useEffect } from "react";
 import { useAuth } from "./useAuth";
 
+export interface ToolCall {
+  id: string;
+  name: string;
+  args: Record<string, unknown>;
+  status: "calling" | "success" | "error";
+  summary?: string;
+}
+
 export interface ChatMessage {
   id: string;
   role: "user" | "assistant";
   content: string;
   timestamp: number;
+  toolCalls?: ToolCall[];
 }
 
 export function useAIChat() {
@@ -38,6 +47,7 @@ export function useAIChat() {
         role: "assistant",
         content: "",
         timestamp: Date.now(),
+        toolCalls: [],
       };
 
       setMessages((prev) => [...prev, userMsg, assistantMsg]);
@@ -61,12 +71,16 @@ export function useAIChat() {
                 role: m.role,
                 content: m.content,
               })),
+            context: {
+              name: user.displayName || user.name || undefined,
+            },
           }),
           signal: controller.signal,
         });
 
         if (!res.ok) {
-          throw new Error("Failed to get AI response");
+          const errorData = await res.json().catch(() => null);
+          throw new Error(errorData?.message || `AI request failed (${res.status})`);
         }
 
         const reader = res.body?.getReader();
@@ -74,6 +88,7 @@ export function useAIChat() {
 
         const decoder = new TextDecoder();
         let accumulated = "";
+        let toolCalls: ToolCall[] = [];
         let buffer = ""; // Buffer for incomplete SSE lines across chunks
 
         while (true) {
@@ -95,12 +110,51 @@ export function useAIChat() {
 
               try {
                 const parsed = JSON.parse(data);
-                if (parsed.text) {
+
+                if (parsed.error) {
+                  // Server-side error (Gemini failure, missing config, etc.)
+                  throw new Error(parsed.error);
+                } else if (parsed.text) {
+                  // Text chunk — append to message content
                   accumulated += parsed.text;
                   setMessages((prev) =>
                     prev.map((m) =>
                       m.id === assistantMsg.id
-                        ? { ...m, content: accumulated }
+                        ? { ...m, content: accumulated, toolCalls: [...toolCalls] }
+                        : m
+                    )
+                  );
+                } else if (parsed.type === "tool_call") {
+                  // Tool is being called — add a pending indicator
+                  const tc: ToolCall = {
+                    id: `tc-${Date.now()}-${parsed.name}`,
+                    name: parsed.name,
+                    args: parsed.args || {},
+                    status: "calling",
+                  };
+                  toolCalls = [...toolCalls, tc];
+                  setMessages((prev) =>
+                    prev.map((m) =>
+                      m.id === assistantMsg.id
+                        ? { ...m, content: accumulated, toolCalls: [...toolCalls] }
+                        : m
+                    )
+                  );
+                } else if (parsed.type === "tool_result") {
+                  // Tool finished — update the last matching tool call
+                  toolCalls = toolCalls.map((tc) =>
+                    tc.name === parsed.name && tc.status === "calling"
+                      ? {
+                          ...tc,
+                          status: parsed.success ? ("success" as const) : ("error" as const),
+                          summary: parsed.summary,
+                        }
+                      : tc
+                  );
+                  setMessages((prev) =>
+                    prev.map((m) =>
+                      m.id === assistantMsg.id
+                        ? { ...m, content: accumulated, toolCalls: [...toolCalls] }
                         : m
                     )
                   );
@@ -123,7 +177,7 @@ export function useAIChat() {
                 setMessages((prev) =>
                   prev.map((m) =>
                     m.id === assistantMsg.id
-                      ? { ...m, content: accumulated }
+                      ? { ...m, content: accumulated, toolCalls: [...toolCalls] }
                       : m
                   )
                 );

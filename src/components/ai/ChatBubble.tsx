@@ -1,17 +1,71 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { Bot, User } from "lucide-react";
+import { Bot, User, Mail, Calendar, CheckSquare, Search, FileText, Users, Loader2, Check, X } from "lucide-react";
+import type { ToolCall } from "@/hooks/useAIChat";
 
 interface ChatBubbleProps {
   role: "user" | "assistant";
   content: string;
   timestamp?: number;
   isStreaming?: boolean;
+  toolCalls?: ToolCall[];
 }
 
-export default function ChatBubble({ role, content, timestamp, isStreaming }: ChatBubbleProps) {
+/** Map tool names to human-readable labels and icons */
+const TOOL_DISPLAY: Record<string, { label: string; icon: React.ElementType }> = {
+  send_email: { label: "Sending email", icon: Mail },
+  search_emails: { label: "Searching emails", icon: Search },
+  mark_email_read: { label: "Marking email as read", icon: Mail },
+  create_calendar_event: { label: "Creating calendar event", icon: Calendar },
+  list_calendar_events: { label: "Listing calendar events", icon: Calendar },
+  delete_calendar_event: { label: "Deleting calendar event", icon: Calendar },
+  create_task: { label: "Creating task", icon: CheckSquare },
+  complete_task: { label: "Completing task", icon: CheckSquare },
+  list_tasks: { label: "Listing tasks", icon: CheckSquare },
+  search_drive_files: { label: "Searching Drive files", icon: FileText },
+  create_google_doc: { label: "Creating Google Doc", icon: FileText },
+  search_contacts: { label: "Searching contacts", icon: Users },
+};
+
+function ToolCallIndicator({ toolCall }: { toolCall: ToolCall }) {
+  const display = TOOL_DISPLAY[toolCall.name] || { label: toolCall.name, icon: Search };
+  const Icon = display.icon;
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, height: 0 }}
+      animate={{ opacity: 1, height: "auto" }}
+      className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-[var(--surface-elevated)] border border-[var(--border-default)] text-xs"
+    >
+      <Icon size={12} className="shrink-0 text-[var(--text-secondary)]" />
+      <span className="text-[var(--text-secondary)] truncate">
+        {toolCall.status === "calling" ? (
+          <>{display.label}…</>
+        ) : toolCall.summary ? (
+          toolCall.summary
+        ) : (
+          display.label
+        )}
+      </span>
+      <span className="ml-auto shrink-0">
+        {toolCall.status === "calling" && (
+          <Loader2 size={12} className="animate-spin text-[var(--text-muted)]" />
+        )}
+        {toolCall.status === "success" && (
+          <Check size={12} className="text-green-500" />
+        )}
+        {toolCall.status === "error" && (
+          <X size={12} className="text-red-500" />
+        )}
+      </span>
+    </motion.div>
+  );
+}
+
+export default function ChatBubble({ role, content, timestamp, isStreaming, toolCalls }: ChatBubbleProps) {
   const isAssistant = role === "assistant";
+  const hasToolCalls = toolCalls && toolCalls.length > 0;
 
   return (
     <motion.div
@@ -36,6 +90,15 @@ export default function ChatBubble({ role, content, timestamp, isStreaming }: Ch
 
       {/* Bubble */}
       <div className={`max-w-[80%] ${isAssistant ? "" : "text-right"}`}>
+        {/* Tool call indicators — shown above the message text */}
+        {isAssistant && hasToolCalls && (
+          <div className="flex flex-col gap-1 mb-1.5">
+            {toolCalls.map((tc) => (
+              <ToolCallIndicator key={tc.id} toolCall={tc} />
+            ))}
+          </div>
+        )}
+
         <div
           className={`inline-block px-4 py-2.5 rounded-2xl text-sm leading-relaxed ${
             isAssistant
@@ -44,7 +107,7 @@ export default function ChatBubble({ role, content, timestamp, isStreaming }: Ch
           }`}
           style={{ fontFamily: "var(--font-body)" }}
         >
-          {content || (isStreaming && (
+          {content || (isStreaming && !hasToolCalls && (
             <motion.span
               animate={{ opacity: [1, 0.3, 1] }}
               transition={{ duration: 1, repeat: Infinity }}
@@ -52,6 +115,14 @@ export default function ChatBubble({ role, content, timestamp, isStreaming }: Ch
               Thinking…
             </motion.span>
           ))}
+          {!content && isStreaming && hasToolCalls && (
+            <motion.span
+              animate={{ opacity: [1, 0.3, 1] }}
+              transition={{ duration: 1, repeat: Infinity }}
+            >
+              Working on it…
+            </motion.span>
+          )}
         </div>
         {timestamp && (
           <p className={`text-[9px] text-[var(--text-muted)] mt-1 ${isAssistant ? "" : "text-right"}`}>

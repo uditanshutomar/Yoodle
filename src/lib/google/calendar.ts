@@ -53,24 +53,6 @@ export async function listEvents(
 }
 
 /**
- * Get a single calendar event by ID.
- */
-export async function getEvent(
-  userId: string,
-  eventId: string,
-  calendarId = "primary"
-): Promise<CalendarEvent> {
-  const { calendar } = await getGoogleServices(userId);
-
-  const res = await calendar.events.get({
-    calendarId,
-    eventId,
-  });
-
-  return formatEvent(res.data);
-}
-
-/**
  * Create a new calendar event.
  */
 export async function createEvent(
@@ -158,34 +140,6 @@ export async function deleteEvent(
     calendarId: "primary",
     eventId,
   });
-}
-
-/**
- * Find free/busy time slots.
- */
-export async function getFreeBusy(
-  userId: string,
-  timeMin: string,
-  timeMax: string,
-  calendarIds: string[] = ["primary"]
-): Promise<{ calendarId: string; busy: { start: string; end: string }[] }[]> {
-  const { calendar } = await getGoogleServices(userId);
-
-  const res = await calendar.freebusy.query({
-    requestBody: {
-      timeMin,
-      timeMax,
-      items: calendarIds.map((id) => ({ id })),
-    },
-  });
-
-  return Object.entries(res.data.calendars || {}).map(([calendarId, data]) => ({
-    calendarId,
-    busy: (data.busy || []).map((b) => ({
-      start: b.start || "",
-      end: b.end || "",
-    })),
-  }));
 }
 
 function formatEvent(event: calendar_v3.Schema$Event): CalendarEvent {

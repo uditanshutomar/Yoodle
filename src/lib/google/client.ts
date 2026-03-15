@@ -71,9 +71,6 @@ export async function getGoogleServices(userId: string) {
     gmail: google.gmail({ version: "v1", auth }),
     calendar: google.calendar({ version: "v3", auth }),
     drive: google.drive({ version: "v3", auth }),
-    docs: google.docs({ version: "v1", auth }),
-    sheets: google.sheets({ version: "v4", auth }),
-    slides: google.slides({ version: "v1", auth }),
     tasks: google.tasks({ version: "v1", auth }),
     people: google.people({ version: "v1", auth }),
   };

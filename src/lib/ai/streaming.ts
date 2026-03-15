@@ -1,11 +1,17 @@
+import { StreamEvent } from "./gemini";
+
 /**
  * Create an SSE (Server-Sent Events) streaming response from an async generator.
  *
- * Encodes each chunk in SSE format: "data: {text}\n\n"
+ * Supports three event types:
+ * - Text chunks: `{ text: "..." }`
+ * - Tool calls: `{ type: "tool_call", name: "...", args: {...} }`
+ * - Tool results: `{ type: "tool_result", name: "...", success: true, summary: "..." }`
+ *
  * Sends "data: [DONE]\n\n" when the stream completes.
  */
 export function createStreamingResponse(
-  generator: AsyncGenerator<string>
+  generator: AsyncGenerator<StreamEvent>
 ): Response {
   const encoder = new TextEncoder();
 
@@ -13,7 +19,17 @@ export function createStreamingResponse(
     async start(controller) {
       try {
         for await (const chunk of generator) {
-          const data = `data: ${JSON.stringify({ text: chunk })}\n\n`;
+          let payload: Record<string, unknown>;
+
+          if (typeof chunk === "string") {
+            // Text chunk
+            payload = { text: chunk };
+          } else {
+            // Tool call or tool result — pass through as-is
+            payload = chunk as Record<string, unknown>;
+          }
+
+          const data = `data: ${JSON.stringify(payload)}\n\n`;
           controller.enqueue(encoder.encode(data));
         }
 

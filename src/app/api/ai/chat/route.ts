@@ -8,6 +8,7 @@ import AIMemory from "@/lib/infra/db/models/ai-memory";
 import { streamChatWithAssistant } from "@/lib/ai/gemini";
 import { createStreamingResponse } from "@/lib/ai/streaming";
 import { buildWorkspaceContext } from "@/lib/google/workspace-context";
+import { hasGoogleAccess } from "@/lib/google/client";
 import { createLogger } from "@/lib/infra/logger";
 
 const log = createLogger("api:ai-chat");
@@ -79,10 +80,10 @@ export const POST = withHandler(async (req: NextRequest) => {
   const body = chatSchema.parse(await req.json());
   const { messages, context } = normalizeChatInput(body);
 
-  // Load user's AI memories and Google Workspace context in parallel
+  // Load user's AI memories, Google Workspace context, and access status in parallel
   await connectDB();
 
-  const [memories, workspaceContext] = await Promise.all([
+  const [memories, workspaceContext, googleAccess] = await Promise.all([
     AIMemory.find({ userId })
       .sort({ updatedAt: -1 })
       .limit(50)
@@ -91,6 +92,7 @@ export const POST = withHandler(async (req: NextRequest) => {
       log.error({ err }, "failed to build workspace context");
       return "";
     }),
+    hasGoogleAccess(userId).catch(() => false),
   ]);
 
   const memoryStrings = memories.map(
@@ -106,7 +108,10 @@ export const POST = withHandler(async (req: NextRequest) => {
     workspaceContext: workspaceContext || undefined,
   };
 
-  // Stream the response
-  const generator = streamChatWithAssistant(messages, userContext);
+  // Stream the response — enable Google Workspace tools if user has access
+  const generator = streamChatWithAssistant(messages, userContext, {
+    userId,
+    enableTools: googleAccess,
+  });
   return createStreamingResponse(generator);
 });

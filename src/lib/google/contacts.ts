@@ -13,7 +13,7 @@ export interface Contact {
 /**
  * List the user's contacts.
  */
-export async function listContacts(
+async function listContacts(
   userId: string,
   options: { maxResults?: number; query?: string } = {}
 ): Promise<Contact[]> {
