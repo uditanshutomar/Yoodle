@@ -133,7 +133,7 @@ export function apiMeetingToRecord(m: APIMeeting): MeetingRecord {
             };
         }),
         hasSummary: !!m.description && m.description.length > 10,
-        hasTranscript: false,
+        hasTranscript: false, // real transcript checked dynamically in MeetingDetail
         hasRecording: !!m.recordingId,
         project: m.type === "ghost" ? "Ghost" : undefined,
         projectColor: projectColors[m.type] || undefined,
