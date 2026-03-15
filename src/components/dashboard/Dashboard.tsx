@@ -29,7 +29,16 @@ export default function Dashboard() {
             prevUserModeRef.current = userMode;
             queueMicrotask(() => setMode(userMode));
         }
-    }, [userMode]);
+        // Persist default mode for new users who have no mode set yet
+        if (user && !userMode) {
+            fetch("/api/users/me", {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json" },
+                credentials: "include",
+                body: JSON.stringify({ mode: "social" }),
+            }).catch(() => {});
+        }
+    }, [userMode, user]);
 
     const handleModeChange = useCallback((newMode: "lockin" | "invisible" | "social") => {
         setMode(newMode);
