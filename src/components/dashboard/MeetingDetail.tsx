@@ -1,10 +1,11 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
+import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import Image from "next/image";
 import { MeetingRecord } from "./meetingsData";
-import { Loader2, ExternalLink, Download, Play, Pause, Video } from "lucide-react";
+import { Loader2, ExternalLink, Download, Play, Pause, Video, Check } from "lucide-react";
 
 type Tab = "overview" | "mom" | "transcript" | "recording";
 
@@ -49,6 +50,7 @@ export default function MeetingDetail({
     meeting: MeetingRecord;
     onClose: () => void;
 }) {
+    const router = useRouter();
     const [tab, setTab] = useState<Tab>("overview");
     const [searchQuery, setSearchQuery] = useState("");
 
@@ -57,6 +59,19 @@ export default function MeetingDetail({
     const [recordings, setRecordings] = useState<RecordingFile[]>([]);
     const [loadingTranscript, setLoadingTranscript] = useState(true);
     const [loadingRecordings, setLoadingRecordings] = useState(true);
+
+    // MoM state — can be from meeting prop OR freshly generated
+    const [momData, setMomData] = useState(meeting.mom || null);
+    const [generatingMom, setGeneratingMom] = useState(false);
+    const [momError, setMomError] = useState("");
+
+    // Feedback toasts
+    const [toast, setToast] = useState("");
+
+    const showToast = useCallback((msg: string) => {
+        setToast(msg);
+        setTimeout(() => setToast(""), 2500);
+    }, []);
 
     // Fetch transcript and recordings from real APIs
     useEffect(() => {
@@ -88,12 +103,131 @@ export default function MeetingDetail({
             }
         }
 
+        // Also fetch existing MoM if not in prop
+        async function fetchMom() {
+            if (meeting.mom) return;
+            try {
+                const res = await fetch(`/api/meetings/${meeting.id}/mom`, { credentials: "include" });
+                if (res.ok) {
+                    const data = await res.json();
+                    if (data.data?.mom) setMomData(data.data.mom);
+                }
+            } catch {
+                // silent
+            }
+        }
+
         fetchTranscript();
         fetchRecordings();
-    }, [meeting.id]);
+        fetchMom();
+    }, [meeting.id, meeting.mom]);
 
     const hasRealTranscript = transcriptSegments.length > 0;
     const hasRealRecordings = recordings.length > 0;
+
+    // ── Quick Action Handlers ─────────────────────────────────────────
+
+    const handleCopyLink = useCallback(() => {
+        const url = `${window.location.origin}/meetings/${meeting.id}/recording`;
+        navigator.clipboard.writeText(url);
+        showToast("Link copied!");
+    }, [meeting.id, showToast]);
+
+    const handleShare = useCallback(async () => {
+        const url = `${window.location.origin}/meetings/${meeting.id}/recording`;
+        const shareData = { title: meeting.title, text: `Check out the meeting: ${meeting.title}`, url };
+        if (navigator.share) {
+            try { await navigator.share(shareData); } catch { /* cancelled */ }
+        } else {
+            navigator.clipboard.writeText(url);
+            showToast("Share link copied!");
+        }
+    }, [meeting.id, meeting.title, showToast]);
+
+    const handleCreateMom = useCallback(async () => {
+        if (generatingMom) return;
+        setGeneratingMom(true);
+        setMomError("");
+        try {
+            const res = await fetch(`/api/meetings/${meeting.id}/mom`, {
+                method: "POST",
+                credentials: "include",
+            });
+            const data = await res.json();
+            if (data.success && data.data?.mom) {
+                setMomData(data.data.mom);
+                setTab("mom");
+                showToast("MoM generated!");
+            } else {
+                setMomError(data.error?.message || "Failed to generate MoM.");
+            }
+        } catch {
+            setMomError("Something went wrong. Please try again.");
+        } finally {
+            setGeneratingMom(false);
+        }
+    }, [meeting.id, generatingMom, showToast]);
+
+    const handleCopySummary = useCallback(() => {
+        const parts: string[] = [`Meeting: ${meeting.title}`, `Date: ${meeting.date} ${meeting.time}`, `Duration: ${meeting.duration}`];
+        if (meeting.overview) {
+            parts.push("", `Purpose: ${meeting.overview.purpose}`, `Outcome: ${meeting.overview.outcome}`);
+        }
+        if (momData) {
+            if (momData.keyDecisions?.length) parts.push("", "Key Decisions:", ...momData.keyDecisions.map((d) => `  • ${d}`));
+            if (momData.actionItems?.length) parts.push("", "Action Items:", ...momData.actionItems.map((a) => `  • ${a.task} (${a.owner}, ${a.due})`));
+        }
+        navigator.clipboard.writeText(parts.join("\n"));
+        showToast("Summary copied!");
+    }, [meeting, momData, showToast]);
+
+    const handleDownloadTranscript = useCallback(() => {
+        if (transcriptSegments.length === 0) return;
+        const formatTs = (ts: number) => { const s = Math.floor(ts / 1000); return `${Math.floor(s / 60)}:${(s % 60).toString().padStart(2, "0")}`; };
+        const lines = transcriptSegments.map((seg) => `[${formatTs(seg.timestamp)}] ${seg.speaker}: ${seg.text}`);
+        const blob = new Blob([lines.join("\n")], { type: "text/plain" });
+        const d = new Date();
+        const safeName = meeting.title.replace(/[^a-zA-Z0-9 _-]/g, "").replace(/\s+/g, "_");
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `${safeName}_${d.toISOString().slice(0, 10)}_${d.toTimeString().slice(0, 5).replace(":", "-")}.txt`;
+        a.click();
+        URL.revokeObjectURL(url);
+        showToast("Transcript downloaded!");
+    }, [transcriptSegments, meeting.title, showToast]);
+
+    const handleOpenRecording = useCallback(() => {
+        setTab("recording");
+    }, []);
+
+    const handleShareNotes = useCallback(() => {
+        const parts: string[] = [
+            `📝 Meeting Notes: ${meeting.title}`,
+            `📅 ${meeting.date} · ${meeting.time} · ${meeting.duration}`,
+            `👥 Participants: ${meeting.avatars.map((a) => a.name).join(", ")}`,
+        ];
+        if (meeting.overview) {
+            parts.push("", `Purpose: ${meeting.overview.purpose}`, `Outcome: ${meeting.overview.outcome}`);
+        }
+        if (momData) {
+            if (momData.keyDecisions?.length) parts.push("", "🎯 Key Decisions:", ...momData.keyDecisions.map((d) => `  • ${d}`));
+            if (momData.discussionPoints?.length) parts.push("", "💬 Discussion Points:", ...momData.discussionPoints.map((d) => `  • ${d}`));
+            if (momData.actionItems?.length) parts.push("", "✅ Action Items:", ...momData.actionItems.map((a) => `  • ${a.task} → ${a.owner} (${a.due})`));
+            if (momData.nextSteps?.length) parts.push("", "➡️ Next Steps:", ...momData.nextSteps.map((s) => `  • ${s}`));
+        }
+        if (hasRealTranscript) {
+            parts.push("", `📄 Full transcript available at: ${window.location.origin}/meetings/${meeting.id}/recording`);
+        }
+        navigator.clipboard.writeText(parts.join("\n"));
+        showToast("Notes copied to clipboard!");
+    }, [meeting, momData, hasRealTranscript, showToast]);
+
+    const handleCreateFollowUp = useCallback(() => {
+        const followUpTitle = `Follow-up: ${meeting.title}`;
+        router.push(`/meetings/new?title=${encodeURIComponent(followUpTitle)}`);
+        onClose();
+    }, [meeting.title, router, onClose]);
 
     return (
         <motion.div
@@ -168,11 +302,11 @@ export default function MeetingDetail({
                                     {meeting.project}
                                 </span>
                             )}
-                            <button className="flex items-center gap-1.5 rounded-full border-[1.5px] border-[var(--border)] px-3 py-1.5 text-[11px] font-bold text-[var(--text-secondary)] hover:bg-[#FFE600]/20 hover:border-[var(--border-strong)] transition-colors" style={{ fontFamily: "var(--font-heading)" }}>
+                            <button onClick={handleCopyLink} className="flex items-center gap-1.5 rounded-full border-[1.5px] border-[var(--border)] px-3 py-1.5 text-[11px] font-bold text-[var(--text-secondary)] hover:bg-[#FFE600]/20 hover:border-[var(--border-strong)] transition-colors" style={{ fontFamily: "var(--font-heading)" }}>
                                 <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" /><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" /></svg>
                                 Copy link
                             </button>
-                            <button className="flex items-center gap-1.5 rounded-full border-[1.5px] border-[var(--border)] px-3 py-1.5 text-[11px] font-bold text-[var(--text-secondary)] hover:bg-[#FFE600]/20 hover:border-[var(--border-strong)] transition-colors" style={{ fontFamily: "var(--font-heading)" }}>
+                            <button onClick={handleShare} className="flex items-center gap-1.5 rounded-full border-[1.5px] border-[var(--border)] px-3 py-1.5 text-[11px] font-bold text-[var(--text-secondary)] hover:bg-[#FFE600]/20 hover:border-[var(--border-strong)] transition-colors" style={{ fontFamily: "var(--font-heading)" }}>
                                 <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="18" cy="5" r="3" /><circle cx="6" cy="12" r="3" /><circle cx="18" cy="19" r="3" /><line x1="8.59" y1="13.51" x2="15.42" y2="17.49" /><line x1="15.41" y1="6.51" x2="8.59" y2="10.49" /></svg>
                                 Share
                             </button>
@@ -181,7 +315,7 @@ export default function MeetingDetail({
 
                     {/* Status badges */}
                     <div className="flex items-center gap-2 mt-3">
-                        {meeting.hasSummary && <span className="text-[9px] font-bold text-[#22C55E] bg-[#22C55E]/10 border border-[#22C55E]/30 rounded-full px-2 py-0.5" style={{ fontFamily: "var(--font-heading)" }}>✓ Summary ready</span>}
+                        {momData && <span className="text-[9px] font-bold text-[#F59E0B] bg-[#F59E0B]/10 border border-[#F59E0B]/30 rounded-full px-2 py-0.5" style={{ fontFamily: "var(--font-heading)" }}>✓ MoM</span>}
                         {(hasRealTranscript || meeting.hasTranscript) && <span className="text-[9px] font-bold text-[#3B82F6] bg-[#3B82F6]/10 border border-[#3B82F6]/30 rounded-full px-2 py-0.5" style={{ fontFamily: "var(--font-heading)" }}>✓ Transcript</span>}
                         {(hasRealRecordings || meeting.hasRecording) && <span className="text-[9px] font-bold text-[#EF4444] bg-[#EF4444]/10 border border-[#EF4444]/30 rounded-full px-2 py-0.5" style={{ fontFamily: "var(--font-heading)" }}>● Recording</span>}
                     </div>
@@ -193,7 +327,7 @@ export default function MeetingDetail({
                         {TABS.map((t) => {
                             const disabled = (t.key === "transcript" && !hasRealTranscript && !meeting.hasTranscript) ||
                                 (t.key === "recording" && !hasRealRecordings && !meeting.hasRecording) ||
-                                (t.key === "mom" && !meeting.mom);
+                                (t.key === "mom" && !momData);
                             return (
                                 <button
                                     key={t.key}
@@ -208,6 +342,9 @@ export default function MeetingDetail({
                                     style={{ fontFamily: "var(--font-heading)" }}
                                 >
                                     {TAB_ICONS[t.key]} {t.label}
+                                    {t.key === "mom" && generatingMom && (
+                                        <Loader2 size={10} className="animate-spin ml-1" />
+                                    )}
                                     {t.key === "transcript" && loadingTranscript && (
                                         <Loader2 size={10} className="animate-spin ml-1" />
                                     )}
@@ -225,8 +362,8 @@ export default function MeetingDetail({
                     {/* Main content */}
                     <div className="flex-1 overflow-y-auto p-8">
                         <AnimatePresence mode="wait">
-                            {tab === "overview" && <OverviewTab key="overview" meeting={meeting} />}
-                            {tab === "mom" && meeting.mom && <MoMTab key="mom" meeting={meeting} />}
+                            {tab === "overview" && <OverviewTab key="overview" meeting={meeting} momData={momData} />}
+                            {tab === "mom" && momData && <MoMTab key="mom" mom={momData} />}
                             {tab === "transcript" && (
                                 <RealTranscriptTab
                                     key="transcript"
@@ -257,16 +394,17 @@ export default function MeetingDetail({
                         </p>
                         <div className="space-y-1.5">
                             {[
-                                { label: "Create MoM", icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#F59E0B" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" /><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" /></svg>, available: true },
-                                { label: "Copy summary", icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#EC4899" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2" /><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" /></svg>, available: meeting.hasSummary },
-                                { label: "Download transcript", icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#3B82F6" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" /></svg>, available: hasRealTranscript },
-                                { label: "Open recording", icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#EF4444" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="5 3 19 12 5 21 5 3" /></svg>, available: hasRealRecordings },
-                                { label: "Share notes", icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#22C55E" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="18" cy="5" r="3" /><circle cx="6" cy="12" r="3" /><circle cx="18" cy="19" r="3" /><line x1="8.59" y1="13.51" x2="15.42" y2="17.49" /><line x1="15.41" y1="6.51" x2="8.59" y2="10.49" /></svg>, available: true },
-                                { label: "Create follow-up", icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#7C3AED" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" /></svg>, available: true },
+                                { label: momData ? "View MoM" : generatingMom ? "Generating…" : "Create MoM", icon: generatingMom ? <Loader2 size={14} className="animate-spin text-[#F59E0B]" /> : <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#F59E0B" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" /><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" /></svg>, available: hasRealTranscript || !!momData, onClick: momData ? () => setTab("mom") : handleCreateMom },
+                                { label: "Copy summary", icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#EC4899" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2" /><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" /></svg>, available: true, onClick: handleCopySummary },
+                                { label: "Download transcript", icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#3B82F6" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" /></svg>, available: hasRealTranscript, onClick: handleDownloadTranscript },
+                                { label: "Open recording", icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#EF4444" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="5 3 19 12 5 21 5 3" /></svg>, available: hasRealRecordings, onClick: handleOpenRecording },
+                                { label: "Share notes", icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#22C55E" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="18" cy="5" r="3" /><circle cx="6" cy="12" r="3" /><circle cx="18" cy="19" r="3" /><line x1="8.59" y1="13.51" x2="15.42" y2="17.49" /><line x1="15.41" y1="6.51" x2="8.59" y2="10.49" /></svg>, available: true, onClick: handleShareNotes },
+                                { label: "Create follow-up", icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#7C3AED" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" /></svg>, available: true, onClick: handleCreateFollowUp },
                             ].map((action) => (
                                 <motion.button
                                     key={action.label}
                                     whileHover={action.available ? { x: 2 } : {}}
+                                    onClick={() => action.available && action.onClick?.()}
                                     className={`flex items-center gap-2.5 w-full rounded-xl px-3 py-2.5 text-left text-xs font-medium transition-all ${action.available
                                         ? "text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)] cursor-pointer"
                                         : "text-[var(--text-muted)] cursor-not-allowed"
@@ -279,14 +417,19 @@ export default function MeetingDetail({
                             ))}
                         </div>
 
+                        {/* MoM generation error */}
+                        {momError && (
+                            <p className="text-[10px] text-red-500 mt-2 px-3">{momError}</p>
+                        )}
+
                         {/* Action items from meeting */}
-                        {meeting.mom?.actionItems && (
+                        {momData?.actionItems && momData.actionItems.length > 0 && (
                             <div className="mt-6">
                                 <p className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider mb-3" style={{ fontFamily: "var(--font-heading)" }}>
                                     Action items
                                 </p>
                                 <div className="space-y-2">
-                                    {meeting.mom.actionItems.map((item, i) => (
+                                    {momData.actionItems.map((item, i) => (
                                         <div key={i} className="rounded-lg border-[1.5px] border-[var(--border)] p-2.5">
                                             <p className="text-[11px] font-medium text-[var(--text-secondary)] leading-snug mb-1">{item.task}</p>
                                             <div className="flex items-center justify-between">
@@ -301,13 +444,29 @@ export default function MeetingDetail({
                     </div>
                 </div>
             </motion.div>
+
+            {/* Toast notification */}
+            <AnimatePresence>
+                {toast && (
+                    <motion.div
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: 20 }}
+                        className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[100] flex items-center gap-2 rounded-full bg-[var(--surface)] border border-[var(--border)] px-4 py-2.5 shadow-lg"
+                    >
+                        <Check className="h-3.5 w-3.5 text-[#22C55E]" />
+                        <span className="text-xs font-medium text-[var(--text-secondary)]">{toast}</span>
+                    </motion.div>
+                )}
+            </AnimatePresence>
         </motion.div>
     );
 }
 
 /* ═══ TAB COMPONENTS ═══ */
 
-function OverviewTab({ meeting }: { meeting: MeetingRecord }) {
+function OverviewTab({ meeting, momData }: { meeting: MeetingRecord; momData?: { summary?: string; keyDecisions?: string[]; discussionPoints?: string[]; actionItems?: { task: string; owner: string; due: string }[]; nextSteps?: string[] } | null }) {
+    const actionItemCount = momData?.actionItems?.length || meeting.mom?.actionItems?.length || 0;
     return (
         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}>
             {meeting.overview && (
@@ -328,7 +487,7 @@ function OverviewTab({ meeting }: { meeting: MeetingRecord }) {
                         {[
                             { label: "Duration", value: meeting.duration, icon: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#F59E0B" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" /></svg> },
                             { label: "Participants", value: `${meeting.avatars.length}`, icon: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#3B82F6" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M23 21v-2a4 4 0 0 0-3-3.87" /><path d="M16 3.13a4 4 0 0 1 0 7.75" /></svg> },
-                            { label: "Action items", value: `${meeting.mom?.actionItems?.length || 0}`, icon: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#22C55E" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 11 12 14 22 4" /><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" /></svg> },
+                            { label: "Action items", value: `${actionItemCount}`, icon: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#22C55E" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 11 12 14 22 4" /><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" /></svg> },
                         ].map((stat) => (
                             <div key={stat.label} className="rounded-2xl border-[1.5px] border-[var(--border)] bg-[var(--surface)] p-4 text-center">
                                 <span className="mb-1 block">{stat.icon}</span>
@@ -343,8 +502,7 @@ function OverviewTab({ meeting }: { meeting: MeetingRecord }) {
     );
 }
 
-function MoMTab({ meeting }: { meeting: MeetingRecord }) {
-    const mom = meeting.mom!;
+function MoMTab({ mom }: { mom: { summary?: string; keyDecisions: string[]; discussionPoints: string[]; actionItems: { task: string; owner: string; due: string }[]; nextSteps: string[] } }) {
     return (
         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="space-y-5">
             {/* Key decisions */}
@@ -414,7 +572,7 @@ function RealTranscriptTab({
     loading,
     searchQuery,
     setSearchQuery,
-    meetingId,
+    meetingId: _meetingId,
     meetingTitle,
     meetingDate,
 }: {

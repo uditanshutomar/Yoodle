@@ -45,6 +45,15 @@ export interface APIMeetingParticipant {
     status: string;
 }
 
+export interface APIMeetingMoM {
+    summary: string;
+    keyDecisions: string[];
+    discussionPoints: string[];
+    actionItems: { task: string; owner: string; due: string }[];
+    nextSteps: string[];
+    generatedAt?: string;
+}
+
 export interface APIMeeting {
     _id: string;
     code: string;
@@ -66,6 +75,7 @@ export interface APIMeeting {
     status: string;
     type: string;
     recordingId?: string;
+    mom?: APIMeetingMoM;
     createdAt: string;
     updatedAt: string;
 }
@@ -144,6 +154,18 @@ export function apiMeetingToRecord(m: APIMeeting): MeetingRecord {
                       m.status === "ended"
                           ? "Meeting completed."
                           : "In progress.",
+              }
+            : undefined,
+        mom: m.mom
+            ? {
+                  keyDecisions: m.mom.keyDecisions || [],
+                  discussionPoints: m.mom.discussionPoints || [],
+                  actionItems: (m.mom.actionItems || []).map((a) => ({
+                      task: a.task,
+                      owner: a.owner || "Unassigned",
+                      due: a.due || "TBD",
+                  })),
+                  nextSteps: m.mom.nextSteps || [],
               }
             : undefined,
     };

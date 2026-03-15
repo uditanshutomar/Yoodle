@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { motion } from "framer-motion";
 import { Video, ArrowLeft, Clock, Shield, Mic, Monitor, Users, Copy, Check, Link2 } from "lucide-react";
 import Card from "@/components/ui/Card";
@@ -10,8 +10,9 @@ import Input from "@/components/ui/Input";
 
 export default function NewMeetingPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const titleInputRef = useRef<HTMLInputElement>(null);
-  const [title, setTitle] = useState("");
+  const [title, setTitle] = useState(searchParams.get("title") || "");
   const [description, setDescription] = useState("");
   const [scheduleMode, setScheduleMode] = useState<"now" | "later">("now");
   const [scheduledAt, setScheduledAt] = useState("");

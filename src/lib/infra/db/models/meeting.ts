@@ -42,6 +42,16 @@ export interface IGhostMessageRecord {
   type: "text" | "system";
 }
 
+export interface IMeetingMoM {
+  summary: string;
+  keyDecisions: string[];
+  discussionPoints: string[];
+  actionItems: { task: string; owner: string; due: string }[];
+  nextSteps: string[];
+  generatedAt?: Date;
+  generatedBy?: Types.ObjectId;
+}
+
 export interface IMeeting {
   code: string;
   title: string;
@@ -55,6 +65,7 @@ export interface IMeeting {
   type: MeetingType;
   settings: IMeetingSettings;
   recordingId?: Types.ObjectId;
+  mom?: IMeetingMoM;
   ghostMessages?: IGhostMessageRecord[];
   ghostNotes?: string;
   createdAt: Date;
@@ -180,6 +191,27 @@ const meetingSchema = new Schema<IMeetingDocument>(
     recordingId: {
       type: Schema.Types.ObjectId,
       ref: "Recording",
+    },
+    mom: {
+      type: {
+        summary: { type: String, default: "" },
+        keyDecisions: { type: [String], default: [] },
+        discussionPoints: { type: [String], default: [] },
+        actionItems: {
+          type: [
+            {
+              task: { type: String, required: true },
+              owner: { type: String, default: "Unassigned" },
+              due: { type: String, default: "TBD" },
+            },
+          ],
+          default: [],
+        },
+        nextSteps: { type: [String], default: [] },
+        generatedAt: { type: Date },
+        generatedBy: { type: Schema.Types.ObjectId, ref: "User" },
+      },
+      default: undefined,
     },
     ghostMessages: {
       type: [
