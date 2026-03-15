@@ -24,13 +24,35 @@ function JoinMeetingContent() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  // Pre-fill code from URL param (e.g. /meetings/join?code=yoo-abc-123)
+  // Auto-redirect when code is in URL (e.g. /meetings/join?code=yoo-abc-123)
+  // Skip the code entry form entirely — go straight to lobby
+  const [autoRedirecting, setAutoRedirecting] = useState(false);
+
   useEffect(() => {
-    const codeParam = searchParams.get("code");
+    const codeParam = searchParams.get("code")?.trim().toLowerCase();
     if (codeParam) {
-      setCode(codeParam.toLowerCase());
+      setCode(codeParam);
+      setAutoRedirecting(true);
+
+      // Look up meeting by code and redirect to lobby
+      fetch(`/api/meetings/${encodeURIComponent(codeParam)}`, { credentials: "include" })
+        .then((r) => r.json())
+        .then((data) => {
+          if (data.success && data.data) {
+            const meetingId = data.data._id || data.data.id;
+            router.replace(`/meetings/${meetingId}`);
+          } else {
+            // Code invalid — fall back to manual entry
+            setAutoRedirecting(false);
+            setError(data.error?.message || "Meeting not found. Check the code and try again.");
+          }
+        })
+        .catch(() => {
+          setAutoRedirecting(false);
+          setError("Something went wrong. Please try again.");
+        });
     }
-  }, [searchParams]);
+  }, [searchParams, router]);
 
   const handleJoin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -64,6 +86,22 @@ function JoinMeetingContent() {
       setLoading(false);
     }
   };
+
+  // Show loading spinner while auto-redirecting from a shared link
+  if (autoRedirecting) {
+    return (
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        className="flex flex-col items-center justify-center min-h-[60vh] gap-4"
+      >
+        <div className="h-10 w-10 rounded-full border-4 border-[#FFE600] border-t-transparent animate-spin" />
+        <p className="text-sm text-[var(--text-secondary)]" style={{ fontFamily: "var(--font-body)" }}>
+          Joining meeting…
+        </p>
+      </motion.div>
+    );
+  }
 
   return (
     <motion.div
