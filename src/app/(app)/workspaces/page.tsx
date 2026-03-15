@@ -38,7 +38,10 @@ export default function WorkspacesPage() {
     fetch("/api/workspaces", { credentials: "include" })
       .then((r) => r.json())
       .then((data) => {
-        if (data.success && data.data) setWorkspaces(data.data);
+        if (data.success) {
+          const list = Array.isArray(data.data) ? data.data : data.data?.workspaces;
+          if (Array.isArray(list)) setWorkspaces(list);
+        }
       })
       .catch(console.error)
       .finally(() => setLoading(false));
