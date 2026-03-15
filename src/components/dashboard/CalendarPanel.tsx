@@ -58,8 +58,8 @@ const EVENT_COLORS = [
 ];
 
 /* ─── Constants ─── */
-const GRID_START_HOUR = 7;
-const GRID_END_HOUR = 22;
+const GRID_START_HOUR = 0;
+const GRID_END_HOUR = 24;
 const ROW_HEIGHT = 44;
 
 const HOURS_LABELS: string[] = [];
@@ -1041,7 +1041,7 @@ export default function CalendarPanel() {
     const collapsedVisibleEvents = timedEvents.filter((e) => COLLAPSED_INDICES.includes(e.dayIndex));
     const collapsedAllDay = allDayEvents.filter((e) => COLLAPSED_INDICES.includes(e.dayIndex));
     const COLLAPSED_ROW_HEIGHT = 48;
-    const COLLAPSED_HOURS = HOURS_LABELS.slice(0, 9);
+    const COLLAPSED_HOURS = HOURS_LABELS.slice(7, 16); // 7am–3pm for compact view
 
     const collapsedCard = (
         <motion.div
@@ -1115,7 +1115,9 @@ export default function CalendarPanel() {
                     {collapsedVisibleEvents.map((event) => {
                         const relIdx = COLLAPSED_INDICES.indexOf(event.dayIndex);
                         if (relIdx < 0) return null;
-                        const topOffset = (event.startHour - GRID_START_HOUR) * COLLAPSED_ROW_HEIGHT + 2;
+                        const COLLAPSED_START_HOUR = 7;
+                        if (event.startHour + event.duration <= COLLAPSED_START_HOUR || event.startHour >= COLLAPSED_START_HOUR + COLLAPSED_HOURS.length) return null;
+                        const topOffset = (event.startHour - COLLAPSED_START_HOUR) * COLLAPSED_ROW_HEIGHT + 2;
                         const height = event.duration * COLLAPSED_ROW_HEIGHT - 4;
                         const colWidth = 100 / COLLAPSED_INDICES.length;
                         return (
