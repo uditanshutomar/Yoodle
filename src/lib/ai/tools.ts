@@ -10,6 +10,8 @@ import { searchFiles, listFiles, createGoogleDoc } from "@/lib/google/drive";
 import { searchContacts } from "@/lib/google/contacts";
 import { getDocContent, appendToDoc, findAndReplaceInDoc } from "@/lib/google/docs";
 import { readSheet, writeSheet, appendToSheet, createSpreadsheet, clearSheetRange } from "@/lib/google/sheets";
+import connectDB from "@/lib/infra/db/client";
+import AIMemory from "@/lib/infra/db/models/ai-memory";
 import { createLogger } from "@/lib/infra/logger";
 
 const log = createLogger("ai:tools");
@@ -674,6 +676,63 @@ export const WORKSPACE_TOOLS: FunctionDeclarationsTool = {
         required: ["query"],
       },
     },
+
+    // ── Memory ──────────────────────────────────────────────────────
+    {
+      name: "save_memory",
+      description:
+        "Silently save an important piece of context about the user. Use this whenever the user reveals a preference, relationship, habit, or important context. Do NOT tell the user you are saving a memory — just save it quietly.",
+      parameters: {
+        type: SchemaType.OBJECT,
+        properties: {
+          category: {
+            type: SchemaType.STRING,
+            description:
+              "Category of the memory: 'preference', 'context', 'task', 'relationship', or 'habit'.",
+          },
+          content: {
+            type: SchemaType.STRING,
+            description:
+              "What to remember, written as a concise fact. e.g. 'Prefers morning meetings', 'Manager is Sarah Chen'.",
+          },
+          confidence: {
+            type: SchemaType.NUMBER,
+            description:
+              "How confident this is worth saving, 0 to 1. Use 0.9+ for explicit statements, 0.6-0.8 for inferred context.",
+          },
+        },
+        required: ["category", "content", "confidence"],
+      },
+    },
+
+    // ── Pending Actions ─────────────────────────────────────────────
+    {
+      name: "propose_action",
+      description:
+        "Propose a write action for user review instead of executing it directly. Use this for ALL write operations: sending emails, creating/updating/deleting calendar events, creating/completing/deleting tasks, writing to docs/sheets, etc. The action will appear in the user's Actions panel where they can Accept, Deny, or request changes via AI.",
+      parameters: {
+        type: SchemaType.OBJECT,
+        properties: {
+          actionType: {
+            type: SchemaType.STRING,
+            description:
+              "The tool that would be called: 'send_email', 'reply_to_email', 'create_calendar_event', 'update_calendar_event', 'delete_calendar_event', 'create_task', 'complete_task', 'update_task', 'delete_task', 'append_to_doc', 'find_replace_in_doc', 'write_sheet', 'append_to_sheet', 'clear_sheet_range'.",
+          },
+          args: {
+            type: SchemaType.OBJECT,
+            description:
+              "The exact arguments that would be passed to the write tool. Must match the target tool's parameter schema.",
+            properties: {},
+          },
+          summary: {
+            type: SchemaType.STRING,
+            description:
+              "A one-line human-readable summary of the action, e.g. 'Reply to Sarah Chen re: Q2 budget — approved, discuss in 1:1'.",
+          },
+        },
+        required: ["actionType", "args", "summary"],
+      },
+    },
   ],
 };
 
@@ -1170,6 +1229,66 @@ export async function executeWorkspaceTool(
             phone: c.phone,
             organization: c.organization,
           })),
+        };
+      }
+
+      // ── Memory ────────────────────────────────────────────────
+      case "save_memory": {
+        await connectDB();
+
+        const category = args.category as string;
+        const content = args.content as string;
+        const confidence = args.confidence as number;
+
+        // Dedup: check if a similar memory already exists
+        const existing = await AIMemory.findOne({
+          userId,
+          category,
+          content: { $regex: content.slice(0, 30), $options: "i" },
+        });
+
+        if (existing) {
+          existing.content = content;
+          existing.confidence = confidence;
+          existing.updatedAt = new Date();
+          await existing.save();
+          return {
+            success: true,
+            summary: `Updated memory: ${content}`,
+          };
+        }
+
+        await AIMemory.create({
+          userId,
+          category,
+          content,
+          source: "chat",
+          confidence,
+        });
+
+        return {
+          success: true,
+          summary: `Saved memory: ${content}`,
+        };
+      }
+
+      // ── Pending Actions ───────────────────────────────────────
+      case "propose_action": {
+        // Don't execute anything — just return the proposal for the client to render
+        const actionType = args.actionType as string;
+        const actionArgs = args.args as Record<string, unknown>;
+        const summary = args.summary as string;
+
+        return {
+          success: true,
+          summary: `Proposed: ${summary}`,
+          data: {
+            pendingAction: true,
+            actionId: `action-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+            actionType,
+            args: actionArgs,
+            summary,
+          },
         };
       }
 

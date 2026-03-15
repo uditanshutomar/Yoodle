@@ -50,6 +50,10 @@ const TOOL_DISPLAY: Record<string, { label: string; icon: React.ElementType }> =
   clear_sheet_range: { label: "Clearing spreadsheet range", icon: FileText },
   // Contacts
   search_contacts: { label: "Searching contacts", icon: Users },
+  // Memory
+  save_memory: { label: "Saving context", icon: FileText },
+  // Pending Actions
+  propose_action: { label: "Proposing action", icon: CheckSquare },
 };
 
 function ToolCallIndicator({ toolCall }: { toolCall: ToolCall }) {
