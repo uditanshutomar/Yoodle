@@ -185,7 +185,7 @@ export default function TeamMap({ active }: TeamMapProps) {
       </div>
 
       {/* Map */}
-      <div className="h-[280px] relative">
+      <div style={{ height: 280, position: "relative" }}>
         <APIProvider apiKey={MAPS_API_KEY}>
           <Map
             defaultCenter={center}
@@ -193,8 +193,7 @@ export default function TeamMap({ active }: TeamMapProps) {
             disableDefaultUI={true}
             zoomControl={true}
             gestureHandling="greedy"
-            styles={MAP_STYLES}
-            className="w-full h-full"
+            style={{ width: "100%", height: "100%" }}
           >
             {/* Your location — yellow dot */}
             <Marker
