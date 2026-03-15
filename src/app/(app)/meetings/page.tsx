@@ -157,8 +157,16 @@ export default function MeetingsPage() {
   };
 
   // Split meetings into upcoming (scheduled/live) and past (ended/cancelled)
+  // Past meetings only show for 24 hours — after that they're only in Meeting History
   const upcoming = meetings.filter((m) => m.status === "scheduled" || m.status === "live");
-  const past = meetings.filter((m) => m.status === "ended" || m.status === "cancelled");
+  const now = Date.now();
+  const TWENTY_FOUR_HOURS = 24 * 60 * 60 * 1000;
+  const past = meetings.filter((m) => {
+    if (m.status !== "ended" && m.status !== "cancelled") return false;
+    const endTime = m.endedAt || m.startedAt || m.createdAt;
+    if (!endTime) return false;
+    return now - new Date(endTime).getTime() < TWENTY_FOUR_HOURS;
+  });
 
   return (
     <motion.div variants={containerVariants} initial="hidden" animate="visible" className="space-y-6">
@@ -200,7 +208,7 @@ export default function MeetingsPage() {
         <div className="flex items-center justify-center py-20">
           <motion.div animate={{ rotate: 360 }} transition={{ duration: 1, repeat: Infinity, ease: "linear" }} className="w-8 h-8 border-3 border-[#FFE600] border-t-transparent rounded-full" />
         </div>
-      ) : meetings.length === 0 ? (
+      ) : (upcoming.length === 0 && past.length === 0) ? (
         <motion.div variants={itemVariants}>
           <EmptyState
             title="No meetings yet"
