@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback, useRef } from "react";
+import { useEffect, useState, useCallback, useRef, useMemo } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { WifiOff, AlertTriangle } from "lucide-react";
@@ -81,14 +81,18 @@ export default function MeetingRoomPage() {
   const effectiveMediaError = mediaDeviceError || mediaError;
 
   // ── LiveKit transport ──────────────────────────────────────────────
-  const localUser = user
-    ? {
-        id: user.id,
-        name: user.name,
-        displayName: user.displayName || user.name,
-        avatar: user.avatar || undefined,
-      }
-    : { id: "local", name: "You", displayName: "You", avatar: undefined };
+  const localUser = useMemo(
+    () =>
+      user
+        ? {
+            id: user.id,
+            name: user.name,
+            displayName: user.displayName || user.name,
+            avatar: user.avatar || undefined,
+          }
+        : { id: "local", name: "You", displayName: "You", avatar: undefined },
+    [user],
+  );
 
   const [isScreenSharing, setIsScreenSharing] = useState(false);
 
