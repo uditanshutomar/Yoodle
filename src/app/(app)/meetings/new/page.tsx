@@ -254,32 +254,6 @@ export default function NewMeetingPage() {
         </h1>
       </div>
 
-      {/* Start Now — instant meeting */}
-      <Card className="!p-6">
-        <Button
-          variant="primary"
-          size="lg"
-          loading={startingNow}
-          onClick={handleStartNow}
-          className="w-full"
-          icon={Video}
-        >
-          Start Meeting Now
-        </Button>
-        <p className="text-xs text-center text-[#0A0A0A]/40 mt-2" style={{ fontFamily: "var(--font-body)" }}>
-          Creates an instant meeting{title.trim() ? "" : " titled \"Quick Meeting\""}
-        </p>
-      </Card>
-
-      {/* Divider */}
-      <div className="flex items-center gap-4">
-        <div className="flex-1 h-px bg-[#0A0A0A]/10" />
-        <span className="text-xs font-bold text-[#0A0A0A]/30" style={{ fontFamily: "var(--font-heading)" }}>
-          OR CUSTOMIZE
-        </span>
-        <div className="flex-1 h-px bg-[#0A0A0A]/10" />
-      </div>
-
       {/* Form */}
       <Card>
         <div className="space-y-5">
@@ -317,18 +291,19 @@ export default function NewMeetingPage() {
             </label>
             <div className="flex gap-3">
               <button
-                onClick={() => setScheduleMode("now")}
+                onClick={handleStartNow}
+                disabled={startingNow}
                 className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl border-2 font-bold text-sm transition-all cursor-pointer ${
-                  scheduleMode === "now"
-                    ? "border-[#0A0A0A] bg-[#FFE600] shadow-[3px_3px_0_#0A0A0A]"
-                    : "border-[#0A0A0A]/15 bg-white hover:border-[#0A0A0A]/30"
+                  startingNow
+                    ? "border-[#0A0A0A] bg-[#FFE600]/70 shadow-[3px_3px_0_#0A0A0A] opacity-70"
+                    : "border-[#0A0A0A] bg-[#FFE600] shadow-[3px_3px_0_#0A0A0A] hover:shadow-[1px_1px_0_#0A0A0A] hover:translate-x-[2px] hover:translate-y-[2px]"
                 }`}
                 style={{ fontFamily: "var(--font-heading)" }}
               >
-                <Video size={16} /> Now
+                <Video size={16} /> {startingNow ? "Starting..." : "Start Now"}
               </button>
               <button
-                onClick={() => setScheduleMode("later")}
+                onClick={() => setScheduleMode(scheduleMode === "later" ? "now" : "later")}
                 className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl border-2 font-bold text-sm transition-all cursor-pointer ${
                   scheduleMode === "later"
                     ? "border-[#0A0A0A] bg-[#FFE600] shadow-[3px_3px_0_#0A0A0A]"
@@ -336,7 +311,7 @@ export default function NewMeetingPage() {
                 }`}
                 style={{ fontFamily: "var(--font-heading)" }}
               >
-                <Clock size={16} /> Schedule
+                <Clock size={16} /> Schedule for Later
               </button>
             </div>
 
@@ -403,8 +378,15 @@ export default function NewMeetingPage() {
         </motion.div>
       )}
 
-      {/* Create button — for the form below */}
-      <Button variant="primary" size="lg" loading={loading} onClick={handleCreate} className="w-full" icon={Users}>
+      {/* Create button */}
+      <Button
+        variant="primary"
+        size="lg"
+        loading={scheduleMode === "now" ? startingNow : loading}
+        onClick={scheduleMode === "now" ? handleStartNow : handleCreate}
+        className="w-full"
+        icon={scheduleMode === "now" ? Video : Users}
+      >
         {scheduleMode === "now" ? "Create & Join Meeting" : "Schedule Meeting"}
       </Button>
     </motion.div>
