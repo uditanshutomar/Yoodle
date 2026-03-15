@@ -81,7 +81,7 @@ export function useSpeechToText(): UseSpeechToTextReturn {
         credentials: "include",
       });
       const json = await res.json();
-      apiKey = json.data?.key;
+      apiKey = (json.data?.key || "").trim();
       if (!apiKey) throw new Error("No key returned");
     } catch {
       toast.error("Could not connect to speech service");

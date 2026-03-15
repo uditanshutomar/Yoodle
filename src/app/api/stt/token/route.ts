@@ -15,7 +15,7 @@ export const POST = withHandler(async (req: NextRequest) => {
   await checkRateLimit(req, "ai");
   await getUserIdFromRequest(req); // Auth check
 
-  const apiKey = process.env.DEEPGRAM_API_KEY;
+  const apiKey = process.env.DEEPGRAM_API_KEY?.trim();
   if (!apiKey) {
     throw new Error("DEEPGRAM_API_KEY not configured");
   }
