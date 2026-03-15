@@ -41,7 +41,7 @@ export const POST = withHandler(async (req: NextRequest, context) => {
   const redis = getRedisClient();
   await redis.publish(
     `chat:${id}`,
-    JSON.stringify({ type: "typing", userId, userName: user.displayName })
+    JSON.stringify({ type: "typing", userId, name: user.displayName })
   );
 
   return successResponse({ ok: true });

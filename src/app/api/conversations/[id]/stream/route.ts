@@ -41,12 +41,25 @@ export async function GET(
           }
         }, 15000);
 
-        // Forward Redis messages as SSE events
+        // Forward Redis messages as typed SSE events
         subscriber.on("message", (_channel: string, message: string) => {
           try {
-            controller.enqueue(encoder.encode(`data: ${message}\n\n`));
+            const parsed = JSON.parse(message);
+            const eventType = parsed.type || "message";
+
+            // For "message" events, unwrap the data envelope so the
+            // client receives the ChatMsg directly
+            const payload =
+              eventType === "message" && parsed.data
+                ? JSON.stringify(parsed.data)
+                : message;
+
+            controller.enqueue(
+              encoder.encode(`event: ${eventType}\ndata: ${payload}\n\n`),
+            );
           } catch {
-            // Stream closed
+            // Forward raw if JSON parsing fails
+            controller.enqueue(encoder.encode(`data: ${message}\n\n`));
           }
         });
 

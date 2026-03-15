@@ -93,14 +93,16 @@ export const POST = withHandler(async (req: NextRequest, context) => {
     ).lean();
   }
 
-  // Publish to Redis
+  // Publish to Redis — format matches client expectation
   const redis = getRedisClient();
   await redis.publish(
     `chat:${id}`,
     JSON.stringify({
       type: "reaction",
       messageId,
-      reactions: updatedMessage!.reactions,
+      emoji,
+      userId,
+      action: existingReaction ? "remove" : "add",
     })
   );
 

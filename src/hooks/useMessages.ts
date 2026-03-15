@@ -80,7 +80,9 @@ export function useMessages(conversationId: string | null) {
         }
 
         if (fetched.length > 0) {
-          cursorRef.current = fetched[0]._id;
+          // API returns newest-first; use the oldest message ID as cursor
+          // so "load more" fetches messages before it
+          cursorRef.current = fetched[fetched.length - 1]._id;
         }
       } catch {
         // Silent fail
