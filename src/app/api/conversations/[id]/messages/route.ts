@@ -129,5 +129,13 @@ export const POST = withHandler(async (req: NextRequest, context) => {
     JSON.stringify({ type: "message", data: populated })
   );
 
+  // Fire-and-forget: trigger agent responses
+  const mentionsDoodle = content.toLowerCase().includes("@doodle");
+  if (mentionsDoodle || conversation.participants.some((p: any) => p.agentEnabled && p.userId.toString() !== userId)) {
+    import("@/lib/chat/agent-processor").then(({ processAgentResponses }) => {
+      processAgentResponses(id, { senderId: userId, content }).catch(() => {});
+    });
+  }
+
   return successResponse(populated);
 });
