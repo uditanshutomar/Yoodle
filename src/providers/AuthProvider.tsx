@@ -3,12 +3,15 @@
 import { createContext, useState, useEffect, useCallback, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 
+export type UserMode = "lockin" | "invisible" | "social";
+
 export interface AuthUser {
   id: string;
   name: string;
   displayName: string;
   email: string;
   avatar?: string | null;
+  mode?: UserMode;
   hasGoogleAccess?: boolean;
 }
 
@@ -53,6 +56,7 @@ export default function AuthProvider({ children }: { children: ReactNode }) {
             displayName: u.displayName,
             email: u.email,
             avatar: u.avatarUrl || null,
+            mode: u.mode || "social",
             hasGoogleAccess: !!u.hasGoogleAccess,
           });
         } else {

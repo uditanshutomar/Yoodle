@@ -19,6 +19,7 @@
     "@radix-ui/react-dropdown-menu": "^2.1.16",
     "@sentry/nextjs": "^10.42.0",
     "@types/ssh2": "^1.15.5",
+    "@vis.gl/react-google-maps": "^1.7.1",
     "@xterm/addon-fit": "^0.11.0",
     "@xterm/xterm": "^6.0.0",
     "bcryptjs": "^3.0.3",

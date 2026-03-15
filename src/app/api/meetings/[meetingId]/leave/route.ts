@@ -8,6 +8,10 @@ import { getUserIdFromRequest } from "@/lib/infra/auth/middleware";
 import { BadRequestError, NotFoundError } from "@/lib/infra/api/errors";
 import connectDB from "@/lib/infra/db/client";
 import Meeting from "@/lib/infra/db/models/meeting";
+import { updateEvent } from "@/lib/google/calendar";
+import { createLogger } from "@/lib/infra/logger";
+
+const log = createLogger("meetings:leave");
 
 // ── Helpers ─────────────────────────────────────────────────────────
 
@@ -80,20 +84,51 @@ export const POST = withHandler(async (req: NextRequest, context) => {
     throw new BadRequestError("Cannot leave this meeting.");
   }
 
-  // ── End meeting if host left and nobody else remains ──────────────
+  // ── Host succession or end meeting ──────────────────────────────────
   const isHost = result.hostId.toString() === userId;
-  if (isHost) {
-    const remainingParticipants = result.participants.filter(
-      (p) => p.userId.toString() !== userId && p.status === "joined",
+  const remainingParticipants = result.participants.filter(
+    (p) => p.userId.toString() !== userId && p.status === "joined",
+  );
+
+  if (remainingParticipants.length === 0) {
+    // Nobody left — end the meeting regardless of who left
+    const endedAt = new Date();
+
+    await Meeting.updateOne(
+      { _id: result._id, status: { $nin: ["ended", "cancelled"] } },
+      { $set: { status: "ended", endedAt } },
     );
 
-    if (remainingParticipants.length === 0) {
-      // Atomic — only transitions if still live/scheduled (idempotent)
-      await Meeting.updateOne(
-        { _id: result._id, status: { $nin: ["ended", "cancelled"] } },
-        { $set: { status: "ended", endedAt: new Date() } },
-      );
+    // Sync calendar event to actual meeting duration (rounded to 15-min slots)
+    if (result.calendarEventId) {
+      try {
+        const startTime = result.startedAt || result.scheduledAt || result.createdAt;
+        const actualMinutes = Math.max(1, (endedAt.getTime() - startTime.getTime()) / 60000);
+        const roundedMinutes = Math.max(15, Math.round(actualMinutes / 15) * 15);
+        const newEnd = new Date(startTime.getTime() + roundedMinutes * 60000);
+
+        await updateEvent(userId, result.calendarEventId, {
+          end: newEnd.toISOString(),
+        });
+      } catch (calErr) {
+        log.warn({ err: calErr }, "failed to sync calendar end time after meeting");
+      }
     }
+  } else if (isHost) {
+    // Host left but others remain — transfer host to the earliest-joined participant
+    const newHost = remainingParticipants.sort(
+      (a, b) => (a.joinedAt?.getTime() ?? 0) - (b.joinedAt?.getTime() ?? 0),
+    )[0];
+
+    await Meeting.updateOne(
+      { _id: result._id },
+      { $set: { hostId: newHost.userId } },
+    );
+
+    log.info(
+      { meetingId: result._id.toString(), newHostId: newHost.userId.toString() },
+      "host transferred after original host left",
+    );
   }
 
   // Fetch final state with populated fields

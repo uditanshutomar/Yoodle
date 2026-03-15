@@ -17,6 +17,7 @@ export interface GhostRoomData {
   participants: Map<string, GhostParticipant>;
   messages: GhostMessage[];
   notes: string;
+  meetingId?: string;
   expiresAt: Date;
 }
 
@@ -71,6 +72,7 @@ function toRoomData(doc: InstanceType<typeof GhostRoom>): GhostRoomData {
       type: m.type,
     })),
     notes: doc.notes,
+    meetingId: doc.meetingId || undefined,
     expiresAt: doc.expiresAt,
   };
 }

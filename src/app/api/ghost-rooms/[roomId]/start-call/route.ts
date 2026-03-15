@@ -1,0 +1,97 @@
+import { NextRequest } from "next/server";
+import mongoose from "mongoose";
+import { withHandler } from "@/lib/infra/api/with-handler";
+import { successResponse } from "@/lib/infra/api/response";
+import { checkRateLimit } from "@/lib/infra/api/rate-limit";
+import { getUserIdFromRequest } from "@/lib/infra/auth/middleware";
+import { NotFoundError, ForbiddenError } from "@/lib/infra/api/errors";
+import connectDB from "@/lib/infra/db/client";
+import GhostRoom from "@/lib/infra/db/models/ghost-room";
+import Meeting from "@/lib/infra/db/models/meeting";
+import { generateMeetingCode } from "@/lib/utils/id";
+import { createLogger } from "@/lib/infra/logger";
+
+const log = createLogger("api:ghost-start-call");
+
+/**
+ * POST /api/ghost-rooms/:roomId/start-call
+ *
+ * Creates a ghost-type meeting linked to the ghost room so participants
+ * can join a LiveKit A/V call. Recording & transcription are disabled
+ * by default for ghost meetings. If a call was already started (meetingId
+ * exists on the ghost room), the existing meetingId is returned.
+ */
+export const POST = withHandler(async (req: NextRequest, context) => {
+  await checkRateLimit(req, "general");
+  const userId = await getUserIdFromRequest(req);
+
+  const { roomId } = await context!.params;
+
+  await connectDB();
+
+  const ghostRoom = await GhostRoom.findOne({ roomId });
+  if (!ghostRoom) {
+    throw new NotFoundError("Ghost room not found or has expired.");
+  }
+
+  const isParticipant = ghostRoom.participants.some(
+    (p) => p.userId === userId,
+  );
+  if (!isParticipant) {
+    throw new ForbiddenError("You are not a participant in this ghost room.");
+  }
+
+  // If a meeting already exists for this ghost room, return it
+  if (ghostRoom.meetingId) {
+    const existing = await Meeting.findById(ghostRoom.meetingId);
+    if (existing && existing.status !== "ended" && existing.status !== "cancelled") {
+      return successResponse({
+        meetingId: existing._id.toString(),
+        code: existing.code,
+        alreadyStarted: true,
+      });
+    }
+  }
+
+  // Create a ghost-type meeting
+  const code = generateMeetingCode();
+  const participants = ghostRoom.participants.map((p) => ({
+    userId: new mongoose.Types.ObjectId(p.userId),
+    role: p.userId === ghostRoom.hostId ? ("host" as const) : ("participant" as const),
+    joinedAt: new Date(),
+    status: "joined" as const,
+  }));
+
+  const meeting = await Meeting.create({
+    code,
+    title: ghostRoom.title,
+    description: `Ghost room call — recording & transcription disabled until consensus.`,
+    hostId: new mongoose.Types.ObjectId(ghostRoom.hostId),
+    participants,
+    status: "live",
+    startedAt: new Date(),
+    type: "ghost",
+    settings: {
+      maxParticipants: 25,
+      allowRecording: false,
+      allowScreenShare: true,
+      waitingRoom: false,
+      muteOnJoin: false,
+    },
+  });
+
+  // Link meeting to ghost room
+  ghostRoom.meetingId = meeting._id.toString();
+  await ghostRoom.save();
+
+  log.info(
+    { roomId, meetingId: meeting._id.toString() },
+    "ghost room call started",
+  );
+
+  return successResponse({
+    meetingId: meeting._id.toString(),
+    code: meeting.code,
+    alreadyStarted: false,
+  });
+});

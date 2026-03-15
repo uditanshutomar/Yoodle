@@ -730,6 +730,11 @@ export const WORKSPACE_TOOLS: FunctionDeclarationsTool = {
             items: { type: SchemaType.STRING },
             description: "Email addresses of people to invite (optional). An email with the Yoodle link will be sent to them.",
           },
+          duration: {
+            type: SchemaType.NUMBER,
+            description:
+              "Meeting duration in minutes. Default: 10. Calendar rounds to 15-min slots (10→15, 20→15, 25→30). Common values: 10, 15, 30, 45, 60.",
+          },
           addToCalendar: {
             type: SchemaType.BOOLEAN,
             description:
@@ -1314,6 +1319,9 @@ export async function executeWorkspaceTool(
         const title = (args.title as string) || "Yoodle Meeting";
         const scheduledAt = args.scheduledAt as string | undefined;
         const attendeeEmails = (args.attendeeEmails as string[] | undefined) || [];
+        const rawDuration = (args.duration as number) || 10; // default 10 minutes
+        // Round to nearest 15-min slot (minimum 15)
+        const durationMin = Math.max(15, Math.round(rawDuration / 15) * 15);
         const addToCalendar = args.addToCalendar !== false; // default true
 
         // Create the Yoodle meeting in MongoDB
@@ -1325,6 +1333,7 @@ export async function executeWorkspaceTool(
           type: "regular",
           status: "scheduled",
           scheduledAt: scheduledAt ? new Date(scheduledAt) : undefined,
+          scheduledDuration: durationMin,
           participants: [
             {
               userId: new mongoose.Types.ObjectId(userId),
@@ -1350,7 +1359,7 @@ export async function executeWorkspaceTool(
         if (addToCalendar) {
           try {
             const startTime = scheduledAt || new Date().toISOString();
-            const endDate = new Date(new Date(startTime).getTime() + 30 * 60000);
+            const endDate = new Date(new Date(startTime).getTime() + durationMin * 60000);
             const event = await createEvent(userId, {
               title,
               start: startTime,
@@ -1361,6 +1370,11 @@ export async function executeWorkspaceTool(
               addMeetLink: false, // Yoodle link, NOT Google Meet
             });
             calendarEventId = event.id;
+            // Store calendar event ID on the meeting for later sync
+            await Meeting.updateOne(
+              { _id: meeting._id },
+              { $set: { calendarEventId: event.id } }
+            );
           } catch (calErr) {
             log.warn({ err: calErr }, "failed to create calendar event for yoodle meeting");
           }

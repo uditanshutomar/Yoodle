@@ -78,10 +78,17 @@ export const GET = withHandler(async (req: NextRequest) => {
       }
 
       // Update existing user with latest Google tokens and profile
+      // Respect the user's saved mode when setting login status:
+      //   lockin  → "dnd"     (do not disturb)
+      //   invisible → "offline" (appear offline to others)
+      //   social  → "online"  (visible)
+      const loginStatus =
+        user.mode === "lockin" ? "dnd" : user.mode === "invisible" ? "offline" : "online";
+
       const updateData: Record<string, unknown> = {
         googleId: profile.googleId,
         googleTokens: googleTokensData,
-        status: "online",
+        status: loginStatus,
         lastSeenAt: new Date(),
       };
 

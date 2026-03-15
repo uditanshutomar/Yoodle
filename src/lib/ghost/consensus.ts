@@ -52,17 +52,45 @@ export function checkConsensus(
 // ── Persist ghost data to MongoDB ─────────────────────────────────────
 
 /**
- * If all participants voted to save, persist the ghost room data
- * to MongoDB as a Meeting document with type "ghost".
+ * Persist ghost room data after unanimous consensus.
  *
- * Returns the created meeting's ID.
+ * If the ghost room has an active call (meetingId), convert that meeting
+ * from ghost → regular so recording/transcription unlock mid-call.
+ * Otherwise, create a new meeting document with the chat and notes.
  */
 export async function persistGhostData(
   roomData: GhostRoomData
 ): Promise<{ meetingId: string }> {
   await connectDB();
 
-  // Build participants array from the Map
+  const ghostMessages = roomData.messages.map((m) => ({
+    id: m.id,
+    senderId: m.senderId,
+    senderName: m.senderName,
+    content: m.content,
+    timestamp: m.timestamp,
+    type: m.type,
+  }));
+
+  // If a call is in progress, convert the existing meeting to regular
+  if (roomData.meetingId) {
+    await Meeting.updateOne(
+      { _id: new mongoose.Types.ObjectId(roomData.meetingId) },
+      {
+        $set: {
+          type: "regular",
+          "settings.allowRecording": true,
+          "settings.allowScreenShare": true,
+          ghostMessages,
+          ghostNotes: roomData.notes || undefined,
+          description: `Ghost room converted by consensus. ${roomData.messages.length} messages, ${roomData.participants.size} participants.`,
+        },
+      },
+    );
+    return { meetingId: roomData.meetingId };
+  }
+
+  // No active call — create a new meeting for persistence
   const participants = Array.from(roomData.participants.values()).map((p) => ({
     userId: new mongoose.Types.ObjectId(p.userId),
     role: p.userId === roomData.hostId ? ("host" as const) : ("participant" as const),
@@ -70,7 +98,6 @@ export async function persistGhostData(
     status: "joined" as const,
   }));
 
-  // Create the meeting document — including messages and notes!
   const meeting = await Meeting.create({
     code: roomData.code,
     title: roomData.title,
@@ -80,23 +107,15 @@ export async function persistGhostData(
     startedAt: roomData.createdAt,
     endedAt: new Date(),
     status: "ended",
-    type: "ghost",
+    type: "regular",
     settings: {
       maxParticipants: 25,
-      allowRecording: false,
-      allowScreenShare: false,
+      allowRecording: true,
+      allowScreenShare: true,
       waitingRoom: false,
       muteOnJoin: false,
     },
-    // Persist ghost-specific data that would otherwise be lost
-    ghostMessages: roomData.messages.map((m) => ({
-      id: m.id,
-      senderId: m.senderId,
-      senderName: m.senderName,
-      content: m.content,
-      timestamp: m.timestamp,
-      type: m.type,
-    })),
+    ghostMessages,
     ghostNotes: roomData.notes || undefined,
   });
 

@@ -27,6 +27,7 @@ export interface IGhostRoom extends Document {
   participants: IGhostParticipant[];
   messages: IGhostMessage[];
   notes: string;
+  meetingId?: string;
   expiresAt: Date;
   createdAt: Date;
   updatedAt: Date;
@@ -68,6 +69,7 @@ const ghostRoomSchema = new Schema<IGhostRoom>(
     participants: { type: [ghostParticipantSchema], default: [] },
     messages: { type: [ghostMessageSchema], default: [] },
     notes: { type: String, default: "" },
+    meetingId: { type: String },
     expiresAt: { type: Date, required: true },
   },
   {

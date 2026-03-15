@@ -34,6 +34,7 @@ export function useTranscription(
   isAudioEnabled: boolean,
   isLivekitConnected: boolean,
   isSpeaking: boolean,
+  enabled: boolean = true,
 ): UseTranscriptionReturn {
   const [transcriptText, setTranscriptText] = useState("");
   const [isTranscribing, setIsTranscribing] = useState(false);
@@ -155,7 +156,7 @@ export function useTranscription(
   // ── React to VAD isSpeaking changes ───────────────────────────────
 
   useEffect(() => {
-    if (!isLivekitConnected || !isAudioEnabled || !localStream || !userId) {
+    if (!enabled || !isLivekitConnected || !isAudioEnabled || !localStream || !userId) {
       isEnabledRef.current = false;
       stopAndFlush();
       queueMicrotask(() => {
@@ -186,6 +187,7 @@ export function useTranscription(
       // effect deps change (audio disabled, disconnected, etc.)
     };
   }, [
+    enabled,
     isSpeaking,
     isAudioEnabled,
     isLivekitConnected,

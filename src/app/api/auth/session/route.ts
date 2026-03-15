@@ -33,6 +33,7 @@ export const GET = withHandler(async (req: NextRequest) => {
     name: user.name,
     displayName: user.displayName,
     avatarUrl: user.avatarUrl,
+    mode: user.mode,
     status: user.status,
     location: user.location,
     preferences: user.preferences,

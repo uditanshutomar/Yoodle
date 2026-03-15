@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import Image from "next/image";
 import CalendarPanel from "./CalendarPanel";
@@ -8,6 +8,7 @@ import TasksPanel from "./TasksPanel";
 import MeetingHistory from "./MeetingHistory";
 import MeetingDetail from "./MeetingDetail";
 import { MeetingRecord } from "./meetingsData";
+import TeamMap from "./TeamMap";
 import { DoodleStar, DoodleSquiggle, DoodleSparkles } from "@/components/Doodles";
 import { useAuth } from "@/hooks/useAuth";
 import { useAIChat, ChatMessage } from "@/hooks/useAIChat";
@@ -17,7 +18,24 @@ import { useRouter } from "next/navigation";
 export default function Dashboard() {
     const { user } = useAuth();
     const router = useRouter();
-    const [mode, setMode] = useState<"lockin" | "invisible" | "social">("lockin");
+    const [mode, setMode] = useState<"lockin" | "invisible" | "social">(
+        (user?.mode as "lockin" | "invisible" | "social") || "social"
+    );
+    // Sync mode from server when user data loads
+    useEffect(() => {
+        if (user?.mode) setMode(user.mode as "lockin" | "invisible" | "social");
+    }, [user?.mode]);
+
+    const handleModeChange = useCallback((newMode: "lockin" | "invisible" | "social") => {
+        setMode(newMode);
+        fetch("/api/users/me", {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            credentials: "include",
+            body: JSON.stringify({ mode: newMode }),
+        }).catch(() => {});
+    }, []);
+
     const [joinCode, setJoinCode] = useState("");
     const [showMascotChat, setShowMascotChat] = useState(false);
     const [mascotMsg, setMascotMsg] = useState("");
@@ -165,7 +183,7 @@ export default function Dashboard() {
                             >
                                 <motion.button
                                     whileTap={{ scale: 0.9 }}
-                                    onClick={() => setMode("lockin")}
+                                    onClick={() => handleModeChange("lockin")}
                                     className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-bold transition-all ${mode === "lockin"
                                         ? "bg-[#FFE600] text-[#0A0A0A] shadow-[1px_1px_0_var(--border-strong)]"
                                         : "text-[var(--text-muted)] hover:text-[var(--text-secondary)]"
@@ -176,7 +194,7 @@ export default function Dashboard() {
                                 </motion.button>
                                 <motion.button
                                     whileTap={{ scale: 0.9 }}
-                                    onClick={() => setMode("invisible")}
+                                    onClick={() => handleModeChange("invisible")}
                                     className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-bold transition-all ${mode === "invisible"
                                         ? "bg-[var(--surface-hover)] text-[var(--text-primary)]"
                                         : "text-[var(--text-muted)] hover:text-[var(--text-secondary)]"
@@ -187,7 +205,7 @@ export default function Dashboard() {
                                 </motion.button>
                                 <motion.button
                                     whileTap={{ scale: 0.9 }}
-                                    onClick={() => setMode("social")}
+                                    onClick={() => handleModeChange("social")}
                                     className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-bold transition-all ${mode === "social"
                                         ? "bg-[#7C3AED] text-white shadow-[1px_1px_0_var(--border-strong)]"
                                         : "text-[var(--text-muted)] hover:text-[var(--text-secondary)]"
@@ -197,6 +215,11 @@ export default function Dashboard() {
                                     🌈 Social
                                 </motion.button>
                             </motion.div>
+                        </div>
+
+                        {/* Teammate Map — shows nearby teammates in social mode */}
+                        <div className="mb-6">
+                            <TeamMap active={mode === "social"} />
                         </div>
 
                         {/* Past meetings card */}

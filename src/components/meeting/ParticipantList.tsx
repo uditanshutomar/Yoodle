@@ -1,7 +1,7 @@
 "use client";
 
 import { motion, AnimatePresence } from "framer-motion";
-import { X, Mic, MicOff, Video, VideoOff, Crown, Monitor, Hand, UserX } from "lucide-react";
+import { X, Mic, MicOff, Video, VideoOff, Crown, Monitor, Hand, UserX, ShieldCheck } from "lucide-react";
 import Avatar from "@/components/ui/Avatar";
 
 interface ParticipantInfo {
@@ -22,10 +22,11 @@ interface ParticipantListProps {
   participants: ParticipantInfo[];
   speakingPeers: Set<string>;
   localUserId: string;
-  /** Whether the local user is the host (enables mute/kick controls) */
+  /** Whether the local user is the host (enables mute/kick/transfer controls) */
   isLocalHost?: boolean;
   onMuteParticipant?: (userId: string) => void;
   onKickParticipant?: (userId: string) => void;
+  onTransferHost?: (userId: string) => void;
 }
 
 export default function ParticipantList({
@@ -37,6 +38,7 @@ export default function ParticipantList({
   isLocalHost = false,
   onMuteParticipant,
   onKickParticipant,
+  onTransferHost,
 }: ParticipantListProps) {
   // Sort: host first, then hand raised, then rest
   const sortedParticipants = [...participants].sort((a, b) => {
@@ -178,6 +180,17 @@ export default function ParticipantList({
                     {/* Host controls — only show for non-local participants when local is host */}
                     {isLocalHost && !isLocal && (
                       <div className="hidden group-hover:flex items-center gap-1 ml-1">
+                        {onTransferHost && (
+                          <motion.button
+                            className="h-6 w-6 rounded-md border border-[#0A0A0A]/20 bg-[#0A0A0A]/5 flex items-center justify-center cursor-pointer"
+                            whileHover={{ scale: 1.15, backgroundColor: "#FFE60030" }}
+                            whileTap={{ scale: 0.9 }}
+                            onClick={() => onTransferHost(p.id)}
+                            title="Make host"
+                          >
+                            <ShieldCheck size={10} className="text-[#FFB800]" />
+                          </motion.button>
+                        )}
                         {p.isAudioEnabled && onMuteParticipant && (
                           <motion.button
                             className="h-6 w-6 rounded-md border border-[#0A0A0A]/20 bg-[#0A0A0A]/5 flex items-center justify-center cursor-pointer"

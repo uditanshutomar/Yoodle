@@ -80,6 +80,13 @@ export const POST = withHandler(
     const meeting = await Meeting.findOne(buildMeetingFilter(meetingId));
     if (!meeting) throw new NotFoundError("Meeting not found.");
 
+    // Ghost meetings cannot generate MoM unless converted to regular
+    if (meeting.type === "ghost") {
+      throw new BadRequestError(
+        "Minutes of Meeting cannot be generated for ghost rooms. All participants must vote to convert to a regular room first."
+      );
+    }
+
     // Fetch transcript for this meeting
     const { default: TranscriptModel } = await import(
       "@/lib/infra/db/models/transcript"

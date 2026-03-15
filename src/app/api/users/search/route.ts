@@ -48,7 +48,7 @@ export const GET = withHandler(async (req: NextRequest) => {
       { email: { $regex: escapedQuery, $options: "i" } },
     ],
   })
-    .select("name displayName email avatarUrl status")
+    .select("name displayName email avatarUrl status mode")
     .limit(limit)
     .lean();
 
@@ -58,7 +58,8 @@ export const GET = withHandler(async (req: NextRequest) => {
     displayName: user.displayName,
     // email deliberately excluded from public search results for privacy
     avatarUrl: user.avatarUrl || null,
-    status: user.status,
+    // Invisible mode: always show as "offline" to other users
+    status: user.mode === "invisible" ? "offline" : user.status,
   }));
 
   return successResponse(publicProfiles);

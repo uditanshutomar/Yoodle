@@ -1,15 +1,16 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useParams } from "next/navigation";
 import { motion } from "framer-motion";
-import { Ghost, ArrowLeft } from "lucide-react";
+import { Ghost, ArrowLeft, Video } from "lucide-react";
 import GhostRoomBanner from "@/components/ghost/GhostRoomBanner";
 import GhostChat from "@/components/ghost/GhostChat";
 import GhostShield from "@/components/ghost/GhostShield";
 import VoteToSave from "@/components/ghost/VoteToSave";
 import Button from "@/components/ui/Button";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useAuth } from "@/hooks/useAuth";
 
 interface GhostMessage {
@@ -30,10 +31,12 @@ interface GhostRoomDetail {
   messages: GhostMessage[];
   participants: { userId: string; name: string; displayName?: string; votedToSave: boolean }[];
   notes: string;
+  meetingId?: string;
 }
 
 export default function GhostRoomPage() {
   const params = useParams();
+  const router = useRouter();
   const roomId = params?.roomId as string;
   const { user } = useAuth();
 
@@ -42,6 +45,7 @@ export default function GhostRoomPage() {
   const [error, setError] = useState("");
   const [hasVoted, setHasVoted] = useState(false);
   const [actionError, setActionError] = useState("");
+  const [startingCall, setStartingCall] = useState(false);
 
   const fetchRoom = useCallback(async () => {
     if (!user || !roomId) return;
@@ -92,6 +96,38 @@ export default function GhostRoomPage() {
     }
   };
 
+  const [localNotes, setLocalNotes] = useState("");
+  const notesSyncTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const notesInitializedRef = useRef(false);
+
+  // Sync notes from server on first load or when room changes
+  useEffect(() => {
+    if (room?.notes !== undefined && !notesInitializedRef.current) {
+      setLocalNotes(room.notes);
+      notesInitializedRef.current = true;
+    }
+  }, [room?.notes]);
+
+  const syncNotesToServer = useCallback(
+    (notes: string) => {
+      if (!user || !roomId) return;
+      fetch(`/api/ghost-rooms/${roomId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ action: "updateNotes", notes }),
+      }).catch(() => {});
+    },
+    [user, roomId],
+  );
+
+  const handleNotesChange = (value: string) => {
+    setLocalNotes(value);
+    // Debounce: sync to server 800ms after user stops typing
+    if (notesSyncTimerRef.current) clearTimeout(notesSyncTimerRef.current);
+    notesSyncTimerRef.current = setTimeout(() => syncNotesToServer(value), 800);
+  };
+
   const handleVote = async () => {
     if (!user || !roomId) return;
     setActionError("");
@@ -109,6 +145,35 @@ export default function GhostRoomPage() {
       }
     } catch {
       setActionError("Failed to vote. Check your connection.");
+    }
+  };
+
+  const handleStartCall = async () => {
+    if (!user || !roomId) return;
+    setStartingCall(true);
+    setActionError("");
+    try {
+      const res = await fetch(`/api/ghost-rooms/${roomId}/start-call`, {
+        method: "POST",
+        credentials: "include",
+      });
+      const data = await res.json();
+      if (data.success && data.data?.meetingId) {
+        router.push(`/meetings/${data.data.meetingId}/room`);
+      } else {
+        setActionError(data.error || "Failed to start call.");
+        setStartingCall(false);
+      }
+    } catch {
+      setActionError("Failed to start call. Check your connection.");
+      setStartingCall(false);
+    }
+  };
+
+  // If ghost room already has an active call, allow joining it
+  const handleJoinCall = () => {
+    if (room?.meetingId) {
+      router.push(`/meetings/${room.meetingId}/room`);
     }
   };
 
@@ -169,6 +234,33 @@ export default function GhostRoomPage() {
 
           {/* Sidebar */}
           <div className="space-y-4">
+            {/* Start / Join Call */}
+            <div className="bg-[var(--surface)] border-2 border-[#7C3AED] rounded-2xl shadow-[4px_4px_0_#7C3AED] p-5">
+              {room.meetingId ? (
+                <button
+                  onClick={handleJoinCall}
+                  className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-[#7C3AED] text-white font-bold rounded-xl border-2 border-[#0A0A0A] shadow-[3px_3px_0_#0A0A0A] hover:translate-y-[1px] hover:shadow-[2px_2px_0_#0A0A0A] transition-all cursor-pointer"
+                  style={{ fontFamily: "var(--font-heading)" }}
+                >
+                  <Video size={18} />
+                  Join Active Call
+                </button>
+              ) : (
+                <button
+                  onClick={handleStartCall}
+                  disabled={startingCall}
+                  className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-[#7C3AED] text-white font-bold rounded-xl border-2 border-[#0A0A0A] shadow-[3px_3px_0_#0A0A0A] hover:translate-y-[1px] hover:shadow-[2px_2px_0_#0A0A0A] transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                  style={{ fontFamily: "var(--font-heading)" }}
+                >
+                  <Video size={18} />
+                  {startingCall ? "Starting Call..." : "Start Video Call"}
+                </button>
+              )}
+              <p className="text-[10px] text-[var(--text-muted)] mt-2 text-center">
+                Recording & transcription disabled in ghost mode
+              </p>
+            </div>
+
             {/* Vote to Save */}
             <VoteToSave
               roomId={roomId}
@@ -196,6 +288,23 @@ export default function GhostRoomPage() {
                   </div>
                 ))}
               </div>
+            </div>
+
+            {/* Shared Notes */}
+            <div className="bg-[var(--surface)] border-2 border-[#7C3AED] rounded-2xl shadow-[4px_4px_0_#7C3AED] p-5">
+              <h3 className="text-base font-bold text-[var(--text-primary)] mb-3" style={{ fontFamily: "var(--font-heading)" }}>
+                📝 Shared Notes
+              </h3>
+              <textarea
+                value={localNotes}
+                onChange={(e) => handleNotesChange(e.target.value)}
+                placeholder="Collaborative notes — everyone can edit. Auto-saves..."
+                className="w-full h-28 bg-[var(--surface-hover)] border border-[var(--border)] rounded-xl px-3 py-2 text-xs text-[var(--text-primary)] placeholder:text-[var(--text-muted)] outline-none resize-none focus:border-[#7C3AED] transition-colors"
+                style={{ fontFamily: "var(--font-body)" }}
+              />
+              <p className="text-[10px] text-[var(--text-muted)] mt-1">
+                Notes are saved if everyone votes to keep the room.
+              </p>
             </div>
 
             {/* Room Info */}

@@ -76,6 +76,7 @@ export const GET = withHandler(async (req: NextRequest, context) => {
         participants: participantsArray,
         messages: updatedRoom.messages,
         notes: updatedRoom.notes,
+        meetingId: updatedRoom.meetingId || null,
         votes: consensus,
       });
     }
@@ -97,6 +98,7 @@ export const GET = withHandler(async (req: NextRequest, context) => {
     participants: participantsArray,
     messages: room.messages,
     notes: room.notes,
+    meetingId: room.meetingId || null,
     votes: consensus,
   });
 });

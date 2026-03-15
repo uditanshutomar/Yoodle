@@ -18,6 +18,7 @@ const ParticipantList = dynamic(() => import("@/components/meeting/ParticipantLi
 const ReactionOverlay = dynamic(() => import("@/components/meeting/ReactionOverlay"), { ssr: false });
 const ReconnectionOverlay = dynamic(() => import("@/components/meeting/ReconnectionOverlay"), { ssr: false });
 const WaitingRoomPanel = dynamic(() => import("@/components/meeting/WaitingRoomPanel"), { ssr: false });
+const MeetingTimerBanner = dynamic(() => import("@/components/meeting/MeetingTimerBanner"), { ssr: false });
 import { toParticipant, type RoomParticipant } from "@/components/meeting/adapters";
 import { DoodleStar, DoodleSparkles } from "@/components/Doodles";
 import "./meeting.css";
@@ -30,6 +31,7 @@ import { useTranscription } from "@/hooks/useTranscription";
 import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
 import { useMutedWarning } from "@/hooks/useMutedWarning";
 import { useConnectionQuality } from "@/hooks/useConnectionQuality";
+import { useMeetingTimer } from "@/hooks/useMeetingTimer";
 import { useTransport } from "@/hooks/useTransport";
 import { useDataChannel } from "@/hooks/useDataChannel";
 import {
@@ -61,13 +63,45 @@ export default function MeetingRoomPage() {
     loadRoomJoinSession(meetingId),
   );
 
-  // ── Fetch meeting title for recording file names ───────────────────
+  // ── Fetch meeting title + scheduled duration + host (with polling for host changes) ──
   const [meetingTitle, setMeetingTitle] = useState("");
+  const [scheduledDuration, setScheduledDuration] = useState<number | undefined>();
+  const [meetingType, setMeetingType] = useState<string>("regular");
+  const [ghostConverted, setGhostConverted] = useState(false);
+  const [currentHostId, setCurrentHostId] = useState<string | null>(null);
+
   useEffect(() => {
-    fetch(`/api/meetings/${meetingId}`, { credentials: "include" })
-      .then((r) => r.json())
-      .then((d) => { if (d.success && d.data?.title) setMeetingTitle(d.data.title); })
-      .catch(() => {});
+    let active = true;
+
+    const fetchMeetingData = () => {
+      fetch(`/api/meetings/${meetingId}`, { credentials: "include" })
+        .then((r) => r.json())
+        .then((d) => {
+          if (!active) return;
+          if (d.success && d.data?.title) setMeetingTitle(d.data.title);
+          if (d.success && d.data?.scheduledDuration) setScheduledDuration(d.data.scheduledDuration);
+          if (d.success && d.data?.type) {
+            setMeetingType((prev) => {
+              if (prev === "ghost" && d.data.type === "regular") {
+                setGhostConverted(true);
+              }
+              return d.data.type;
+            });
+          }
+          // Track host — could be a populated object or plain ID
+          const hostId = d.data?.hostId?._id || d.data?.hostId;
+          if (hostId) setCurrentHostId(hostId.toString());
+        })
+        .catch(() => {});
+    };
+
+    fetchMeetingData();
+    // Poll every 5s to pick up host transfers
+    const interval = setInterval(fetchMeetingData, 5000);
+    return () => {
+      active = false;
+      clearInterval(interval);
+    };
   }, [meetingId]);
 
   // ── Bug #6 fix: media error state ──────────────────────────────────
@@ -161,19 +195,24 @@ export default function MeetingRoomPage() {
   const [isHandRaised, setIsHandRaised] = useState(false);
   const [showWaitingRoom, setShowWaitingRoom] = useState(false);
   const [waitingUsers, setWaitingUsers] = useState<WaitingUser[]>([]);
-  const isLocalHost = !!(user && roomSession && user.id === roomSession.hostUserId);
+  const isLocalHost = !!(user && (
+    currentHostId
+      ? user.id === currentHostId
+      : roomSession && user.id === roomSession.hostUserId
+  ));
   const reactionRef = useRef<((emoji: string, userName: string) => void) | null>(null);
   const [handRaisedUsers, setHandRaisedUsers] = useState<Set<string>>(new Set());
 
   // ── Bubble layout container measurement ─────────────────────────────
   const containerRef = useRef<HTMLDivElement>(null);
   const [containerSize, setContainerSize] = useState({ width: 0, height: 0 });
-  const joinTimeRef = useRef(0);
-  const [elapsedTime, setElapsedTime] = useState(0);
-
-  useEffect(() => {
-    joinTimeRef.current = Date.now();
-  }, []);
+  // ── Meeting timer with warning + extend support ──────────────────
+  const [timerDismissed, setTimerDismissed] = useState(false);
+  const meetingTimer = useMeetingTimer({
+    meetingId,
+    scheduledDuration,
+    onTimeWarning: () => setTimerDismissed(false), // re-show banner on each warning
+  });
 
   useEffect(() => {
     const el = containerRef.current;
@@ -186,20 +225,9 @@ export default function MeetingRoomPage() {
     return () => observer.disconnect();
   }, []);
 
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setElapsedTime(Math.floor((Date.now() - joinTimeRef.current) / 1000));
-    }, 1000);
-    return () => clearInterval(interval);
-  }, []);
 
-  const formatTime = (seconds: number) => {
-    const m = Math.floor(seconds / 60);
-    const s = seconds % 60;
-    return `${m}:${s.toString().padStart(2, "0")}`;
-  };
-
-  const canRecord = roomSession?.permissions.allowRecording ?? false;
+  const isGhostMeeting = meetingType === "ghost";
+  const canRecord = isGhostMeeting ? false : (roomSession?.permissions.allowRecording ?? false);
   const canScreenShare = roomSession?.permissions.allowScreenShare ?? true;
 
   // ── Chat hook ──────────────────────────────────────────────────────
@@ -262,6 +290,7 @@ export default function MeetingRoomPage() {
   useEffect(() => { handleStopRecordingRef.current = handleStopRecording; }, [handleStopRecording]);
 
   // ── Transcription hook (VAD-driven: records only while speaking) ────
+  // Disabled for ghost meetings — transcription only runs after consensus converts to regular
   useTranscription(
     localStream,
     meetingId,
@@ -270,6 +299,7 @@ export default function MeetingRoomPage() {
     isAudioEnabled,
     isLivekitConnected,
     isLocalSpeaking,
+    !isGhostMeeting,
   );
 
   // ── Build full participants list ─────────────────────────────────────
@@ -550,6 +580,26 @@ export default function MeetingRoomPage() {
     [isLocalHost, sendReliable],
   );
 
+  const handleTransferHost = useCallback(
+    async (targetUserId: string) => {
+      if (!isLocalHost) return;
+      try {
+        const res = await fetch(`/api/meetings/${meetingId}/transfer-host`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify({ newHostUserId: targetUserId }),
+        });
+        if (res.ok) {
+          setCurrentHostId(targetUserId);
+        }
+      } catch {
+        /* best-effort */
+      }
+    },
+    [isLocalHost, meetingId],
+  );
+
   // ── Waiting room controls ────────────────────────────────────────
 
   const handleAdmitUser = useCallback(
@@ -744,7 +794,9 @@ export default function MeetingRoomPage() {
             </span>
             <span className="text-[9px] sm:text-[11px] font-bold text-white" style={{ fontFamily: "var(--font-heading)" }}>LIVE</span>
           </div>
-          <span className="text-sm font-mono text-[#0A0A0A]/40">{formatTime(elapsedTime)}</span>
+          <span className={`text-sm font-mono ${meetingTimer.isOvertime ? "text-[#FF6B6B]" : meetingTimer.isWarningZone ? "text-[#FFB800]" : "text-[#0A0A0A]/40"}`}>
+            {meetingTimer.elapsedFormatted}
+          </span>
           {/* Transport mode indicator */}
           <span className="hidden sm:inline text-xs px-2 py-0.5 rounded-full border-2 border-black bg-[#FFE600]">
             SFU
@@ -786,6 +838,19 @@ export default function MeetingRoomPage() {
           )}
         </div>
       </motion.header>
+
+      {/* Timer warning banner — shows 1 min before end or when overtime */}
+      {!timerDismissed && (
+        <MeetingTimerBanner
+          remainingFormatted={meetingTimer.remainingFormatted}
+          remainingSeconds={meetingTimer.remainingSeconds}
+          isWarningZone={meetingTimer.isWarningZone}
+          isOvertime={meetingTimer.isOvertime}
+          isHost={isLocalHost}
+          onExtend={meetingTimer.extendMeeting}
+          onDismiss={() => setTimerDismissed(true)}
+        />
+      )}
 
       {/* Main content area */}
       <div ref={containerRef} className="relative z-10 flex-1 overflow-hidden">
@@ -864,6 +929,7 @@ export default function MeetingRoomPage() {
                 isLocalHost={isLocalHost}
                 onMuteParticipant={handleMuteParticipant}
                 onKickParticipant={handleKickParticipant}
+                onTransferHost={handleTransferHost}
               />
             </motion.div>
           )}
@@ -912,6 +978,28 @@ export default function MeetingRoomPage() {
             >
               🎤 You&apos;re muted — press D to unmute
             </span>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Ghost → Regular conversion toast */}
+      <AnimatePresence>
+        {ghostConverted && (
+          <motion.div
+            className="fixed top-20 left-1/2 z-[90] -translate-x-1/2 rounded-xl border-2 border-[#0A0A0A] bg-[#7C3AED] px-5 py-3 shadow-[3px_3px_0_#0A0A0A]"
+            initial={{ opacity: 0, y: -20, scale: 0.9 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -20, scale: 0.9 }}
+          >
+            <span className="text-sm font-bold text-white" style={{ fontFamily: "var(--font-heading)" }}>
+              Room converted to regular — recording & transcription now available
+            </span>
+            <button
+              className="ml-3 text-xs text-white/70 underline hover:text-white cursor-pointer"
+              onClick={() => setGhostConverted(false)}
+            >
+              Dismiss
+            </button>
           </motion.div>
         )}
       </AnimatePresence>

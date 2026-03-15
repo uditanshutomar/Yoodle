@@ -61,6 +61,8 @@ export interface IMeeting {
   scheduledAt?: Date;
   startedAt?: Date;
   endedAt?: Date;
+  scheduledDuration?: number; // in minutes — for calendar slot tracking
+  calendarEventId?: string; // Google Calendar event ID for syncing end time
   status: MeetingStatus;
   type: MeetingType;
   settings: IMeetingSettings;
@@ -167,6 +169,13 @@ const meetingSchema = new Schema<IMeetingDocument>(
     },
     endedAt: {
       type: Date,
+    },
+    scheduledDuration: {
+      type: Number,
+      min: 5,
+    },
+    calendarEventId: {
+      type: String,
     },
     status: {
       type: String,

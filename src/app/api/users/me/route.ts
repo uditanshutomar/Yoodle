@@ -45,6 +45,7 @@ export async function GET(request: NextRequest) {
       name: user.name,
       displayName: user.displayName,
       avatarUrl: user.avatarUrl,
+      mode: user.mode,
       status: user.status,
       location: user.location,
       preferences: user.preferences,
@@ -74,6 +75,7 @@ const updateProfileSchema = z.object({
     .url("Avatar URL must be a valid URL.")
     .optional()
     .nullable(),
+  mode: z.enum(["lockin", "invisible", "social"]).optional(),
   location: z
     .object({
       type: z.literal("Point"),
@@ -135,6 +137,28 @@ export async function PATCH(request: NextRequest) {
     if (updates.displayName !== undefined) {
       updateFields.displayName = updates.displayName;
     }
+    if (updates.mode !== undefined) {
+      updateFields.mode = updates.mode;
+
+      // Enforce mode behaviors on the server side:
+      //   lockin    → status "dnd", pause notifications
+      //   invisible → status "offline", clear shared location
+      //   social    → status "online", re-enable notifications
+      switch (updates.mode) {
+        case "lockin":
+          updateFields.status = "dnd";
+          updateFields["preferences.notifications"] = false;
+          break;
+        case "invisible":
+          updateFields.status = "offline";
+          unsetFields.location = 1;
+          break;
+        case "social":
+          updateFields.status = "online";
+          updateFields["preferences.notifications"] = true;
+          break;
+      }
+    }
     if (updates.avatarUrl !== undefined) {
       if (updates.avatarUrl === null) {
         unsetFields.avatarUrl = 1;
@@ -195,6 +219,7 @@ export async function PATCH(request: NextRequest) {
         name: updatedUser.name,
         displayName: updatedUser.displayName,
         avatarUrl: updatedUser.avatarUrl,
+        mode: updatedUser.mode,
         status: updatedUser.status,
         location: updatedUser.location,
         preferences: updatedUser.preferences,
