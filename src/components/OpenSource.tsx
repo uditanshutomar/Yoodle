@@ -4,7 +4,7 @@ import { motion } from "framer-motion";
 import { DoodleStar, DoodleLightning } from "./Doodles";
 
 const terminalLines = [
-  { type: "command", text: "$ git clone https://github.com/AarnaTechLabs/yoodle.git" },
+  { type: "command", text: "$ git clone https://github.com/uditanshutomar/Yoodle.git" },
   { type: "command", text: "$ cd yoodle" },
   { type: "command", text: "$ docker compose up -d" },
   { type: "output", text: "\uD83D\uDE80 Yoodle running at http://localhost:3000" },
@@ -194,7 +194,7 @@ export default function OpenSource() {
           transition={{ delay: 0.3 }}
         >
           <motion.a
-            href="https://github.com/AarnaTechLabs/yoodle"
+            href="https://github.com/uditanshutomar/Yoodle"
             target="_blank"
             rel="noopener noreferrer"
             className="inline-flex items-center gap-2.5 rounded-xl border-2 border-[#0A0A0A] bg-[#FFE600] px-8 py-3.5 text-base font-bold text-[#0A0A0A] shadow-[4px_4px_0_#0A0A0A] transition-shadow hover:shadow-[2px_2px_0_#0A0A0A]"
