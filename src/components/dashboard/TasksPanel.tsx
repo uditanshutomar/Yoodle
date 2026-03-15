@@ -144,6 +144,18 @@ function ActionCard({
         </div>
       )}
 
+      {/* Success state */}
+      {action.status === "confirmed" && (
+        <div className="flex items-center gap-2 mt-2 ml-6">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#22C55E" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="20 6 9 17 4 12" />
+          </svg>
+          <span className="text-[10px] font-semibold text-[#22C55E]">
+            {action.result || "Done"}
+          </span>
+        </div>
+      )}
+
       {/* Edit input */}
       <AnimatePresence>
         {showEdit && action.status === "pending" && (

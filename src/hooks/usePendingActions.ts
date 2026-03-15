@@ -22,24 +22,30 @@ export function usePendingActions() {
   }, []);
 
   const confirmAction = useCallback(async (actionId: string) => {
+    // Read the action from state via the setter to avoid stale closures
+    let actionSnapshot: PendingAction | undefined;
     setActions((prev) => {
-      const action = prev.find((a) => a.actionId === actionId);
-      if (!action) return prev;
+      actionSnapshot = prev.find((a) => a.actionId === actionId);
+      if (!actionSnapshot) return prev;
       return prev.map((a) => (a.actionId === actionId ? { ...a, status: "confirming" as const } : a));
     });
 
-    const action = actions.find((a) => a.actionId === actionId);
-    if (!action) return;
+    // Wait a tick for the setter to run, then use the snapshot
+    await new Promise((r) => setTimeout(r, 0));
+    if (!actionSnapshot) return;
 
     try {
       const res = await fetch("/api/ai/action/confirm", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({ actionType: action.actionType, args: action.args }),
+        body: JSON.stringify({ actionType: actionSnapshot.actionType, args: actionSnapshot.args }),
       });
 
       const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data?.message || "Confirm failed");
+      }
       setActions((prev) =>
         prev.map((a) =>
           a.actionId === actionId
@@ -52,7 +58,7 @@ export function usePendingActions() {
         prev.map((a) => (a.actionId === actionId ? { ...a, status: "pending" as const } : a))
       );
     }
-  }, [actions]);
+  }, []);
 
   const denyAction = useCallback((actionId: string) => {
     setActions((prev) =>
@@ -62,12 +68,15 @@ export function usePendingActions() {
 
   const reviseAction = useCallback(
     async (actionId: string, userFeedback: string) => {
-      const action = actions.find((a) => a.actionId === actionId);
-      if (!action) return;
+      let actionSnapshot: PendingAction | undefined;
+      setActions((prev) => {
+        actionSnapshot = prev.find((a) => a.actionId === actionId);
+        if (!actionSnapshot) return prev;
+        return prev.map((a) => (a.actionId === actionId ? { ...a, status: "revising" as const } : a));
+      });
 
-      setActions((prev) =>
-        prev.map((a) => (a.actionId === actionId ? { ...a, status: "revising" as const } : a))
-      );
+      await new Promise((r) => setTimeout(r, 0));
+      if (!actionSnapshot) return;
 
       try {
         const res = await fetch("/api/ai/action/revise", {
@@ -75,9 +84,9 @@ export function usePendingActions() {
           headers: { "Content-Type": "application/json" },
           credentials: "include",
           body: JSON.stringify({
-            actionType: action.actionType,
-            args: action.args,
-            summary: action.summary,
+            actionType: actionSnapshot.actionType,
+            args: actionSnapshot.args,
+            summary: actionSnapshot.summary,
             userFeedback,
           }),
         });
@@ -108,14 +117,28 @@ export function usePendingActions() {
         );
       }
     },
-    [actions]
+    []
   );
 
   const clearResolved = useCallback(() => {
     setActions((prev) => prev.filter((a) => a.status === "pending" || a.status === "confirming" || a.status === "revising"));
   }, []);
 
-  const pendingActions = actions.filter((a) => a.status !== "confirmed" && a.status !== "denied");
+  // Show confirmed/denied cards briefly (2s) before removing them
+  const pendingActions = actions.filter((a) => a.status !== "denied");
 
-  return { actions, pendingActions, addAction, confirmAction, denyAction, reviseAction, clearResolved };
+  // Auto-clear confirmed actions after 2 seconds
+  const autoCleanConfirmed = useCallback((actionId: string) => {
+    setTimeout(() => {
+      setActions((prev) => prev.filter((a) => a.actionId !== actionId));
+    }, 2000);
+  }, []);
+
+  // Wrap confirmAction to auto-clear after success
+  const confirmAndClear = useCallback(async (actionId: string) => {
+    await confirmAction(actionId);
+    autoCleanConfirmed(actionId);
+  }, [confirmAction, autoCleanConfirmed]);
+
+  return { actions, pendingActions, addAction, confirmAction: confirmAndClear, denyAction, reviseAction, clearResolved };
 }
