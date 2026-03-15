@@ -4,6 +4,7 @@ import Conversation from "@/lib/infra/db/models/conversation";
 import User from "@/lib/infra/db/models/user";
 import { getRedisClient } from "@/lib/infra/redis/client";
 import { createLogger } from "@/lib/infra/logger";
+import { toClientMessage } from "@/lib/chat/message-transform";
 import mongoose from "mongoose";
 import type Redis from "ioredis";
 
@@ -183,7 +184,7 @@ async function saveAndPublishAgentMessage(
 
   await redis.publish(
     `chat:${conversationId}`,
-    JSON.stringify({ type: "message", data: populated })
+    JSON.stringify({ type: "message", data: toClientMessage(populated) })
   );
 }
 

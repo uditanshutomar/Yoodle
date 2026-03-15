@@ -9,6 +9,7 @@ import connectDB from "@/lib/infra/db/client";
 import Conversation from "@/lib/infra/db/models/conversation";
 import DirectMessage from "@/lib/infra/db/models/direct-message";
 import { getRedisClient } from "@/lib/infra/redis/client";
+import { toClientMessage } from "@/lib/chat/message-transform";
 
 // -- GET /api/conversations/[id]/messages ------------------------------------
 
@@ -59,7 +60,7 @@ export const GET = withHandler(async (req: NextRequest, context) => {
     })
     .lean();
 
-  return successResponse({ messages });
+  return successResponse({ messages: messages.map(toClientMessage) });
 });
 
 // -- POST /api/conversations/[id]/messages -----------------------------------
@@ -122,11 +123,13 @@ export const POST = withHandler(async (req: NextRequest, context) => {
     })
     .lean();
 
+  const clientMessage = toClientMessage(populated);
+
   // Publish to Redis for real-time delivery
   const redis = getRedisClient();
   await redis.publish(
     `chat:${id}`,
-    JSON.stringify({ type: "message", data: populated })
+    JSON.stringify({ type: "message", data: clientMessage })
   );
 
   // Fire-and-forget: trigger agent responses
@@ -137,5 +140,5 @@ export const POST = withHandler(async (req: NextRequest, context) => {
     });
   }
 
-  return successResponse(populated);
+  return successResponse(clientMessage);
 });
