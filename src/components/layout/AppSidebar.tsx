@@ -9,6 +9,7 @@ import {
   Ghost,
   Terminal,
   Sparkles,
+  MessageSquare,
   Settings,
   LogOut,
   Menu,
@@ -18,9 +19,11 @@ import { useState } from "react";
 import { YoodleMascotSmall } from "../YoodleMascot";
 import Avatar from "../ui/Avatar";
 import { useAuth } from "@/hooks/useAuth";
+import { useTotalUnread } from "@/hooks/useTotalUnread";
 
 const navItems = [
   { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
+  { label: "Messages", href: "/messages", icon: MessageSquare },
   { label: "Meetings", href: "/meetings", icon: Video },
   { label: "Ghost Rooms", href: "/ghost-rooms", icon: Ghost },
   { label: "Workspaces", href: "/workspaces", icon: Terminal },
@@ -31,6 +34,7 @@ const navItems = [
 export default function AppSidebar() {
   const pathname = usePathname();
   const { user, logout } = useAuth();
+  const { totalUnread } = useTotalUnread();
   const [mobileOpen, setMobileOpen] = useState(false);
 
   const isActive = (href: string) => {
@@ -78,7 +82,12 @@ export default function AppSidebar() {
                 className={active ? "text-[var(--text-primary)]" : "text-[var(--text-muted)] group-hover:text-[var(--text-primary)]"}
               />
               {item.label}
-              {active && (
+              {item.label === "Messages" && totalUnread > 0 && (
+                <span className="ml-auto flex h-5 min-w-5 items-center justify-center rounded-full bg-[#FFE600] px-1.5 text-[10px] font-black text-[#0A0A0A] border border-[#0A0A0A] tabular-nums">
+                  {totalUnread > 99 ? "99+" : totalUnread}
+                </span>
+              )}
+              {active && !(item.label === "Messages" && totalUnread > 0) && (
                 <motion.div
                   layoutId="sidebar-active"
                   className="ml-auto h-1.5 w-1.5 rounded-full bg-[#FFE600]"
