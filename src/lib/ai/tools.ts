@@ -12,6 +12,9 @@ import { getDocContent, appendToDoc, findAndReplaceInDoc } from "@/lib/google/do
 import { readSheet, writeSheet, appendToSheet, createSpreadsheet, clearSheetRange } from "@/lib/google/sheets";
 import connectDB from "@/lib/infra/db/client";
 import AIMemory from "@/lib/infra/db/models/ai-memory";
+import Meeting from "@/lib/infra/db/models/meeting";
+import { generateMeetingCode } from "@/lib/utils/id";
+import mongoose from "mongoose";
 import { createLogger } from "@/lib/infra/logger";
 
 const log = createLogger("ai:tools");
@@ -705,6 +708,38 @@ export const WORKSPACE_TOOLS: FunctionDeclarationsTool = {
       },
     },
 
+    // ── Yoodle Meetings ────────────────────────────────────────────
+    {
+      name: "create_yoodle_meeting",
+      description:
+        "Create a Yoodle meeting room and return the join link. Use this WHENEVER the user asks to send a meeting link, schedule a meeting, or start a video call. ALWAYS use Yoodle meetings (not Google Meet) unless the user explicitly says 'Google Meet'. The returned link is a real Yoodle room link.",
+      parameters: {
+        type: SchemaType.OBJECT,
+        properties: {
+          title: {
+            type: SchemaType.STRING,
+            description: "Meeting title (e.g. 'Quick Sync with Sukriti').",
+          },
+          scheduledAt: {
+            type: SchemaType.STRING,
+            description:
+              "When the meeting is scheduled for, in ISO 8601 format. Omit for an instant meeting.",
+          },
+          attendeeEmails: {
+            type: SchemaType.ARRAY,
+            items: { type: SchemaType.STRING },
+            description: "Email addresses of people to invite (optional). An email with the Yoodle link will be sent to them.",
+          },
+          addToCalendar: {
+            type: SchemaType.BOOLEAN,
+            description:
+              "Whether to also create a Google Calendar event with the Yoodle link. Default: true.",
+          },
+        },
+        required: ["title"],
+      },
+    },
+
     // ── Pending Actions ─────────────────────────────────────────────
     {
       name: "propose_action",
@@ -716,7 +751,7 @@ export const WORKSPACE_TOOLS: FunctionDeclarationsTool = {
           actionType: {
             type: SchemaType.STRING,
             description:
-              "The tool that would be called: 'send_email', 'reply_to_email', 'create_calendar_event', 'update_calendar_event', 'delete_calendar_event', 'create_task', 'complete_task', 'update_task', 'delete_task', 'append_to_doc', 'find_replace_in_doc', 'write_sheet', 'append_to_sheet', 'clear_sheet_range'.",
+              "The tool that would be called: 'send_email', 'reply_to_email', 'create_yoodle_meeting', 'create_calendar_event', 'update_calendar_event', 'delete_calendar_event', 'create_task', 'complete_task', 'update_task', 'delete_task', 'append_to_doc', 'find_replace_in_doc', 'write_sheet', 'append_to_sheet', 'clear_sheet_range'.",
           },
           args: {
             type: SchemaType.OBJECT,
@@ -1269,6 +1304,95 @@ export async function executeWorkspaceTool(
         return {
           success: true,
           summary: `Saved memory: ${content}`,
+        };
+      }
+
+      // ── Yoodle Meetings ──────────────────────────────────────
+      case "create_yoodle_meeting": {
+        await connectDB();
+
+        const title = (args.title as string) || "Yoodle Meeting";
+        const scheduledAt = args.scheduledAt as string | undefined;
+        const attendeeEmails = (args.attendeeEmails as string[] | undefined) || [];
+        const addToCalendar = args.addToCalendar !== false; // default true
+
+        // Create the Yoodle meeting in MongoDB
+        const code = generateMeetingCode();
+        const meeting = await Meeting.create({
+          code,
+          title,
+          hostId: new mongoose.Types.ObjectId(userId),
+          type: "regular",
+          status: "scheduled",
+          scheduledAt: scheduledAt ? new Date(scheduledAt) : undefined,
+          participants: [
+            {
+              userId: new mongoose.Types.ObjectId(userId),
+              role: "host",
+              status: "joined",
+              joinedAt: new Date(),
+            },
+          ],
+          settings: {
+            maxParticipants: 25,
+            allowRecording: true,
+            allowScreenShare: true,
+            waitingRoom: false,
+            muteOnJoin: false,
+          },
+        });
+
+        const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || process.env.NEXTAUTH_URL || "http://localhost:3000";
+        const yoodleLink = `${baseUrl}/meetings/${code}/room`;
+
+        // Optionally add to Google Calendar with Yoodle link (not Google Meet)
+        let calendarEventId: string | undefined;
+        if (addToCalendar) {
+          try {
+            const startTime = scheduledAt || new Date().toISOString();
+            const endDate = new Date(new Date(startTime).getTime() + 30 * 60000);
+            const event = await createEvent(userId, {
+              title,
+              start: startTime,
+              end: endDate.toISOString(),
+              description: `Join Yoodle meeting: ${yoodleLink}`,
+              attendees: attendeeEmails.length > 0 ? attendeeEmails : undefined,
+              location: yoodleLink,
+              addMeetLink: false, // Yoodle link, NOT Google Meet
+            });
+            calendarEventId = event.id;
+          } catch (calErr) {
+            log.warn({ err: calErr }, "failed to create calendar event for yoodle meeting");
+          }
+        }
+
+        // Send invite email if attendees provided
+        let emailSent = false;
+        if (attendeeEmails.length > 0) {
+          try {
+            await sendEmail(userId, {
+              to: attendeeEmails,
+              subject: `Meeting invite: ${title}`,
+              body: `You're invited to a Yoodle meeting!\n\nTitle: ${title}\n${scheduledAt ? `When: ${new Date(scheduledAt).toLocaleString()}\n` : ""}Join here: ${yoodleLink}\n\nSee you there!`,
+            });
+            emailSent = true;
+          } catch (emailErr) {
+            log.warn({ err: emailErr }, "failed to send meeting invite email");
+          }
+        }
+
+        const attendeeStr = attendeeEmails.length > 0 ? ` — invited ${attendeeEmails.join(", ")}` : "";
+        return {
+          success: true,
+          summary: `Created Yoodle meeting "${title}"${attendeeStr}${calendarEventId ? " + added to calendar" : ""}${emailSent ? " + email sent" : ""}`,
+          data: {
+            meetingId: meeting._id.toString(),
+            code,
+            title,
+            yoodleLink,
+            calendarEventId,
+            emailSent,
+          },
         };
       }
 
