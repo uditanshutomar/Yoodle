@@ -65,7 +65,7 @@ export const GET = withHandler(async (req: NextRequest, context) => {
       if (mediaType === "images" && !isImage) continue;
       if (mediaType === "links" && isImage) continue;
 
-      const sender = msg.senderId as any;
+      const sender = msg.senderId as unknown as { displayName?: string; name?: string; avatarUrl?: string };
       items.push({
         url,
         messageId: (msg._id as mongoose.Types.ObjectId).toString(),

@@ -159,7 +159,7 @@ export const POST = withHandler(async (req: NextRequest, context) => {
             `**Summary:** ${mom.summary}`,
             mom.keyDecisions?.length ? `\n**Key Decisions:**\n${mom.keyDecisions.map((d: string) => `- ${d}`).join("\n")}` : "",
             mom.discussionPoints?.length ? `\n**Discussion Points:**\n${mom.discussionPoints.map((d: string) => `- ${d}`).join("\n")}` : "",
-            mom.actionItems?.length ? `\n**Action Items:**\n${mom.actionItems.map((a: any) => `- ${a.task} → ${a.owner} (${a.due})`).join("\n")}` : "",
+            mom.actionItems?.length ? `\n**Action Items:**\n${mom.actionItems.map((a: { task: string; owner: string; due: string }) => `- ${a.task} → ${a.owner} (${a.due})`).join("\n")}` : "",
             mom.nextSteps?.length ? `\n**Next Steps:**\n${mom.nextSteps.map((s: string) => `- ${s}`).join("\n")}` : "",
           ].filter(Boolean).join("\n");
 

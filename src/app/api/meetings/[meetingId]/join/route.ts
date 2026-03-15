@@ -17,32 +17,40 @@ import { createLogger } from "@/lib/infra/logger";
 
 const chatLog = createLogger("meetings:chat-link");
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function ensureMeetingConversation(meetingId: string, meeting: any) {
   try {
     let conv = await Conversation.findOne({ meetingId: new mongoose.Types.ObjectId(meetingId) });
     if (!conv) {
       const participants = meeting.participants
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         .filter((p: any) => p.status === "joined" || p.status === "invited")
-        .map((p: any) => ({
-          userId: p.userId._id || p.userId,
-          role: (p.userId._id || p.userId).toString() === (meeting.hostId._id || meeting.hostId).toString() ? "admin" as const : "member" as const,
-          agentEnabled: false,
-          muted: false,
-        }));
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        .map((p: any) => {
+          const uid = p.userId?._id || p.userId;
+          return {
+            userId: uid instanceof mongoose.Types.ObjectId ? uid : new mongoose.Types.ObjectId(uid.toString()),
+            role: uid.toString() === (meeting.hostId?._id || meeting.hostId).toString() ? "admin" as const : "member" as const,
+            agentEnabled: false,
+            muted: false,
+          };
+        });
 
       if (participants.length < 2) return;
 
+      const hostId = meeting.hostId?._id || meeting.hostId;
+
       conv = await Conversation.create({
         type: "group",
-        name: `Meeting: ${meeting.title || meeting.code}`,
+        name: `Meeting: ${(meeting.title as string) || (meeting.code as string)}`,
         participants,
         meetingId: new mongoose.Types.ObjectId(meetingId),
-        createdBy: meeting.hostId._id || meeting.hostId,
+        createdBy: hostId,
       });
 
       const msg = await DirectMessage.create({
         conversationId: conv._id,
-        senderId: meeting.hostId._id || meeting.hostId,
+        senderId: hostId,
         senderType: "user",
         content: "Meeting started — this group chat was created automatically.",
         type: "system",
