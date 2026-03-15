@@ -7,7 +7,7 @@ https://yoodle.vercel.app/
 ## Features
 
 ### Crystal Calls
-Real-time video and audio conferencing powered by WebRTC with Socket.io signaling. Supports screen sharing, in-meeting chat, emoji reactions, voice activity detection, and configurable room settings (waiting room, mute on join, max participants).
+Real-time video and audio conferencing powered by LiveKit. Supports screen sharing, in-meeting chat, emoji reactions, hand raise, voice activity detection, recording with tab audio capture, and configurable room settings (waiting room, mute on join, max participants). All real-time signaling runs over LiveKit data channels — no separate server needed.
 
 ### Doodle AI Assistant
 An integrated AI assistant powered by Google Gemini that generates meeting prep notes, auto-summarizes meetings into structured minutes (key points, decisions, action items), assists with writing and proofreading, and manages tasks. Doodle maintains per-user memory and supports agent-to-agent collaboration.
@@ -19,7 +19,7 @@ Ephemeral brainstorming spaces that auto-delete after a configurable TTL. Partic
 Team collaboration spaces with provisioned cloud VMs via Vultr. Includes a browser-based SSH terminal (xterm + SSH2), member role management (owner, admin, member), and auto-shutdown settings to control costs.
 
 ### Recordings & Transcription
-Record meetings with automatic AI transcription featuring speaker identification. Generates structured meeting minutes with summaries, decisions, and action items. Recordings are stored directly in each user's Google Drive.
+Record meetings with automatic AI transcription featuring speaker identification. Tab audio capture ensures system audio is recorded alongside microphone input. Generates structured meeting minutes with summaries, decisions, and action items. Recordings are stored directly in each user's Google Drive.
 
 ### Google Workspace Integration
 Full read/write access to Gmail, Google Calendar, Drive, Docs, Sheets, Tasks, and Contacts through the Doodle AI assistant.
@@ -31,10 +31,9 @@ Full read/write access to Gmail, Google Calendar, Drive, Docs, Sheets, Tasks, an
 | Framework | Next.js 15 (App Router, React 19) |
 | Language | TypeScript 5 |
 | Database | MongoDB (Mongoose) |
-| Real-time | Socket.io (WebRTC signaling) |
-| Auth | JWT + Magic Links + Google OAuth 2.0 |
+| Real-time | LiveKit (media + data channels) |
+| Auth | JWT + Google OAuth 2.0 |
 | AI | Google Gemini 2.0 Flash |
-| Voice | ElevenLabs |
 | Styling | Tailwind CSS 4 |
 | UI | Radix UI, Framer Motion, Lucide Icons |
 | Email | Resend |
@@ -42,6 +41,7 @@ Full read/write access to Gmail, Google Calendar, Drive, Docs, Sheets, Tasks, an
 | Storage | Google Drive (per-user recordings) |
 | Terminal | SSH2 + xterm |
 | Validation | Zod |
+| Testing | Vitest, Playwright |
 
 ## Getting Started
 
@@ -49,6 +49,7 @@ Full read/write access to Gmail, Google Calendar, Drive, Docs, Sheets, Tasks, an
 
 - Node.js 18+
 - MongoDB instance
+- LiveKit server (cloud or self-hosted)
 - Google Gemini API key
 
 ### Installation
@@ -61,7 +62,7 @@ npm install
 
 ### Environment Variables
 
-Create a `.env.local` file in the project root:
+Create a `.env.local` file in the project root. See `.env.example` for the full list. Key variables:
 
 ```env
 # Database (required)
@@ -69,11 +70,16 @@ MONGODB_URI=mongodb://localhost:27017/yoodle
 
 # Authentication (required)
 JWT_SECRET=your-jwt-secret-minimum-64-characters-long
+JWT_REFRESH_SECRET=your-jwt-refresh-secret-here
+
 # Application (required)
 NEXT_PUBLIC_APP_URL=http://localhost:3000
-NEXT_PUBLIC_REALTIME_URL=http://localhost:4001
-NEXT_PUBLIC_REALTIME_PATH=/api/socketio
-REALTIME_JWT_SECRET=use-a-separate-secret-or-reuse-jwt-secret
+
+# LiveKit (required for video calls)
+LIVEKIT_URL=ws://localhost:7880
+LIVEKIT_API_KEY=your-livekit-api-key
+LIVEKIT_API_SECRET=your-livekit-api-secret
+NEXT_PUBLIC_LIVEKIT_URL=ws://localhost:7880
 
 # AI (required)
 GEMINI_API_KEY=your-gemini-api-key
@@ -82,46 +88,28 @@ GEMINI_API_KEY=your-gemini-api-key
 GOOGLE_CLIENT_ID=your-google-client-id
 GOOGLE_CLIENT_SECRET=your-google-client-secret
 
-# Voice / TTS (optional)
-ELEVENLABS_API_KEY=your-elevenlabs-api-key
-
-# Cloud infrastructure (optional - needed for workspaces)
-VULTR_API_KEY=your-vultr-api-key
-VULTR_SSH_KEY_ID=your-vultr-ssh-key-id
-
 # Email (optional - falls back to console logging)
 RESEND_API_KEY=your-resend-api-key
-EMAIL_FROM=noreply@yourdomain.com
-
-# WebRTC TURN server (optional)
-TURN_SERVER_URL=your-turn-server-url
-TURN_USERNAME=your-turn-username
-TURN_CREDENTIAL=your-turn-credential
-
-# Backend service (required for realtime, terminal proxying, and workers)
-BACKEND_SERVICE_PORT=4001
-BACKEND_ALLOWED_ORIGINS=http://localhost:3000
 ```
 
 ### Running the App
 
 ```bash
-# Development (Vercel-compatible Next.js app)
+# Development
 npm run dev
-
-# Backend service (realtime, terminal proxy, workers)
-npm run dev:backend
 
 # Production build
 npm run build
 npm start
-npm run start:backend
 
 # Lint
 npm run lint
+
+# Tests
+npm test
 ```
 
-The web app starts at [http://localhost:3000](http://localhost:3000). Realtime sockets, workspace terminal proxying, and background jobs run in the separate backend service.
+The web app starts at [http://localhost:3000](http://localhost:3000).
 
 ## Project Structure
 
@@ -138,16 +126,15 @@ src/
 │   │   └── settings/           # User settings
 │   └── api/                    # API routes
 │       ├── auth/               # Auth endpoints
-│       ├── meetings/           # Meeting CRUD
+│       ├── meetings/           # Meeting CRUD + waiting room
 │       ├── recordings/         # Recording management
 │       ├── transcription/      # AI transcription
 │       ├── workspaces/         # Workspace + VM management
 │       ├── ghost-rooms/        # Ghost room endpoints
 │       ├── ai/                 # AI chat, summarize, meeting-prep
-│       ├── agents/             # AI agent collaboration
 │       └── health/             # Health check
 ├── components/
-│   ├── meeting/                # Video call UI (bubbles, chat, screen share)
+│   ├── meeting/                # Video call UI (bubbles, grid, chat, controls)
 │   ├── dashboard/              # Dashboard panels and meeting history
 │   ├── workspace/              # Workspace and VM components
 │   ├── ghost/                  # Ghost room components
@@ -156,18 +143,17 @@ src/
 │   └── ui/                     # Reusable UI primitives
 ├── hooks/                      # Custom React hooks
 ├── lib/
-│   ├── auth/                   # JWT, Google OAuth, magic links
+│   ├── auth/                   # JWT, Google OAuth
 │   ├── db/                     # MongoDB connection and Mongoose models
 │   ├── ai/                     # Gemini integration and prompts
-│   ├── realtime/               # Socket.io server and event types
+│   ├── livekit/                # LiveKit data channel messages
+│   ├── transport/              # Room transport abstraction (LiveKit)
 │   ├── google/                 # Google Workspace API clients
-│   ├── voice/                  # ElevenLabs integration
 │   ├── vultr/                  # Vultr VM provisioning
 │   └── utils/                  # ID generation, validation, API helpers
 ├── providers/                  # React context providers
 ├── types/                      # TypeScript type definitions
 └── middleware.ts               # Edge middleware for auth protection
-server.ts                       # Main server entry (Next.js + Socket.io)
 ```
 
 ## API Overview
@@ -185,8 +171,13 @@ server.ts                       # Main server entry (Next.js + Socket.io)
 - `GET /api/meetings/[id]` - Get meeting details
 - `POST /api/meetings/[id]/start` - Start recording
 
+### Waiting Room
+- `GET /api/meetings/[id]/waiting-status` - Check waiting room status
+- `POST /api/meetings/[id]/admit` - Host admits a user
+- `POST /api/meetings/[id]/deny` - Host denies a user
+
 ### Recordings & Transcription
-- `GET /api/recordings/[meetingId]` - Get recordings for a meeting (from Google Drive)
+- `GET /api/recordings/[meetingId]` - Get recordings for a meeting
 - `POST /api/recordings/upload` - Upload recording to Google Drive
 - `POST /api/transcription` - Process transcription with AI
 
@@ -203,26 +194,23 @@ server.ts                       # Main server entry (Next.js + Socket.io)
 
 ### Other
 - `GET /api/users/me` - Current user profile
-- `GET /api/turn-credentials` - WebRTC TURN server config
+- `GET /api/livekit/token` - Generate LiveKit room token
 - `GET /api/health` - Health check
 
-## Real-time Events (Socket.io)
+## Real-time Communication
 
-| Category | Event | Description |
-|----------|-------|-------------|
-| Room | `room:join` | Join a meeting room |
-| Room | `room:leave` | Leave a meeting room |
-| Room | `room:user-joined` | Broadcast: user joined |
-| Room | `room:user-left` | Broadcast: user left |
-| Signaling | `signal:offer` | WebRTC SDP offer |
-| Signaling | `signal:answer` | WebRTC SDP answer |
-| Signaling | `signal:ice-candidate` | WebRTC ICE candidate |
-| Media | `media:state-changed` | Video/audio toggle |
-| Chat | `chat:message` | Send chat message |
-| Reaction | `reaction:send` | Send emoji reaction |
-| Terminal | `terminal:connect` | Open SSH terminal |
-| Terminal | `terminal:data` | Terminal I/O |
-| Terminal | `terminal:resize` | Resize terminal |
+All real-time features run over **LiveKit data channels** — no separate signaling server required.
+
+| Feature | Transport | Reliability |
+|---------|-----------|-------------|
+| Chat messages | Data channel | Reliable |
+| Emoji reactions | Data channel | Lossy |
+| Hand raise/lower | Data channel + metadata | Reliable |
+| Host mute/kick | Data channel (targeted) | Reliable |
+| Recording status | Data channel | Reliable |
+| Voice activity | LiveKit native (`ActiveSpeakersChanged`) | — |
+| Media state (mic/cam) | LiveKit native (track events) | — |
+| Screen sharing | LiveKit native (track publish) | — |
 
 ## Deployment
 
@@ -234,4 +222,4 @@ vercel deploy
 
 ## License
 
-This project is proprietary. All rights reserved.
+MIT License
