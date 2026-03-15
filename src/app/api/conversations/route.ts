@@ -81,10 +81,15 @@ export const GET = withHandler(async (req: NextRequest) => {
   const result = conversations.map((conv, i) => ({
     ...conv,
     unreadCount: unreadCounts[i],
-    participants: conv.participants.map((p) => ({
-      ...p,
-      user: userMap.get(p.userId.toString()) ?? null,
-    })),
+    participants: conv.participants.map((p) => {
+      const user = userMap.get(p.userId.toString());
+      return {
+        _id: p.userId.toString(),
+        name: user?.name ?? "Unknown",
+        displayName: user?.displayName,
+        avatar: user?.avatarUrl,
+      };
+    }),
   }));
 
   return successResponse(result);

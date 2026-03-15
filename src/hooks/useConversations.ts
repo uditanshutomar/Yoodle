@@ -92,7 +92,7 @@ export function useConversations() {
           credentials: "include",
           body: JSON.stringify({
             type: "dm",
-            participants: [participantId],
+            recipientId: participantId,
           }),
         });
         if (!res.ok) return null;
@@ -125,7 +125,7 @@ export function useConversations() {
           body: JSON.stringify({
             type: "group",
             name,
-            participants: participantIds,
+            participantIds,
           }),
         });
         if (!res.ok) return null;

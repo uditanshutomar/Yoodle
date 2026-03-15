@@ -53,7 +53,7 @@ export const GET = withHandler(async (req: NextRequest) => {
     .lean();
 
   const publicProfiles = users.map((user) => ({
-    id: user._id.toString(),
+    _id: user._id.toString(),
     name: user.name,
     displayName: user.displayName,
     // email deliberately excluded from public search results for privacy
