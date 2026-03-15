@@ -118,6 +118,7 @@ export const POST = withHandler(
     if (!transcriptText) {
       try {
         const base =
+          process.env.NEXT_PUBLIC_APP_URL ||
           process.env.NEXT_PUBLIC_BASE_URL ||
           process.env.NEXTAUTH_URL ||
           "http://localhost:3000";
