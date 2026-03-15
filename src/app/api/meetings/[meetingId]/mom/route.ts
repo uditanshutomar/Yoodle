@@ -8,6 +8,11 @@ import { NotFoundError, BadRequestError } from "@/lib/infra/api/errors";
 import connectDB from "@/lib/infra/db/client";
 import Meeting from "@/lib/infra/db/models/meeting";
 import "@/lib/infra/db/models/user";
+import { hasGoogleAccess } from "@/lib/google/client";
+import { createTask } from "@/lib/google/tasks";
+import { createLogger } from "@/lib/infra/logger";
+
+const log = createLogger("api:mom");
 
 // ── Helpers ─────────────────────────────────────────────────────────
 
@@ -202,6 +207,38 @@ export const POST = withHandler(
         },
       }
     );
+
+    // ── Auto-create Google Tasks from action items (fire-and-forget) ──
+    const actionItems: { task: string; owner: string; due: string }[] =
+      mom.actionItems || [];
+    if (actionItems.length > 0) {
+      (async () => {
+        try {
+          const hasAccess = await hasGoogleAccess(userId);
+          if (!hasAccess) return;
+
+          const meetingTitle = meeting.title || "Yoodle Meeting";
+          await Promise.allSettled(
+            actionItems.map((item) =>
+              createTask(userId, "@default", {
+                title: item.task,
+                notes: `From meeting: ${meetingTitle}\nOwner: ${item.owner}`,
+                due:
+                  item.due && item.due !== "TBD"
+                    ? new Date(item.due).toISOString()
+                    : undefined,
+              })
+            )
+          );
+          log.info(
+            { meetingId: meeting._id, count: actionItems.length },
+            "auto-created tasks from MoM action items"
+          );
+        } catch (err) {
+          log.warn({ err }, "failed to auto-create tasks from MoM");
+        }
+      })();
+    }
 
     return successResponse({ mom });
   }
