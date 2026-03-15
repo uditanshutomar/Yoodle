@@ -228,6 +228,13 @@ export default function TasksPanel({ pendingActions, onConfirmAction, onDenyActi
         fetchTasks();
     }, [fetchTasks]);
 
+    // Refetch tasks when an action is confirmed (e.g. create_task was executed)
+    useEffect(() => {
+        if (pendingActions?.some((a) => a.status === "confirmed")) {
+            fetchTasks();
+        }
+    }, [pendingActions, fetchTasks]);
+
     /* ── Create task ── */
     const handleCreate = async () => {
         const title = newTitle.trim();
