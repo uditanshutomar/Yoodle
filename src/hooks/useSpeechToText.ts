@@ -90,6 +90,9 @@ export function useSpeechToText(): UseSpeechToTextReturn {
     }
 
     // 3. Open Deepgram streaming WebSocket
+    // NOTE: Do NOT specify encoding/sample_rate — MediaRecorder produces
+    // audio/webm;codecs=opus (WebM container), not raw Opus frames.
+    // Deepgram auto-detects the container format when these are omitted.
     const params = new URLSearchParams({
       model: "nova-2",
       language: "en",
@@ -97,8 +100,6 @@ export function useSpeechToText(): UseSpeechToTextReturn {
       punctuate: "true",
       interim_results: "true",
       endpointing: "300",
-      encoding: "opus",
-      sample_rate: "48000",
     });
 
     const ws = new WebSocket(
