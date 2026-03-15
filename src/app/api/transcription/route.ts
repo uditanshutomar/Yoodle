@@ -30,7 +30,7 @@ const transcriptionQuerySchema = z.object({
 
 /**
  * Accepts an audio chunk and transcribes it using the configured STT provider
- * (ElevenLabs, Deepgram, or OpenAI Whisper — set via STT_PROVIDER env var).
+ * using Deepgram nova-2.
  * Stores the transcribed text in the Transcript model for the meeting.
  */
 export const POST = withHandler(async (req: NextRequest) => {
