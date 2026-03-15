@@ -8,8 +8,9 @@ import { getUserIdFromRequest } from "@/lib/infra/auth/middleware";
  * POST /api/stt/token
  *
  * Returns a temporary Deepgram API key for client-side streaming STT.
- * The key is scoped to usage:write and expires in 10 seconds — enough
- * to open one WebSocket connection (Deepgram keeps it alive after connect).
+ * The key has "member" scope so it can access the /v1/listen endpoint,
+ * and expires in 10 seconds — enough to open one WebSocket connection
+ * (Deepgram keeps it alive after connect).
  */
 export const POST = withHandler(async (req: NextRequest) => {
   await checkRateLimit(req, "ai");
@@ -21,42 +22,52 @@ export const POST = withHandler(async (req: NextRequest) => {
   }
 
   // Create a temporary key via Deepgram's API
-  const res = await fetch("https://api.deepgram.com/v1/projects", {
-    headers: { Authorization: `Token ${apiKey}` },
-  });
-
-  if (!res.ok) {
-    return successResponse({ key: apiKey });
+  let projectId: string | undefined;
+  try {
+    const res = await fetch("https://api.deepgram.com/v1/projects", {
+      headers: { Authorization: `Token ${apiKey}` },
+    });
+    if (res.ok) {
+      const projects = await res.json();
+      projectId = projects.projects?.[0]?.project_id;
+    }
+  } catch {
+    // Fall through to return main key
   }
-
-  const projects = await res.json();
-  const projectId = projects.projects?.[0]?.project_id;
 
   if (!projectId) {
     return successResponse({ key: apiKey });
   }
 
   // Create a temporary key that expires in 10 seconds
-  const keyRes = await fetch(
-    `https://api.deepgram.com/v1/projects/${projectId}/keys`,
-    {
-      method: "POST",
-      headers: {
-        Authorization: `Token ${apiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        comment: "Temporary STT key",
-        scopes: ["usage:write"],
-        time_to_live_in_seconds: 10,
-      }),
-    }
-  );
+  // "member" scope is required for STT access (/v1/listen)
+  try {
+    const keyRes = await fetch(
+      `https://api.deepgram.com/v1/projects/${projectId}/keys`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Token ${apiKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          comment: "Temporary STT key",
+          scopes: ["member"],
+          time_to_live_in_seconds: 10,
+        }),
+      }
+    );
 
-  if (!keyRes.ok) {
-    return successResponse({ key: apiKey });
+    if (keyRes.ok) {
+      const keyData = await keyRes.json();
+      if (keyData.key) {
+        return successResponse({ key: keyData.key });
+      }
+    }
+  } catch {
+    // Fall through to return main key
   }
 
-  const keyData = await keyRes.json();
-  return successResponse({ key: keyData.key });
+  // Fallback: return the main API key if temp key creation fails
+  return successResponse({ key: apiKey });
 });
