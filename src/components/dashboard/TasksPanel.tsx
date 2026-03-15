@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAuth } from "@/hooks/useAuth";
+import type { PendingAction } from "@/hooks/usePendingActions";
 
 /* ─── Types ─── */
 interface APITask {
@@ -13,8 +14,175 @@ interface APITask {
     due?: string;
 }
 
+interface TasksPanelProps {
+  pendingActions?: PendingAction[];
+  onConfirmAction?: (actionId: string) => void;
+  onDenyAction?: (actionId: string) => void;
+  onReviseAction?: (actionId: string, feedback: string) => void;
+}
+
+/* ─── ActionCard ─── */
+function ActionCard({
+  action,
+  onConfirm,
+  onDeny,
+  onRevise,
+}: {
+  action: PendingAction;
+  onConfirm: () => void;
+  onDeny: () => void;
+  onRevise: (feedback: string) => void;
+}) {
+  const [showEdit, setShowEdit] = useState(false);
+  const [editText, setEditText] = useState("");
+
+  const iconMap: Record<string, string> = {
+    send_email: "\u{1F4E7}",
+    reply_to_email: "\u{1F4E7}",
+    create_calendar_event: "\u{1F4C5}",
+    update_calendar_event: "\u{1F4C5}",
+    delete_calendar_event: "\u{1F4C5}",
+    create_task: "\u2713",
+    complete_task: "\u2713",
+    update_task: "\u2713",
+    delete_task: "\u2713",
+    append_to_doc: "\u{1F4C4}",
+    find_replace_in_doc: "\u{1F4C4}",
+    write_sheet: "\u{1F4CA}",
+    append_to_sheet: "\u{1F4CA}",
+    clear_sheet_range: "\u{1F4CA}",
+  };
+
+  const icon = iconMap[action.actionType] || "\u26A1";
+  const isLoading = action.status === "confirming" || action.status === "revising";
+
+  // Build detail lines from args
+  const details: string[] = [];
+  if (action.args.to) details.push(`To: ${(action.args.to as string[]).join(", ")}`);
+  if (action.args.subject) details.push(`Subject: ${action.args.subject}`);
+  if (action.args.title) details.push(`${action.args.title}`);
+  if (action.args.start) details.push(`${new Date(action.args.start as string).toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}`);
+  if (action.args.attendees) details.push(`With: ${(action.args.attendees as string[]).join(", ")}`);
+
+  const handleRevise = () => {
+    if (!editText.trim()) return;
+    onRevise(editText.trim());
+    setEditText("");
+    setShowEdit(false);
+  };
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 6 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="rounded-xl border-[1.5px] border-[#FFE600]/40 bg-[#FFE600]/5 p-2.5"
+    >
+      {/* Header */}
+      <div className="flex items-start gap-2">
+        <span className="text-sm mt-0.5">{icon}</span>
+        <div className="flex-1 min-w-0">
+          <p className="text-[12px] font-semibold text-[var(--text-primary)] leading-snug">
+            {action.summary}
+          </p>
+          {details.length > 0 && (
+            <div className="mt-1 space-y-0.5">
+              {details.map((d, i) => (
+                <p key={i} className="text-[10px] text-[var(--text-muted)] truncate">{d}</p>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Action buttons */}
+      {action.status === "pending" && (
+        <div className="flex items-center gap-1.5 mt-2 ml-6">
+          <motion.button
+            whileTap={{ scale: 0.9 }}
+            onClick={onConfirm}
+            className="flex items-center gap-1 rounded-full bg-[#22C55E] text-white px-2.5 py-1 text-[10px] font-bold hover:bg-[#16A34A] transition-colors"
+            style={{ fontFamily: "var(--font-heading)" }}
+          >
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="20 6 9 17 4 12" />
+            </svg>
+            Accept
+          </motion.button>
+          <motion.button
+            whileTap={{ scale: 0.9 }}
+            onClick={onDeny}
+            className="flex items-center gap-1 rounded-full bg-[#EF4444]/10 text-[#EF4444] border border-[#EF4444]/30 px-2.5 py-1 text-[10px] font-bold hover:bg-[#EF4444]/20 transition-colors"
+            style={{ fontFamily: "var(--font-heading)" }}
+          >
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+              <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+            </svg>
+            Deny
+          </motion.button>
+          <motion.button
+            whileTap={{ scale: 0.9 }}
+            onClick={() => setShowEdit(!showEdit)}
+            className="flex items-center gap-1 rounded-full bg-[var(--surface-hover)] text-[var(--text-secondary)] border border-[var(--border)] px-2.5 py-1 text-[10px] font-bold hover:bg-[var(--surface-elevated)] transition-colors"
+            style={{ fontFamily: "var(--font-heading)" }}
+          >
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+              <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+            </svg>
+            Edit
+          </motion.button>
+        </div>
+      )}
+
+      {/* Loading state */}
+      {isLoading && (
+        <div className="flex items-center gap-2 mt-2 ml-6">
+          <div className="h-3 w-3 border-2 border-[#FFE600] border-t-transparent rounded-full animate-spin" />
+          <span className="text-[10px] text-[var(--text-muted)]">
+            {action.status === "confirming" ? "Executing..." : "Revising..."}
+          </span>
+        </div>
+      )}
+
+      {/* Edit input */}
+      <AnimatePresence>
+        {showEdit && action.status === "pending" && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: "auto", opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            className="overflow-hidden mt-2 ml-6"
+          >
+            <div className="flex items-center gap-1.5 rounded-lg border border-[var(--border)] bg-[var(--surface)] p-1.5">
+              <input
+                type="text"
+                value={editText}
+                onChange={(e) => setEditText(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && handleRevise()}
+                placeholder="Tell Doodle what to change..."
+                autoFocus
+                className="flex-1 bg-transparent text-[11px] text-[var(--text-primary)] outline-none placeholder:text-[var(--text-muted)]"
+                style={{ fontFamily: "var(--font-body)" }}
+              />
+              <motion.button
+                whileTap={{ scale: 0.9 }}
+                onClick={handleRevise}
+                disabled={!editText.trim()}
+                className="text-[10px] font-bold text-[#FFE600] px-2 py-0.5 rounded-full hover:bg-[#FFE600]/10 disabled:opacity-40 transition-colors"
+                style={{ fontFamily: "var(--font-heading)" }}
+              >
+                Revise
+              </motion.button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </motion.div>
+  );
+}
+
 /* ─── Component ─── */
-export default function TasksPanel() {
+export default function TasksPanel({ pendingActions, onConfirmAction, onDenyAction, onReviseAction }: TasksPanelProps) {
     const { user } = useAuth();
     const [tasks, setTasks] = useState<APITask[]>([]);
     const [loading, setLoading] = useState(true);
@@ -251,6 +419,30 @@ export default function TasksPanel() {
                             </motion.div>
                         )}
                     </AnimatePresence>
+
+                    {/* Pending AI Actions */}
+                    {pendingActions && pendingActions.length > 0 && (
+                        <>
+                            <div className="flex items-center gap-2 mb-2">
+                                <div className="flex-1 h-px bg-[#FFE600]/30" />
+                                <span className="text-[9px] font-bold text-[#FFE600] uppercase tracking-wider" style={{ fontFamily: "var(--font-heading)" }}>
+                                    Doodle&apos;s Actions ({pendingActions.length})
+                                </span>
+                                <div className="flex-1 h-px bg-[#FFE600]/30" />
+                            </div>
+                            <div className="space-y-1.5 mb-3">
+                                {pendingActions.map((action) => (
+                                    <ActionCard
+                                        key={action.actionId}
+                                        action={action}
+                                        onConfirm={() => onConfirmAction?.(action.actionId)}
+                                        onDeny={() => onDenyAction?.(action.actionId)}
+                                        onRevise={(feedback) => onReviseAction?.(action.actionId, feedback)}
+                                    />
+                                ))}
+                            </div>
+                        </>
+                    )}
 
                     {/* Tasks list */}
                     {pendingTasks.length === 0 && completedTasks.length === 0 ? (
