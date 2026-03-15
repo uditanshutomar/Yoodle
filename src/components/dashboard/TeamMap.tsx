@@ -75,7 +75,7 @@ export default function TeamMap({ active }: TeamMapProps) {
         setFetchError(null);
       }
     } catch {
-      setFetchError("Couldn't load nearby teammates");
+      setFetchError("Couldn't load nearby Yoodlers");
     }
   }, [latitude, longitude, active]);
 
@@ -96,7 +96,7 @@ export default function TeamMap({ active }: TeamMapProps) {
         <div className="flex items-center gap-2 mb-2">
           <span className="text-lg">🗺️</span>
           <h3 className="text-sm font-bold text-[var(--text-primary)]" style={{ fontFamily: "var(--font-heading)" }}>
-            Teammate Map
+            Yoodler Map
           </h3>
         </div>
         <p className="text-xs text-[var(--text-muted)]">
@@ -113,11 +113,11 @@ export default function TeamMap({ active }: TeamMapProps) {
         <div className="flex items-center gap-2 mb-2">
           <span className="text-lg">🗺️</span>
           <h3 className="text-sm font-bold text-[var(--text-primary)]" style={{ fontFamily: "var(--font-heading)" }}>
-            Teammate Map
+            Yoodler Map
           </h3>
         </div>
         <p className="text-xs text-[var(--text-muted)]">
-          Switch to <span className="font-bold text-[#7C3AED]">Social mode</span> to see nearby teammates on the map.
+          Switch to <span className="font-bold text-[#7C3AED]">Social mode</span> to see nearby Yoodlers on the map.
         </p>
       </div>
     );
@@ -134,7 +134,7 @@ export default function TeamMap({ active }: TeamMapProps) {
           </h3>
         </div>
         <p className="text-xs text-[var(--text-muted)] mb-3">
-          Enable location access in your browser settings to see nearby teammates.
+          Enable location access in your browser settings to see nearby Yoodlers.
         </p>
         <motion.button
           whileHover={{ scale: 1.02 }}
@@ -176,7 +176,7 @@ export default function TeamMap({ active }: TeamMapProps) {
         <div className="flex items-center gap-2">
           <span className="text-sm">🗺️</span>
           <h3 className="text-xs font-bold text-white" style={{ fontFamily: "var(--font-heading)" }}>
-            Nearby Teammates
+            Nearby Yoodlers
           </h3>
         </div>
         <span className="text-[10px] font-medium text-white/70 rounded-full bg-white/15 px-2 py-0.5">
@@ -205,7 +205,7 @@ export default function TeamMap({ active }: TeamMapProps) {
               </div>
             </AdvancedMarker>
 
-            {/* Nearby teammate markers */}
+            {/* Nearby Yoodler markers */}
             {nearbyUsers.map((user) => (
               <TeammateMarker
                 key={user.id}
@@ -279,7 +279,7 @@ export default function TeamMap({ active }: TeamMapProps) {
       {nearbyUsers.length === 0 && !fetchError && (
         <div className="px-4 py-3 text-center">
           <p className="text-xs text-[var(--text-muted)]">
-            No teammates nearby right now. They&apos;ll show up when they switch to Social mode!
+            No Yoodlers nearby right now. They&apos;ll show up when they switch to Social mode!
           </p>
         </div>
       )}
