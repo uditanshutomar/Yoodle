@@ -132,20 +132,22 @@ export async function sendEmail(
 ): Promise<{ messageId: string; threadId: string }> {
   const { gmail } = await getGoogleServices(userId);
 
-  const messageParts = [
+  // Build RFC 2822 headers — filter out unused optional headers,
+  // then append the mandatory blank-line separator and body.
+  const headers = [
     `To: ${options.to.join(", ")}`,
-    options.cc ? `Cc: ${options.cc.join(", ")}` : "",
-    options.bcc ? `Bcc: ${options.bcc.join(", ")}` : "",
+    options.cc?.length ? `Cc: ${options.cc.join(", ")}` : null,
+    options.bcc?.length ? `Bcc: ${options.bcc.join(", ")}` : null,
     `Subject: ${options.subject}`,
     `Content-Type: ${options.isHtml ? "text/html" : "text/plain"}; charset=utf-8`,
+    `MIME-Version: 1.0`,
     options.replyToMessageId
       ? `In-Reply-To: ${options.replyToMessageId}`
-      : "",
-    "",
-    options.body,
-  ]
-    .filter(Boolean)
-    .join("\r\n");
+      : null,
+  ].filter((h): h is string => h !== null);
+
+  // RFC 2822: blank line between headers and body is mandatory
+  const messageParts = [...headers, "", options.body].join("\r\n");
 
   const encodedMessage = Buffer.from(messageParts)
     .toString("base64url");
@@ -241,19 +243,18 @@ export async function replyToEmail(
     ? `${existingRefs} ${rfcMessageId}`
     : rfcMessageId;
 
-  const messageParts = [
+  const replyHeaders = [
     `To: ${replyTo}`,
-    options.cc ? `Cc: ${options.cc.join(", ")}` : "",
-    options.bcc ? `Bcc: ${options.bcc.join(", ")}` : "",
+    options.cc?.length ? `Cc: ${options.cc.join(", ")}` : null,
+    options.bcc?.length ? `Bcc: ${options.bcc.join(", ")}` : null,
     `Subject: ${subject}`,
     `Content-Type: ${options.isHtml ? "text/html" : "text/plain"}; charset=utf-8`,
-    rfcMessageId ? `In-Reply-To: ${rfcMessageId}` : "",
-    references ? `References: ${references}` : "",
-    "",
-    body,
-  ]
-    .filter(Boolean)
-    .join("\r\n");
+    `MIME-Version: 1.0`,
+    rfcMessageId ? `In-Reply-To: ${rfcMessageId}` : null,
+    references ? `References: ${references}` : null,
+  ].filter((h): h is string => h !== null);
+
+  const messageParts = [...replyHeaders, "", body].join("\r\n");
 
   const encodedMessage = Buffer.from(messageParts).toString("base64url");
 
