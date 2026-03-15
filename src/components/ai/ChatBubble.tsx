@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { motion } from "framer-motion";
 import { Bot, User, Mail, Calendar, CheckSquare, Search, FileText, Users, Loader2, Check, X, ClipboardList } from "lucide-react";
 import ReactMarkdown from "react-markdown";
@@ -12,6 +13,8 @@ interface ChatBubbleProps {
   timestamp?: number;
   isStreaming?: boolean;
   toolCalls?: ToolCall[];
+  onConfirmAction?: (actionId: string, actionType: string, args: Record<string, unknown>) => void;
+  onDenyAction?: (actionId: string) => void;
 }
 
 /** Map tool names to human-readable labels and icons */
@@ -93,9 +96,124 @@ function ToolCallIndicator({ toolCall }: { toolCall: ToolCall }) {
   );
 }
 
-export default function ChatBubble({ id, role, content, timestamp, isStreaming, toolCalls }: ChatBubbleProps) {
+/** Inline action card for propose_action — Accept / Deny right in the chat */
+function InlineActionCard({
+  toolCall,
+  onConfirm,
+  onDeny,
+}: {
+  toolCall: ToolCall;
+  onConfirm?: (actionId: string, actionType: string, args: Record<string, unknown>) => void;
+  onDeny?: (actionId: string) => void;
+}) {
+  const [status, setStatus] = useState<"pending" | "confirming" | "confirmed" | "denied">("pending");
+  const pa = toolCall.pendingAction;
+  if (!pa) return null;
+
+  const actionIcon = ACTION_ICONS[pa.actionType] || CheckSquare;
+  const ActionIcon = actionIcon;
+
+  const handleConfirm = async () => {
+    setStatus("confirming");
+    try {
+      onConfirm?.(pa.actionId, pa.actionType, pa.actionArgs);
+      setStatus("confirmed");
+    } catch {
+      setStatus("pending");
+    }
+  };
+
+  const handleDeny = () => {
+    onDeny?.(pa.actionId);
+    setStatus("denied");
+  };
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 5 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="rounded-xl border-2 border-[var(--border-default)] bg-[var(--surface-elevated)] px-3.5 py-2.5 mt-1"
+    >
+      <div className="flex items-start gap-2.5">
+        <div className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-[#FFE600]/20 border border-[#FFE600]/40">
+          <ActionIcon size={14} className="text-[#B8A200]" />
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="text-xs font-semibold text-[var(--text-primary)] leading-snug" style={{ fontFamily: "var(--font-heading)" }}>
+            {pa.actionSummary}
+          </p>
+          <p className="text-[10px] text-[var(--text-muted)] mt-0.5 capitalize">
+            {pa.actionType.replace(/_/g, " ")}
+          </p>
+        </div>
+      </div>
+
+      {status === "pending" && (
+        <div className="flex items-center gap-2 mt-2.5">
+          <motion.button
+            whileHover={{ scale: 1.03 }}
+            whileTap={{ scale: 0.97 }}
+            onClick={handleConfirm}
+            className="flex-1 flex items-center justify-center gap-1.5 rounded-lg bg-green-500 text-white text-[11px] font-bold py-1.5 px-3 border-2 border-green-600 shadow-[2px_2px_0_#166534] hover:shadow-[1px_1px_0_#166534] hover:translate-x-[1px] hover:translate-y-[1px] transition-all"
+            style={{ fontFamily: "var(--font-heading)" }}
+          >
+            <Check size={12} /> Accept
+          </motion.button>
+          <motion.button
+            whileHover={{ scale: 1.03 }}
+            whileTap={{ scale: 0.97 }}
+            onClick={handleDeny}
+            className="flex-1 flex items-center justify-center gap-1.5 rounded-lg bg-[var(--surface-hover)] text-[var(--text-secondary)] text-[11px] font-bold py-1.5 px-3 border-2 border-[var(--border-default)] shadow-[2px_2px_0_var(--border-strong)] hover:shadow-[1px_1px_0_var(--border-strong)] hover:translate-x-[1px] hover:translate-y-[1px] transition-all"
+            style={{ fontFamily: "var(--font-heading)" }}
+          >
+            <X size={12} /> Deny
+          </motion.button>
+        </div>
+      )}
+
+      {status === "confirming" && (
+        <div className="flex items-center gap-2 mt-2.5 text-[11px] text-[var(--text-muted)]">
+          <Loader2 size={12} className="animate-spin" /> Executing…
+        </div>
+      )}
+
+      {status === "confirmed" && (
+        <div className="flex items-center gap-2 mt-2.5 text-[11px] text-green-500 font-semibold">
+          <Check size={12} /> Done
+        </div>
+      )}
+
+      {status === "denied" && (
+        <div className="flex items-center gap-2 mt-2.5 text-[11px] text-[var(--text-muted)]">
+          <X size={12} /> Cancelled
+        </div>
+      )}
+    </motion.div>
+  );
+}
+
+/** Map action types to icons */
+const ACTION_ICONS: Record<string, React.ElementType> = {
+  send_email: Mail,
+  reply_to_email: Mail,
+  create_calendar_event: Calendar,
+  update_calendar_event: Calendar,
+  delete_calendar_event: Calendar,
+  create_task: CheckSquare,
+  complete_task: CheckSquare,
+  update_task: CheckSquare,
+  delete_task: CheckSquare,
+  append_to_doc: FileText,
+  find_replace_in_doc: FileText,
+  write_sheet: FileText,
+  append_to_sheet: FileText,
+  clear_sheet_range: FileText,
+};
+
+export default function ChatBubble({ id, role, content, timestamp, isStreaming, toolCalls, onConfirmAction, onDenyAction }: ChatBubbleProps) {
   const isAssistant = role === "assistant";
   const hasToolCalls = toolCalls && toolCalls.length > 0;
+  const hasPendingActions = toolCalls?.some((tc) => tc.pendingAction) ?? false;
   const isBriefing = id?.startsWith("briefing-");
 
   // Briefing card — compact, left yellow border, no bubble shape
@@ -158,8 +276,22 @@ export default function ChatBubble({ id, role, content, timestamp, isStreaming, 
         {/* Tool call indicators — shown above the message text */}
         {isAssistant && hasToolCalls && (
           <div className="flex flex-col gap-1 mb-1.5">
-            {toolCalls.map((tc) => (
+            {toolCalls.filter((tc) => !tc.pendingAction).map((tc) => (
               <ToolCallIndicator key={tc.id} toolCall={tc} />
+            ))}
+          </div>
+        )}
+
+        {/* Inline action cards for propose_action */}
+        {isAssistant && hasPendingActions && (
+          <div className="flex flex-col gap-1.5 mb-1.5">
+            {toolCalls!.filter((tc) => tc.pendingAction).map((tc) => (
+              <InlineActionCard
+                key={tc.id}
+                toolCall={tc}
+                onConfirm={onConfirmAction}
+                onDeny={onDenyAction}
+              />
             ))}
           </div>
         )}

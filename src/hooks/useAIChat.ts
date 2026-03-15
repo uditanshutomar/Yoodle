@@ -9,6 +9,13 @@ export interface ToolCall {
   args: Record<string, unknown>;
   status: "calling" | "success" | "error";
   summary?: string;
+  /** For propose_action: the pending action data for inline accept/deny */
+  pendingAction?: {
+    actionId: string;
+    actionType: string;
+    actionArgs: Record<string, unknown>;
+    actionSummary: string;
+  };
 }
 
 export interface ChatMessage {
@@ -189,6 +196,16 @@ export function useAIChat() {
               } else if (parsed.type === "tool_result") {
                 // Tool finished — update only the FIRST matching "calling" entry with this name
                 let matched = false;
+                // Extract pending action data if this is a propose_action result
+                const isProposeAction =
+                  parsed.name === "propose_action" &&
+                  parsed.success &&
+                  parsed.data &&
+                  (parsed.data as Record<string, unknown>).pendingAction;
+                const paData = isProposeAction
+                  ? (parsed.data as Record<string, unknown>)
+                  : undefined;
+
                 toolCalls = toolCalls.map((tc) => {
                   if (!matched && tc.name === (parsed.name as string) && tc.status === "calling") {
                     matched = true;
@@ -196,6 +213,16 @@ export function useAIChat() {
                       ...tc,
                       status: parsed.success ? ("success" as const) : ("error" as const),
                       summary: parsed.summary as string,
+                      ...(paData
+                        ? {
+                            pendingAction: {
+                              actionId: paData.actionId as string,
+                              actionType: paData.actionType as string,
+                              actionArgs: (paData.args || {}) as Record<string, unknown>,
+                              actionSummary: paData.summary as string,
+                            },
+                          }
+                        : {}),
                     };
                   }
                   return tc;

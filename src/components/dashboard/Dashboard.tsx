@@ -11,6 +11,7 @@ import { MeetingRecord } from "./meetingsData";
 import TeamMap from "./TeamMap";
 import { DoodleStar, DoodleSquiggle, DoodleSparkles } from "@/components/Doodles";
 import VoiceInputButton from "@/components/chat/VoiceInputButton";
+import ChatBubble from "@/components/ai/ChatBubble";
 import { useAuth } from "@/hooks/useAuth";
 import { useAIChat, ChatMessage } from "@/hooks/useAIChat";
 import { usePendingActions } from "@/hooks/usePendingActions";
@@ -306,6 +307,8 @@ export default function Dashboard() {
                             sendMessage={sendMessage}
                             stopStreaming={stopStreaming}
                             clearMessages={clearMessages}
+                            onConfirmAction={(actionId) => { confirmAction(actionId); }}
+                            onDenyAction={(actionId) => denyAction(actionId)}
                         />
                     )}
                 </AnimatePresence>
@@ -329,9 +332,11 @@ interface MascotChatProps {
     sendMessage: (content: string) => void;
     stopStreaming: () => void;
     clearMessages: () => void;
+    onConfirmAction?: (actionId: string, actionType: string, args: Record<string, unknown>) => void | Promise<void>;
+    onDenyAction?: (actionId: string) => void;
 }
 
-function MascotChat({ onClose, messages, isStreaming, sendMessage, stopStreaming, clearMessages }: MascotChatProps) {
+function MascotChat({ onClose, messages, isStreaming, sendMessage, stopStreaming, clearMessages, onConfirmAction, onDenyAction }: MascotChatProps) {
     const [input, setInput] = useState("");
     const [voiceInterim, setVoiceInterim] = useState("");
     const scrollRef = useRef<HTMLDivElement>(null);
@@ -396,20 +401,17 @@ function MascotChat({ onClose, messages, isStreaming, sendMessage, stopStreaming
                     </div>
                 </div>
                 {messages.map((msg) => (
-                    <div key={msg.id} className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
-                        <div className={`max-w-[85%] rounded-xl px-3 py-2 text-xs leading-relaxed ${msg.role === "user"
-                            ? "bg-[#FFE600] border border-[var(--border-strong)] text-[#0A0A0A]"
-                            : "bg-[var(--surface-hover)] text-[var(--text-secondary)]"
-                            }`}>
-                            {msg.content || (
-                                <span className="inline-flex gap-1">
-                                    <span className="w-1 h-1 rounded-full bg-[var(--text-muted)] animate-bounce" style={{ animationDelay: "0ms" }} />
-                                    <span className="w-1 h-1 rounded-full bg-[var(--text-muted)] animate-bounce" style={{ animationDelay: "150ms" }} />
-                                    <span className="w-1 h-1 rounded-full bg-[var(--text-muted)] animate-bounce" style={{ animationDelay: "300ms" }} />
-                                </span>
-                            )}
-                        </div>
-                    </div>
+                    <ChatBubble
+                        key={msg.id}
+                        id={msg.id}
+                        role={msg.role}
+                        content={msg.content}
+                        timestamp={msg.timestamp}
+                        isStreaming={isStreaming && msg.role === "assistant" && !msg.content}
+                        toolCalls={msg.toolCalls}
+                        onConfirmAction={onConfirmAction}
+                        onDenyAction={onDenyAction}
+                    />
                 ))}
             </div>
 
