@@ -12,6 +12,7 @@ export interface Participant {
     isSpeaking: boolean;
     stream?: MediaStream | null;
     isVideoOff?: boolean;
+    isHandRaised?: boolean;
 }
 
 interface ParticipantBubbleProps {
@@ -29,7 +30,7 @@ export default function ParticipantBubble({
     y,
     isSelf = false,
 }: ParticipantBubbleProps) {
-    const { name, avatar, isMuted, isSpeaking, stream, isVideoOff } = participant;
+    const { name, avatar, isMuted, isSpeaking, stream, isVideoOff, isHandRaised } = participant;
     const videoRef = useRef<HTMLVideoElement>(null);
 
     // Attach MediaStream to video element
@@ -128,6 +129,21 @@ export default function ParticipantBubble({
                             <line x1="12" y1="19" x2="12" y2="23" />
                             <line x1="8" y1="23" x2="16" y2="23" />
                         </svg>
+                    </motion.div>
+                )}
+
+                {/* Hand raised indicator */}
+                {isHandRaised && (
+                    <motion.div
+                        className="absolute top-0 right-0 flex h-7 w-7 items-center justify-center rounded-full border-2 border-[#0A0A0A] bg-[#FFE600] shadow-[2px_2px_0_#0A0A0A] z-10"
+                        initial={{ scale: 0, y: 10 }}
+                        animate={{ scale: 1, y: [0, -3, 0] }}
+                        transition={{
+                            scale: { type: "spring", stiffness: 400, damping: 15 },
+                            y: { duration: 1, repeat: Infinity, ease: "easeInOut" },
+                        }}
+                    >
+                        <span className="text-sm leading-none">✋</span>
                     </motion.div>
                 )}
 

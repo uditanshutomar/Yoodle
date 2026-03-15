@@ -33,5 +33,6 @@ export function toParticipant(
         isSpeaking: opts.isSpeaking,
         stream: opts.stream || null,
         isVideoOff: !roomUser.isVideoEnabled,
+        isHandRaised: roomUser.isHandRaised ?? false,
     };
 }
