@@ -48,7 +48,7 @@ export default function Dashboard() {
     const [selectedMeeting, setSelectedMeeting] = useState<MeetingRecord | null>(null);
 
     // Lifted AI chat state — shared with MascotChat
-    const { messages, isStreaming, sendMessage, stopStreaming, clearMessages, setOnPendingAction } = useAIChat();
+    const { messages, isStreaming, sendMessage, stopStreaming, setOnPendingAction } = useAIChat();
 
     // Pending actions state
     const { pendingActions, addAction, confirmAction, denyAction, reviseAction } = usePendingActions();

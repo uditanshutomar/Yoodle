@@ -371,7 +371,6 @@ export default function MeetingDetail({
                                     loading={loadingTranscript}
                                     searchQuery={searchQuery}
                                     setSearchQuery={setSearchQuery}
-                                    meetingId={meeting.id}
                                     meetingTitle={meeting.title}
                                     meetingDate={meeting.date}
                                 />
@@ -572,7 +571,6 @@ function RealTranscriptTab({
     loading,
     searchQuery,
     setSearchQuery,
-    meetingId: _meetingId,
     meetingTitle,
     meetingDate,
 }: {
@@ -580,7 +578,6 @@ function RealTranscriptTab({
     loading: boolean;
     searchQuery: string;
     setSearchQuery: (q: string) => void;
-    meetingId: string;
     meetingTitle?: string;
     meetingDate?: string;
 }) {

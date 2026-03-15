@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion } from "framer-motion";
 import {
   APIProvider,
   Map,
@@ -9,6 +9,7 @@ import {
   InfoWindow,
   useMap,
 } from "@vis.gl/react-google-maps";
+import Image from "next/image";
 import { useGeolocation } from "@/hooks/useGeolocation";
 
 interface NearbyUser {
@@ -246,7 +247,7 @@ export default function TeamMap({ active }: TeamMapProps) {
               {/* Avatar */}
               <div className="relative flex-shrink-0">
                 {user.avatarUrl ? (
-                  <img src={user.avatarUrl} alt="" className="w-6 h-6 rounded-full border border-[var(--border)]" />
+                  <Image src={user.avatarUrl!} alt="" width={24} height={24} className="w-6 h-6 rounded-full border border-[var(--border)]" />
                 ) : (
                   <div className="w-6 h-6 rounded-full bg-[#7C3AED] border border-[var(--border)] flex items-center justify-center text-[10px] font-bold text-white">
                     {user.displayName?.[0] || user.name?.[0] || "?"}
@@ -309,9 +310,11 @@ function TeammateMarker({
         className="relative cursor-pointer"
       >
         {user.avatarUrl ? (
-          <img
-            src={user.avatarUrl}
+          <Image
+            src={user.avatarUrl!}
             alt={user.displayName}
+            width={32}
+            height={32}
             className="w-8 h-8 rounded-full border-2 border-[#7C3AED] shadow-lg"
           />
         ) : (
@@ -335,7 +338,7 @@ function UserInfoCard({ user }: { user: NearbyUser }) {
     <div className="p-1 min-w-[140px]">
       <div className="flex items-center gap-2">
         {user.avatarUrl ? (
-          <img src={user.avatarUrl} alt="" className="w-7 h-7 rounded-full" />
+          <Image src={user.avatarUrl!} alt="" width={28} height={28} className="w-7 h-7 rounded-full" />
         ) : (
           <div className="w-7 h-7 rounded-full bg-[#7C3AED] flex items-center justify-center text-xs font-bold text-white">
             {user.displayName?.[0] || "?"}

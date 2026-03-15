@@ -68,7 +68,6 @@ function formatPastDate(dateStr: string): string {
 }
 
 function MeetingCard({ meeting, isPast }: { meeting: MeetingSummary; isPast?: boolean }) {
-  const router = useRouter();
   const dateStr = meeting.scheduledAt || meeting.createdAt;
 
   return (
