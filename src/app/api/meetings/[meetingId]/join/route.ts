@@ -10,6 +10,64 @@ import connectDB from "@/lib/infra/db/client";
 import Meeting from "@/lib/infra/db/models/meeting";
 import User from "@/lib/infra/db/models/user"; // also registers schema for .populate("hostId")
 import { waitingConsumeAdmission, waitingAddToQueue } from "@/lib/infra/redis/cache";
+import Conversation from "@/lib/infra/db/models/conversation";
+import DirectMessage from "@/lib/infra/db/models/direct-message";
+import { getRedisClient } from "@/lib/infra/redis/client";
+import { createLogger } from "@/lib/infra/logger";
+
+const chatLog = createLogger("meetings:chat-link");
+
+async function ensureMeetingConversation(meetingId: string, meeting: any) {
+  try {
+    let conv = await Conversation.findOne({ meetingId: new mongoose.Types.ObjectId(meetingId) });
+    if (!conv) {
+      const participants = meeting.participants
+        .filter((p: any) => p.status === "joined" || p.status === "invited")
+        .map((p: any) => ({
+          userId: p.userId._id || p.userId,
+          role: (p.userId._id || p.userId).toString() === (meeting.hostId._id || meeting.hostId).toString() ? "admin" as const : "member" as const,
+          agentEnabled: false,
+          muted: false,
+        }));
+
+      if (participants.length < 2) return;
+
+      conv = await Conversation.create({
+        type: "group",
+        name: `Meeting: ${meeting.title || meeting.code}`,
+        participants,
+        meetingId: new mongoose.Types.ObjectId(meetingId),
+        createdBy: meeting.hostId._id || meeting.hostId,
+      });
+
+      const msg = await DirectMessage.create({
+        conversationId: conv._id,
+        senderId: meeting.hostId._id || meeting.hostId,
+        senderType: "user",
+        content: "Meeting started — this group chat was created automatically.",
+        type: "system",
+      });
+
+      await Conversation.updateOne(
+        { _id: conv._id },
+        {
+          $set: {
+            lastMessageAt: msg.createdAt,
+            lastMessagePreview: msg.content,
+            lastMessageSenderId: msg.senderId,
+          },
+        },
+      );
+
+      try {
+        const redis = getRedisClient();
+        await redis.publish(`chat:${conv._id}`, JSON.stringify({ type: "message", message: msg }));
+      } catch { /* Redis optional */ }
+    }
+  } catch (err) {
+    chatLog.warn({ err, meetingId }, "failed to create meeting conversation");
+  }
+}
 
 // ── Helpers ─────────────────────────────────────────────────────────
 
@@ -128,6 +186,9 @@ export const POST = withHandler(async (req: NextRequest, context) => {
     .populate("participants.userId", "name email displayName avatarUrl");
 
   if (alreadyJoined) {
+    // Fire-and-forget: ensure meeting conversation exists
+    ensureMeetingConversation(alreadyJoined._id.toString(), alreadyJoined).catch(() => {});
+
     return successResponse({
       meeting: alreadyJoined,
       roomSession: buildRoomSession(
@@ -216,6 +277,9 @@ export const POST = withHandler(async (req: NextRequest, context) => {
       .populate("hostId", "name email displayName avatarUrl")
       .populate("participants.userId", "name email displayName avatarUrl");
 
+    // Fire-and-forget: ensure meeting conversation exists
+    ensureMeetingConversation(updated!._id.toString(), updated!).catch(() => {});
+
     return successResponse({
       meeting: updated,
       roomSession: buildRoomSession(
@@ -291,6 +355,9 @@ export const POST = withHandler(async (req: NextRequest, context) => {
   const populated = await Meeting.findById(joined._id)
     .populate("hostId", "name email displayName avatarUrl")
     .populate("participants.userId", "name email displayName avatarUrl");
+
+  // Fire-and-forget: ensure meeting conversation exists
+  ensureMeetingConversation(populated!._id.toString(), populated!).catch(() => {});
 
   return successResponse({
     meeting: populated,

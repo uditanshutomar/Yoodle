@@ -8,6 +8,9 @@ import { getUserIdFromRequest } from "@/lib/infra/auth/middleware";
 import { BadRequestError, NotFoundError } from "@/lib/infra/api/errors";
 import connectDB from "@/lib/infra/db/client";
 import Meeting from "@/lib/infra/db/models/meeting";
+import Conversation from "@/lib/infra/db/models/conversation";
+import DirectMessage from "@/lib/infra/db/models/direct-message";
+import { getRedisClient } from "@/lib/infra/redis/client";
 import { updateEvent } from "@/lib/google/calendar";
 import { createLogger } from "@/lib/infra/logger";
 
@@ -114,6 +117,81 @@ export const POST = withHandler(async (req: NextRequest, context) => {
         log.warn({ err: calErr }, "failed to sync calendar end time after meeting");
       }
     }
+
+    // Post MoM to linked conversation (fire-and-forget)
+    (async () => {
+      try {
+        const conv = await Conversation.findOne({ meetingId: result._id });
+        if (!conv) return;
+
+        // Post "meeting ended" system message
+        const endMsg = await DirectMessage.create({
+          conversationId: conv._id,
+          senderId: result.hostId,
+          senderType: "user",
+          content: "Meeting ended.",
+          type: "system",
+        });
+
+        await Conversation.updateOne(
+          { _id: conv._id },
+          {
+            $set: {
+              lastMessageAt: endMsg.createdAt,
+              lastMessagePreview: endMsg.content,
+              lastMessageSenderId: endMsg.senderId,
+            },
+          },
+        );
+
+        try {
+          const redis = getRedisClient();
+          await redis.publish(`chat:${conv._id}`, JSON.stringify({ type: "message", message: endMsg }));
+        } catch { /* Redis optional */ }
+
+        // If MoM exists, post it too
+        const meetingWithMom = await Meeting.findById(result._id).select("mom title").lean();
+        if (meetingWithMom?.mom?.summary) {
+          const mom = meetingWithMom.mom;
+          const momContent = [
+            `**Minutes of Meeting: ${meetingWithMom.title}**`,
+            "",
+            `**Summary:** ${mom.summary}`,
+            mom.keyDecisions?.length ? `\n**Key Decisions:**\n${mom.keyDecisions.map((d: string) => `- ${d}`).join("\n")}` : "",
+            mom.discussionPoints?.length ? `\n**Discussion Points:**\n${mom.discussionPoints.map((d: string) => `- ${d}`).join("\n")}` : "",
+            mom.actionItems?.length ? `\n**Action Items:**\n${mom.actionItems.map((a: any) => `- ${a.task} → ${a.owner} (${a.due})`).join("\n")}` : "",
+            mom.nextSteps?.length ? `\n**Next Steps:**\n${mom.nextSteps.map((s: string) => `- ${s}`).join("\n")}` : "",
+          ].filter(Boolean).join("\n");
+
+          const momMsg = await DirectMessage.create({
+            conversationId: conv._id,
+            senderId: result.hostId,
+            senderType: "agent",
+            content: momContent,
+            type: "agent",
+            agentMeta: { forUserId: result.hostId },
+          });
+
+          await Conversation.updateOne(
+            { _id: conv._id },
+            {
+              $set: {
+                lastMessageAt: momMsg.createdAt,
+                lastMessagePreview: "Minutes of Meeting posted",
+                lastMessageSenderId: momMsg.senderId,
+              },
+            },
+          );
+
+          try {
+            const redis = getRedisClient();
+            await redis.publish(`chat:${conv._id}`, JSON.stringify({ type: "message", message: momMsg }));
+          } catch { /* Redis optional */ }
+        }
+      } catch (err) {
+        log.warn({ err, meetingId: result._id }, "failed to post meeting end to conversation");
+      }
+    })();
   } else if (isHost) {
     // Host left but others remain — transfer host to the earliest-joined participant
     const newHost = remainingParticipants.sort(
