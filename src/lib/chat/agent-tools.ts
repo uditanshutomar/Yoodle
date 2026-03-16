@@ -3,6 +3,7 @@ import { listTasks } from "@/lib/google/tasks";
 import { listEmails, getUnreadCount } from "@/lib/google/gmail";
 import { listFiles } from "@/lib/google/drive";
 import { searchContacts } from "@/lib/google/contacts";
+import { getDocContent } from "@/lib/google/docs";
 import { createLogger } from "@/lib/infra/logger";
 
 const log = createLogger("agent-tools");
@@ -13,6 +14,7 @@ export interface GatheredData {
   emails?: string;
   files?: string;
   contacts?: string;
+  docs?: string;
   errors?: string[];
 }
 
@@ -69,6 +71,16 @@ export async function executeToolPlan(
     promises.push(
       withTimeout(fetchContacts(userId, query), TOOL_TIMEOUT_MS, "Contacts: Timed out fetching data.")
         .then((data) => { result.contacts = data; })
+    );
+  }
+
+  // read_doc:DOC_ID — read a Google Doc by its document ID
+  const docTool = tools.find((t) => t.startsWith("read_doc:"));
+  if (docTool) {
+    const docId = docTool.split(":").slice(1).join(":");
+    promises.push(
+      withTimeout(fetchDocContent(userId, docId), TOOL_TIMEOUT_MS, "Docs: Timed out reading document.")
+        .then((data) => { result.docs = data; })
     );
   }
 
@@ -255,10 +267,12 @@ async function fetchRecentFiles(userId: string): Promise<string> {
     const formatted = files.map((f) => {
       const modified = f.modifiedTime ? getRelativeTime(new Date(f.modifiedTime)) : "";
       const type = getMimeLabel(f.mimeType);
-      return `  - ${f.name} (${type}, ${modified})`;
+      const link = f.webViewLink ? ` — ${f.webViewLink}` : "";
+      const fileId = f.id ? ` [id:${f.id}]` : "";
+      return `  - ${f.name} (${type}, ${modified})${fileId}${link}`;
     });
 
-    return `Recent files:\n${formatted.join("\n")}`;
+    return `Recent files:\n${formatted.join("\n")}\nTip: Use file IDs above with read_doc to read Google Docs content.`;
   } catch (error) {
     log.warn({ error, userId }, "Failed to fetch files for agent");
     return "Drive: Unable to access (Google account may not be connected).";
@@ -285,6 +299,28 @@ async function fetchContacts(userId: string, query: string): Promise<string> {
   } catch (error) {
     log.warn({ error, userId, query }, "Failed to search contacts for agent");
     return "Contacts: Unable to access (Google account may not be connected).";
+  }
+}
+
+async function fetchDocContent(userId: string, documentId: string): Promise<string> {
+  try {
+    const doc = await getDocContent(userId, documentId);
+
+    if (!doc.body || doc.body.trim().length === 0) {
+      return `Doc "${doc.title}": Empty document.\nLink: ${doc.webViewLink || `https://docs.google.com/document/d/${documentId}/edit`}`;
+    }
+
+    // Truncate body to ~2000 chars to avoid bloating the prompt
+    const MAX_BODY = 2000;
+    const body = doc.body.length > MAX_BODY
+      ? doc.body.slice(0, MAX_BODY) + "\n... (truncated — full doc available via link)"
+      : doc.body;
+
+    const link = doc.webViewLink || `https://docs.google.com/document/d/${documentId}/edit`;
+    return `Doc "${doc.title}":\n${body}\n\nOpen in Drive: ${link}`;
+  } catch (error) {
+    log.warn({ error, userId, documentId }, "Failed to read doc for agent");
+    return "Docs: Unable to read document (may not exist or Google account not connected).";
   }
 }
 
@@ -343,6 +379,7 @@ export function formatGatheredData(data: GatheredData): string {
   if (data.emails) parts.push(data.emails);
   if (data.files) parts.push(data.files);
   if (data.contacts) parts.push(data.contacts);
+  if (data.docs) parts.push(data.docs);
   if (parts.length === 0) return "(no data fetched)";
   return parts.join("\n\n");
 }

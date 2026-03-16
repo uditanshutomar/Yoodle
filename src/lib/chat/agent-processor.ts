@@ -162,7 +162,7 @@ async function processOneAgent(
     log.info({
       agentUserId, toolPlan,
       hasCalendar: !!gatheredData.calendar, hasTasks: !!gatheredData.tasks,
-      hasEmails: !!gatheredData.emails, hasFiles: !!gatheredData.files, hasContacts: !!gatheredData.contacts,
+      hasEmails: !!gatheredData.emails, hasFiles: !!gatheredData.files, hasContacts: !!gatheredData.contacts, hasDocs: !!gatheredData.docs,
     }, "Stage 3 GATHER complete");
 
     // ── Stage 4: RESPOND ────────────────────────────────────────

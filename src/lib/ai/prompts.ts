@@ -117,7 +117,7 @@ Example output:
 classification must be one of: "scheduling", "action_item", "question", "decision", "social", "information_sharing"
 addressedTo: array of names, or ["everyone"]
 requiresData: boolean (true or false)
-dataNeeded: array containing "calendar", "tasks", "emails", "recent_files", "contacts:NAME", or "none"
+dataNeeded: array containing "calendar", "tasks", "emails", "recent_files", "contacts:NAME", "docs:DOC_ID", or "none"
 urgency: "high", "medium", or "low"`;
 }
 
@@ -152,13 +152,15 @@ AVAILABLE TOOLS:
 - "check_emails" — ${userName}'s recent inbox (last 8 emails + unread count)
 - "check_recent_files" — ${userName}'s recently modified Google Drive files
 - "search_contacts:NAME" — search ${userName}'s Google Contacts for a person (replace NAME with the person's name)
+- "read_doc:DOC_ID" — read a Google Doc's content by its document ID (get IDs from check_recent_files output). Returns full text + Drive link.
 
 Output ONLY valid JSON, no markdown fences.
 
 Example outputs:
 {"decision":"RESPOND","reason":"user asked about availability, can check calendar","toolPlan":["check_calendar"]}
 {"decision":"RESPOND","reason":"someone asked about Sarah's email, can look it up","toolPlan":["search_contacts:Sarah"]}
-{"decision":"RESPOND","reason":"user mentioned a document, can check recent files and emails","toolPlan":["check_emails","check_recent_files"]}
+{"decision":"RESPOND","reason":"user mentioned a document, can check recent files and read it","toolPlan":["check_recent_files","read_doc:1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgVE2upms"]}
+{"decision":"RESPOND","reason":"user asked about the project doc, can read it directly","toolPlan":["read_doc:1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgVE2upms"]}
 {"decision":"SILENT","reason":"casual chat, nothing to add","toolPlan":[]}
 {"decision":"UPDATE_MEMORY_ONLY","reason":"important decision was made, saving to memory","toolPlan":[]}
 
