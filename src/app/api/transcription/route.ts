@@ -129,7 +129,9 @@ export const GET = withHandler(async (req: NextRequest) => {
 
   const transcript = await Transcript.findOne({
     meetingId: new mongoose.Types.ObjectId(meetingId),
-  });
+  })
+    .select("segments language")
+    .lean();
 
   if (!transcript) {
     return successResponse({ segments: [], meetingId });

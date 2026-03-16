@@ -193,24 +193,31 @@ export const DELETE = withHandler(async (req: NextRequest, context) => {
   await connectDB();
 
   const filter = buildMeetingFilter(meetingId);
-  const meeting = await Meeting.findOne(filter);
 
-  if (!meeting) {
-    throw new NotFoundError("Meeting not found.");
-  }
+  // Atomic cancel: filter ensures host-only, non-ended, single write
+  const result = await Meeting.findOneAndUpdate(
+    {
+      ...filter,
+      hostId: new mongoose.Types.ObjectId(userId),
+      status: { $nin: ["ended", "cancelled"] },
+    },
+    { $set: { status: "cancelled", endedAt: new Date() } },
+    { new: true, projection: { _id: 1, status: 1 } },
+  );
 
-  // Only host can delete
-  if (meeting.hostId.toString() !== userId) {
-    throw new ForbiddenError("Only the host can cancel this meeting.");
-  }
-
-  if (meeting.status === "ended" || meeting.status === "cancelled") {
+  if (!result) {
+    // Distinguish "not found" from "forbidden" from "already cancelled"
+    const meeting = await Meeting.findOne(filter)
+      .select("hostId status")
+      .lean();
+    if (!meeting) {
+      throw new NotFoundError("Meeting not found.");
+    }
+    if (meeting.hostId.toString() !== userId) {
+      throw new ForbiddenError("Only the host can cancel this meeting.");
+    }
     throw new BadRequestError("Meeting is already ended or cancelled.");
   }
-
-  meeting.status = "cancelled";
-  meeting.endedAt = new Date();
-  await meeting.save();
 
   return successResponse({ cancelled: true });
 });

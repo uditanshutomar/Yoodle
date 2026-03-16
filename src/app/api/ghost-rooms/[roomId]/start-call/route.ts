@@ -29,7 +29,7 @@ export const POST = withHandler(async (req: NextRequest, context) => {
 
   await connectDB();
 
-  const ghostRoom = await GhostRoom.findOne({ roomId });
+  const ghostRoom = await GhostRoom.findOne({ roomId }).lean();
   if (!ghostRoom) {
     throw new NotFoundError("Ghost room not found or has expired.");
   }

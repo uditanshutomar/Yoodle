@@ -18,9 +18,9 @@ export const GET = withHandler(async (req: NextRequest) => {
 
   await connectDB();
 
-  const user = await User.findById(userId).select(
-    "-magicLinkToken -magicLinkExpires -refreshTokenHash -__v"
-  );
+  const user = await User.findById(userId)
+    .select("-magicLinkToken -magicLinkExpires -refreshTokenHash -__v")
+    .lean();
 
   if (!user) {
     throw new NotFoundError("User not found.");
