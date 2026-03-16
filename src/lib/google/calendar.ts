@@ -106,9 +106,9 @@ export async function updateEvent(
   const timeZone = updates.timeZone || Intl.DateTimeFormat().resolvedOptions().timeZone;
   const requestBody: Record<string, unknown> = {};
 
-  if (updates.title) requestBody.summary = updates.title;
-  if (updates.description) requestBody.description = updates.description;
-  if (updates.location) requestBody.location = updates.location;
+  if (updates.title !== undefined) requestBody.summary = updates.title;
+  if (updates.description !== undefined) requestBody.description = updates.description;
+  if (updates.location !== undefined) requestBody.location = updates.location;
   if (updates.start) {
     requestBody.start = { dateTime: updates.start, timeZone };
   }

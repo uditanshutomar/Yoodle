@@ -935,7 +935,7 @@ export async function executeWorkspaceTool(
           addMeetLink: args.addMeetLink as boolean | undefined,
           timeZone: args.timeZone as string | undefined,
         });
-        const attendeeEmails = event.attendees.map((a) => a.email).filter(Boolean);
+        const attendeeEmails = (event.attendees ?? []).map((a) => a.email).filter(Boolean);
         const attendeeStr =
           attendeeEmails.length > 0
             ? ` with ${attendeeEmails.join(", ")}`
@@ -969,7 +969,7 @@ export async function executeWorkspaceTool(
             start: e.start,
             end: e.end,
             location: e.location,
-            attendees: e.attendees.map((a) => a.email),
+            attendees: (e.attendees ?? []).map((a) => a.email),
             meetLink: e.meetLink,
           })),
         };
@@ -1176,7 +1176,7 @@ export async function executeWorkspaceTool(
           args.documentId as string,
           args.find as string,
           args.replace as string,
-          (args.matchCase as boolean) || false
+          args.matchCase === true
         );
         return {
           success: true,
@@ -1280,11 +1280,22 @@ export async function executeWorkspaceTool(
         const content = args.content as string;
         const confidence = args.confidence as number;
 
+        // Validate category against known values
+        const VALID_CATEGORIES = ["preference", "habit", "relationship", "fact", "context", "other"];
+        const safeCategory = VALID_CATEGORIES.includes(category) ? category : "other";
+
+        // Validate content is non-empty before querying
+        if (!content || content.trim().length === 0) {
+          return { success: false, summary: "Cannot save empty memory." };
+        }
+
         // Dedup: check if a similar memory already exists
+        // Escape regex special characters to prevent regex injection
+        const prefix = content.slice(0, 30).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
         const existing = await AIMemory.findOne({
           userId,
-          category,
-          content: { $regex: content.slice(0, 30), $options: "i" },
+          category: safeCategory,
+          content: { $regex: prefix, $options: "i" },
         });
 
         if (existing) {
@@ -1300,7 +1311,7 @@ export async function executeWorkspaceTool(
 
         await AIMemory.create({
           userId,
-          category,
+          category: safeCategory,
           content,
           source: "chat",
           confidence,
@@ -1317,12 +1328,28 @@ export async function executeWorkspaceTool(
         await connectDB();
 
         const title = (args.title as string) || "Yoodle Meeting";
-        const scheduledAt = args.scheduledAt as string | undefined;
+        const scheduledAtRaw = args.scheduledAt as string | undefined;
         const attendeeEmails = (args.attendeeEmails as string[] | undefined) || [];
         const rawDuration = (args.duration as number) || 10; // default 10 minutes
         // Round to nearest 15-min slot (minimum 15)
         const durationMin = Math.max(15, Math.round(rawDuration / 15) * 15);
         const addToCalendar = args.addToCalendar !== false; // default true
+
+        // Validate scheduledAt to prevent Invalid Date from LLM-generated strings
+        let scheduledAt: string | undefined;
+        if (scheduledAtRaw) {
+          const parsed = new Date(scheduledAtRaw);
+          if (!isNaN(parsed.getTime())) {
+            scheduledAt = parsed.toISOString();
+          } else {
+            log.warn({ scheduledAtRaw }, "Invalid scheduledAt from LLM, ignoring");
+          }
+        }
+
+        // Validate userId is a valid ObjectId before constructing
+        if (!mongoose.Types.ObjectId.isValid(userId)) {
+          return { success: false, summary: "Invalid user ID." };
+        }
 
         // Create the Yoodle meeting in MongoDB
         const code = generateMeetingCode();
@@ -1422,7 +1449,7 @@ export async function executeWorkspaceTool(
           summary: `Proposed: ${summary}`,
           data: {
             pendingAction: true,
-            actionId: `action-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+            actionId: `action-${Date.now()}-${crypto.randomUUID().slice(0, 8)}`,
             actionType,
             args: actionArgs,
             summary,

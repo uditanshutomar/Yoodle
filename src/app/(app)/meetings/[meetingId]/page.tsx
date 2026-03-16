@@ -111,7 +111,7 @@ export default function MeetingLobbyPage() {
     const poll = async () => {
       try {
         const res = await fetch(
-          `/api/meetings/${meetingId}/waiting-status?userId=${user.id}`,
+          `/api/meetings/${meetingId}/waiting-status?mode=check`,
           { credentials: "include" },
         );
         if (!res.ok || !active) return;

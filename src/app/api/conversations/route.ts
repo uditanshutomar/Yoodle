@@ -12,15 +12,20 @@ import User from "@/lib/infra/db/models/user";
 
 // ─── Validation ────────────────────────────────────────────────────────
 
+const objectIdString = z.string().min(1).refine(
+  (val) => mongoose.Types.ObjectId.isValid(val),
+  { message: "Invalid user ID format" },
+);
+
 const createDmSchema = z.object({
   type: z.literal("dm"),
-  recipientId: z.string().min(1),
+  recipientId: objectIdString,
 });
 
 const createGroupSchema = z.object({
   type: z.literal("group"),
   name: z.string().min(1, "Group name is required").max(200),
-  participantIds: z.array(z.string().min(1)).min(1),
+  participantIds: z.array(objectIdString).min(1),
 });
 
 const createConversationSchema = z.discriminatedUnion("type", [

@@ -161,6 +161,9 @@ export const PATCH = withHandler(async (req: NextRequest, context) => {
     if (typeof notes !== "string") {
       throw new BadRequestError("Notes must be a string.");
     }
+    if (notes.length > 10000) {
+      throw new BadRequestError("Notes must be 10 000 characters or fewer.");
+    }
 
     const success = await ephemeralStore.updateNotes(resolvedRoomId, notes);
     if (!success) {

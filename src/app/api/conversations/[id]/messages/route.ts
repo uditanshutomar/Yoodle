@@ -46,6 +46,9 @@ export const GET = withHandler(async (req: NextRequest, context) => {
     conversationId: new mongoose.Types.ObjectId(id),
   };
   if (before) {
+    if (!mongoose.Types.ObjectId.isValid(before)) {
+      throw new BadRequestError("Invalid cursor value.");
+    }
     query._id = { $lt: new mongoose.Types.ObjectId(before) };
   }
 
@@ -94,6 +97,11 @@ export const POST = withHandler(async (req: NextRequest, context) => {
   }
   if (content.length > 4000) {
     throw new BadRequestError("Message content must be 4000 characters or less.");
+  }
+
+  // Validate replyTo is a valid ObjectId if provided
+  if (replyTo && !mongoose.Types.ObjectId.isValid(replyTo)) {
+    throw new BadRequestError("Invalid replyTo message ID.");
   }
 
   // Create message

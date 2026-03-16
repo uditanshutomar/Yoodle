@@ -9,6 +9,7 @@ import { StreamEvent } from "./gemini";
  * - Tool results: `{ type: "tool_result", name: "...", success: true, summary: "..." }`
  *
  * Sends "data: [DONE]\n\n" when the stream completes.
+ * Cleans up the generator when the client disconnects (cancel).
  */
 export function createStreamingResponse(
   generator: AsyncGenerator<StreamEvent>
@@ -39,10 +40,21 @@ export function createStreamingResponse(
       } catch (error) {
         const message =
           error instanceof Error ? error.message : "Stream error";
-        const errorData = `data: ${JSON.stringify({ error: message })}\n\n`;
-        controller.enqueue(encoder.encode(errorData));
-        controller.close();
+        try {
+          const errorData = `data: ${JSON.stringify({ error: message })}\n\n`;
+          controller.enqueue(encoder.encode(errorData));
+          controller.close();
+        } catch {
+          // Controller already closed (client disconnected) — nothing to do
+        }
       }
+    },
+
+    cancel() {
+      // Client disconnected — clean up the generator to stop Gemini calls
+      generator.return(undefined).catch((err) => {
+        console.warn("streaming generator cleanup error on client disconnect", err);
+      });
     },
   });
 

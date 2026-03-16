@@ -24,6 +24,13 @@ export interface IDirectMessage {
     toolCalls?: { name: string; status: string; summary?: string }[];
     actions?: { label: string; action: string; payload?: Record<string, unknown> }[];
     forUserId?: Types.ObjectId;
+    pendingAction?: {
+      actionId: string;
+      actionType: string;
+      args: Record<string, unknown>;
+      summary: string;
+      status: string;
+    };
   };
   createdAt: Date;
   updatedAt: Date;

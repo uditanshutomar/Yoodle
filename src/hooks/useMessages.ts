@@ -33,6 +33,13 @@ export interface ChatMsg {
   agentMeta?: {
     toolCalls?: { name: string; status: string; summary?: string }[];
     actions?: { label: string; action: string; payload?: Record<string, unknown> }[];
+    pendingAction?: {
+      actionId: string;
+      actionType: string;
+      args: Record<string, unknown>;
+      summary: string;
+      status: string;
+    };
     forUserId?: string;
   };
   createdAt: string;

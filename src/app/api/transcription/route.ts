@@ -48,6 +48,17 @@ export const POST = withHandler(async (req: NextRequest) => {
     throw new BadRequestError("Missing required fields: audio, meetingId, speakerName, speakerId");
   }
 
+  // Validate meetingId before using as ObjectId
+  if (!mongoose.Types.ObjectId.isValid(meetingId)) {
+    throw new BadRequestError("Invalid meeting ID.");
+  }
+
+  // Validate audio file size (max 25 MB for a single chunk)
+  const MAX_AUDIO_CHUNK_SIZE = 25 * 1024 * 1024;
+  if (audioFile.size > MAX_AUDIO_CHUNK_SIZE) {
+    throw new BadRequestError(`Audio chunk too large. Maximum size is ${MAX_AUDIO_CHUNK_SIZE / (1024 * 1024)} MB.`);
+  }
+
   await connectDB();
   if (!(await verifyMeetingParticipant(userId, meetingId))) {
     throw new ForbiddenError("You are not a participant in this meeting.");
@@ -91,6 +102,11 @@ export const GET = withHandler(async (req: NextRequest) => {
   const { meetingId } = transcriptionQuerySchema.parse({
     meetingId: req.nextUrl.searchParams.get("meetingId"),
   });
+
+  // Validate meetingId before using as ObjectId
+  if (!mongoose.Types.ObjectId.isValid(meetingId)) {
+    throw new BadRequestError("Invalid meeting ID.");
+  }
 
   await connectDB();
 

@@ -11,8 +11,34 @@ import { successResponse, errorResponse } from "@/lib/infra/api/response";
 
 const log = createLogger("api:ai-briefing");
 
-// In-memory cache for snapshot diffing (per-user)
-const lastSnapshots = new Map<string, WorkspaceSnapshot>();
+// In-memory cache for snapshot diffing (per-user).
+// Bounded to 500 entries with LRU eviction to prevent memory leaks.
+// Entries expire after 4 hours to prevent permanent NO_UPDATE suppression.
+const MAX_SNAPSHOT_CACHE = 500;
+const SNAPSHOT_TTL_MS = 4 * 60 * 60 * 1000; // 4 hours
+const lastSnapshots = new Map<string, { snapshot: WorkspaceSnapshot; cachedAt: number }>();
+
+function setSnapshot(userId: string, snapshot: WorkspaceSnapshot) {
+  // Delete first so re-insertion moves it to the end (true LRU order)
+  lastSnapshots.delete(userId);
+  // Evict the least-recently-used entry if at capacity
+  if (lastSnapshots.size >= MAX_SNAPSHOT_CACHE) {
+    const oldest = lastSnapshots.keys().next().value;
+    if (oldest) lastSnapshots.delete(oldest);
+  }
+  lastSnapshots.set(userId, { snapshot, cachedAt: Date.now() });
+}
+
+function getSnapshot(userId: string): WorkspaceSnapshot | undefined {
+  const entry = lastSnapshots.get(userId);
+  if (!entry) return undefined;
+  // Expire stale entries so a false NO_UPDATE doesn't permanently suppress briefings
+  if (Date.now() - entry.cachedAt > SNAPSHOT_TTL_MS) {
+    lastSnapshots.delete(userId);
+    return undefined;
+  }
+  return entry.snapshot;
+}
 
 function hasSnapshotChanged(
   prev: WorkspaceSnapshot | undefined,
@@ -21,11 +47,18 @@ function hasSnapshotChanged(
   if (!prev) return true;
   if (prev.unreadCount !== curr.unreadCount) return true;
   if (prev.nextMeetingId !== curr.nextMeetingId) return true;
-  if (prev.overdueTaskCount !== curr.overdueTaskCount) return true;
-  if (prev.emailIds.length !== curr.emailIds.length) return true;
-  if (prev.emailIds.some((id, i) => curr.emailIds[i] !== id)) return true;
-  if (prev.taskIds.length !== curr.taskIds.length) return true;
-  if (prev.taskIds.some((id, i) => curr.taskIds[i] !== id)) return true;
+  // Skip comparison when either snapshot has null (API call failed) —
+  // don't trigger a false-positive diff from a transient API failure.
+  if (prev.overdueTaskCount !== null && curr.overdueTaskCount !== null &&
+      prev.overdueTaskCount !== curr.overdueTaskCount) return true;
+  if (prev.emailIds !== null && curr.emailIds !== null) {
+    if (prev.emailIds.length !== curr.emailIds.length) return true;
+    if (prev.emailIds.some((id, i) => curr.emailIds![i] !== id)) return true;
+  }
+  if (prev.taskIds !== null && curr.taskIds !== null) {
+    if (prev.taskIds.length !== curr.taskIds.length) return true;
+    if (prev.taskIds.some((id, i) => curr.taskIds![i] !== id)) return true;
+  }
   return false;
 }
 
@@ -43,7 +76,7 @@ export const POST = withHandler(async (req: NextRequest) => {
     return successResponse({ briefing: null, reason: "no_workspace_data" });
   }
 
-  const prevSnapshot = lastSnapshots.get(userId);
+  const prevSnapshot = getSnapshot(userId);
   if (!hasSnapshotChanged(prevSnapshot, snapshot)) {
     return successResponse({ briefing: null, reason: "no_changes" });
   }
@@ -56,7 +89,7 @@ export const POST = withHandler(async (req: NextRequest) => {
 
   const genAI = new GoogleGenerativeAI(apiKey);
   const model = genAI.getGenerativeModel({
-    model: process.env.GEMINI_MODEL || "gemini-3.1-pro-preview",
+    model: process.env.GEMINI_MODEL || "gemini-2.0-flash",
   });
 
   const result = await model.generateContent({
@@ -74,11 +107,13 @@ export const POST = withHandler(async (req: NextRequest) => {
 
   const briefingText = result.response.text();
 
+  // Always update the snapshot cache — prevents repeated Gemini calls
+  // when data changed but Gemini says "NO_UPDATE"
+  setSnapshot(userId, snapshot);
+
   if (briefingText.trim() === "NO_UPDATE") {
     return successResponse({ briefing: null, reason: "no_changes" });
   }
-
-  lastSnapshots.set(userId, snapshot);
 
   return successResponse({
     briefing: briefingText,

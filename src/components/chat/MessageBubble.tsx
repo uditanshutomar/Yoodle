@@ -1,8 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import ReactMarkdown from "react-markdown";
-import { CornerUpLeft, Check, X, Loader2 } from "lucide-react";
+import { CornerUpLeft, Check, X, Loader2, Zap } from "lucide-react";
 import Avatar from "@/components/ui/Avatar";
 import type { ChatMsg } from "@/hooks/useMessages";
 
@@ -231,6 +231,14 @@ export default function MessageBubble({
               ))}
             </div>
           )}
+
+          {/* Agent action proposal */}
+          {isAgent && message.agentMeta?.pendingAction && (
+            <AgentActionCard
+              action={message.agentMeta.pendingAction}
+              messageId={message._id}
+            />
+          )}
         </div>
 
         {/* Reactions bar */}
@@ -260,6 +268,127 @@ export default function MessageBubble({
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+// ── Agent Action Card ─────────────────────────────────────────────────
+
+interface AgentActionCardProps {
+  action: {
+    actionId: string;
+    actionType: string;
+    args: Record<string, unknown>;
+    summary: string;
+    status: string;
+  };
+  messageId: string;
+}
+
+function AgentActionCard({ action }: AgentActionCardProps) {
+  const [status, setStatus] = useState<"pending" | "confirming" | "confirmed" | "denied" | "error">(
+    (action.status as "pending") || "pending"
+  );
+
+  const handleConfirm = useCallback(async () => {
+    setStatus("confirming");
+    try {
+      const res = await fetch("/api/ai/action/confirm", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ actionType: action.actionType, args: action.args }),
+      });
+      if (res.ok) {
+        setStatus("confirmed");
+      } else {
+        setStatus("error");
+      }
+    } catch {
+      setStatus("error");
+    }
+  }, [action.actionType, action.args]);
+
+  const handleRetry = useCallback(() => {
+    setStatus("pending");
+  }, []);
+
+  const handleDeny = useCallback(() => {
+    setStatus("denied");
+  }, []);
+
+  if (status === "denied") {
+    return (
+      <div className="mt-2 text-[10px] italic" style={{ color: "var(--text-muted)" }}>
+        Action dismissed
+      </div>
+    );
+  }
+
+  return (
+    <div
+      className="mt-2 rounded-lg p-3 border"
+      style={{
+        backgroundColor: "var(--surface-hover)",
+        borderColor: status === "confirmed" ? "var(--success)" : "var(--border)",
+      }}
+    >
+      <div className="flex items-start gap-2">
+        <Zap size={14} className="mt-0.5 text-yellow-500 flex-shrink-0" />
+        <div className="flex-1 min-w-0">
+          <p className="text-xs font-medium" style={{ color: "var(--text-primary)" }}>
+            {action.summary}
+          </p>
+          <p className="text-[10px] mt-0.5" style={{ color: "var(--text-muted)" }}>
+            {action.actionType.replace(/_/g, " ")}
+          </p>
+        </div>
+      </div>
+      {status === "pending" && (
+        <div className="flex gap-2 mt-2">
+          <button
+            type="button"
+            onClick={handleConfirm}
+            className="flex-1 text-xs font-medium py-1.5 rounded-md transition-colors"
+            style={{ backgroundColor: "#FFE600", color: "#000" }}
+          >
+            Accept
+          </button>
+          <button
+            type="button"
+            onClick={handleDeny}
+            className="flex-1 text-xs font-medium py-1.5 rounded-md transition-colors"
+            style={{ backgroundColor: "var(--surface)", color: "var(--text-secondary)" }}
+          >
+            Deny
+          </button>
+        </div>
+      )}
+      {status === "confirming" && (
+        <div className="flex items-center justify-center gap-1 mt-2 text-xs" style={{ color: "var(--text-muted)" }}>
+          <Loader2 size={12} className="animate-spin" /> Running...
+        </div>
+      )}
+      {status === "confirmed" && (
+        <div className="flex items-center gap-1 mt-2 text-xs text-green-400">
+          <Check size={12} /> Done
+        </div>
+      )}
+      {status === "error" && (
+        <div className="flex items-center gap-2 mt-2">
+          <span className="text-xs text-red-400 flex items-center gap-1">
+            <X size={12} /> Failed
+          </span>
+          <button
+            type="button"
+            onClick={handleRetry}
+            className="text-[10px] underline"
+            style={{ color: "var(--text-muted)" }}
+          >
+            Retry
+          </button>
+        </div>
+      )}
     </div>
   );
 }

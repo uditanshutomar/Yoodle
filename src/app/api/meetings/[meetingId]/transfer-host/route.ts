@@ -29,7 +29,10 @@ function buildMeetingFilter(meetingId: string): Record<string, unknown> {
 // ── Validation ──────────────────────────────────────────────────────
 
 const transferSchema = z.object({
-  newHostUserId: z.string().min(1, "New host user ID is required"),
+  newHostUserId: z.string().min(1, "New host user ID is required").refine(
+    (val) => mongoose.Types.ObjectId.isValid(val),
+    { message: "Invalid user ID format." }
+  ),
 });
 
 // ── POST /api/meetings/:meetingId/transfer-host ─────────────────────

@@ -40,6 +40,7 @@ export interface IUser {
   role?: UserRole;
   mode: UserMode;
   status: UserStatus;
+  timezone?: string; // IANA timezone (e.g., "America/New_York")
   location?: IUserLocation;
   preferences: IUserPreferences;
   googleId?: string;
@@ -145,6 +146,10 @@ const userSchema = new Schema<IUserDocument>(
       type: String,
       enum: USER_STATUS,
       default: "offline",
+    },
+    timezone: {
+      type: String,
+      trim: true,
     },
     location: {
       type: locationSchema,

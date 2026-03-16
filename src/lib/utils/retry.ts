@@ -38,8 +38,26 @@ export async function withRetry<T>(
 
 /**
  * Check if an error is a transient/retryable network error.
+ * Checks the error's `status` or `code` property first (structured),
+ * then falls back to message-string heuristics.
  */
 export function isTransientError(error: unknown): boolean {
+  if (!error || typeof error !== "object") return false;
+
+  // Google API (GaxiosError) and Axios errors expose a numeric `status` or `response.status`
+  const err = error as Record<string, unknown>;
+  const status =
+    (typeof err.status === "number" ? err.status : undefined) ??
+    (typeof (err.response as Record<string, unknown>)?.status === "number"
+      ? (err.response as Record<string, unknown>).status as number
+      : undefined);
+
+  if (status !== undefined) {
+    // 429 Too Many Requests, 500 Internal Server Error, 502 Bad Gateway, 503 Service Unavailable
+    return status === 429 || status === 500 || status === 502 || status === 503;
+  }
+
+  // Fallback: check error message for network-level failures
   if (error instanceof Error) {
     const msg = error.message.toLowerCase();
     return (
@@ -48,9 +66,7 @@ export function isTransientError(error: unknown): boolean {
       msg.includes("econnreset") ||
       msg.includes("econnrefused") ||
       msg.includes("socket hang up") ||
-      msg.includes("fetch failed") ||
-      msg.includes("503") ||
-      msg.includes("429")
+      msg.includes("fetch failed")
     );
   }
   return false;

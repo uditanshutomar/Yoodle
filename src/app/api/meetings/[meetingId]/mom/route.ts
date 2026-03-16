@@ -55,9 +55,10 @@ Rules:
 
 export const GET = withHandler(
   async (
-    _req: NextRequest,
+    req: NextRequest,
     context?: { params: Promise<Record<string, string>> }
   ) => {
+    await getUserIdFromRequest(req); // Auth check — MoM should not be publicly accessible
     const { meetingId } = (await context!.params) as { meetingId: string };
     await connectDB();
 
@@ -219,16 +220,22 @@ export const POST = withHandler(
 
           const meetingTitle = meeting.title || "Yoodle Meeting";
           await Promise.allSettled(
-            actionItems.map((item) =>
-              createTask(userId, "@default", {
+            actionItems.map((item) => {
+              // Validate the due date before passing to Google Tasks —
+              // the LLM may return "next week" or other non-parseable strings.
+              let due: string | undefined;
+              if (item.due && item.due !== "TBD") {
+                const parsed = new Date(item.due);
+                if (!isNaN(parsed.getTime())) {
+                  due = parsed.toISOString();
+                }
+              }
+              return createTask(userId, "@default", {
                 title: item.task,
                 notes: `From meeting: ${meetingTitle}\nOwner: ${item.owner}`,
-                due:
-                  item.due && item.due !== "TBD"
-                    ? new Date(item.due).toISOString()
-                    : undefined,
-              })
-            )
+                due,
+              });
+            })
           );
           log.info(
             { meetingId: meeting._id, count: actionItems.length },

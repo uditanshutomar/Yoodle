@@ -31,13 +31,15 @@ export async function listFiles(
   const queryParts: string[] = ["trashed = false"];
 
   if (options.folderId) {
-    queryParts.push(`'${options.folderId}' in parents`);
+    const escapedFolderId = options.folderId.replace(/\\/g, "\\\\").replace(/'/g, "\\'");
+    queryParts.push(`'${escapedFolderId}' in parents`);
   }
   if (options.mimeType) {
-    queryParts.push(`mimeType = '${options.mimeType}'`);
+    const escapedMime = options.mimeType.replace(/\\/g, "\\\\").replace(/'/g, "\\'");
+    queryParts.push(`mimeType = '${escapedMime}'`);
   }
   if (options.query) {
-    const escaped = options.query.replace(/'/g, "\\'");
+    const escaped = options.query.replace(/\\/g, "\\\\").replace(/'/g, "\\'");
     // Search both file name and content for broader matches
     queryParts.push(`(name contains '${escaped}' or fullText contains '${escaped}')`);
   }

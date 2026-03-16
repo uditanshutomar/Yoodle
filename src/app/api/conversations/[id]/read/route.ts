@@ -4,7 +4,7 @@ import { withHandler } from "@/lib/infra/api/with-handler";
 import { successResponse } from "@/lib/infra/api/response";
 import { checkRateLimit } from "@/lib/infra/api/rate-limit";
 import { getUserIdFromRequest } from "@/lib/infra/auth/middleware";
-import { ForbiddenError, NotFoundError } from "@/lib/infra/api/errors";
+import { BadRequestError, ForbiddenError, NotFoundError } from "@/lib/infra/api/errors";
 import connectDB from "@/lib/infra/db/client";
 import Conversation from "@/lib/infra/db/models/conversation";
 import { getRedisClient } from "@/lib/infra/redis/client";
@@ -15,6 +15,9 @@ export const POST = withHandler(async (req: NextRequest, context) => {
   await checkRateLimit(req, "general");
   const userId = await getUserIdFromRequest(req);
   const { id } = await context!.params;
+  if (!mongoose.Types.ObjectId.isValid(id)) {
+    throw new BadRequestError("Invalid conversation ID.");
+  }
 
   await connectDB();
 

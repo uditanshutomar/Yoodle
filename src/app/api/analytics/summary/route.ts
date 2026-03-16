@@ -3,6 +3,7 @@ import { withHandler } from "@/lib/infra/api/with-handler";
 import { successResponse } from "@/lib/infra/api/response";
 import { checkRateLimit } from "@/lib/infra/api/rate-limit";
 import { getUserIdFromRequest } from "@/lib/infra/auth/middleware";
+import { ForbiddenError } from "@/lib/infra/api/errors";
 import connectDB from "@/lib/infra/db/client";
 import AnalyticsEvent from "@/lib/infra/db/models/analytics-event";
 import Meeting from "@/lib/infra/db/models/meeting";
@@ -14,9 +15,15 @@ const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
 // GET /api/analytics/summary -- admin analytics overview
 export const GET = withHandler(async (req: NextRequest) => {
   await checkRateLimit(req, "general");
-  await getUserIdFromRequest(req);
+  const userId = await getUserIdFromRequest(req);
 
   await connectDB();
+
+  // Only admins may access platform-wide analytics
+  const caller = await User.findById(userId).select("role").lean();
+  if (!caller || caller.role !== "admin") {
+    throw new ForbiddenError("Admin access required.");
+  }
 
   const now = new Date();
   const thirtyDaysAgo = new Date(now.getTime() - THIRTY_DAYS_MS);

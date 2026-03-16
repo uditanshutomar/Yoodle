@@ -14,6 +14,19 @@ import { createLogger } from "@/lib/infra/logger";
 
 const log = createLogger("api:recordings-upload");
 
+// ── Upload validation constants ──────────────────────────────────
+const MAX_FILE_SIZE_BYTES = 500 * 1024 * 1024; // 500 MB
+const ALLOWED_MIME_TYPES = new Set([
+  "video/webm",
+  "video/mp4",
+  "video/ogg",
+  "audio/webm",
+  "audio/mp4",
+  "audio/ogg",
+  "audio/wav",
+  "audio/mpeg",
+]);
+
 /**
  * POST /api/recordings/upload
  *
@@ -40,6 +53,20 @@ export const POST = withHandler(async (req: NextRequest) => {
   }
   if (!meetingId) {
     throw new BadRequestError("Meeting ID is required.");
+  }
+
+  // Validate file size
+  if (file.size > MAX_FILE_SIZE_BYTES) {
+    throw new BadRequestError(
+      `File too large. Maximum size is ${MAX_FILE_SIZE_BYTES / (1024 * 1024)} MB.`
+    );
+  }
+
+  // Validate MIME type
+  if (!file.type || !ALLOWED_MIME_TYPES.has(file.type)) {
+    throw new BadRequestError(
+      `Invalid file type "${file.type || "unknown"}". Allowed types: ${[...ALLOWED_MIME_TYPES].join(", ")}.`
+    );
   }
 
   // Verify user is a participant in this meeting

@@ -44,23 +44,17 @@ export async function appendToDoc(
 ): Promise<{ documentId: string }> {
   const { docs } = await getGoogleServices(userId);
 
-  // Get current doc to check if it already ends with a newline
-  const docRes = await docs.documents.get({ documentId });
-  const content = docRes.data.body?.content || [];
-  const endIndex = getDocEndIndex(content);
-
-  // Check if the doc already ends with a newline to avoid double blank lines
-  const existingText = extractPlainText(content);
-  const prefix = existingText.endsWith("\n") ? "" : "\n";
-
+  // Use endOfSegmentLocation to atomically insert at the end of the doc body.
+  // This avoids the TOCTOU race condition where the doc could be modified between
+  // fetching the end index and issuing the insert request.
   await docs.documents.batchUpdate({
     documentId,
     requestBody: {
       requests: [
         {
           insertText: {
-            location: { index: endIndex },
-            text: prefix + text,
+            endOfSegmentLocation: { segmentId: "" },
+            text: "\n" + text,
           },
         },
       ],
@@ -130,10 +124,3 @@ function extractPlainText(content: any[]): string {
   return text;
 }
 
-/** Get the end index of the document body for appending */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function getDocEndIndex(content: any[]): number {
-  if (content.length === 0) return 1;
-  const lastElement = content[content.length - 1];
-  return (lastElement.endIndex || 1) - 1;
-}

@@ -58,10 +58,9 @@ export async function authenticateRequest(
     return payload;
   } catch (error) {
     if (error instanceof UnauthorizedError) throw error;
-    if (error instanceof Error) {
-      throw new UnauthorizedError(`Authentication failed: ${error.message}`);
-    }
-    throw new UnauthorizedError("Authentication failed: Invalid token.");
+    // Do NOT leak JWT error details (e.g. "jwt expired", "invalid signature")
+    // to the client — those help attackers understand token structure.
+    throw new UnauthorizedError("Authentication failed: Invalid or expired token.");
   }
 }
 

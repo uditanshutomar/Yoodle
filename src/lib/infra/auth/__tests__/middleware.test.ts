@@ -212,8 +212,12 @@ describe("authenticateRequest", () => {
         expect((error as UnauthorizedError).message).toContain(
           "Authentication failed",
         );
-        expect((error as UnauthorizedError).message).toContain(
+        // Must NOT leak JWT-specific error details to clients
+        expect((error as UnauthorizedError).message).not.toContain(
           "JWT malformed",
+        );
+        expect((error as UnauthorizedError).message).toBe(
+          "Authentication failed: Invalid or expired token.",
         );
       }
     });

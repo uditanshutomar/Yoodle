@@ -12,6 +12,13 @@ export async function GET(
   try {
     const userId = await getUserIdFromRequest(req);
     const { id } = await context.params;
+
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return new Response(JSON.stringify({ error: "Invalid conversation ID" }), {
+        status: 400,
+      });
+    }
+
     await connectDB();
 
     // Verify user is a participant of this conversation

@@ -132,17 +132,20 @@ export async function sendEmail(
 ): Promise<{ messageId: string; threadId: string }> {
   const { gmail } = await getGoogleServices(userId);
 
+  // Strip CR/LF from header values to prevent email header injection
+  const sanitizeHeader = (v: string) => v.replace(/[\r\n]+/g, " ").trim();
+
   // Build RFC 2822 headers — filter out unused optional headers,
   // then append the mandatory blank-line separator and body.
   const headers = [
-    `To: ${options.to.join(", ")}`,
-    options.cc?.length ? `Cc: ${options.cc.join(", ")}` : null,
-    options.bcc?.length ? `Bcc: ${options.bcc.join(", ")}` : null,
-    `Subject: ${options.subject}`,
+    `To: ${options.to.map(sanitizeHeader).join(", ")}`,
+    options.cc?.length ? `Cc: ${options.cc.map(sanitizeHeader).join(", ")}` : null,
+    options.bcc?.length ? `Bcc: ${options.bcc.map(sanitizeHeader).join(", ")}` : null,
+    `Subject: ${sanitizeHeader(options.subject)}`,
     `Content-Type: ${options.isHtml ? "text/html" : "text/plain"}; charset=utf-8`,
     `MIME-Version: 1.0`,
     options.replyToMessageId
-      ? `In-Reply-To: ${options.replyToMessageId}`
+      ? `In-Reply-To: ${sanitizeHeader(options.replyToMessageId)}`
       : null,
   ].filter((h): h is string => h !== null);
 
@@ -238,20 +241,24 @@ export async function replyToEmail(
     ? originalSubject
     : `Re: ${originalSubject}`;
 
+  // Strip CR/LF from header values to prevent email header injection
+  const sanitizeHdr = (v: string) => v.replace(/[\r\n]+/g, " ").trim();
+
   // Build References header: original References + original Message-ID
-  const references = existingRefs
-    ? `${existingRefs} ${rfcMessageId}`
-    : rfcMessageId;
+  // Guard against empty rfcMessageId producing trailing whitespace
+  const references =
+    existingRefs && rfcMessageId ? `${existingRefs} ${rfcMessageId}`
+    : rfcMessageId || existingRefs || "";
 
   const replyHeaders = [
-    `To: ${replyTo}`,
-    options.cc?.length ? `Cc: ${options.cc.join(", ")}` : null,
-    options.bcc?.length ? `Bcc: ${options.bcc.join(", ")}` : null,
-    `Subject: ${subject}`,
+    `To: ${sanitizeHdr(replyTo)}`,
+    options.cc?.length ? `Cc: ${options.cc.map(sanitizeHdr).join(", ")}` : null,
+    options.bcc?.length ? `Bcc: ${options.bcc.map(sanitizeHdr).join(", ")}` : null,
+    `Subject: ${sanitizeHdr(subject)}`,
     `Content-Type: ${options.isHtml ? "text/html" : "text/plain"}; charset=utf-8`,
     `MIME-Version: 1.0`,
-    rfcMessageId ? `In-Reply-To: ${rfcMessageId}` : null,
-    references ? `References: ${references}` : null,
+    rfcMessageId ? `In-Reply-To: ${sanitizeHdr(rfcMessageId)}` : null,
+    references ? `References: ${sanitizeHdr(references)}` : null,
   ].filter((h): h is string => h !== null);
 
   const messageParts = [...replyHeaders, "", body].join("\r\n");

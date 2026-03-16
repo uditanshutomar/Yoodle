@@ -3,6 +3,7 @@ import { z } from "zod";
 import mongoose from "mongoose";
 import { withHandler } from "@/lib/infra/api/with-handler";
 import { successResponse } from "@/lib/infra/api/response";
+import { checkRateLimit } from "@/lib/infra/api/rate-limit";
 import { getUserIdFromRequest } from "@/lib/infra/auth/middleware";
 import { ForbiddenError, NotFoundError } from "@/lib/infra/api/errors";
 import connectDB from "@/lib/infra/db/client";
@@ -21,6 +22,7 @@ const bodySchema = z.object({
  * Sets the Redis denial key so the user's next poll shows "denied".
  */
 export const POST = withHandler(async (req: NextRequest, context) => {
+  await checkRateLimit(req, "meetings");
   const callerId = await getUserIdFromRequest(req);
   const { meetingId } = await context!.params;
   const { userId: targetUserId } = bodySchema.parse(await req.json());

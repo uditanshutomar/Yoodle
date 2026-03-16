@@ -11,8 +11,10 @@ import { tokenBlacklist, tokenIsBlacklisted } from "@/lib/infra/redis/cache";
 import { UnauthorizedError } from "@/lib/infra/api/errors";
 import { withHandler } from "@/lib/infra/api/with-handler";
 import { successResponse } from "@/lib/infra/api/response";
+import { checkRateLimit } from "@/lib/infra/api/rate-limit";
 
 export const POST = withHandler(async (req: NextRequest) => {
+  await checkRateLimit(req, "auth");
   const refreshTokenCookie = req.cookies.get("yoodle-refresh-token")?.value;
 
   if (!refreshTokenCookie) {

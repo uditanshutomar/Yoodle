@@ -6,13 +6,20 @@ const YOODLE_FOLDER_NAME = "Yoodle Recordings";
 
 /**
  * Ensure a "Yoodle Recordings" folder exists in the user's Google Drive.
- * Returns the folder ID.  Caches per-user to avoid repeated lookups.
+ * Returns the folder ID.  Caches per-user with TTL to avoid repeated lookups.
+ * If the cached folder ID produces a 404, the cache entry is evicted and retried.
  */
-const folderCache = new Map<string, string>();
+const FOLDER_CACHE_TTL_MS = 30 * 60 * 1000; // 30 minutes
+const folderCache = new Map<string, { id: string; cachedAt: number }>();
+
+/** Clear cached folder ID on 404 so the next call re-discovers the folder */
+export function clearFolderCache(userId: string) {
+  folderCache.delete(userId);
+}
 
 async function ensureYoodleFolder(userId: string): Promise<string> {
-  const cached = folderCache.get(userId);
-  if (cached) return cached;
+  const entry = folderCache.get(userId);
+  if (entry && Date.now() - entry.cachedAt < FOLDER_CACHE_TTL_MS) return entry.id;
 
   const { drive } = await getGoogleServices(userId);
 
@@ -25,7 +32,7 @@ async function ensureYoodleFolder(userId: string): Promise<string> {
 
   if (search.data.files && search.data.files.length > 0) {
     const folderId = search.data.files[0].id!;
-    folderCache.set(userId, folderId);
+    folderCache.set(userId, { id: folderId, cachedAt: Date.now() });
     return folderId;
   }
 
@@ -39,7 +46,7 @@ async function ensureYoodleFolder(userId: string): Promise<string> {
   });
 
   const folderId = folder.data.id!;
-  folderCache.set(userId, folderId);
+  folderCache.set(userId, { id: folderId, cachedAt: Date.now() });
   return folderId;
 }
 
@@ -63,8 +70,10 @@ async function ensureMeetingFolder(
   const folderName = `${safeName}_${datePart}_${timePart}`;
 
   // Check if the meeting sub-folder already exists
+  const escapedMeetingSuffix = meetingId.slice(-6).replace(/\\/g, "\\\\").replace(/'/g, "\\'");
+  const escapedParentId = parentId.replace(/\\/g, "\\\\").replace(/'/g, "\\'");
   const search = await drive.files.list({
-    q: `name contains '${meetingId.slice(-6)}' and '${parentId}' in parents and mimeType = 'application/vnd.google-apps.folder' and trashed = false`,
+    q: `name contains '${escapedMeetingSuffix}' and '${escapedParentId}' in parents and mimeType = 'application/vnd.google-apps.folder' and trashed = false`,
     fields: "files(id)",
     pageSize: 1,
   });
@@ -157,8 +166,10 @@ export async function listMeetingRecordings(
     const parentId = await ensureYoodleFolder(userId);
     const { drive } = await getGoogleServices(userId);
 
+    const escapedSuffix = meetingId.slice(-6).replace(/\\/g, "\\\\").replace(/'/g, "\\'");
+    const escapedParent = parentId.replace(/\\/g, "\\\\").replace(/'/g, "\\'");
     const search = await drive.files.list({
-      q: `name contains '${meetingId.slice(-6)}' and '${parentId}' in parents and mimeType = 'application/vnd.google-apps.folder' and trashed = false`,
+      q: `name contains '${escapedSuffix}' and '${escapedParent}' in parents and mimeType = 'application/vnd.google-apps.folder' and trashed = false`,
       fields: "files(id)",
       pageSize: 1,
     });
@@ -170,8 +181,9 @@ export async function listMeetingRecordings(
     folderId = search.data.files[0].id!;
 
     // List video/audio files in the meeting folder
+    const escapedFolderId = folderId.replace(/\\/g, "\\\\").replace(/'/g, "\\'");
     const files = await drive.files.list({
-      q: `'${folderId}' in parents and trashed = false and (mimeType contains 'video/' or mimeType contains 'audio/')`,
+      q: `'${escapedFolderId}' in parents and trashed = false and (mimeType contains 'video/' or mimeType contains 'audio/')`,
       fields:
         "files(id, name, mimeType, size, createdTime, webViewLink, webContentLink)",
       orderBy: "createdTime desc",

@@ -24,7 +24,7 @@ import {
  *    Returns `{ users: WaitingUser[] }`.
  */
 export const GET = withHandler(async (req: NextRequest, context) => {
-  await getUserIdFromRequest(req); // auth check
+  const authenticatedUserId = await getUserIdFromRequest(req);
   const { meetingId } = await context!.params;
 
   await connectDB();
@@ -41,13 +41,30 @@ export const GET = withHandler(async (req: NextRequest, context) => {
   const roomId = meeting._id.toString();
 
   // ── Joiner mode: check own admission status ─────────────────────
+  // Use the authenticated user's ID — not a query param — to prevent IDOR.
+  // The `?mode=check` param signals "check my own status" without leaking
+  // the ability to query arbitrary user IDs.
+  const mode = req.nextUrl.searchParams.get("mode");
+  if (mode === "check") {
+    const status = await waitingCheckStatus(roomId, authenticatedUserId);
+    return successResponse({ status });
+  }
+
+  // Legacy support: if ?userId is passed, only allow checking your own status
   const queryUserId = req.nextUrl.searchParams.get("userId");
   if (queryUserId) {
-    const status = await waitingCheckStatus(roomId, queryUserId);
+    if (queryUserId !== authenticatedUserId) {
+      throw new NotFoundError("Meeting not found."); // Don't reveal IDOR attempt
+    }
+    const status = await waitingCheckStatus(roomId, authenticatedUserId);
     return successResponse({ status });
   }
 
   // ── Host mode: return waiting room queue ────────────────────────
+  const hostId = (meeting as unknown as { hostId: { toString(): string } }).hostId.toString();
+  if (hostId !== authenticatedUserId) {
+    throw new NotFoundError("Meeting not found."); // Only host can see the queue
+  }
   const users = await waitingGetQueue(roomId);
   return successResponse({ users });
 });

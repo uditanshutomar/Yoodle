@@ -5,6 +5,7 @@ import { successResponse, errorResponse } from "@/lib/infra/api/response";
 import { checkRateLimit } from "@/lib/infra/api/rate-limit";
 import { getUserIdFromRequest } from "@/lib/infra/auth/middleware";
 import { BadRequestError } from "@/lib/infra/api/errors";
+import mongoose from "mongoose";
 import { listEvents, createEvent, updateEvent, deleteEvent } from "@/lib/google/calendar";
 import { hasGoogleAccess } from "@/lib/google/client";
 import connectDB from "@/lib/infra/db/client";
@@ -25,7 +26,11 @@ const createEventSchema = z.object({
   end: z.string().min(1, "End time required."),
   location: z.string().max(500).optional(),
   attendees: z.array(z.string().email()).optional(),
-  attendeeUserIds: z.array(z.string()).optional(),
+  attendeeUserIds: z.array(
+    z.string().refine((val) => mongoose.Types.ObjectId.isValid(val), {
+      message: "Invalid user ID format.",
+    })
+  ).optional(),
   addMeetLink: z.boolean().optional().default(false),
   timeZone: z.string().optional(),
 });

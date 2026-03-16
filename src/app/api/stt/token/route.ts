@@ -36,7 +36,9 @@ export const POST = withHandler(async (req: NextRequest) => {
   }
 
   if (!projectId) {
-    return successResponse({ key: apiKey });
+    throw new Error(
+      "Could not retrieve Deepgram project ID. Temporary key creation requires a valid project."
+    );
   }
 
   // Create a temporary key that expires in 10 seconds
@@ -68,6 +70,9 @@ export const POST = withHandler(async (req: NextRequest) => {
     // Fall through to return main key
   }
 
-  // Fallback: return the main API key if temp key creation fails
-  return successResponse({ key: apiKey });
+  // If temporary key creation failed, do NOT fall back to the main API key.
+  // The main key has full account access and must never be sent to clients.
+  throw new Error(
+    "Failed to create temporary Deepgram key. Please check Deepgram API configuration."
+  );
 });

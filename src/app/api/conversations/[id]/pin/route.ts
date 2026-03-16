@@ -19,6 +19,9 @@ export const POST = withHandler(async (req: NextRequest, context) => {
   await checkRateLimit(req, "general");
   const userId = await getUserIdFromRequest(req);
   const { id } = await context!.params;
+  if (!mongoose.Types.ObjectId.isValid(id)) {
+    throw new BadRequestError("Invalid conversation ID.");
+  }
 
   await connectDB();
 
@@ -41,6 +44,9 @@ export const POST = withHandler(async (req: NextRequest, context) => {
 
   if (!messageId || typeof messageId !== "string") {
     throw new BadRequestError("messageId is required.");
+  }
+  if (!mongoose.Types.ObjectId.isValid(messageId)) {
+    throw new BadRequestError("Invalid message ID.");
   }
 
   // Verify the message belongs to this conversation

@@ -27,6 +27,7 @@ export function toClientMessage(msg: any) {
   const reactionsRaw = msg.reactions ?? [];
   const reactionMap = new Map<string, string[]>();
   for (const r of reactionsRaw) {
+    if (!r.emoji) continue; // skip reactions with missing emoji
     const uid = r.userId?.toString?.() ?? r.userId;
     if (!reactionMap.has(r.emoji)) reactionMap.set(r.emoji, []);
     reactionMap.get(r.emoji)!.push(uid);
@@ -48,8 +49,8 @@ export function toClientMessage(msg: any) {
   }
 
   return {
-    _id: msg._id.toString(),
-    conversationId: msg.conversationId.toString(),
+    _id: msg._id?.toString() ?? "",
+    conversationId: msg.conversationId?.toString() ?? "",
     sender,
     senderType: msg.senderType,
     content: msg.content,

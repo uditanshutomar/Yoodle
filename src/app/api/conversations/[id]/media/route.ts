@@ -21,6 +21,9 @@ export const GET = withHandler(async (req: NextRequest, context) => {
   await checkRateLimit(req, "general");
   const userId = await getUserIdFromRequest(req);
   const { id } = await context!.params;
+  if (!mongoose.Types.ObjectId.isValid(id)) {
+    throw new BadRequestError("Invalid conversation ID.");
+  }
 
   await connectDB();
 

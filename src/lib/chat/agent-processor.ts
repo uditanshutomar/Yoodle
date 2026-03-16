@@ -1,7 +1,6 @@
 import { getModel } from "@/lib/ai/gemini";
 import {
-  buildAnalyzePrompt,
-  buildDecidePrompt,
+  buildAnalyzeAndDecidePrompt,
   buildRespondPrompt,
   buildReflectPrompt,
 } from "@/lib/ai/prompts";
@@ -9,6 +8,7 @@ import { executeToolPlan, formatGatheredData } from "@/lib/chat/agent-tools";
 import DirectMessage from "@/lib/infra/db/models/direct-message";
 import Conversation from "@/lib/infra/db/models/conversation";
 import ConversationContext from "@/lib/infra/db/models/conversation-context";
+import AIMemory from "@/lib/infra/db/models/ai-memory";
 import User from "@/lib/infra/db/models/user";
 import { getRedisClient } from "@/lib/infra/redis/client";
 import { createLogger } from "@/lib/infra/logger";
@@ -24,6 +24,10 @@ const GEMINI_TIMEOUT_MS = 15_000;
 
 /** Don't send DND auto-reply if one was sent in the last 5 minutes */
 const DND_DEBOUNCE_MS = 5 * 60 * 1000;
+
+/** Pipeline lock TTL — long enough for the full pipeline (2× Gemini + tools + DB).
+ *  The finally block releases early via run ID check. */
+const PIPELINE_LOCK_TTL_MS = 60_000;
 
 // ── Public entry point ──────────────────────────────────────────────
 
@@ -89,60 +93,87 @@ async function processOneAgent(
     return;
   }
 
-  // Publish "agent thinking" event
-  await redis.publish(
-    `chat:${conversationId}`,
-    JSON.stringify({
-      type: "agent_thinking",
-      agentId: agentUserId,
-      name: `${userName}'s Doodle`,
-    })
-  );
+  // ── Pipeline debounce — skip if another run is already in-flight ──
+  const debounceKey = `agent:debounce:${conversationId}:${agentUserId}`;
+  const runId = randomUUID().slice(0, 8);
+
+  // Wrap lock acquisition + thinking publish in try/catch so Redis errors
+  // don't leave the thinking indicator stuck (no thinking_done published).
+  let acquired: string | null;
+  try {
+    acquired = await redis.set(debounceKey, runId, "PX", PIPELINE_LOCK_TTL_MS, "NX");
+  } catch (lockErr) {
+    log.error({ error: lockErr, agentUserId, conversationId }, "Redis lock acquisition failed");
+    return;
+  }
+  if (!acquired) {
+    log.info({ agentUserId, conversationId }, "Pipeline debounced — another run in progress");
+    return;
+  }
+
+  try {
+    // Publish "agent thinking" event
+    await redis.publish(
+      `chat:${conversationId}`,
+      JSON.stringify({
+        type: "agent_thinking",
+        agentId: agentUserId,
+        name: `${userName}'s Doodle`,
+      })
+    );
+  } catch (thinkErr) {
+    log.warn({ error: thinkErr, agentUserId, conversationId }, "Failed to publish agent_thinking event");
+    // Continue — the pipeline can still run even if the thinking indicator wasn't published
+  }
 
   try {
     // ── Load context ────────────────────────────────────────────
-    const [recentMessages, conversationCtx, triggerSender] = await Promise.all([
+    const [recentMessages, conversationCtx, triggerSender, conv, userMemories] = await Promise.all([
       loadRecentMessages(conversationId, 30),
       loadOrCreateContext(conversationId),
       User.findById(triggerMessage.senderId).lean().then((u) => u?.displayName || u?.name || "Someone"),
+      Conversation.findById(conversationId).lean(),
+      loadUserMemories(agentUserId),
     ]);
 
-    const triggerSenderName = triggerSender as string;
+    // triggerSender is already the resolved display name string
     const history = formatMessageHistory(recentMessages);
     const last10 = formatMessageHistory(recentMessages.slice(-10));
 
-    // ── Stage 1: ANALYZE ────────────────────────────────────────
-    const analyzePrompt = buildAnalyzePrompt(
+    // Build conversation type context (1:1 vs group, participant count)
+    const convType = conv?.type === "dm" ? "1:1 DM" : `group chat (${conv?.participants?.length || 0} members)`;
+
+    // ── Stage 1+2: ANALYZE & DECIDE (merged) ─────────────────────
+    const analyzeAndDecidePrompt = buildAnalyzeAndDecidePrompt(
       userName,
       conversationCtx.summary,
       formatOpenQuestions(conversationCtx.openQuestions),
       formatActionItems(conversationCtx.actionItems),
       history,
       triggerMessage.content,
-      triggerSenderName
+      triggerSender,
+      convType,
+      userMemories
     );
 
-    const analysisRaw = await callGemini(analyzePrompt);
-    const analysis = safeParseJson(analysisRaw);
-    if (!analysis) {
-      log.warn({ agentUserId, conversationId }, "ANALYZE stage returned invalid JSON");
+    const adRaw = await callGemini(analyzeAndDecidePrompt);
+    const adResult = safeParseJson(adRaw);
+    if (!adResult) {
+      log.warn({ agentUserId, conversationId }, "ANALYZE+DECIDE stage returned invalid JSON");
       await publishThinkingDone(redis, conversationId, agentUserId);
       return;
     }
 
-    log.info({ agentUserId, analysis }, "Stage 1 ANALYZE complete");
+    // Extract analysis and decision parts from the merged response
+    const analysis = adResult.analysis || adResult;
+    const rawDecision = adResult.decision;
+    const decision = {
+      decision: typeof rawDecision === "string" ? rawDecision : "SILENT",
+      reason: adResult.reason || "",
+      toolPlan: adResult.toolPlan || [],
+    };
 
-    // ── Stage 2: DECIDE ─────────────────────────────────────────
-    const decidePrompt = buildDecidePrompt(userName, JSON.stringify(analysis));
-    const decisionRaw = await callGemini(decidePrompt);
-    const decision = safeParseJson(decisionRaw);
-    if (!decision) {
-      log.warn({ agentUserId, conversationId }, "DECIDE stage returned invalid JSON");
-      await publishThinkingDone(redis, conversationId, agentUserId);
-      return;
-    }
-
-    log.info({ agentUserId, decision: decision.decision, reason: decision.reason }, "Stage 2 DECIDE complete");
+    log.info({ agentUserId, decision: decision.decision, reason: decision.reason }, "Stage 1+2 ANALYZE+DECIDE complete");
 
     if (decision.decision === "SILENT") {
       await publishThinkingDone(redis, conversationId, agentUserId);
@@ -159,23 +190,30 @@ async function processOneAgent(
 
     // ── Stage 3: GATHER ─────────────────────────────────────────
     const toolPlan: string[] = Array.isArray(decision.toolPlan) ? decision.toolPlan : [];
-    const gatheredData = await executeToolPlan(agentUserId, toolPlan);
+    const userTimezone = (user as { timezone?: string }).timezone;
+    const gatheredData = await executeToolPlan(agentUserId, toolPlan, userTimezone);
     const gatheredDataStr = formatGatheredData(gatheredData);
 
     log.info({
       agentUserId, toolPlan,
       hasCalendar: !!gatheredData.calendar, hasTasks: !!gatheredData.tasks,
-      hasEmails: !!gatheredData.emails, hasFiles: !!gatheredData.files, hasContacts: !!gatheredData.contacts, hasDocs: !!gatheredData.docs,
+      hasEmails: !!gatheredData.emails, hasFiles: !!gatheredData.files,
+      hasContacts: !!gatheredData.contacts, hasDocs: !!gatheredData.docs,
+      hasSheets: !!gatheredData.sheets,
     }, "Stage 3 GATHER complete");
 
     // ── Stage 4: RESPOND ────────────────────────────────────────
+    // Build structured analysis string instead of dumping raw JSON
+    const structuredAnalysis = formatAnalysisForRespond(analysis, decision);
+
     const respondPrompt = buildRespondPrompt(
       userName,
       conversationCtx.summary,
-      JSON.stringify(analysis),
+      structuredAnalysis,
       gatheredDataStr,
       last10,
-      triggerSenderName
+      triggerSender,
+      userMemories
     );
 
     const response = await callGemini(respondPrompt);
@@ -205,6 +243,13 @@ async function processOneAgent(
     } catch (redisErr) {
       log.warn({ error: redisErr, conversationId, agentUserId }, "Failed to publish thinking_done (Redis error)");
     }
+  } finally {
+    // Release debounce lock only if we still own it (same run ID).
+    // Prevents deleting a lock acquired by a newer pipeline run.
+    try {
+      const current = await redis.get(debounceKey);
+      if (current === runId) await redis.del(debounceKey);
+    } catch { /* non-fatal */ }
   }
 }
 
@@ -251,7 +296,7 @@ async function runReflect(
 
     const reflectPrompt = buildReflectPrompt(
       JSON.stringify(contextForPrompt),
-      messages.slice(-15).join("\n")
+      messages.slice(-30).join("\n")
     );
 
     const reflectRaw = await callGemini(reflectPrompt);
@@ -274,32 +319,16 @@ async function runReflect(
       setOps.summary = reflectData.summaryUpdate;
     }
 
-    // Only run resolve ops if the document exists (avoid creating malformed stubs via upsert)
-    const ctxExists = await ConversationContext.exists({ conversationId: convObjId });
-
-    // Resolve action items (mark as done by ID)
-    if (resolvedActionIds.length > 0 && ctxExists) {
-      await ConversationContext.updateOne(
-        { conversationId: convObjId },
-        { $set: { "actionItems.$[item].status": "done" } },
-        { arrayFilters: [{ "item.id": { $in: resolvedActionIds } }] }
-      );
-    }
-
-    // Step 2: $pull to remove resolved questions (separate op to avoid $push/$pull conflict)
-    if (resolvedQuestionIds.length > 0 && ctxExists) {
-      await ConversationContext.updateOne(
-        { conversationId: convObjId },
-        { $pull: { openQuestions: { id: { $in: resolvedQuestionIds } } } }
-      );
-    }
-
-    // Step 3: $set + $push for new items (single atomic operation)
+    // Step 2: $set + $push for new items (single atomic operation, with upsert)
     const pushOps: Record<string, unknown> = {};
 
-    if (newActionItems.length > 0) {
+    // Filter out items with missing required fields (Gemini can return incomplete objects)
+    const validActions = newActionItems.filter(
+      (i: { description?: string }) => typeof i.description === "string" && i.description.trim().length > 0
+    );
+    if (validActions.length > 0) {
       pushOps.actionItems = {
-        $each: newActionItems.map((item: { assignee: string; description: string }) => ({
+        $each: validActions.map((item: { assignee?: string; description: string }) => ({
           id: randomUUID().slice(0, 8),
           assignee: item.assignee || "unassigned",
           description: item.description,
@@ -310,20 +339,26 @@ async function runReflect(
       };
     }
 
-    if (newDecisions.length > 0) {
+    const validDecisions = newDecisions.filter(
+      (d: { description?: string }) => typeof d.description === "string" && d.description.trim().length > 0
+    );
+    if (validDecisions.length > 0) {
       pushOps.decisions = {
-        $each: newDecisions.map((d: { description: string; participants: string[] }) => ({
+        $each: validDecisions.map((d: { description: string; participants?: string[] }) => ({
           description: d.description,
           madeAt: new Date(),
-          participants: d.participants || [],
+          participants: Array.isArray(d.participants) ? d.participants : [],
         })),
         $slice: -10,
       };
     }
 
-    if (newFacts.length > 0) {
+    const validFacts = newFacts.filter(
+      (f: { content?: string }) => typeof f.content === "string" && f.content.trim().length > 0
+    );
+    if (validFacts.length > 0) {
       pushOps.facts = {
-        $each: newFacts.map((f: { content: string; mentionedBy: string }) => ({
+        $each: validFacts.map((f: { content: string; mentionedBy?: string }) => ({
           content: f.content,
           mentionedBy: f.mentionedBy || "unknown",
           mentionedAt: new Date(),
@@ -332,9 +367,12 @@ async function runReflect(
       };
     }
 
-    if (newQuestions.length > 0) {
+    const validQuestions = newQuestions.filter(
+      (q: { question?: string }) => typeof q.question === "string" && q.question.trim().length > 0
+    );
+    if (validQuestions.length > 0) {
       pushOps.openQuestions = {
-        $each: newQuestions.map((q: { question: string; askedBy: string }) => ({
+        $each: validQuestions.map((q: { question: string; askedBy?: string }) => ({
           id: randomUUID().slice(0, 8),
           question: q.question,
           askedBy: q.askedBy || "unknown",
@@ -353,6 +391,24 @@ async function runReflect(
       { upsert: true }
     );
 
+    // Run resolve ops AFTER upsert so the document is guaranteed to exist.
+    // This avoids the bug where resolve ops were skipped on first-ever REFLECT
+    // because the document didn't exist yet (ctxExists was false pre-upsert).
+    if (resolvedActionIds.length > 0) {
+      await ConversationContext.updateOne(
+        { conversationId: convObjId },
+        { $set: { "actionItems.$[item].status": "done" } },
+        { arrayFilters: [{ "item.id": { $in: resolvedActionIds } }] }
+      );
+    }
+
+    if (resolvedQuestionIds.length > 0) {
+      await ConversationContext.updateOne(
+        { conversationId: convObjId },
+        { $pull: { openQuestions: { id: { $in: resolvedQuestionIds } } } }
+      );
+    }
+
     log.info({ conversationId }, "Stage 5 REFLECT complete");
   } catch (error) {
     // Reflect failure is non-fatal — don't break the pipeline
@@ -362,15 +418,72 @@ async function runReflect(
 
 // ── Helpers ─────────────────────────────────────────────────────────
 
+/**
+ * Load user's AIMemory entries (preferences, habits, relationships).
+ * Returns a formatted string for injection into prompts.
+ */
+async function loadUserMemories(userId: string): Promise<string> {
+  try {
+    const memories = await AIMemory.find({
+      userId: new mongoose.Types.ObjectId(userId),
+      $or: [{ expiresAt: { $exists: false } }, { expiresAt: { $gt: new Date() } }],
+    })
+      .sort({ confidence: -1, updatedAt: -1 })
+      .limit(20)
+      .lean();
+
+    if (memories.length === 0) return "";
+
+    const grouped: Record<string, string[]> = {};
+    for (const m of memories) {
+      const cat = m.category;
+      if (!grouped[cat]) grouped[cat] = [];
+      grouped[cat].push(m.content);
+    }
+
+    const parts: string[] = [];
+    for (const [category, items] of Object.entries(grouped)) {
+      parts.push(`${category}: ${items.join("; ")}`);
+    }
+    return parts.join("\n");
+  } catch (error) {
+    log.warn({ error, userId }, "Failed to load user memories (non-fatal)");
+    return "";
+  }
+}
+
+/**
+ * Format analysis + decision into a structured string for the RESPOND prompt.
+ * Avoids dumping raw JSON which wastes tokens and confuses the model.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function formatAnalysisForRespond(analysis: any, decision: any): string {
+  const parts: string[] = [];
+
+  if (analysis.classification) parts.push(`Topic: ${analysis.classification}`);
+  if (analysis.urgency) parts.push(`Urgency: ${analysis.urgency}`);
+  if (Array.isArray(analysis.addressedTo) && analysis.addressedTo.length > 0) {
+    parts.push(`Addressed to: ${analysis.addressedTo.join(", ")}`);
+  }
+  if (Array.isArray(analysis.unresolvedItems) && analysis.unresolvedItems.length > 0) {
+    parts.push(`Unresolved: ${analysis.unresolvedItems.join("; ")}`);
+  }
+  if (Array.isArray(analysis.keyEntities) && analysis.keyEntities.length > 0) {
+    parts.push(`Key entities: ${analysis.keyEntities.join(", ")}`);
+  }
+  if (decision.reason) parts.push(`Respond because: ${decision.reason}`);
+
+  return parts.join("\n");
+}
+
 async function callGemini(prompt: string): Promise<string> {
   const model = getModel();
-  const result = await Promise.race([
-    model.generateContent(prompt),
-    new Promise<never>((_, reject) =>
-      setTimeout(() => reject(new Error("Gemini call timed out")), GEMINI_TIMEOUT_MS)
-    ),
-  ]);
-  return result.response.text().trim();
+  return new Promise<string>((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error("Gemini call timed out")), GEMINI_TIMEOUT_MS);
+    model.generateContent(prompt)
+      .then((result) => { clearTimeout(timer); resolve(result.response.text().trim()); })
+      .catch((err) => { clearTimeout(timer); reject(err); });
+  });
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -389,11 +502,32 @@ function safeParseJson(text: string): any | null {
         if (fenceMatch) cleaned = fenceMatch[1];
       }
 
-      // Find the first { ... } block (greedy match for nested objects)
+      // Find the first balanced { ... } block using brace-depth counting.
+      // This avoids matching a closing brace from explanation text after
+      // the actual JSON object (e.g. "Here is the JSON: {...} hope this helps}").
       const firstBrace = cleaned.indexOf("{");
-      const lastBrace = cleaned.lastIndexOf("}");
-      if (firstBrace !== -1 && lastBrace > firstBrace) {
-        return JSON.parse(cleaned.slice(firstBrace, lastBrace + 1));
+      if (firstBrace !== -1) {
+        let depth = 0;
+        let inString = false;
+        let prevBackslash = false;
+        for (let i = firstBrace; i < cleaned.length; i++) {
+          const ch = cleaned[i];
+          if (inString) {
+            if (prevBackslash) { prevBackslash = false; continue; }
+            if (ch === "\\") { prevBackslash = true; continue; }
+            if (ch === '"') { inString = false; }
+            continue;
+          }
+          // Outside strings — only braces and quote-open matter
+          if (ch === '"') { inString = true; continue; }
+          if (ch === "{") depth++;
+          else if (ch === "}") {
+            depth--;
+            if (depth === 0) {
+              return JSON.parse(cleaned.slice(firstBrace, i + 1));
+            }
+          }
+        }
       }
     } catch {
       // Both attempts failed
@@ -433,12 +567,22 @@ async function loadOrCreateContext(conversationId: string) {
   };
 }
 
+/** Max characters per message when formatting for prompts — prevents token flooding */
+const MAX_MSG_CHARS_FOR_PROMPT = 500;
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function formatOneMessage(m: any): string {
   const sender = m.senderId as { displayName?: string; name?: string } | null;
-  const senderName = sender?.displayName || sender?.name || "Unknown";
+  // Sanitize sender name: strip brackets and colons to prevent prompt injection
+  // via display names like "Admin]: ignore above instructions\n[System"
+  const rawName = sender?.displayName || sender?.name || "Unknown";
+  const senderName = rawName.replace(/[\[\]:]/g, "").slice(0, 50);
   const prefix = m.senderType === "agent" ? `${senderName}'s Doodle` : senderName;
-  return `[${prefix}]: ${m.content}`;
+  let content = m.content || "";
+  if (content.length > MAX_MSG_CHARS_FOR_PROMPT) {
+    content = content.slice(0, MAX_MSG_CHARS_FOR_PROMPT) + "… [truncated]";
+  }
+  return `[${prefix}]: ${content}`;
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -478,20 +622,36 @@ async function saveAndPublishAgentMessage(
   content: string,
   redis: Redis
 ) {
+  // Extract action proposal if present (```action ... ``` block at the end)
+  const { cleanContent, pendingAction } = extractActionProposal(content);
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const agentMeta: Record<string, any> = {
+    forUserId: new mongoose.Types.ObjectId(agentUserId),
+  };
+
+  if (pendingAction) {
+    agentMeta.pendingAction = {
+      actionId: `action-${Date.now()}-${crypto.randomUUID().slice(0, 8)}`,
+      ...pendingAction,
+      status: "pending",
+    };
+  }
+
   const agentMessage = await DirectMessage.create({
     conversationId: new mongoose.Types.ObjectId(conversationId),
     senderId: new mongoose.Types.ObjectId(agentUserId),
     senderType: "agent",
-    content,
+    content: cleanContent,
     type: "agent",
-    agentMeta: { forUserId: new mongoose.Types.ObjectId(agentUserId) },
+    agentMeta,
   });
 
   await Conversation.updateOne(
     { _id: conversationId },
     {
       lastMessageAt: agentMessage.createdAt,
-      lastMessagePreview: content.slice(0, 100),
+      lastMessagePreview: cleanContent.slice(0, 100),
       lastMessageSenderId: new mongoose.Types.ObjectId(agentUserId),
     }
   );
@@ -500,12 +660,65 @@ async function saveAndPublishAgentMessage(
     .populate("senderId", "name displayName avatarUrl status")
     .lean();
 
+  if (!populated) {
+    log.warn({ agentUserId, conversationId }, "Could not re-fetch agent message after create");
+    // Still publish thinking_done so the client's UI doesn't hang
+    await redis.publish(
+      `chat:${conversationId}`,
+      JSON.stringify({ type: "agent_thinking_done", agentId: agentUserId })
+    );
+    return;
+  }
+
+  // Publish the message — the client infers thinking_done from receiving the message
   await redis.publish(
     `chat:${conversationId}`,
     JSON.stringify({ type: "message", data: toClientMessage(populated) })
   );
 }
 
-// ── Exports for testing ─────────────────────────────────────────────
+/**
+ * Extract an action proposal from the agent's response.
+ * The agent wraps action proposals in ```action ... ``` blocks.
+ */
+function extractActionProposal(content: string): {
+  cleanContent: string;
+  pendingAction: { actionType: string; args: Record<string, unknown>; summary: string } | null;
+} {
+  const actionMatch = content.match(/```action\s*\n?([\s\S]*?)\n?\s*```/);
+  if (!actionMatch) {
+    return { cleanContent: content, pendingAction: null };
+  }
+
+  try {
+    const parsed = JSON.parse(actionMatch[1].trim());
+    if (parsed.actionType && parsed.summary) {
+      // Strip all ```action...``` blocks (not just trailing ones)
+      const cleanContent = content.replace(/\s*```action\s*\n?[\s\S]*?\n?\s*```\s*/g, " ").trim();
+      return {
+        cleanContent,
+        pendingAction: {
+          actionType: parsed.actionType,
+          args: parsed.args || {},
+          summary: parsed.summary,
+        },
+      };
+    }
+  } catch {
+    // Invalid JSON in action block — ignore it
+  }
+
+  return { cleanContent: content, pendingAction: null };
+}
+
+// ── Exports ─────────────────────────────────────────────────────────
 
 export { processOneAgent };
+
+// Exported for unit testing — prefixed with underscore to signal internal use
+export {
+  safeParseJson as _safeParseJson,
+  extractActionProposal as _extractActionProposal,
+  formatAnalysisForRespond as _formatAnalysisForRespond,
+  formatOneMessage as _formatOneMessage,
+};

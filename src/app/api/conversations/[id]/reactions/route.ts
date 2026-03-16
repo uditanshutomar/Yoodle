@@ -20,6 +20,9 @@ export const POST = withHandler(async (req: NextRequest, context) => {
   await checkRateLimit(req, "general");
   const userId = await getUserIdFromRequest(req);
   const { id } = await context!.params;
+  if (!mongoose.Types.ObjectId.isValid(id)) {
+    throw new BadRequestError("Invalid conversation ID.");
+  }
 
   await connectDB();
 
@@ -43,8 +46,15 @@ export const POST = withHandler(async (req: NextRequest, context) => {
   if (!messageId || typeof messageId !== "string") {
     throw new BadRequestError("messageId is required.");
   }
+  if (!mongoose.Types.ObjectId.isValid(messageId)) {
+    throw new BadRequestError("Invalid message ID.");
+  }
   if (!emoji || typeof emoji !== "string") {
     throw new BadRequestError("emoji is required.");
+  }
+  // Prevent storing arbitrary-length strings as "emoji" reactions
+  if (emoji.length > 32) {
+    throw new BadRequestError("Emoji value is too long.");
   }
 
   // Find the message and verify it belongs to this conversation

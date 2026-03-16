@@ -31,7 +31,7 @@ export const POST = withHandler(async (req: NextRequest) => {
 
   const genAI = new GoogleGenerativeAI(apiKey);
   const model = genAI.getGenerativeModel({
-    model: process.env.GEMINI_MODEL || "gemini-3.1-pro-preview",
+    model: process.env.GEMINI_MODEL || "gemini-2.0-flash",
   });
 
   const prompt = `Original action type: ${body.actionType}
@@ -57,14 +57,31 @@ Return the revised action as JSON with these fields:
 
   const responseText = result.response.text().trim();
 
-  // Extract JSON from response (Gemini may wrap in ```json blocks)
+  // Extract the first balanced JSON object from the response
   let parsed: { actionType: string; args: Record<string, unknown>; summary: string };
   try {
-    const jsonMatch = responseText.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) throw new Error("No JSON found");
-    parsed = JSON.parse(jsonMatch[0]);
-  } catch {
-    log.error({ responseText }, "failed to parse revised action");
+    const firstBrace = responseText.indexOf("{");
+    if (firstBrace === -1) throw new Error("No JSON found");
+    let depth = 0;
+    let inStr = false;
+    let esc = false;
+    let end = -1;
+    for (let i = firstBrace; i < responseText.length; i++) {
+      const ch = responseText[i];
+      if (inStr) {
+        if (esc) { esc = false; continue; }
+        if (ch === "\\") { esc = true; continue; }
+        if (ch === '"') inStr = false;
+        continue;
+      }
+      if (ch === '"') { inStr = true; continue; }
+      if (ch === "{") depth++;
+      else if (ch === "}") { depth--; if (depth === 0) { end = i; break; } }
+    }
+    if (end === -1) throw new Error("No balanced JSON found");
+    parsed = JSON.parse(responseText.slice(firstBrace, end + 1));
+  } catch (err) {
+    log.error({ responseText, err }, "failed to parse revised action");
     return errorResponse("AI_ERROR", "Could not revise action. Try again.", 500);
   }
 
