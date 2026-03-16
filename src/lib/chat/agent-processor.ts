@@ -33,7 +33,7 @@ const DND_DEBOUNCE_MS = 5 * 60 * 1000;
  */
 export async function processAgentResponses(
   conversationId: string,
-  triggerMessage: { senderId: string; content: string }
+  triggerMessage: { senderId: string; content: string; senderType?: string }
 ) {
   try {
     const conv = await Conversation.findById(conversationId);
@@ -57,11 +57,14 @@ export async function processAgentResponses(
 
 async function processOneAgent(
   conversationId: string,
-  triggerMessage: { senderId: string; content: string },
+  triggerMessage: { senderId: string; content: string; senderType?: string },
   agentUserId: string
 ) {
   // Guard: don't let an agent respond to its own messages (infinite loop)
   if (triggerMessage.senderId === agentUserId) return;
+
+  // Guard: don't let agents respond to other agents' messages (multi-agent loop)
+  if (triggerMessage.senderType === "agent") return;
 
   const redis = getRedisClient();
   const user = await User.findById(agentUserId).lean();
@@ -197,7 +200,11 @@ async function processOneAgent(
     await runReflect(conversationId, conversationCtx, null, allMessages);
   } catch (error) {
     log.error({ error, agentUserId, conversationId }, "Agent pipeline failed");
-    await publishThinkingDone(redis, conversationId, agentUserId);
+    try {
+      await publishThinkingDone(redis, conversationId, agentUserId);
+    } catch (redisErr) {
+      log.warn({ error: redisErr, conversationId, agentUserId }, "Failed to publish thinking_done (Redis error)");
+    }
   }
 }
 
@@ -253,36 +260,46 @@ async function runReflect(
 
     const convObjId = new mongoose.Types.ObjectId(conversationId);
 
+    // Validate Gemini output — arrays must actually be arrays (Gemini can return strings)
+    const resolvedActionIds = Array.isArray(reflectData.resolvedActionItemIds) ? reflectData.resolvedActionItemIds : [];
+    const resolvedQuestionIds = Array.isArray(reflectData.resolvedQuestionIds) ? reflectData.resolvedQuestionIds : [];
+    const newActionItems = Array.isArray(reflectData.newActionItems) ? reflectData.newActionItems : [];
+    const newDecisions = Array.isArray(reflectData.newDecisions) ? reflectData.newDecisions : [];
+    const newFacts = Array.isArray(reflectData.newFacts) ? reflectData.newFacts : [];
+    const newQuestions = Array.isArray(reflectData.newQuestions) ? reflectData.newQuestions : [];
+
     // Step 1: $set for summary + resolve action items by marking status
     const setOps: Record<string, unknown> = { lastUpdatedAt: new Date() };
-    if (reflectData.summaryUpdate) {
+    if (reflectData.summaryUpdate && typeof reflectData.summaryUpdate === "string") {
       setOps.summary = reflectData.summaryUpdate;
     }
 
+    // Only run resolve ops if the document exists (avoid creating malformed stubs via upsert)
+    const ctxExists = await ConversationContext.exists({ conversationId: convObjId });
+
     // Resolve action items (mark as done by ID)
-    if (reflectData.resolvedActionItemIds?.length > 0) {
+    if (resolvedActionIds.length > 0 && ctxExists) {
       await ConversationContext.updateOne(
         { conversationId: convObjId },
         { $set: { "actionItems.$[item].status": "done" } },
-        { arrayFilters: [{ "item.id": { $in: reflectData.resolvedActionItemIds } }], upsert: true }
+        { arrayFilters: [{ "item.id": { $in: resolvedActionIds } }] }
       );
     }
 
     // Step 2: $pull to remove resolved questions (separate op to avoid $push/$pull conflict)
-    if (reflectData.resolvedQuestionIds?.length > 0) {
+    if (resolvedQuestionIds.length > 0 && ctxExists) {
       await ConversationContext.updateOne(
         { conversationId: convObjId },
-        { $pull: { openQuestions: { id: { $in: reflectData.resolvedQuestionIds } } } },
-        { upsert: true }
+        { $pull: { openQuestions: { id: { $in: resolvedQuestionIds } } } }
       );
     }
 
     // Step 3: $set + $push for new items (single atomic operation)
     const pushOps: Record<string, unknown> = {};
 
-    if (reflectData.newActionItems?.length > 0) {
+    if (newActionItems.length > 0) {
       pushOps.actionItems = {
-        $each: reflectData.newActionItems.map((item: { assignee: string; description: string }) => ({
+        $each: newActionItems.map((item: { assignee: string; description: string }) => ({
           id: randomUUID().slice(0, 8),
           assignee: item.assignee || "unassigned",
           description: item.description,
@@ -293,9 +310,9 @@ async function runReflect(
       };
     }
 
-    if (reflectData.newDecisions?.length > 0) {
+    if (newDecisions.length > 0) {
       pushOps.decisions = {
-        $each: reflectData.newDecisions.map((d: { description: string; participants: string[] }) => ({
+        $each: newDecisions.map((d: { description: string; participants: string[] }) => ({
           description: d.description,
           madeAt: new Date(),
           participants: d.participants || [],
@@ -304,9 +321,9 @@ async function runReflect(
       };
     }
 
-    if (reflectData.newFacts?.length > 0) {
+    if (newFacts.length > 0) {
       pushOps.facts = {
-        $each: reflectData.newFacts.map((f: { content: string; mentionedBy: string }) => ({
+        $each: newFacts.map((f: { content: string; mentionedBy: string }) => ({
           content: f.content,
           mentionedBy: f.mentionedBy || "unknown",
           mentionedAt: new Date(),
@@ -315,9 +332,9 @@ async function runReflect(
       };
     }
 
-    if (reflectData.newQuestions?.length > 0) {
+    if (newQuestions.length > 0) {
       pushOps.openQuestions = {
-        $each: reflectData.newQuestions.map((q: { question: string; askedBy: string }) => ({
+        $each: newQuestions.map((q: { question: string; askedBy: string }) => ({
           id: randomUUID().slice(0, 8),
           question: q.question,
           askedBy: q.askedBy || "unknown",
@@ -359,13 +376,29 @@ async function callGemini(prompt: string): Promise<string> {
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function safeParseJson(text: string): any | null {
   try {
-    // Strip markdown code fences if present
-    let cleaned = text;
-    if (cleaned.startsWith("```")) {
-      cleaned = cleaned.replace(/^```(?:json)?\n?/, "").replace(/\n?```$/, "");
-    }
-    return JSON.parse(cleaned);
+    // Try direct parse first (fastest path)
+    return JSON.parse(text);
   } catch {
+    // Fallback: extract the first JSON object from the response.
+    // Handles code fences, preamble text, and trailing explanations.
+    try {
+      // Strip markdown code fences if present
+      let cleaned = text;
+      if (cleaned.includes("```")) {
+        const fenceMatch = cleaned.match(/```(?:json)?\s*\n?([\s\S]*?)\n?\s*```/);
+        if (fenceMatch) cleaned = fenceMatch[1];
+      }
+
+      // Find the first { ... } block (greedy match for nested objects)
+      const firstBrace = cleaned.indexOf("{");
+      const lastBrace = cleaned.lastIndexOf("}");
+      if (firstBrace !== -1 && lastBrace > firstBrace) {
+        return JSON.parse(cleaned.slice(firstBrace, lastBrace + 1));
+      }
+    } catch {
+      // Both attempts failed
+    }
+
     log.warn({ text: text.slice(0, 200) }, "Failed to parse Gemini JSON response");
     return null;
   }

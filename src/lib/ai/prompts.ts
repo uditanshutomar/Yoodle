@@ -117,7 +117,7 @@ Example output:
 classification must be one of: "scheduling", "action_item", "question", "decision", "social", "information_sharing"
 addressedTo: array of names, or ["everyone"]
 requiresData: boolean (true or false)
-dataNeeded: array containing "calendar", "tasks", "emails", "recent_files", "contacts:NAME", "docs:DOC_ID", or "none"
+dataNeeded: array containing "calendar", "tasks", "emails", "recent_files", "contacts:NAME", "read_doc:DOC_ID", or "none"
 urgency: "high", "medium", or "low"`;
 }
 
@@ -159,8 +159,8 @@ Output ONLY valid JSON, no markdown fences.
 Example outputs:
 {"decision":"RESPOND","reason":"user asked about availability, can check calendar","toolPlan":["check_calendar"]}
 {"decision":"RESPOND","reason":"someone asked about Sarah's email, can look it up","toolPlan":["search_contacts:Sarah"]}
-{"decision":"RESPOND","reason":"user mentioned a document, can check recent files and read it","toolPlan":["check_recent_files","read_doc:1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgVE2upms"]}
-{"decision":"RESPOND","reason":"user asked about the project doc, can read it directly","toolPlan":["read_doc:1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgVE2upms"]}
+{"decision":"RESPOND","reason":"user mentioned a document, can check recent files and read it","toolPlan":["check_recent_files","read_doc:<document-id-from-files>"]}
+{"decision":"RESPOND","reason":"user asked about the project doc, can read it directly","toolPlan":["read_doc:<document-id-from-files>"]}
 {"decision":"SILENT","reason":"casual chat, nothing to add","toolPlan":[]}
 {"decision":"UPDATE_MEMORY_ONLY","reason":"important decision was made, saving to memory","toolPlan":[]}
 

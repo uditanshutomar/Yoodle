@@ -68,38 +68,56 @@ export async function executeToolPlan(
   const contactTool = tools.find((t) => t.startsWith("search_contacts:"));
   if (contactTool) {
     const query = contactTool.split(":").slice(1).join(":");
-    promises.push(
-      withTimeout(fetchContacts(userId, query), TOOL_TIMEOUT_MS, "Contacts: Timed out fetching data.")
-        .then((data) => { result.contacts = data; })
-    );
+    if (!query.trim()) {
+      result.errors?.push("search_contacts: no name provided");
+    } else {
+      promises.push(
+        withTimeout(fetchContacts(userId, query), TOOL_TIMEOUT_MS, "Contacts: Timed out fetching data.")
+          .then((data) => { result.contacts = data; })
+      );
+    }
   }
 
   // read_doc:DOC_ID — read a Google Doc by its document ID
   const docTool = tools.find((t) => t.startsWith("read_doc:"));
   if (docTool) {
     const docId = docTool.split(":").slice(1).join(":");
-    promises.push(
-      withTimeout(fetchDocContent(userId, docId), TOOL_TIMEOUT_MS, "Docs: Timed out reading document.")
-        .then((data) => { result.docs = data; })
-    );
+    if (!docId.trim() || docId.startsWith("<")) {
+      result.errors?.push("read_doc: no valid document ID provided");
+    } else {
+      promises.push(
+        withTimeout(fetchDocContent(userId, docId), TOOL_TIMEOUT_MS, "Docs: Timed out reading document.")
+          .then((data) => { result.docs = data; })
+      );
+    }
   }
 
   await Promise.allSettled(promises);
   return result;
 }
 
-/** Race a promise against a timeout, returning fallback string on timeout */
+/** Race a promise against a timeout, returning fallback string on timeout.
+ *  Clears the timer when the real promise wins. Returns a settled-flag wrapper
+ *  so the late-resolving promise cannot mutate results after the race is over. */
 async function withTimeout(
   promise: Promise<string>,
   ms: number,
   fallback: string
 ): Promise<string> {
+  let settled = false;
+  let timerId: ReturnType<typeof setTimeout>;
+
   try {
-    return await Promise.race([
-      promise,
-      new Promise<string>((resolve) => setTimeout(() => resolve(fallback), ms)),
+    const result = await Promise.race([
+      promise.then((v) => { settled = true; clearTimeout(timerId); return v; }),
+      new Promise<string>((resolve) => {
+        timerId = setTimeout(() => { if (!settled) { settled = true; resolve(fallback); } }, ms);
+      }),
     ]);
+    return result;
   } catch {
+    settled = true;
+    clearTimeout(timerId!);
     return fallback;
   }
 }
@@ -328,6 +346,8 @@ async function fetchDocContent(userId: string, documentId: string): Promise<stri
 function getRelativeTime(date: Date): string {
   const now = Date.now();
   const diffMs = now - date.getTime();
+  // Guard against future dates (clock skew, timezone offsets)
+  if (diffMs < 0) return "just now";
   const mins = Math.round(diffMs / 60000);
   if (mins < 1) return "just now";
   if (mins < 60) return `${mins}m ago`;
