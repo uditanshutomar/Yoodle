@@ -1,12 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import { Search, Bell, Plus, ChevronDown, LogOut, Settings, User } from "lucide-react";
+import { Search, Bell, ChevronDown, LogOut, Settings, User } from "lucide-react";
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
 import Avatar from "../ui/Avatar";
-import Button from "../ui/Button";
 import { useAuth } from "@/hooks/useAuth";
 
 export default function AppTopbar() {
@@ -35,17 +34,6 @@ export default function AppTopbar() {
 
       {/* Right actions */}
       <div className="flex items-center gap-3">
-        {/* New Meeting button */}
-        <Button
-          variant="primary"
-          size="sm"
-          icon={Plus}
-          href="/meetings/new"
-          className="hidden sm:inline-flex"
-        >
-          New Meeting
-        </Button>
-
         {/* Notifications */}
         <button
           className="relative rounded-xl p-2 text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-hover)] transition-colors cursor-pointer"
