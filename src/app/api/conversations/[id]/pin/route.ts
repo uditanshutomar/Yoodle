@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
 import mongoose from "mongoose";
+import { z } from "zod";
 import { withHandler } from "@/lib/infra/api/with-handler";
 import { successResponse } from "@/lib/infra/api/response";
 import { checkRateLimit } from "@/lib/infra/api/rate-limit";
@@ -12,6 +13,10 @@ import {
 import connectDB from "@/lib/infra/db/client";
 import Conversation from "@/lib/infra/db/models/conversation";
 import DirectMessage from "@/lib/infra/db/models/direct-message";
+
+const pinSchema = z.object({
+  messageId: z.string().min(1, "messageId is required"),
+});
 
 // -- POST /api/conversations/[id]/pin -----------------------------------------
 
@@ -41,12 +46,7 @@ export const POST = withHandler(async (req: NextRequest, context) => {
   }
 
   // Validate body
-  const body = await req.json();
-  const { messageId } = body;
-
-  if (!messageId || typeof messageId !== "string") {
-    throw new BadRequestError("messageId is required.");
-  }
+  const { messageId } = pinSchema.parse(await req.json());
   if (!mongoose.Types.ObjectId.isValid(messageId)) {
     throw new BadRequestError("Invalid message ID.");
   }

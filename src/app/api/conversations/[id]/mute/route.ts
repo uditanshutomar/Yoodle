@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
 import mongoose from "mongoose";
+import { z } from "zod";
 import { withHandler } from "@/lib/infra/api/with-handler";
 import { successResponse } from "@/lib/infra/api/response";
 import { checkRateLimit } from "@/lib/infra/api/rate-limit";
@@ -11,6 +12,10 @@ import {
 } from "@/lib/infra/api/errors";
 import connectDB from "@/lib/infra/db/client";
 import Conversation from "@/lib/infra/db/models/conversation";
+
+const muteSchema = z.object({
+  muted: z.boolean(),
+});
 
 // -- PATCH /api/conversations/[id]/mute --------------------------------------
 
@@ -25,7 +30,7 @@ export const PATCH = withHandler(async (req: NextRequest, context) => {
   await connectDB();
 
   // Verify user is a participant
-  const conversation = await Conversation.findById(id).lean();
+  const conversation = await Conversation.findById(id).select("participants").lean();
   if (!conversation) {
     throw new NotFoundError("Conversation not found.");
   }
@@ -38,12 +43,7 @@ export const PATCH = withHandler(async (req: NextRequest, context) => {
   }
 
   // Validate body
-  const body = await req.json();
-  const { muted } = body;
-
-  if (typeof muted !== "boolean") {
-    throw new BadRequestError("muted (boolean) is required.");
-  }
+  const { muted } = muteSchema.parse(await req.json());
 
   await Conversation.updateOne(
     { _id: id, "participants.userId": new mongoose.Types.ObjectId(userId) },

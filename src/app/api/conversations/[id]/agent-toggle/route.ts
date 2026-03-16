@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
 import mongoose from "mongoose";
+import { z } from "zod";
 import { withHandler } from "@/lib/infra/api/with-handler";
 import { successResponse } from "@/lib/infra/api/response";
 import { checkRateLimit } from "@/lib/infra/api/rate-limit";
@@ -10,6 +11,10 @@ import {
 } from "@/lib/infra/api/errors";
 import connectDB from "@/lib/infra/db/client";
 import Conversation from "@/lib/infra/db/models/conversation";
+
+const agentToggleSchema = z.object({
+  enabled: z.boolean(),
+});
 
 // -- PATCH /api/conversations/[id]/agent-toggle -------------------------------
 
@@ -22,12 +27,7 @@ export const PATCH = withHandler(async (req: NextRequest, context) => {
   }
 
   // Validate body
-  const body = await req.json();
-  const { enabled } = body;
-
-  if (typeof enabled !== "boolean") {
-    throw new BadRequestError("enabled must be a boolean.");
-  }
+  const { enabled } = agentToggleSchema.parse(await req.json());
 
   await connectDB();
 

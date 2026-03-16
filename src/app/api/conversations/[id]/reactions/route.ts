@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
 import mongoose from "mongoose";
+import { z } from "zod";
 import { withHandler } from "@/lib/infra/api/with-handler";
 import { successResponse } from "@/lib/infra/api/response";
 import { checkRateLimit } from "@/lib/infra/api/rate-limit";
@@ -14,6 +15,11 @@ import Conversation from "@/lib/infra/db/models/conversation";
 import DirectMessage from "@/lib/infra/db/models/direct-message";
 import { getRedisClient } from "@/lib/infra/redis/client";
 
+const reactionSchema = z.object({
+  messageId: z.string().min(1, "messageId is required"),
+  emoji: z.string().min(1, "emoji is required").max(32, "Emoji value is too long"),
+});
+
 // -- POST /api/conversations/[id]/reactions -----------------------------------
 
 export const POST = withHandler(async (req: NextRequest, context) => {
@@ -27,7 +33,7 @@ export const POST = withHandler(async (req: NextRequest, context) => {
   await connectDB();
 
   // Verify user is a participant
-  const conversation = await Conversation.findById(id).lean();
+  const conversation = await Conversation.findById(id).select("participants").lean();
   if (!conversation) {
     throw new NotFoundError("Conversation not found.");
   }
@@ -40,21 +46,9 @@ export const POST = withHandler(async (req: NextRequest, context) => {
   }
 
   // Validate body
-  const body = await req.json();
-  const { messageId, emoji } = body;
-
-  if (!messageId || typeof messageId !== "string") {
-    throw new BadRequestError("messageId is required.");
-  }
+  const { messageId, emoji } = reactionSchema.parse(await req.json());
   if (!mongoose.Types.ObjectId.isValid(messageId)) {
     throw new BadRequestError("Invalid message ID.");
-  }
-  if (!emoji || typeof emoji !== "string") {
-    throw new BadRequestError("emoji is required.");
-  }
-  // Prevent storing arbitrary-length strings as "emoji" reactions
-  if (emoji.length > 32) {
-    throw new BadRequestError("Emoji value is too long.");
   }
 
   // Find the message and verify it belongs to this conversation

@@ -19,11 +19,15 @@ export const GET = withHandler(async (req: NextRequest) => {
 
   const userOid = new mongoose.Types.ObjectId(userId);
 
-  // Only select the fields needed: participants (for lastReadAt) and _id
+  // Only select the fields needed: participants (for lastReadAt) and _id.
+  // Cap at 500 to prevent unbounded memory use for power users.
   const conversations = await Conversation.find(
     { "participants.userId": userOid },
     { _id: 1, participants: 1 },
-  ).lean();
+  )
+    .sort({ lastMessageAt: -1 })
+    .limit(500)
+    .lean();
 
   if (conversations.length === 0) {
     return successResponse({ totalUnread: 0 });
