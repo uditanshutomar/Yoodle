@@ -67,10 +67,16 @@ export default function MeetingDetail({
 
     // Feedback toasts
     const [toast, setToast] = useState("");
+    const toastTimerRef = useRef<NodeJS.Timeout>(undefined);
+
+    useEffect(() => {
+        return () => clearTimeout(toastTimerRef.current);
+    }, []);
 
     const showToast = useCallback((msg: string) => {
+        clearTimeout(toastTimerRef.current);
         setToast(msg);
-        setTimeout(() => setToast(""), 2500);
+        toastTimerRef.current = setTimeout(() => setToast(""), 2500);
     }, []);
 
     // Fetch transcript and recordings from real APIs

@@ -45,13 +45,19 @@ export default function PreJoinLobby({
 
   const [joining, setJoining] = useState(false);
   const [codeCopied, setCodeCopied] = useState(false);
+  const copyTimerRef = useRef<NodeJS.Timeout>(undefined);
+
+  useEffect(() => {
+    return () => clearTimeout(copyTimerRef.current);
+  }, []);
 
   const handleCopyCode = async () => {
     const link = `${window.location.origin}/meetings/join?code=${meetingCode}`;
     try {
       await navigator.clipboard.writeText(link);
       setCodeCopied(true);
-      setTimeout(() => setCodeCopied(false), 2000);
+      clearTimeout(copyTimerRef.current);
+      copyTimerRef.current = setTimeout(() => setCodeCopied(false), 2000);
     } catch {
       /* ignore */
     }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Clock, Plus, X } from "lucide-react";
 
@@ -28,6 +28,11 @@ export default function MeetingTimerBanner({
   const [showExtendOptions, setShowExtendOptions] = useState(false);
   const [extending, setExtending] = useState(false);
   const [extended, setExtended] = useState(false);
+  const dismissTimerRef = useRef<NodeJS.Timeout>(undefined);
+
+  useEffect(() => {
+    return () => clearTimeout(dismissTimerRef.current);
+  }, []);
 
   const handleExtend = async (minutes: number) => {
     setExtending(true);
@@ -37,7 +42,8 @@ export default function MeetingTimerBanner({
       setExtended(true);
       setShowExtendOptions(false);
       // Auto-dismiss after 2s
-      setTimeout(() => {
+      clearTimeout(dismissTimerRef.current);
+      dismissTimerRef.current = setTimeout(() => {
         setExtended(false);
         onDismiss();
       }, 2000);
