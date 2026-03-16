@@ -33,6 +33,9 @@ const createEventSchema = z.object({
   ).optional(),
   addMeetLink: z.boolean().optional().default(false),
   timeZone: z.string().optional(),
+}).refine((data) => new Date(data.end) > new Date(data.start), {
+  message: "End time must be after start time.",
+  path: ["end"],
 });
 
 const updateEventSchema = z.object({
@@ -43,7 +46,10 @@ const updateEventSchema = z.object({
   end: z.string().datetime({ message: "Invalid end datetime." }).optional(),
   location: z.string().max(500).optional(),
   attendees: z.array(z.string().email()).optional(),
-});
+}).refine(
+  (data) => !data.start || !data.end || new Date(data.end) > new Date(data.start),
+  { message: "End time must be after start time.", path: ["end"] },
+);
 
 // ── GET /api/calendar/events ────────────────────────────────────────
 

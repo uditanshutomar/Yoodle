@@ -57,8 +57,8 @@ export const POST = withHandler(async (req: NextRequest, context) => {
   if (meeting.hostId.toString() !== userId) {
     throw new ForbiddenError("Only the meeting host can extend the meeting.");
   }
-  if (meeting.status === "ended" || meeting.status === "cancelled") {
-    throw new BadRequestError("Cannot extend a meeting that has already ended.");
+  if (meeting.status !== "live") {
+    throw new BadRequestError("Can only extend a live meeting.");
   }
 
   // Calculate new duration

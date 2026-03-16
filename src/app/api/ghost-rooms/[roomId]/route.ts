@@ -230,8 +230,9 @@ export const DELETE = withHandler(async (req: NextRequest, context) => {
   const consensus = checkConsensus(participantsArray);
 
   if (consensus.allVoted && consensus.totalParticipants > 0) {
+    let claimedRoom: Awaited<ReturnType<typeof ephemeralStore.claimAndDestroyRoom>> = undefined;
     try {
-      const claimedRoom = await ephemeralStore.claimAndDestroyRoom(room.roomId);
+      claimedRoom = await ephemeralStore.claimAndDestroyRoom(room.roomId);
       if (claimedRoom) {
         claimed = true;
         const result = await persistGhostData(claimedRoom);
@@ -239,7 +240,15 @@ export const DELETE = withHandler(async (req: NextRequest, context) => {
       }
     } catch (err) {
       log.error({ err }, "failed to persist ghost room data");
-      // Room may already be destroyed by claimAndDestroyRoom; fall through
+      // Room was destroyed by claimAndDestroyRoom but persist failed — restore it
+      if (claimedRoom) {
+        try {
+          await ephemeralStore.restoreRoom(claimedRoom);
+          claimed = false; // allow normal destroy path below
+        } catch (restoreErr) {
+          log.error({ restoreErr }, "failed to restore ghost room after persist failure");
+        }
+      }
     }
   }
 

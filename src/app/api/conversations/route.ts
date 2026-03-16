@@ -176,6 +176,10 @@ export const POST = withHandler(async (req: NextRequest) => {
     new Set([userId, ...body.participantIds]),
   );
 
+  if (allParticipantIds.length < 2) {
+    return badRequest("A group conversation requires at least one other participant.");
+  }
+
   // Verify all non-self participant IDs correspond to real users
   const otherIds = allParticipantIds
     .filter((id) => id !== userId)
