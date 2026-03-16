@@ -117,7 +117,7 @@ Example output:
 classification must be one of: "scheduling", "action_item", "question", "decision", "social", "information_sharing"
 addressedTo: array of names, or ["everyone"]
 requiresData: boolean (true or false)
-dataNeeded: array containing "calendar", "tasks", or "none"
+dataNeeded: array containing "calendar", "tasks", "emails", "recent_files", "contacts:NAME", or "none"
 urgency: "high", "medium", or "low"`;
 }
 
@@ -132,10 +132,12 @@ You are ${userName}'s agent in a group chat. Should you respond?
 
 RESPOND if:
 - ${userName} is directly asked something and you can answer with data
-- You can resolve an open question with concrete information (availability, task status, facts)
+- You can resolve an open question with concrete information (availability, task status, email context, files)
 - There's an action item for ${userName} that needs acknowledgment
 - You can offer a specific, data-backed suggestion (NOT a question)
 - The conversation involves scheduling and you can check ${userName}'s calendar
+- Someone mentions a person and you can look up their contact info
+- The conversation references emails, documents, or files you can look up
 
 STAY SILENT if:
 - You would only be asking a question back (like "when works for you?") — this is the #1 anti-pattern
@@ -144,15 +146,24 @@ STAY SILENT if:
 - You don't have data to add concrete value — silence is better than filler
 - The message is a reaction, emoji, or simple acknowledgment
 
+AVAILABLE TOOLS:
+- "check_calendar" — ${userName}'s Google Calendar (next 3 days + free slots)
+- "check_tasks" — ${userName}'s Google Tasks (pending + overdue)
+- "check_emails" — ${userName}'s recent inbox (last 8 emails + unread count)
+- "check_recent_files" — ${userName}'s recently modified Google Drive files
+- "search_contacts:NAME" — search ${userName}'s Google Contacts for a person (replace NAME with the person's name)
+
 Output ONLY valid JSON, no markdown fences.
 
 Example outputs:
 {"decision":"RESPOND","reason":"user asked about availability, can check calendar","toolPlan":["check_calendar"]}
+{"decision":"RESPOND","reason":"someone asked about Sarah's email, can look it up","toolPlan":["search_contacts:Sarah"]}
+{"decision":"RESPOND","reason":"user mentioned a document, can check recent files and emails","toolPlan":["check_emails","check_recent_files"]}
 {"decision":"SILENT","reason":"casual chat, nothing to add","toolPlan":[]}
 {"decision":"UPDATE_MEMORY_ONLY","reason":"important decision was made, saving to memory","toolPlan":[]}
 
 decision: "RESPOND", "SILENT", or "UPDATE_MEMORY_ONLY"
-toolPlan: array with "check_calendar", "check_tasks", or empty array`;
+toolPlan: array of tool strings from the list above, or empty array`;
 }
 
 export function buildRespondPrompt(

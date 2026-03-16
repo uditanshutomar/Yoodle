@@ -159,7 +159,11 @@ async function processOneAgent(
     const gatheredData = await executeToolPlan(agentUserId, toolPlan);
     const gatheredDataStr = formatGatheredData(gatheredData);
 
-    log.info({ agentUserId, toolPlan, hasCalendar: !!gatheredData.calendar, hasTasks: !!gatheredData.tasks }, "Stage 3 GATHER complete");
+    log.info({
+      agentUserId, toolPlan,
+      hasCalendar: !!gatheredData.calendar, hasTasks: !!gatheredData.tasks,
+      hasEmails: !!gatheredData.emails, hasFiles: !!gatheredData.files, hasContacts: !!gatheredData.contacts,
+    }, "Stage 3 GATHER complete");
 
     // ── Stage 4: RESPOND ────────────────────────────────────────
     const respondPrompt = buildRespondPrompt(

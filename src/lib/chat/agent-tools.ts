@@ -1,5 +1,8 @@
 import { listEvents } from "@/lib/google/calendar";
 import { listTasks } from "@/lib/google/tasks";
+import { listEmails, getUnreadCount } from "@/lib/google/gmail";
+import { listFiles } from "@/lib/google/drive";
+import { searchContacts } from "@/lib/google/contacts";
 import { createLogger } from "@/lib/infra/logger";
 
 const log = createLogger("agent-tools");
@@ -7,6 +10,9 @@ const log = createLogger("agent-tools");
 export interface GatheredData {
   calendar?: string;
   tasks?: string;
+  emails?: string;
+  files?: string;
+  contacts?: string;
   errors?: string[];
 }
 
@@ -39,6 +45,30 @@ export async function executeToolPlan(
     promises.push(
       withTimeout(fetchTasks(userId), TOOL_TIMEOUT_MS, "Tasks: Timed out fetching data.")
         .then((data) => { result.tasks = data; })
+    );
+  }
+
+  if (tools.includes("check_emails")) {
+    promises.push(
+      withTimeout(fetchEmails(userId), TOOL_TIMEOUT_MS, "Emails: Timed out fetching data.")
+        .then((data) => { result.emails = data; })
+    );
+  }
+
+  if (tools.includes("check_recent_files")) {
+    promises.push(
+      withTimeout(fetchRecentFiles(userId), TOOL_TIMEOUT_MS, "Files: Timed out fetching data.")
+        .then((data) => { result.files = data; })
+    );
+  }
+
+  // search_contacts:NAME — extract the name from the tool string
+  const contactTool = tools.find((t) => t.startsWith("search_contacts:"));
+  if (contactTool) {
+    const query = contactTool.split(":").slice(1).join(":");
+    promises.push(
+      withTimeout(fetchContacts(userId, query), TOOL_TIMEOUT_MS, "Contacts: Timed out fetching data.")
+        .then((data) => { result.contacts = data; })
     );
   }
 
@@ -181,6 +211,112 @@ async function fetchTasks(userId: string): Promise<string> {
   }
 }
 
+async function fetchEmails(userId: string): Promise<string> {
+  try {
+    const [emails, unreadCount] = await Promise.all([
+      listEmails(userId, { maxResults: 8, labelIds: ["INBOX"] }),
+      getUnreadCount(userId),
+    ]);
+
+    if (emails.length === 0) {
+      return `Emails: Inbox empty. ${unreadCount} unread.`;
+    }
+
+    const formatted = emails.slice(0, 8).map((e) => {
+      const from = e.from.split("<")[0].trim() || e.from;
+      const date = new Date(e.date);
+      const age = getRelativeTime(date);
+      const unread = e.isUnread ? " 🔵" : "";
+      return `  ${unread}${from}: "${e.subject}" (${age})`;
+    });
+
+    const urgentKeywords = /urgent|asap|critical|deadline|action required|immediately/i;
+    const urgentCount = emails.filter(
+      (e) => urgentKeywords.test(e.subject) || urgentKeywords.test(e.snippet)
+    ).length;
+
+    const urgentNote = urgentCount > 0 ? ` — ${urgentCount} potentially urgent` : "";
+
+    return `Emails (${unreadCount} unread${urgentNote}):\n${formatted.join("\n")}`;
+  } catch (error) {
+    log.warn({ error, userId }, "Failed to fetch emails for agent");
+    return "Emails: Unable to access (Google account may not be connected).";
+  }
+}
+
+async function fetchRecentFiles(userId: string): Promise<string> {
+  try {
+    const files = await listFiles(userId, { maxResults: 8 });
+
+    if (files.length === 0) {
+      return "Drive: No recent files.";
+    }
+
+    const formatted = files.map((f) => {
+      const modified = f.modifiedTime ? getRelativeTime(new Date(f.modifiedTime)) : "";
+      const type = getMimeLabel(f.mimeType);
+      return `  - ${f.name} (${type}, ${modified})`;
+    });
+
+    return `Recent files:\n${formatted.join("\n")}`;
+  } catch (error) {
+    log.warn({ error, userId }, "Failed to fetch files for agent");
+    return "Drive: Unable to access (Google account may not be connected).";
+  }
+}
+
+async function fetchContacts(userId: string, query: string): Promise<string> {
+  try {
+    const contacts = await searchContacts(userId, query, 5);
+
+    if (contacts.length === 0) {
+      return `Contacts: No results for "${query}".`;
+    }
+
+    const formatted = contacts.map((c) => {
+      const parts = [c.name];
+      if (c.email) parts.push(c.email);
+      if (c.organization) parts.push(c.organization);
+      if (c.phone) parts.push(c.phone);
+      return `  - ${parts.join(" | ")}`;
+    });
+
+    return `Contacts matching "${query}":\n${formatted.join("\n")}`;
+  } catch (error) {
+    log.warn({ error, userId, query }, "Failed to search contacts for agent");
+    return "Contacts: Unable to access (Google account may not be connected).";
+  }
+}
+
+/** Get a human-readable relative time string */
+function getRelativeTime(date: Date): string {
+  const now = Date.now();
+  const diffMs = now - date.getTime();
+  const mins = Math.round(diffMs / 60000);
+  if (mins < 1) return "just now";
+  if (mins < 60) return `${mins}m ago`;
+  const hours = Math.round(mins / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.round(hours / 24);
+  if (days === 1) return "yesterday";
+  if (days < 7) return `${days}d ago`;
+  return formatDay(date);
+}
+
+/** Map Google Drive MIME types to short labels */
+function getMimeLabel(mime: string): string {
+  const map: Record<string, string> = {
+    "application/vnd.google-apps.document": "Doc",
+    "application/vnd.google-apps.spreadsheet": "Sheet",
+    "application/vnd.google-apps.presentation": "Slides",
+    "application/vnd.google-apps.folder": "Folder",
+    "application/pdf": "PDF",
+    "image/png": "PNG",
+    "image/jpeg": "JPEG",
+  };
+  return map[mime] || mime.split("/").pop() || "file";
+}
+
 /** Format a Date to short day string like "Mon Mar 15" */
 function formatDay(d: Date): string {
   const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
@@ -204,6 +340,9 @@ export function formatGatheredData(data: GatheredData): string {
   const parts: string[] = [];
   if (data.calendar) parts.push(data.calendar);
   if (data.tasks) parts.push(data.tasks);
+  if (data.emails) parts.push(data.emails);
+  if (data.files) parts.push(data.files);
+  if (data.contacts) parts.push(data.contacts);
   if (parts.length === 0) return "(no data fetched)";
   return parts.join("\n\n");
 }
