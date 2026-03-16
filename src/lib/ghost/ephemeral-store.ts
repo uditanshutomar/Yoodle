@@ -160,16 +160,14 @@ class EphemeralStore {
     await this.connect();
     const now = new Date();
 
-    // Check if already participant
-    const existing = await GhostRoom.findOne({
-      roomId,
-      expiresAt: { $gt: now },
-      "participants.userId": userId,
-    });
-    if (existing) return true;
-
+    // Single atomic operation: only push if the user is NOT already present.
+    // Avoids the TOCTOU race of a separate findOne + findOneAndUpdate.
     const result = await GhostRoom.findOneAndUpdate(
-      { roomId, expiresAt: { $gt: now } },
+      {
+        roomId,
+        expiresAt: { $gt: now },
+        "participants.userId": { $ne: userId },
+      },
       {
         $push: {
           participants: {
@@ -190,7 +188,13 @@ class EphemeralStore {
         },
       }
     );
-    return result !== null;
+
+    // null means either room not found OR user already present — check which.
+    if (!result) {
+      const exists = await GhostRoom.exists({ roomId, expiresAt: { $gt: now }, "participants.userId": userId });
+      return exists !== null; // true = already a participant
+    }
+    return true;
   }
 
   async removeParticipant(roomId: string, userId: string): Promise<void> {

@@ -221,33 +221,37 @@ export const DELETE = withHandler(async (req: NextRequest, context) => {
     throw new ForbiddenError("Only the host can end this ghost room.");
   }
 
-  // Check if all participants voted to save
+  // Attempt atomic claim+destroy if consensus is met (prevents double persist).
+  // claimAndDestroyRoom only succeeds if ALL participants voted to save.
+  let savedMeetingId: string | null = null;
+  let claimed = false;
+
   const participantsArray = Array.from(room.participants.values());
   const consensus = checkConsensus(participantsArray);
-  let savedMeetingId: string | null = null;
 
   if (consensus.allVoted && consensus.totalParticipants > 0) {
     try {
-      const result = await persistGhostData(room);
-      savedMeetingId = result.meetingId;
+      const claimedRoom = await ephemeralStore.claimAndDestroyRoom(room.roomId);
+      if (claimedRoom) {
+        claimed = true;
+        const result = await persistGhostData(claimedRoom);
+        savedMeetingId = result.meetingId;
+      }
     } catch (err) {
       log.error({ err }, "failed to persist ghost room data");
-      // Still destroy the room even if persistence fails
+      // Room may already be destroyed by claimAndDestroyRoom; fall through
     }
   }
 
-  // Destroy the room
-  await ephemeralStore.destroyRoom(room.roomId);
+  // If we didn't claim (no consensus or claim lost race), destroy normally
+  if (!claimed) {
+    await ephemeralStore.destroyRoom(room.roomId);
+  }
 
   return successResponse({
-    data: {
-      destroyed: true,
-      dataSaved: savedMeetingId !== null,
-      meetingId: savedMeetingId,
-      votes: consensus,
-    },
-    message: savedMeetingId
-      ? "Ghost room ended. Data was saved by unanimous vote."
-      : "Ghost room ended. All data has been destroyed.",
+    destroyed: true,
+    dataSaved: savedMeetingId !== null,
+    meetingId: savedMeetingId,
+    votes: consensus,
   });
 });

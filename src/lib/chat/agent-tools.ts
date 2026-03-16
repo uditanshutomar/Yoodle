@@ -150,11 +150,18 @@ async function withTimeout(
   let settled = false;
   let timerId: ReturnType<typeof setTimeout> | undefined;
 
-  // Attach a no-op .catch() to prevent unhandled rejection if the real promise
+  // Attach a .catch() to prevent unhandled rejection if the real promise
   // rejects after the timeout has already won the race.
+  // Preserve the actual error message instead of masking it as a timeout.
   const safePromise = promise.then(
     (v) => { settled = true; if (timerId !== undefined) clearTimeout(timerId); return v; },
-    () => { settled = true; if (timerId !== undefined) clearTimeout(timerId); return fallback; }
+    (err) => {
+      settled = true;
+      if (timerId !== undefined) clearTimeout(timerId);
+      const label = fallback.split(":")[0] || "Tool";
+      const msg = err instanceof Error ? err.message : String(err);
+      return `${label}: Error — ${msg}`;
+    }
   );
 
   try {

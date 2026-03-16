@@ -114,7 +114,7 @@ const meetingSettingsSchema = new Schema<IMeetingSettings>(
     },
     allowRecording: {
       type: Boolean,
-      default: false,
+      default: true,
     },
     allowScreenShare: {
       type: Boolean,

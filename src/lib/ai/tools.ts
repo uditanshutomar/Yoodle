@@ -1280,9 +1280,10 @@ export async function executeWorkspaceTool(
         const content = args.content as string;
         const confidence = args.confidence as number;
 
-        // Validate category against known values
-        const VALID_CATEGORIES = ["preference", "habit", "relationship", "fact", "context", "other"];
-        const safeCategory = VALID_CATEGORIES.includes(category) ? category : "other";
+        // Validate category against the schema's allowed values.
+        // Must stay in sync with MEMORY_CATEGORIES in ai-memory.ts.
+        const VALID_CATEGORIES = ["preference", "context", "task", "relationship", "habit"];
+        const safeCategory = VALID_CATEGORIES.includes(category) ? category : "context";
 
         // Validate content is non-empty before querying
         if (!content || content.trim().length === 0) {

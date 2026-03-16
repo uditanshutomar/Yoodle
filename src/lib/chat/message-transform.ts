@@ -53,6 +53,7 @@ export function toClientMessage(msg: any) {
     conversationId: msg.conversationId?.toString() ?? "",
     sender,
     senderType: msg.senderType,
+    type: msg.type,
     content: msg.content,
     replyTo: msg.replyTo?._id?.toString() ?? msg.replyTo?.toString(),
     replyToMessage,

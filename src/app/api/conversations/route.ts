@@ -6,7 +6,7 @@ import { successResponse, badRequest } from "@/lib/infra/api/response";
 import { getUserIdFromRequest } from "@/lib/infra/auth/middleware";
 import { checkRateLimit } from "@/lib/infra/api/rate-limit";
 import connectDB from "@/lib/infra/db/client";
-import Conversation from "@/lib/infra/db/models/conversation";
+import Conversation, { buildDmPairKey } from "@/lib/infra/db/models/conversation";
 import DirectMessage from "@/lib/infra/db/models/direct-message";
 import User from "@/lib/infra/db/models/user";
 
@@ -148,6 +148,7 @@ export const POST = withHandler(async (req: NextRequest) => {
 
     const conversation = await Conversation.create({
       type: "dm",
+      dmPairKey: buildDmPairKey(userId, body.recipientId),
       participants: [
         { userId: userOid, role: "admin", joinedAt: new Date() },
         { userId: recipientOid, role: "member", joinedAt: new Date() },
@@ -162,6 +163,17 @@ export const POST = withHandler(async (req: NextRequest) => {
   const allParticipantIds = Array.from(
     new Set([userId, ...body.participantIds]),
   );
+
+  // Verify all non-self participant IDs correspond to real users
+  const otherIds = allParticipantIds
+    .filter((id) => id !== userId)
+    .map((id) => new mongoose.Types.ObjectId(id));
+  if (otherIds.length > 0) {
+    const existingCount = await User.countDocuments({ _id: { $in: otherIds } });
+    if (existingCount !== otherIds.length) {
+      return badRequest("One or more participant IDs are invalid.");
+    }
+  }
 
   const participants = allParticipantIds.map((id) => ({
     userId: new mongoose.Types.ObjectId(id),

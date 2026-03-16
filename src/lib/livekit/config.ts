@@ -38,9 +38,12 @@ export function getLiveKitApiSecret(): string {
 /**
  * Public-facing LiveKit URL for client connections.
  * Falls back to LIVEKIT_URL if not explicitly set.
+ * Uses a getter (like the other config values) so that env vars are read
+ * at call-time rather than module-load time — important in serverless.
  */
-export const LIVEKIT_PUBLIC_URL =
-  process.env.NEXT_PUBLIC_LIVEKIT_URL || process.env.LIVEKIT_URL || "";
+export function getLiveKitPublicUrl(): string {
+  return process.env.NEXT_PUBLIC_LIVEKIT_URL || process.env.LIVEKIT_URL || "";
+}
 
 /** Returns true when all three LiveKit env vars are configured. */
 export function isLiveKitConfigured(): boolean {

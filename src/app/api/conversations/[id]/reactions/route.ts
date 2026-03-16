@@ -103,18 +103,22 @@ export const POST = withHandler(async (req: NextRequest, context) => {
     ).lean();
   }
 
-  // Publish to Redis — format matches client expectation
-  const redis = getRedisClient();
-  await redis.publish(
-    `chat:${id}`,
-    JSON.stringify({
-      type: "reaction",
-      messageId,
-      emoji,
-      userId,
-      action: existingReaction ? "remove" : "add",
-    })
-  );
+  // Publish to Redis (non-fatal if Redis is down)
+  try {
+    const redis = getRedisClient();
+    await redis.publish(
+      `chat:${id}`,
+      JSON.stringify({
+        type: "reaction",
+        messageId,
+        emoji,
+        userId,
+        action: existingReaction ? "remove" : "add",
+      })
+    );
+  } catch {
+    // Reaction is persisted in DB; real-time delivery is best-effort
+  }
 
   return successResponse(updatedMessage);
 });

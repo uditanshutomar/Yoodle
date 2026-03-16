@@ -133,12 +133,16 @@ export const POST = withHandler(async (req: NextRequest, context) => {
 
   const clientMessage = toClientMessage(populated);
 
-  // Publish to Redis for real-time delivery
-  const redis = getRedisClient();
-  await redis.publish(
-    `chat:${id}`,
-    JSON.stringify({ type: "message", data: clientMessage })
-  );
+  // Publish to Redis for real-time delivery (non-fatal if Redis is down)
+  try {
+    const redis = getRedisClient();
+    await redis.publish(
+      `chat:${id}`,
+      JSON.stringify({ type: "message", data: clientMessage })
+    );
+  } catch {
+    // Message is persisted in DB; real-time delivery is best-effort
+  }
 
   // Fire-and-forget: trigger agent responses (including the sender's own agent)
   const mentionsDoodle = content.toLowerCase().includes("@doodle");

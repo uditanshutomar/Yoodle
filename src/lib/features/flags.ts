@@ -8,7 +8,7 @@
  * Set via YOODLE_EDITION env var: "community" (default) | "cloud"
  */
 
-export type YoodleEdition = "community" | "cloud";
+type YoodleEdition = "community" | "cloud";
 
 const EDITION: YoodleEdition = (process.env.YOODLE_EDITION as YoodleEdition) || "community";
 
@@ -61,11 +61,6 @@ export const features = {
   /** Free tier participant-minutes per month (cloud only, 0 = unlimited) */
   freeParticipantMinutes: EDITION === "cloud" ? 10_000 : 0,
 } as const;
-
-/** Check if a premium feature is available */
-export function isFeatureEnabled(feature: keyof typeof features): boolean {
-  return Boolean(features[feature]);
-}
 
 /** Get the current edition display name */
 export function getEditionName(): string {

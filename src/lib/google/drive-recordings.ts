@@ -23,11 +23,6 @@ function setFolderCache(userId: string, id: string) {
   folderCache.set(userId, { id, cachedAt: Date.now() });
 }
 
-/** Clear cached folder ID on 404 so the next call re-discovers the folder */
-export function clearFolderCache(userId: string) {
-  folderCache.delete(userId);
-}
-
 async function ensureYoodleFolder(userId: string): Promise<string> {
   const entry = folderCache.get(userId);
   if (entry && Date.now() - entry.cachedAt < FOLDER_CACHE_TTL_MS) return entry.id;

@@ -41,12 +41,16 @@ export const POST = withHandler(async (req: NextRequest, context) => {
     throw new NotFoundError("User not found.");
   }
 
-  // Publish typing indicator to Redis (no DB write)
-  const redis = getRedisClient();
-  await redis.publish(
-    `chat:${id}`,
-    JSON.stringify({ type: "typing", userId, name: user.displayName })
-  );
+  // Publish typing indicator to Redis (non-fatal if Redis is down)
+  try {
+    const redis = getRedisClient();
+    await redis.publish(
+      `chat:${id}`,
+      JSON.stringify({ type: "typing", userId, name: user.displayName })
+    );
+  } catch {
+    // Typing indicator is ephemeral; real-time delivery is best-effort
+  }
 
   return successResponse({ ok: true });
 });

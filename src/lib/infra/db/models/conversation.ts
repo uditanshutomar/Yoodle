@@ -22,8 +22,14 @@ export interface IConversation {
   lastMessageSenderId?: Types.ObjectId;
   meetingId?: Types.ObjectId;
   createdBy: Types.ObjectId;
+  dmPairKey?: string;
   createdAt: Date;
   updatedAt: Date;
+}
+
+/** Build a deterministic pair key for DM uniqueness from two user IDs. */
+export function buildDmPairKey(a: string, b: string): string {
+  return a < b ? `${a}:${b}` : `${b}:${a}`;
 }
 
 export interface IConversationDocument extends IConversation, Document {
@@ -53,14 +59,21 @@ const conversationSchema = new Schema<IConversationDocument>(
     lastMessageSenderId: { type: Schema.Types.ObjectId, ref: "User" },
     meetingId: { type: Schema.Types.ObjectId, ref: "Meeting" },
     createdBy: { type: Schema.Types.ObjectId, ref: "User", required: true },
+    // Sorted pair key for DM uniqueness (e.g. "aaa...bbb"). Set only for type=dm.
+    dmPairKey: { type: String },
   },
   { timestamps: true, collection: "conversations" }
 );
 
 conversationSchema.index({ "participants.userId": 1, lastMessageAt: -1 });
+// DM uniqueness: use a dedicated field with sorted user IDs so that
+// (A,B) and (B,A) map to the same key.  A unique partial index on this
+// field prevents duplicate DM conversations reliably — unlike a compound
+// index on the `participants.userId` array, which would block a user
+// from appearing in more than one DM.
 conversationSchema.index(
-  { type: 1, "participants.userId": 1 },
-  { unique: true, partialFilterExpression: { type: "dm" } }
+  { dmPairKey: 1 },
+  { unique: true, sparse: true }
 );
 
 const Conversation: Model<IConversationDocument> =

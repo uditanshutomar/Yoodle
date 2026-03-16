@@ -41,12 +41,16 @@ export const POST = withHandler(async (req: NextRequest, context) => {
     { $set: { "participants.$.lastReadAt": readAt } }
   );
 
-  // Publish to Redis
-  const redis = getRedisClient();
-  await redis.publish(
-    `chat:${id}`,
-    JSON.stringify({ type: "read", userId, readAt: readAt.toISOString() })
-  );
+  // Publish to Redis (non-fatal if Redis is down)
+  try {
+    const redis = getRedisClient();
+    await redis.publish(
+      `chat:${id}`,
+      JSON.stringify({ type: "read", userId, readAt: readAt.toISOString() })
+    );
+  } catch {
+    // Read receipt is persisted in DB; real-time delivery is best-effort
+  }
 
   return successResponse({ success: true });
 });

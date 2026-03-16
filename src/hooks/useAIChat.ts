@@ -313,7 +313,11 @@ export function useAIChat() {
           content: data.data.briefing,
           timestamp: Date.now(),
         };
-        setMessages((prev) => [briefingMsg, ...prev]);
+        // Deduplicate: only prepend if no briefing message already exists
+        setMessages((prev) => {
+          if (prev.some((m) => m.id.startsWith("briefing-"))) return prev;
+          return [briefingMsg, ...prev];
+        });
       }
     } catch {
       // Silent fail — briefing is best-effort

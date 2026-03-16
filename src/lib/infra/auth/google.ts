@@ -68,7 +68,7 @@ function getGoogleConfig() {
 /**
  * Create a new OAuth2 client instance.
  */
-export function createOAuth2Client() {
+function createOAuth2Client() {
   const { clientId, clientSecret, redirectUri } = getGoogleConfig();
   return new google.auth.OAuth2(clientId, clientSecret, redirectUri);
 }
@@ -108,10 +108,14 @@ export async function getGoogleUserProfile(accessToken: string) {
   const oauth2 = google.oauth2({ version: "v2", auth: client });
   const { data } = await oauth2.userinfo.get();
 
+  if (!data.id || !data.email) {
+    throw new Error("Google profile is missing required fields (id or email). Check OAuth scopes.");
+  }
+
   return {
-    googleId: data.id!,
-    email: data.email!,
-    name: data.name || data.email!,
+    googleId: data.id,
+    email: data.email,
+    name: data.name || data.email,
     avatarUrl: data.picture || undefined,
   };
 }
@@ -135,5 +139,3 @@ export function createAuthenticatedClient(tokens: {
 
   return client;
 }
-
-export { GOOGLE_SCOPES };
