@@ -56,7 +56,7 @@ export const features = {
   sharedWorkspaces: true,
 
   /** Max meeting duration in minutes (0 = unlimited) */
-  maxMeetingDurationMinutes: EDITION === "cloud" ? 0 : 0,
+  maxMeetingDurationMinutes: 0,
 
   /** Free tier participant-minutes per month (cloud only, 0 = unlimited) */
   freeParticipantMinutes: EDITION === "cloud" ? 10_000 : 0,
