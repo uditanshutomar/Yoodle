@@ -54,6 +54,8 @@ export const POST = withHandler(async (req: NextRequest, context) => {
   await connectDB();
 
   const filter = buildMeetingFilter(meetingId);
+
+  // Validate access and status before attempting the atomic update
   const meeting = await Meeting.findOne(filter)
     .select("hostId status scheduledDuration calendarEventId scheduledAt startedAt createdAt");
 
@@ -69,9 +71,12 @@ export const POST = withHandler(async (req: NextRequest, context) => {
   const oldDuration = meeting.scheduledDuration || 15;
   const newDuration = roundTo15(oldDuration + body.additionalMinutes);
 
-  // Update meeting
-  meeting.scheduledDuration = newDuration;
-  await meeting.save();
+  // Atomic update — prevents concurrent extend requests from overwriting
+  // each other's duration changes
+  await Meeting.updateOne(
+    { _id: meeting._id, status: "live" },
+    { $set: { scheduledDuration: newDuration } },
+  );
 
   // Update Google Calendar event if linked
   let calendarUpdated = false;

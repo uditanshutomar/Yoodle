@@ -97,9 +97,21 @@ export const POST = withHandler(async (req: NextRequest, context) => {
     // Nobody left — end the meeting regardless of who left
     const endedAt = new Date();
 
+    // End the meeting and mark any remaining non-"left" participants
+    // (e.g. participants who crashed and never called /leave) as "left"
     await Meeting.updateOne(
       { _id: result._id, status: { $nin: ["ended", "cancelled"] } },
-      { $set: { status: "ended", endedAt } },
+      {
+        $set: {
+          status: "ended",
+          endedAt,
+          "participants.$[stale].status": "left",
+          "participants.$[stale].leftAt": endedAt,
+        },
+      },
+      {
+        arrayFilters: [{ "stale.status": { $ne: "left" } }],
+      },
     );
 
     // Sync calendar event to actual meeting duration (rounded to 15-min slots)

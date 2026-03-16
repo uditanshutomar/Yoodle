@@ -26,7 +26,9 @@ export const POST = withHandler(async (req: NextRequest, context) => {
   await connectDB();
 
   // Verify user is a participant
-  const conversation = await Conversation.findById(id).lean();
+  const conversation = await Conversation.findById(id)
+    .select("participants pinnedMessageIds")
+    .lean();
   if (!conversation) {
     throw new NotFoundError("Conversation not found.");
   }
@@ -58,7 +60,7 @@ export const POST = withHandler(async (req: NextRequest, context) => {
     throw new ForbiddenError("Message does not belong to this conversation.");
   }
 
-  // Toggle pin
+  // Toggle pin atomically to prevent race conditions
   const messageObjectId = new mongoose.Types.ObjectId(messageId);
   const isPinned = conversation.pinnedMessageIds.some(
     (pid) => pid.toString() === messageId
@@ -71,17 +73,27 @@ export const POST = withHandler(async (req: NextRequest, context) => {
       { $pull: { pinnedMessageIds: messageObjectId } }
     );
   } else {
-    // Check max 25 pins
-    if (conversation.pinnedMessageIds.length >= 25) {
-      throw new BadRequestError(
-        "Maximum of 25 pinned messages per conversation."
-      );
-    }
-    // Pin
-    await Conversation.updateOne(
-      { _id: id },
+    // Atomic pin with capacity guard — prevents concurrent requests
+    // from both passing a stale "length < 25" check
+    const pinResult = await Conversation.updateOne(
+      {
+        _id: id,
+        pinnedMessageIds: { $ne: messageObjectId },
+        $expr: { $lt: [{ $size: "$pinnedMessageIds" }, 25] },
+      },
       { $push: { pinnedMessageIds: messageObjectId } }
     );
+
+    if (pinResult.modifiedCount === 0) {
+      // Either already pinned (concurrent request) or at capacity
+      const fresh = await Conversation.findById(id).select("pinnedMessageIds").lean();
+      if (fresh && fresh.pinnedMessageIds.length >= 25) {
+        throw new BadRequestError(
+          "Maximum of 25 pinned messages per conversation."
+        );
+      }
+      // Otherwise: already pinned by a concurrent request — no-op is fine
+    }
   }
 
   // Fetch updated conversation for response
