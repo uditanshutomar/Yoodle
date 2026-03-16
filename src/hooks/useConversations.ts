@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { useAuth } from "./useAuth";
 
 // ── Types ────────────────────────────────────────────────────────────────
@@ -34,12 +34,15 @@ export function useConversations() {
   const [conversations, setConversations] = useState<ConversationInfo[]>([]);
   const [loading, setLoading] = useState(false);
 
+  const abortRef = useRef<AbortController | null>(null);
+
   // ── Fetch conversations ──────────────────────────────────────────────
 
-  const refresh = useCallback(async () => {
+  const refresh = useCallback(async (signal?: AbortSignal) => {
     try {
       const res = await fetch("/api/conversations", {
         credentials: "include",
+        signal,
       });
       if (!res.ok) return;
 
@@ -47,7 +50,8 @@ export function useConversations() {
       if (json.success && Array.isArray(json.data)) {
         setConversations(json.data);
       }
-    } catch {
+    } catch (err) {
+      if (err instanceof DOMException && err.name === "AbortError") return;
       // Silent fail
     }
   }, []);
@@ -57,19 +61,21 @@ export function useConversations() {
   useEffect(() => {
     if (!user) return;
 
-    let active = true;
+    const controller = new AbortController();
+    abortRef.current = controller;
 
     const load = async () => {
       setLoading(true);
-      await refresh();
-      if (active) setLoading(false);
+      await refresh(controller.signal);
+      if (!controller.signal.aborted) setLoading(false);
     };
 
     load();
 
-    const interval = setInterval(refresh, 10_000);
+    const interval = setInterval(() => refresh(controller.signal), 10_000);
     return () => {
-      active = false;
+      controller.abort();
+      abortRef.current = null;
       clearInterval(interval);
     };
   }, [user, refresh]);

@@ -67,12 +67,19 @@ export function useMessages(conversationId: string | null) {
   const cursorRef = useRef<string | null>(null);
   const isMountedRef = useRef(true);
   const sseRetriesRef = useRef(0);
+  const fetchAbortRef = useRef<AbortController | null>(null);
 
   // ── Fetch initial messages ───────────────────────────────────────────
 
   const fetchMessages = useCallback(
     async (before?: string) => {
       if (!conversationId) return;
+
+      // Abort any in-flight message fetch to prevent stale results
+      fetchAbortRef.current?.abort();
+      const controller = new AbortController();
+      fetchAbortRef.current = controller;
+
       setLoading(true);
       try {
         const params = new URLSearchParams({ limit: "30" });
@@ -80,32 +87,28 @@ export function useMessages(conversationId: string | null) {
 
         const res = await fetch(
           `/api/conversations/${conversationId}/messages?${params}`,
-          { credentials: "include" },
+          { credentials: "include", signal: controller.signal },
         );
         if (!res.ok) return;
 
         const json = await res.json();
-        if (!json.success) return;
+        if (!json.success || !isMountedRef.current) return;
 
         const fetched: ChatMsg[] = json.data.messages;
 
         if (fetched.length < 30) setHasMore(false);
 
         if (before) {
-          // Prepend older messages
           setMessages((prev) => [...fetched, ...prev]);
         } else {
-          // Initial load
           setMessages(fetched);
         }
 
         if (fetched.length > 0) {
-          // API returns newest-first; use the oldest message ID as cursor
-          // so "load more" fetches messages before it
           cursorRef.current = fetched[fetched.length - 1]._id;
         }
-      } catch {
-        // Silent fail
+      } catch (err) {
+        if (err instanceof DOMException && err.name === "AbortError") return;
       } finally {
         if (isMountedRef.current) setLoading(false);
       }
@@ -308,6 +311,9 @@ export function useMessages(conversationId: string | null) {
 
     return () => {
       isMountedRef.current = false;
+      // Abort any in-flight message fetch
+      fetchAbortRef.current?.abort();
+      fetchAbortRef.current = null;
       // Clear all typing timers
       // eslint-disable-next-line react-hooks/exhaustive-deps
       const timers = typingTimersRef.current;

@@ -44,10 +44,14 @@ export default function NewMessageModal({
   const [selectedMembers, setSelectedMembers] = useState<SearchUser[]>([]);
 
   const debounceRef = useRef<NodeJS.Timeout>(undefined);
+  const searchAbortRef = useRef<AbortController | null>(null);
 
   // ── Helpers ────────────────────────────────────────────────────────────
 
   const resetState = () => {
+    clearTimeout(debounceRef.current);
+    searchAbortRef.current?.abort();
+    searchAbortRef.current = null;
     setSearchQuery("");
     setResults([]);
     setSearching(false);
@@ -65,6 +69,9 @@ export default function NewMessageModal({
   const handleSearch = (query: string) => {
     setSearchQuery(query);
     clearTimeout(debounceRef.current);
+    // Abort any in-flight search request
+    searchAbortRef.current?.abort();
+
     debounceRef.current = setTimeout(async () => {
       if (!query.trim()) {
         setResults([]);
@@ -72,17 +79,19 @@ export default function NewMessageModal({
         return;
       }
       setSearching(true);
+      const controller = new AbortController();
+      searchAbortRef.current = controller;
       try {
         const res = await fetch(
           `/api/users/search?q=${encodeURIComponent(query)}`,
-          { credentials: "include" },
+          { credentials: "include", signal: controller.signal },
         );
         const data = await res.json();
         if (data.success) setResults(data.data || []);
-      } catch {
-        // silent
+      } catch (err) {
+        if (err instanceof DOMException && err.name === "AbortError") return;
       } finally {
-        setSearching(false);
+        if (!controller.signal.aborted) setSearching(false);
       }
     }, 300);
   };

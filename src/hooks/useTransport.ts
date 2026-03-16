@@ -76,6 +76,7 @@ export function useTransport({
     if (!enabled || !localStream) return;
 
     let cancelled = false;
+    const abortController = new AbortController();
 
     async function init() {
       try {
@@ -83,6 +84,7 @@ export function useTransport({
           method: "POST",
           headers: { "Content-Type": "application/json" },
           credentials: "include",
+          signal: abortController.signal,
           body: JSON.stringify({
             roomId: meetingId,
             identity: userId,
@@ -174,6 +176,7 @@ export function useTransport({
           }
         }, 1000);
       } catch (err) {
+        if (err instanceof DOMException && err.name === "AbortError") return;
         if (!cancelled) {
           setError(
             err instanceof Error ? err.message : "Transport error",
@@ -186,6 +189,7 @@ export function useTransport({
 
     return () => {
       cancelled = true;
+      abortController.abort();
       if (transportRef.current) {
         transportRef.current.leave();
         transportRef.current = null;
