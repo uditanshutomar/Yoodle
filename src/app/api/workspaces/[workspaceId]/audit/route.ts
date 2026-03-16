@@ -1,4 +1,5 @@
 import { NextRequest } from "next/server";
+import mongoose from "mongoose";
 import { withHandler } from "@/lib/infra/api/with-handler";
 import { successResponse } from "@/lib/infra/api/response";
 import { checkRateLimit } from "@/lib/infra/api/rate-limit";
@@ -37,12 +38,12 @@ export const GET = withHandler(async (req: NextRequest, context) => {
   }
 
   const [logs, total] = await Promise.all([
-    AuditLog.find({ workspaceId })
+    AuditLog.find({ workspaceId: new mongoose.Types.ObjectId(workspaceId) })
       .sort({ createdAt: -1 })
       .skip((page - 1) * limit)
       .limit(limit)
       .lean(),
-    AuditLog.countDocuments({ workspaceId }),
+    AuditLog.countDocuments({ workspaceId: new mongoose.Types.ObjectId(workspaceId) }),
   ]);
 
   return successResponse({

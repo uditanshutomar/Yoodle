@@ -250,6 +250,7 @@ meetingSchema.index({ status: 1, scheduledAt: 1 });
 meetingSchema.index({ "participants.userId": 1 });
 meetingSchema.index({ hostId: 1, status: 1, createdAt: -1 });
 meetingSchema.index({ type: 1, status: 1 });
+meetingSchema.index({ createdAt: -1 });
 
 const Meeting: Model<IMeetingDocument> =
   mongoose.models.Meeting ||

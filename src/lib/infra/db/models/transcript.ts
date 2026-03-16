@@ -33,7 +33,7 @@ const transcriptSchema = new Schema<ITranscript>(
     segments: { type: [transcriptSegmentSchema], default: [] },
     language: { type: String, default: "en" },
   },
-  { timestamps: true }
+  { timestamps: true, collection: "transcripts" }
 );
 
 const Transcript: Model<ITranscript> =

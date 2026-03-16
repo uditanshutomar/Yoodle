@@ -74,11 +74,13 @@ const ghostRoomSchema = new Schema<IGhostRoom>(
   },
   {
     timestamps: true,
+    collection: "ghost_rooms",
   }
 );
 
 // TTL index — MongoDB automatically deletes documents when expiresAt is reached
 ghostRoomSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 });
+ghostRoomSchema.index({ "participants.userId": 1 });
 
 // ── Model ─────────────────────────────────────────────────────────────
 

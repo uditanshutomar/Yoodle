@@ -1,4 +1,5 @@
 import { NextRequest } from "next/server";
+import mongoose from "mongoose";
 import { z } from "zod";
 import { withHandler } from "@/lib/infra/api/with-handler";
 import { successResponse } from "@/lib/infra/api/response";
@@ -26,8 +27,9 @@ export const GET = withHandler(async (req: NextRequest) => {
 
   await connectDB();
 
+  const userOid = new mongoose.Types.ObjectId(userId);
   const filter = {
-    $or: [{ ownerId: userId }, { "members.userId": userId }],
+    $or: [{ ownerId: userOid }, { "members.userId": userOid }],
   };
 
   const [workspaces, total] = await Promise.all([
@@ -54,11 +56,12 @@ export const POST = withHandler(async (req: NextRequest) => {
 
   await connectDB();
 
+  const userOid = new mongoose.Types.ObjectId(userId);
   const workspace = await Workspace.create({
     name: body.name.trim(),
     description: body.description?.trim() || "",
-    ownerId: userId,
-    members: [{ userId, role: "owner", joinedAt: new Date() }],
+    ownerId: userOid,
+    members: [{ userId: userOid, role: "owner", joinedAt: new Date() }],
     settings: { autoShutdown: true, shutdownAfterMinutes: 60 },
   });
 
