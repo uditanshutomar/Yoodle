@@ -163,8 +163,8 @@ export const POST = withHandler(async (req: NextRequest) => {
           { upsert: true, new: true }
         );
       }
-    } catch {
-      // Ignore invalid speech segments — recording still uploaded
+    } catch (err) {
+      log.warn({ err }, "failed to process speech segments — recording still uploaded");
     }
   }
 

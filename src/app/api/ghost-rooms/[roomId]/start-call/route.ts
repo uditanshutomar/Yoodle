@@ -82,9 +82,35 @@ export const POST = withHandler(async (req: NextRequest, context) => {
     },
   });
 
-  // Link meeting to ghost room
-  ghostRoom.meetingId = meeting._id.toString();
-  await ghostRoom.save();
+  // Atomically link meeting to ghost room — only succeeds if meetingId
+  // is still unset, preventing a duplicate meeting from a concurrent request.
+  const linked = await GhostRoom.findOneAndUpdate(
+    { roomId, $or: [{ meetingId: { $exists: false } }, { meetingId: null }] },
+    { $set: { meetingId: meeting._id.toString() } },
+    { new: true },
+  );
+
+  if (!linked) {
+    // Another request beat us — clean up the orphaned meeting
+    await Meeting.deleteOne({ _id: meeting._id });
+    log.warn({ roomId }, "concurrent start-call race — cleaned up duplicate meeting");
+
+    // Return the meeting that the other request created
+    const freshRoom = await GhostRoom.findOne({ roomId }).select("meetingId").lean();
+    if (freshRoom?.meetingId) {
+      const existingMeeting = await Meeting.findById(freshRoom.meetingId)
+        .select("_id code")
+        .lean();
+      if (existingMeeting) {
+        return successResponse({
+          meetingId: existingMeeting._id.toString(),
+          code: existingMeeting.code,
+          alreadyStarted: true,
+        });
+      }
+    }
+    // Fallback: shouldn't happen, but return our meeting as last resort
+  }
 
   log.info(
     { roomId, meetingId: meeting._id.toString() },

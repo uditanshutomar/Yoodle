@@ -344,7 +344,7 @@ export const POST = withHandler(async (req: NextRequest, context) => {
 
   if (!joined) {
     // Determine the reason for failure so we return an accurate error
-    const meeting = await Meeting.findOne(filter);
+    const meeting = await Meeting.findOne(filter).select("status").lean();
     if (!meeting) {
       throw new NotFoundError("Meeting not found.");
     }

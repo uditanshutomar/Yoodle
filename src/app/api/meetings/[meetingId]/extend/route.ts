@@ -9,6 +9,9 @@ import { NotFoundError, BadRequestError, ForbiddenError } from "@/lib/infra/api/
 import connectDB from "@/lib/infra/db/client";
 import Meeting from "@/lib/infra/db/models/meeting";
 import { updateEvent } from "@/lib/google/calendar";
+import { createLogger } from "@/lib/infra/logger";
+
+const log = createLogger("meetings:extend");
 
 // ── Helpers ─────────────────────────────────────────────────────────
 
@@ -80,8 +83,8 @@ export const POST = withHandler(async (req: NextRequest, context) => {
         end: newEnd.toISOString(),
       });
       calendarUpdated = true;
-    } catch {
-      // Calendar update is best-effort
+    } catch (err) {
+      log.warn({ err, meetingId: meeting._id.toString() }, "failed to sync calendar after meeting extend");
     }
   }
 

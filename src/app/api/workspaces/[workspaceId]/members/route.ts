@@ -9,6 +9,9 @@ import connectDB from "@/lib/infra/db/client";
 import Workspace from "@/lib/infra/db/models/workspace";
 import User from "@/lib/infra/db/models/user";
 import AuditLog from "@/lib/infra/db/models/audit-log";
+import { createLogger } from "@/lib/infra/logger";
+
+const log = createLogger("workspaces:members");
 
 const addMemberSchema = z.object({
   email: z.string().email("Valid email is required."),
@@ -74,23 +77,37 @@ export const POST = withHandler(async (req: NextRequest, context) => {
   );
   if (alreadyMember) throw new BadRequestError("User is already a member.");
 
-  workspace.members.push({
-    userId: userToAdd._id,
-    role,
-    joinedAt: new Date(),
-  });
+  // Atomic push — guards against duplicate if concurrent requests pass
+  // the alreadyMember check simultaneously
+  const updated = await Workspace.findOneAndUpdate(
+    {
+      _id: workspaceId,
+      "members.userId": { $ne: userToAdd._id },
+    },
+    {
+      $push: {
+        members: { userId: userToAdd._id, role, joinedAt: new Date() },
+      },
+    },
+    { new: true },
+  );
 
-  await workspace.save();
+  if (!updated) {
+    throw new BadRequestError("User is already a member (concurrent add).");
+  }
 
-  // Look up the acting user's name for the audit log
-  const actingUser = await User.findById(userId).select("name displayName").lean();
-  const actingUserName = actingUser?.displayName || actingUser?.name || "Unknown";
-
-  await AuditLog.create({
-    workspaceId, userId, userName: actingUserName,
-    action: "member.add",
-    details: { addedUserId: userToAdd._id, email, role },
-  });
+  // Audit log is best-effort — don't fail the response if it errors
+  try {
+    const actingUser = await User.findById(userId).select("name displayName").lean();
+    const actingUserName = actingUser?.displayName || actingUser?.name || "Unknown";
+    await AuditLog.create({
+      workspaceId, userId, userName: actingUserName,
+      action: "member.add",
+      details: { addedUserId: userToAdd._id, email, role },
+    });
+  } catch (err) {
+    log.warn({ err, workspaceId, addedUserId: userToAdd._id.toString() }, "failed to create audit log for member add");
+  }
 
   return successResponse({ added: true, memberId: userToAdd._id });
 });
@@ -129,21 +146,29 @@ export const DELETE = withHandler(async (req: NextRequest, context) => {
     throw new BadRequestError("Cannot remove the workspace owner.");
   }
 
-  workspace.members = workspace.members.filter(
-    (m) => m.userId.toString() !== memberId
+  // Atomic pull — prevents race if concurrent remove requests both pass the check
+  const updated = await Workspace.findOneAndUpdate(
+    { _id: workspaceId, "members.userId": memberId },
+    { $pull: { members: { userId: memberId } } },
+    { new: true },
   );
 
-  await workspace.save();
+  if (!updated) {
+    throw new BadRequestError("Member not found or already removed.");
+  }
 
-  // Look up the acting user's name for the audit log
-  const actingUser = await User.findById(userId).select("name displayName").lean();
-  const actingUserName = actingUser?.displayName || actingUser?.name || "Unknown";
-
-  await AuditLog.create({
-    workspaceId, userId, userName: actingUserName,
-    action: "member.remove",
-    details: { removedUserId: memberId },
-  });
+  // Audit log is best-effort — don't fail the response if it errors
+  try {
+    const actingUser = await User.findById(userId).select("name displayName").lean();
+    const actingUserName = actingUser?.displayName || actingUser?.name || "Unknown";
+    await AuditLog.create({
+      workspaceId, userId, userName: actingUserName,
+      action: "member.remove",
+      details: { removedUserId: memberId },
+    });
+  } catch (err) {
+    log.warn({ err, workspaceId, removedUserId: memberId }, "failed to create audit log for member remove");
+  }
 
   return successResponse({ removed: true });
 });

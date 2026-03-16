@@ -118,15 +118,24 @@ export const POST = withHandler(async (req: NextRequest, context) => {
       }
     }
 
-    // Post MoM to linked conversation (fire-and-forget)
+    // Post end message and MoM to linked conversation (fire-and-forget).
+    // Each section has its own error boundary so a failure in one doesn't
+    // block the other.
     (async () => {
+      let convId: mongoose.Types.ObjectId;
       try {
         const conv = await Conversation.findOne({ meetingId: result._id }).select("_id").lean();
         if (!conv) return;
+        convId = conv._id as mongoose.Types.ObjectId;
+      } catch (err) {
+        log.warn({ err, meetingId: result._id }, "failed to find meeting conversation");
+        return;
+      }
 
-        // Post "meeting ended" system message
+      // 1. Post "meeting ended" system message
+      try {
         const endMsg = await DirectMessage.create({
-          conversationId: conv._id,
+          conversationId: convId,
           senderId: result.hostId,
           senderType: "user",
           content: "Meeting ended.",
@@ -134,7 +143,7 @@ export const POST = withHandler(async (req: NextRequest, context) => {
         });
 
         await Conversation.updateOne(
-          { _id: conv._id },
+          { _id: convId },
           {
             $set: {
               lastMessageAt: endMsg.createdAt,
@@ -146,10 +155,14 @@ export const POST = withHandler(async (req: NextRequest, context) => {
 
         try {
           const redis = getRedisClient();
-          await redis.publish(`chat:${conv._id}`, JSON.stringify({ type: "message", message: endMsg }));
+          await redis.publish(`chat:${convId}`, JSON.stringify({ type: "message", message: endMsg }));
         } catch { /* Redis optional */ }
+      } catch (err) {
+        log.warn({ err, meetingId: result._id }, "failed to post meeting-ended message");
+      }
 
-        // If MoM exists, post it too
+      // 2. Post MoM if it exists (independent of step 1)
+      try {
         const meetingWithMom = await Meeting.findById(result._id).select("mom title").lean();
         if (meetingWithMom?.mom?.summary) {
           const mom = meetingWithMom.mom;
@@ -164,7 +177,7 @@ export const POST = withHandler(async (req: NextRequest, context) => {
           ].filter(Boolean).join("\n");
 
           const momMsg = await DirectMessage.create({
-            conversationId: conv._id,
+            conversationId: convId,
             senderId: result.hostId,
             senderType: "agent",
             content: momContent,
@@ -173,7 +186,7 @@ export const POST = withHandler(async (req: NextRequest, context) => {
           });
 
           await Conversation.updateOne(
-            { _id: conv._id },
+            { _id: convId },
             {
               $set: {
                 lastMessageAt: momMsg.createdAt,
@@ -185,11 +198,11 @@ export const POST = withHandler(async (req: NextRequest, context) => {
 
           try {
             const redis = getRedisClient();
-            await redis.publish(`chat:${conv._id}`, JSON.stringify({ type: "message", message: momMsg }));
+            await redis.publish(`chat:${convId}`, JSON.stringify({ type: "message", message: momMsg }));
           } catch { /* Redis optional */ }
         }
       } catch (err) {
-        log.warn({ err, meetingId: result._id }, "failed to post meeting end to conversation");
+        log.warn({ err, meetingId: result._id }, "failed to post MoM to conversation");
       }
     })();
   } else if (isHost && remainingParticipants.length > 0) {

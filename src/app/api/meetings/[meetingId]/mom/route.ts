@@ -169,8 +169,8 @@ export const POST = withHandler(
               .join("\n");
           }
         }
-      } catch {
-        // silent
+      } catch (err) {
+        log.warn({ err, meetingId }, "failed to fetch transcript for MoM generation");
       }
     }
 

@@ -53,6 +53,7 @@ export const POST = withHandler(async (req: NextRequest, context) => {
   };
 
   let savedMeetingId: string | null = null;
+  let dataLost = false;
 
   if (consensus.allVoted && consensus.totalParticipants > 0) {
     // Atomically claim and destroy the room — only one concurrent request
@@ -71,6 +72,7 @@ export const POST = withHandler(async (req: NextRequest, context) => {
           log.info({ roomId }, "successfully restored ghost room after persistence failure");
         } catch (restoreErr) {
           log.error({ restoreErr, roomId }, "CRITICAL: failed to restore ghost room — data may be lost");
+          dataLost = true;
         }
       }
     }
@@ -82,5 +84,6 @@ export const POST = withHandler(async (req: NextRequest, context) => {
     consensusReached: consensus.allVoted,
     dataSaved: savedMeetingId !== null,
     meetingId: savedMeetingId,
+    ...(dataLost && { dataLost: true }),
   });
 });
