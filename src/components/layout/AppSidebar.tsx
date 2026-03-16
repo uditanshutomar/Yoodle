@@ -6,9 +6,6 @@ import Link from "next/link";
 import {
   LayoutDashboard,
   Video,
-  Ghost,
-  Terminal,
-  Sparkles,
   MessageSquare,
   Settings,
   LogOut,
@@ -22,12 +19,9 @@ import { useAuth } from "@/hooks/useAuth";
 import { useTotalUnread } from "@/hooks/useTotalUnread";
 
 const navItems = [
-  { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
-  { label: "Messages", href: "/messages", icon: MessageSquare },
+  { label: "Home", href: "/dashboard", icon: LayoutDashboard },
   { label: "Meetings", href: "/meetings", icon: Video },
-  { label: "Ghost Rooms", href: "/ghost-rooms", icon: Ghost },
-  { label: "Workspaces", href: "/workspaces", icon: Terminal },
-  { label: "AI Assistant", href: "/ai", icon: Sparkles },
+  { label: "Messages", href: "/messages", icon: MessageSquare },
   { label: "Settings", href: "/settings", icon: Settings },
 ];
 
