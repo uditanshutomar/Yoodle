@@ -469,7 +469,7 @@ export default function TasksPanel({ pendingActions, onConfirmAction, onDenyActi
                             No tasks yet. Tap + to create one!
                         </p>
                     ) : (
-                        <div className="space-y-1 max-h-[240px] overflow-y-auto pr-1">
+                        <div className="space-y-1">
                             {/* Pending tasks */}
                             {pendingTasks.map((task, i) => (
                                 <TaskItem

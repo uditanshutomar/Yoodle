@@ -5,7 +5,7 @@ import "./dashboard.css";
 
 export default function DashboardPage() {
     return (
-        <div className="-mx-4 -my-6 lg:-mx-8 -mt-6">
+        <div className="-mx-4 -my-6 lg:-mx-8">
             <Dashboard />
         </div>
     );

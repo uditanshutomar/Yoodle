@@ -252,7 +252,7 @@ function EventDetailPopup({ event, daysOfWeek, currentMonth, onClose }: {
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 10, scale: 0.97 }}
             transition={{ type: "spring", stiffness: 400, damping: 30 }}
-            className="absolute top-4 right-4 z-40 w-80 rounded-2xl border-2 border-[var(--border-strong)] bg-[var(--surface)] p-5 shadow-[var(--shadow-card)]"
+            className="absolute top-4 left-2 right-2 sm:left-auto sm:right-4 z-40 sm:w-80 rounded-2xl border-2 border-[var(--border-strong)] bg-[var(--surface)] p-4 sm:p-5 shadow-[var(--shadow-card)]"
         >
             {/* Color accent bar */}
             <div className="absolute top-0 left-5 right-5 h-1 rounded-b-full" style={{ backgroundColor: event.color }} />
@@ -556,7 +556,7 @@ function CreateEventModal({ open, onClose, onCreated, defaultStart, defaultEnd, 
                 <Input label="Event Title" placeholder="e.g. Team standup, Lunch with Alex…" value={title}
                     onChange={(e) => setTitle(e.target.value)} maxLength={500} error={error && !title.trim() ? "Title is required" : undefined} autoFocus />
 
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div className="flex flex-col gap-1.5">
                         <label className="text-sm font-bold text-[var(--text-primary)]" style={{ fontFamily: "var(--font-heading)" }}>Start</label>
                         <input type="datetime-local" value={start} onChange={(e) => handleStartChange(e.target.value)}
@@ -1022,8 +1022,7 @@ export default function CalendarPanel() {
     // This prevents React error #418 caused by server/client date mismatches.
     if (!mounted) {
         return (
-            <div className="relative rounded-2xl border-2 border-[var(--border-strong)] bg-[var(--surface)] shadow-[var(--shadow-card)] overflow-hidden p-4"
-                style={{ maxWidth: 340, marginLeft: "auto" }}>
+            <div className="relative rounded-2xl border-2 border-[var(--border-strong)] bg-[var(--surface)] shadow-[var(--shadow-card)] overflow-hidden p-4 lg:max-w-[340px] lg:ml-auto">
                 <div className="py-6 space-y-3">
                     {[...Array(4)].map((_, i) => (
                         <div key={i} className="flex items-center gap-2 px-1">
@@ -1048,8 +1047,7 @@ export default function CalendarPanel() {
             initial={{ y: 20, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
             transition={{ delay: 0.2, type: "spring", stiffness: 200, damping: 25 }}
-            className="relative rounded-2xl border-2 border-[var(--border-strong)] bg-[var(--surface)] shadow-[var(--shadow-card)] overflow-hidden p-4 cursor-pointer"
-            style={{ maxWidth: 340, marginLeft: "auto" }}
+            className="relative rounded-2xl border-2 border-[var(--border-strong)] bg-[var(--surface)] shadow-[var(--shadow-card)] overflow-hidden p-4 cursor-pointer lg:max-w-[340px] lg:ml-auto"
             onClick={() => setExpanded(true)}
         >
             {/* Header */}
@@ -1147,7 +1145,7 @@ export default function CalendarPanel() {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.2 }}
-            className="fixed inset-0 z-[100] flex items-start justify-center bg-black/40 backdrop-blur-sm p-6 overflow-hidden"
+            className="fixed inset-0 z-[100] flex items-start justify-center bg-black/40 backdrop-blur-sm p-2 sm:p-6 overflow-hidden"
             onClick={() => { setExpanded(false); setSelectedEvent(null); setQuickAdd(null); }}
         >
             <motion.div
@@ -1160,13 +1158,13 @@ export default function CalendarPanel() {
                 onClick={(e) => e.stopPropagation()}
             >
                 {/* ── Header ── */}
-                <div className="flex items-center justify-between px-6 py-3.5 border-b border-[var(--border)] flex-shrink-0">
+                <div className="flex flex-wrap items-center justify-between gap-2 px-3 sm:px-6 py-3 sm:py-3.5 border-b border-[var(--border)] flex-shrink-0">
                     {/* Left: Title + Nav */}
-                    <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-2 sm:gap-3">
                         <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-[#7C3AED]/10">
                             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#7C3AED" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" /></svg>
                         </div>
-                        <h2 className="text-lg font-black text-[var(--text-primary)] min-w-[140px]" style={{ fontFamily: "var(--font-heading)" }}>
+                        <h2 className="text-sm sm:text-lg font-black text-[var(--text-primary)] min-w-[100px] sm:min-w-[140px]" style={{ fontFamily: "var(--font-heading)" }}>
                             {headerText}
                         </h2>
                         <div className="flex items-center gap-0.5">
@@ -1209,7 +1207,7 @@ export default function CalendarPanel() {
 
                 {/* ── Day strip (Week/Day views only) ── */}
                 {view !== "Month" && (
-                    <div className="grid gap-1 px-6 py-3 border-b border-[var(--border)] flex-shrink-0" style={{ gridTemplateColumns: "56px repeat(7, 1fr)" }}>
+                    <div className="grid gap-0.5 sm:gap-1 px-2 sm:px-6 py-3 border-b border-[var(--border)] flex-shrink-0" style={{ gridTemplateColumns: "40px repeat(7, 1fr)" }}>
                         <div />
                         {DAYS_OF_WEEK.map((d, i) => {
                             const isSelected = selectedDayIndex === i;

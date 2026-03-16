@@ -106,9 +106,9 @@ export default function Dashboard() {
     };
 
     return (
-        <div className="dashboard-root relative overflow-hidden" style={{ minHeight: "calc(100vh - 56px)" }}>
+        <div className="dashboard-root relative" style={{ minHeight: "calc(100vh - 56px)" }}>
             {/* Doodle decorations — very subtle background flair */}
-            <div className="pointer-events-none absolute inset-0 z-[1]">
+            <div className="pointer-events-none absolute inset-0 z-[1] hidden sm:block">
                 <DoodleStar className="absolute top-20 left-[30%] opacity-40" color="#FFE600" size={20} />
                 <DoodleStar className="absolute bottom-32 left-[15%] opacity-30" color="var(--text-primary)" size={14} />
                 <DoodleSparkles className="absolute top-40 right-[42%] opacity-20" />
@@ -116,10 +116,10 @@ export default function Dashboard() {
             </div>
 
             {/* ─── MAIN LAYOUT: center-left action + right planning ─── */}
-            <div className="relative z-10 flex px-8 gap-6 mt-2" style={{ minHeight: "calc(100vh - 136px)" }}>
+            <div className="relative z-10 flex flex-col lg:flex-row px-4 sm:px-6 lg:px-8 gap-6 mt-2">
 
                 {/* ═══ LEFT: Main action area ═══ */}
-                <div className="flex-1 flex flex-col justify-center pb-32 max-w-[640px]">
+                <div className="flex-1 flex flex-col pt-6 lg:pt-10 pb-16 lg:pb-32 max-w-full lg:max-w-[640px]">
                     <motion.div
                         initial={{ y: 30, opacity: 0 }}
                         animate={{ y: 0, opacity: 1 }}
@@ -132,7 +132,7 @@ export default function Dashboard() {
 
                         {/* Main heading */}
                         <h1
-                            className="text-5xl font-black text-[var(--text-primary)] leading-[1.1] mb-2"
+                            className="text-3xl sm:text-4xl lg:text-5xl font-black text-[var(--text-primary)] leading-[1.1] mb-2"
                             style={{ fontFamily: "var(--font-heading)", textShadow: "3px 3px 0 #FFE600" }}
                         >
                             What are we<br />working on?
@@ -148,7 +148,7 @@ export default function Dashboard() {
                         </p>
 
                         {/* ── Two main actions ── */}
-                        <div className="flex items-center gap-4 mb-8">
+                        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 sm:gap-4 mb-8">
                             <motion.a
                                 href="/meetings/new"
                                 whileHover={{ scale: 1.03, y: -2 }}
@@ -162,7 +162,7 @@ export default function Dashboard() {
                                 <span className="text-base font-bold text-[#0A0A0A]">Create room</span>
                             </motion.a>
 
-                            <span className="text-[var(--text-muted)] text-sm font-medium" style={{ fontFamily: "var(--font-heading)" }}>or</span>
+                            <span className="hidden sm:inline text-[var(--text-muted)] text-sm font-medium" style={{ fontFamily: "var(--font-heading)" }}>or</span>
 
                             {/* Join room with code */}
                             <div className="flex items-center rounded-2xl border-2 border-[var(--border-strong)] bg-[var(--surface)] shadow-[5px_5px_0_var(--border-strong)] overflow-hidden">
@@ -176,7 +176,7 @@ export default function Dashboard() {
                                         onChange={(e) => setJoinCode(e.target.value)}
                                         onKeyDown={(e) => e.key === "Enter" && handleJoin()}
                                         placeholder="Enter room code"
-                                        className="bg-transparent text-sm text-[var(--text-primary)] outline-none placeholder:text-[var(--text-muted)] w-36"
+                                        className="bg-transparent text-sm text-[var(--text-primary)] outline-none placeholder:text-[var(--text-muted)] w-full sm:w-36"
                                         style={{ fontFamily: "var(--font-body)" }}
                                     />
                                 </div>
@@ -246,7 +246,7 @@ export default function Dashboard() {
                 </div>
 
                 {/* ═══ RIGHT: Planning column ═══ */}
-                <div className="w-[380px] flex-shrink-0 py-2 overflow-y-auto" style={{ maxHeight: "calc(100vh - 136px)" }}>
+                <div className="w-full lg:w-[380px] lg:flex-shrink-0 py-2 pb-8">
                     <CalendarPanel />
                     <div className="mt-4">
                         <TasksPanel
@@ -260,7 +260,7 @@ export default function Dashboard() {
             </div>
 
             {/* ─── MASCOT: bottom-left speech bubble companion ─── */}
-            <div className="fixed bottom-6 left-[280px] z-50 flex items-end gap-3">
+            <div className="fixed bottom-4 left-4 lg:left-[280px] z-50 flex items-end gap-3">
                 {/* Mascot avatar */}
                 <motion.button
                     whileHover={{ scale: 1.1, rotate: -5 }}
@@ -285,7 +285,7 @@ export default function Dashboard() {
                             animate={{ opacity: 1, x: 0, scale: 1 }}
                             exit={{ opacity: 0, x: -10, scale: 0.9 }}
                             transition={{ type: "spring", stiffness: 300, damping: 25 }}
-                            className="relative rounded-2xl border-2 border-[var(--border-strong)] bg-[var(--surface)] px-4 py-3 shadow-[3px_3px_0_var(--border-strong)] max-w-[280px]"
+                            className="relative rounded-2xl border-2 border-[var(--border-strong)] bg-[var(--surface)] px-4 py-3 shadow-[3px_3px_0_var(--border-strong)] max-w-[200px] sm:max-w-[280px] hidden sm:block"
                         >
                             {/* Triangle pointer */}
                             <div className="absolute left-[-8px] bottom-4 w-0 h-0 border-t-[6px] border-t-transparent border-b-[6px] border-b-transparent border-r-[8px] border-r-[var(--border-strong)]" />
@@ -365,7 +365,7 @@ function MascotChat({ onClose, messages, isStreaming, sendMessage, stopStreaming
             initial={{ opacity: 0, y: 20, scale: 0.9 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 20, scale: 0.9 }}
-            className="rounded-2xl border-2 border-[var(--border-strong)] bg-[var(--surface)] shadow-[var(--shadow-card)] w-[300px] flex flex-col overflow-hidden"
+            className="rounded-2xl border-2 border-[var(--border-strong)] bg-[var(--surface)] shadow-[var(--shadow-card)] w-[calc(100vw-80px)] sm:w-[300px] flex flex-col overflow-hidden"
             style={{ maxHeight: 360 }}
         >
             {/* Header */}
