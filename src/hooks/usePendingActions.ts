@@ -17,11 +17,12 @@ export function usePendingActions() {
 
   // Clear all pending timers on unmount
   useEffect(() => {
+    const timers = cleanupTimersRef.current;
     return () => {
-      for (const timer of cleanupTimersRef.current.values()) {
+      for (const timer of timers.values()) {
         clearTimeout(timer);
       }
-      cleanupTimersRef.current.clear();
+      timers.clear();
     };
   }, []);
 

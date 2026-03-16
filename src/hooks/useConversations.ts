@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useEffect, useRef } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { useAuth } from "./useAuth";
 
 // ── Types ────────────────────────────────────────────────────────────────
@@ -34,8 +34,6 @@ export function useConversations() {
   const [conversations, setConversations] = useState<ConversationInfo[]>([]);
   const [loading, setLoading] = useState(false);
 
-  const abortRef = useRef<AbortController | null>(null);
-
   // ── Fetch conversations ──────────────────────────────────────────────
 
   const refresh = useCallback(async (signal?: AbortSignal) => {
@@ -62,7 +60,6 @@ export function useConversations() {
     if (!user) return;
 
     const controller = new AbortController();
-    abortRef.current = controller;
 
     const load = async () => {
       setLoading(true);
@@ -75,7 +72,6 @@ export function useConversations() {
     const interval = setInterval(() => refresh(controller.signal), 10_000);
     return () => {
       controller.abort();
-      abortRef.current = null;
       clearInterval(interval);
     };
   }, [user, refresh]);

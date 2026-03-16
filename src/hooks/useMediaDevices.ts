@@ -60,17 +60,20 @@ export function useMediaDevices(options?: UseMediaDevicesOptions): UseMediaDevic
       setVideoDevices(video);
       setAudioDevices(audio);
 
-      // Set defaults if none selected
-      if (video.length > 0 && !selectedVideoDevice) {
-        setSelectedVideoDeviceState(video[0].deviceId);
-      }
-      if (audio.length > 0 && !selectedAudioDevice) {
-        setSelectedAudioDeviceState(audio[0].deviceId);
-      }
+      // Set defaults only if none selected — use updater form to avoid
+      // depending on selectedVideoDevice/selectedAudioDevice state which
+      // would cause this callback to be recreated on every selection change,
+      // cascading into the devicechange listener and startMedia deps.
+      setSelectedVideoDeviceState((prev) =>
+        prev || (video.length > 0 ? video[0].deviceId : ""),
+      );
+      setSelectedAudioDeviceState((prev) =>
+        prev || (audio.length > 0 ? audio[0].deviceId : ""),
+      );
     } catch {
       // Device enumeration failed — UI will show empty device lists
     }
-  }, [selectedVideoDevice, selectedAudioDevice]);
+  }, []);
 
   /** Listen for device changes (plug/unplug) */
   useEffect(() => {

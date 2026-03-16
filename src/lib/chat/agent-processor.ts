@@ -251,7 +251,7 @@ async function processOneAgent(
       // Atomic compare-and-delete via Redis EVAL (Lua script on the server).
       // This is ioredis's standard API for server-side Lua — not JS eval().
       const script = 'if redis.call("get",KEYS[1])==ARGV[1] then return redis.call("del",KEYS[1]) else return 0 end';
-      await redis.eval(script, 1, debounceKey, runId);  // eslint-disable-line no-eval -- ioredis Redis EVAL, not JS eval
+      await redis.eval(script, 1, debounceKey, runId);
     } catch { /* non-fatal */ }
   }
 }

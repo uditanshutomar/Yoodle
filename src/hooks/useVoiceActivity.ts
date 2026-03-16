@@ -90,26 +90,20 @@ export function useVoiceActivity({
       });
     };
 
+    // Clean up remoteSpeakingStartRef when a participant disconnects so
+    // entries from peers who leave without sending SPEAKING_STOP don't
+    // accumulate indefinitely in long meetings.
+    const handleParticipantLeft = (participant: Participant) => {
+      remoteSpeakingStartRef.current.delete(participant.identity);
+    };
+
     room.on(RoomEvent.ActiveSpeakersChanged, handleActiveSpeakers);
+    room.on(RoomEvent.ParticipantDisconnected, handleParticipantLeft);
     return () => {
       room.off(RoomEvent.ActiveSpeakersChanged, handleActiveSpeakers);
+      room.off(RoomEvent.ParticipantDisconnected, handleParticipantLeft);
     };
   }, [room, userId]);
-
-  // ── Listen for remote speech segments (for transcript attribution) ─
-
-  useEffect(() => {
-    const unsub = onMessage(
-      DataMessageType.SPEAKING_STOP,
-      (msg: DataMessage) => {
-        if (msg.type !== DataMessageType.SPEAKING_STOP) return;
-        // We receive SPEAKING_STOP with the segment's start time from a data message
-        // but we need to pair it with the corresponding SPEAKING_START
-        // For simplicity, we'll store segments when we get stop messages
-      },
-    );
-    return unsub;
-  }, [onMessage]);
 
   // ── Speech segment tracking from remote data messages ──────────────
 
