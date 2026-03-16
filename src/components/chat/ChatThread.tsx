@@ -434,7 +434,7 @@ export default function ChatThread({
               message={msg}
               isOwn={msg.sender._id === user?.id}
               showSender={showSender}
-              onReaction={(emoji: string) => toggleReaction(msg._id, emoji)}
+              onReaction={(_messageId: string, emoji: string) => toggleReaction(msg._id, emoji)}
               onReply={() => handleReply(msg)}
               currentUserId={user?.id ?? ""}
             />
