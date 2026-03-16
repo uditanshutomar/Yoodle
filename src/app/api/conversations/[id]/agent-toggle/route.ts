@@ -6,7 +6,6 @@ import { checkRateLimit } from "@/lib/infra/api/rate-limit";
 import { getUserIdFromRequest } from "@/lib/infra/auth/middleware";
 import {
   BadRequestError,
-  ForbiddenError,
   NotFoundError,
 } from "@/lib/infra/api/errors";
 import connectDB from "@/lib/infra/db/client";
@@ -22,21 +21,6 @@ export const PATCH = withHandler(async (req: NextRequest, context) => {
     throw new BadRequestError("Invalid conversation ID.");
   }
 
-  await connectDB();
-
-  // Verify user is a participant
-  const conversation = await Conversation.findById(id).lean();
-  if (!conversation) {
-    throw new NotFoundError("Conversation not found.");
-  }
-
-  const isParticipant = conversation.participants.some(
-    (p) => p.userId.toString() === userId
-  );
-  if (!isParticipant) {
-    throw new ForbiddenError("You are not a participant in this conversation.");
-  }
-
   // Validate body
   const body = await req.json();
   const { enabled } = body;
@@ -45,11 +29,20 @@ export const PATCH = withHandler(async (req: NextRequest, context) => {
     throw new BadRequestError("enabled must be a boolean.");
   }
 
-  // Update participant's agentEnabled field
-  await Conversation.updateOne(
-    { _id: id, "participants.userId": new mongoose.Types.ObjectId(userId) },
-    { $set: { "participants.$.agentEnabled": enabled } }
+  await connectDB();
+
+  // Atomic: find conversation where user is a participant and update in one step
+  const result = await Conversation.findOneAndUpdate(
+    {
+      _id: new mongoose.Types.ObjectId(id),
+      "participants.userId": new mongoose.Types.ObjectId(userId),
+    },
+    { $set: { "participants.$.agentEnabled": enabled } },
   );
+
+  if (!result) {
+    throw new NotFoundError("Conversation not found.");
+  }
 
   return successResponse({ agentEnabled: enabled });
 });

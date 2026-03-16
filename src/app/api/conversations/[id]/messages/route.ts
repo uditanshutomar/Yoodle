@@ -99,9 +99,18 @@ export const POST = withHandler(async (req: NextRequest, context) => {
     throw new BadRequestError("Message content must be 4000 characters or less.");
   }
 
-  // Validate replyTo is a valid ObjectId if provided
-  if (replyTo && !mongoose.Types.ObjectId.isValid(replyTo)) {
-    throw new BadRequestError("Invalid replyTo message ID.");
+  // Validate replyTo is a valid ObjectId and belongs to this conversation
+  if (replyTo) {
+    if (!mongoose.Types.ObjectId.isValid(replyTo)) {
+      throw new BadRequestError("Invalid replyTo message ID.");
+    }
+    const replyMsg = await DirectMessage.exists({
+      _id: new mongoose.Types.ObjectId(replyTo),
+      conversationId: new mongoose.Types.ObjectId(id),
+    });
+    if (!replyMsg) {
+      throw new BadRequestError("Replied message not found in this conversation.");
+    }
   }
 
   // Create message

@@ -146,17 +146,29 @@ export const POST = withHandler(async (req: NextRequest) => {
       return badRequest("Recipient user not found");
     }
 
-    const conversation = await Conversation.create({
-      type: "dm",
-      dmPairKey: buildDmPairKey(userId, body.recipientId),
-      participants: [
-        { userId: userOid, role: "admin", joinedAt: new Date() },
-        { userId: recipientOid, role: "member", joinedAt: new Date() },
-      ],
-      createdBy: userOid,
-    });
+    try {
+      const conversation = await Conversation.create({
+        type: "dm",
+        dmPairKey: buildDmPairKey(userId, body.recipientId),
+        participants: [
+          { userId: userOid, role: "admin", joinedAt: new Date() },
+          { userId: recipientOid, role: "member", joinedAt: new Date() },
+        ],
+        createdBy: userOid,
+      });
 
-    return successResponse(conversation, 201);
+      return successResponse(conversation, 201);
+    } catch (err) {
+      // Handle E11000 duplicate key race: another request created the DM first
+      if (err instanceof Error && "code" in err && (err as { code: number }).code === 11000) {
+        const raceWinner = await Conversation.findOne({
+          type: "dm",
+          "participants.userId": { $all: [userOid, recipientOid] },
+        }).lean();
+        if (raceWinner) return successResponse(raceWinner);
+      }
+      throw err;
+    }
   }
 
   // Group conversation
