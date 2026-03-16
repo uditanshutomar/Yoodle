@@ -85,7 +85,7 @@ export const POST = withHandler(async (req: NextRequest, context) => {
   // Atomically link meeting to ghost room — only succeeds if meetingId
   // is still unset, preventing a duplicate meeting from a concurrent request.
   const linked = await GhostRoom.findOneAndUpdate(
-    { roomId, $or: [{ meetingId: { $exists: false } }, { meetingId: null }] },
+    { roomId, $or: [{ meetingId: { $exists: false } }, { meetingId: null }, { meetingId: "" }] },
     { $set: { meetingId: meeting._id.toString() } },
     { new: true },
   );
@@ -109,7 +109,9 @@ export const POST = withHandler(async (req: NextRequest, context) => {
         });
       }
     }
-    // Fallback: shouldn't happen, but return our meeting as last resort
+    // The ghost room expired or the winner's meeting was also deleted.
+    // We already cleaned up ours, so nothing useful to return.
+    throw new NotFoundError("Ghost room expired during call setup. Please rejoin.");
   }
 
   log.info(
