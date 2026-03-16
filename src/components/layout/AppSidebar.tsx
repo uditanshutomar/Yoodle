@@ -1,6 +1,6 @@
 "use client";
 
-import { motion, AnimatePresence } from "framer-motion";
+import { motion } from "framer-motion";
 import { usePathname } from "next/navigation";
 import Link from "next/link";
 import {
@@ -9,10 +9,7 @@ import {
   MessageSquare,
   Settings,
   LogOut,
-  Menu,
-  X,
 } from "lucide-react";
-import { useState } from "react";
 import { YoodleMascotSmall } from "../YoodleMascot";
 import Avatar from "../ui/Avatar";
 import { useAuth } from "@/hooks/useAuth";
@@ -29,7 +26,6 @@ export default function AppSidebar() {
   const pathname = usePathname();
   const { user, logout } = useAuth();
   const { totalUnread } = useTotalUnread();
-  const [mobileOpen, setMobileOpen] = useState(false);
 
   const isActive = (href: string) => {
     if (href === "/dashboard") return pathname === "/dashboard";
@@ -62,7 +58,6 @@ export default function AppSidebar() {
             <Link
               key={item.href}
               href={item.href}
-              onClick={() => setMobileOpen(false)}
               aria-current={active ? "page" : undefined}
               className={`group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm transition-all ${
                 active
@@ -129,53 +124,12 @@ export default function AppSidebar() {
   );
 
   return (
-    <>
-      {/* Mobile hamburger */}
-      <button
-        onClick={() => setMobileOpen(true)}
-        aria-label="Open navigation menu"
-        className="fixed top-4 left-4 z-50 flex h-10 w-10 items-center justify-center rounded-xl bg-[var(--surface)] border-2 border-[var(--border-strong)] shadow-[var(--shadow-card)] lg:hidden cursor-pointer"
-      >
-        <Menu size={18} className="text-[var(--text-primary)]" />
-      </button>
-
-      {/* Desktop sidebar */}
-      <aside className="hidden lg:flex lg:flex-col lg:w-64 lg:shrink-0 h-screen bg-[var(--surface)] border-r-2 border-[var(--border)] sticky top-0" role="navigation" aria-label="Main navigation">
-        {sidebarContent}
-      </aside>
-
-      {/* Mobile sidebar overlay */}
-      <AnimatePresence>
-        {mobileOpen && (
-          <>
-            <motion.div
-              className="fixed inset-0 z-50 bg-black/40 lg:hidden"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              onClick={() => setMobileOpen(false)}
-            />
-            <motion.aside
-              role="navigation"
-              aria-label="Main navigation"
-              className="fixed left-0 top-0 z-50 h-full w-72 bg-[var(--surface)] border-r-2 border-[var(--border-strong)] shadow-[6px_0_0_rgba(0,0,0,0.3)] lg:hidden"
-              initial={{ x: "-100%" }}
-              animate={{ x: 0 }}
-              exit={{ x: "-100%" }}
-              transition={{ type: "spring", stiffness: 300, damping: 30 }}
-            >
-              <button
-                onClick={() => setMobileOpen(false)}
-                aria-label="Close navigation menu"
-                className="absolute top-4 right-4 rounded-lg p-1.5 text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors cursor-pointer"
-              >
-                <X size={18} />
-              </button>
-              {sidebarContent}
-            </motion.aside>
-          </>
-        )}
-      </AnimatePresence>
-    </>
+    <aside
+      className="hidden lg:flex lg:flex-col lg:w-64 lg:shrink-0 h-screen bg-[var(--surface)] border-r-2 border-[var(--border)] sticky top-0"
+      role="navigation"
+      aria-label="Main navigation"
+    >
+      {sidebarContent}
+    </aside>
   );
 }
