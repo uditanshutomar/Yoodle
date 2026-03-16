@@ -44,20 +44,16 @@ async function connectDB(): Promise<typeof mongoose> {
   }
 
   if (!cached.promise) {
-    cached.promise = mongoose
-      .connect(MONGODB_URI as string, {
-        dbName: "yoodle",
-        bufferCommands: false,
-        // Use smaller pool in serverless to avoid connection exhaustion
-        maxPoolSize: isServerless ? 1 : 10,
-        minPoolSize: isServerless ? 0 : 2,
-        serverSelectionTimeoutMS: 10000, // 10s — more resilient to transient failures
-        socketTimeoutMS: 45000,
-        heartbeatFrequencyMS: 10000,
-      })
-      .then((m) => {
-        return m;
-      });
+    cached.promise = mongoose.connect(MONGODB_URI as string, {
+      dbName: "yoodle",
+      bufferCommands: false,
+      // Use smaller pool in serverless to avoid connection exhaustion
+      maxPoolSize: isServerless ? 1 : 10,
+      minPoolSize: isServerless ? 0 : 2,
+      serverSelectionTimeoutMS: 10000, // 10s — more resilient to transient failures
+      socketTimeoutMS: 45000,
+      heartbeatFrequencyMS: 10000,
+    });
   }
 
   try {

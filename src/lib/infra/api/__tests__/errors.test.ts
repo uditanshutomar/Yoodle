@@ -5,9 +5,7 @@ import {
   UnauthorizedError,
   ForbiddenError,
   NotFoundError,
-  ConflictError,
   RateLimitError,
-  UsageLimitError,
 } from "../errors";
 
 describe("AppError", () => {
@@ -106,23 +104,6 @@ describe("NotFoundError", () => {
   });
 });
 
-describe("ConflictError", () => {
-  it("has status code 409 and code CONFLICT", () => {
-    const error = new ConflictError();
-
-    expect(error.statusCode).toBe(409);
-    expect(error.code).toBe("CONFLICT");
-    expect(error.name).toBe("ConflictError");
-    expect(error.message).toBe("Conflict");
-  });
-
-  it("accepts a custom message", () => {
-    const error = new ConflictError("Email already exists");
-
-    expect(error.message).toBe("Email already exists");
-  });
-});
-
 describe("RateLimitError", () => {
   it("has status code 429 and code TOO_MANY_REQUESTS", () => {
     const error = new RateLimitError();
@@ -146,51 +127,13 @@ describe("RateLimitError", () => {
   });
 });
 
-describe("UsageLimitError", () => {
-  it("has status code 402 and code USAGE_LIMIT_EXCEEDED", () => {
-    const error = new UsageLimitError("ai_calls", 100, 100);
-
-    expect(error.statusCode).toBe(402);
-    expect(error.code).toBe("USAGE_LIMIT_EXCEEDED");
-    expect(error.name).toBe("UsageLimitError");
-  });
-
-  it("formats the message with limit type and values", () => {
-    const error = new UsageLimitError("ai_calls", 150, 100);
-
-    expect(error.message).toBe(
-      "Usage limit exceeded for ai_calls: 150/100",
-    );
-  });
-
-  it("stores limitType, current, and limit", () => {
-    const error = new UsageLimitError("meetings", 10, 5);
-
-    expect(error.limitType).toBe("meetings");
-    expect(error.current).toBe(10);
-    expect(error.limit).toBe(5);
-  });
-
-  it("includes details with limit info", () => {
-    const error = new UsageLimitError("storage", 50, 25);
-
-    expect(error.details).toEqual({
-      limitType: "storage",
-      current: 50,
-      limit: 25,
-    });
-  });
-});
-
 describe("Error inheritance", () => {
   it("all custom errors are instances of AppError", () => {
     expect(new BadRequestError()).toBeInstanceOf(AppError);
     expect(new UnauthorizedError()).toBeInstanceOf(AppError);
     expect(new ForbiddenError()).toBeInstanceOf(AppError);
     expect(new NotFoundError()).toBeInstanceOf(AppError);
-    expect(new ConflictError()).toBeInstanceOf(AppError);
     expect(new RateLimitError()).toBeInstanceOf(AppError);
-    expect(new UsageLimitError("t", 0, 0)).toBeInstanceOf(AppError);
   });
 
   it("all custom errors are instances of Error", () => {
@@ -198,8 +141,6 @@ describe("Error inheritance", () => {
     expect(new UnauthorizedError()).toBeInstanceOf(Error);
     expect(new ForbiddenError()).toBeInstanceOf(Error);
     expect(new NotFoundError()).toBeInstanceOf(Error);
-    expect(new ConflictError()).toBeInstanceOf(Error);
     expect(new RateLimitError()).toBeInstanceOf(Error);
-    expect(new UsageLimitError("t", 0, 0)).toBeInstanceOf(Error);
   });
 });

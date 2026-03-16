@@ -37,12 +37,20 @@ export const POST = withHandler(async (req: NextRequest, context) => {
     throw new Error("Failed to cast vote.");
   }
 
-  // Re-fetch room to get updated state
-  const updatedRoom = await ephemeralStore.getRoom(roomId);
-  const participantsArray = updatedRoom
-    ? Array.from(updatedRoom.participants.values())
-    : [];
-  const consensus = checkConsensus(participantsArray);
+  // Build consensus directly from the atomic voteToSave result (which uses
+  // findOneAndUpdate with { new: true }) instead of re-fetching the room.
+  // Re-fetching races with claimAndDestroyRoom: if another concurrent
+  // request claims (deletes) the room between our vote and our getRoom(),
+  // we'd see undefined / empty participants and miss the consensus.
+  const consensus = {
+    voted: true,
+    allVoted: voteResult.allVoted,
+    totalVotes: voteResult.totalVotes,
+    totalParticipants: voteResult.totalParticipants,
+    percentage: voteResult.totalParticipants > 0
+      ? Math.round((voteResult.totalVotes / voteResult.totalParticipants) * 100)
+      : 0,
+  };
 
   let savedMeetingId: string | null = null;
 

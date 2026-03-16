@@ -91,9 +91,14 @@ export async function GET(
         Connection: "keep-alive",
       },
     });
-  } catch {
-    return new Response(JSON.stringify({ error: "Unauthorized" }), {
-      status: 401,
-    });
+  } catch (err) {
+    // getUserIdFromRequest throws UnauthorizedError for auth failures;
+    // anything else (DB down, Redis error, etc.) is a server error.
+    const isAuthError =
+      err instanceof Error && (err.name === "UnauthorizedError" || err.message === "Unauthorized");
+    return new Response(
+      JSON.stringify({ error: isAuthError ? "Unauthorized" : "Internal server error" }),
+      { status: isAuthError ? 401 : 500 },
+    );
   }
 }

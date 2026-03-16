@@ -35,6 +35,14 @@ export function getRedisClient(): Redis {
     logger.warn("Reconnecting...");
   });
 
+  // When retry strategy returns null ioredis emits "end" and the client
+  // becomes permanently dead. Clear the singleton so the next call creates
+  // a fresh client that can attempt to reconnect.
+  redis.on("end", () => {
+    logger.warn("Connection ended (retries exhausted). Clearing singleton for next reconnect attempt.");
+    redis = null;
+  });
+
   return redis;
 }
 

@@ -70,13 +70,15 @@ function isValidIp(ip: string): boolean {
 // ── In-memory fallback when Redis is unavailable ──────────────────────
 const memoryStore = new Map<string, { count: number; resetAt: number }>();
 
-// Periodically clean up expired entries
-setInterval(() => {
+// Periodically clean up expired entries. unref() prevents this timer
+// from keeping the Node.js process alive during graceful shutdown.
+const cleanupTimer = setInterval(() => {
   const now = Date.now();
   for (const [key, val] of memoryStore) {
     if (val.resetAt <= now) memoryStore.delete(key);
   }
 }, 60_000);
+if (typeof cleanupTimer.unref === "function") cleanupTimer.unref();
 
 function checkInMemoryRateLimit(key: string, config: RateLimitConfig): void {
   const now = Date.now();

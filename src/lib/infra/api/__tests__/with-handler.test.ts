@@ -38,13 +38,13 @@ describe("withHandler", () => {
       expect(response.status).toBe(200);
     });
 
-    it("allows POST requests without Origin header (same-origin by default)", async () => {
+    it("rejects POST requests without Origin or Referer header", async () => {
       const handler = withHandler(successHandler);
       const req = createNextRequest({ method: "POST" });
       const context = { params: Promise.resolve({}) };
 
       const response = await handler(req, context);
-      expect(response.status).toBe(200);
+      expect(response.status).toBe(403);
     });
 
     it("allows POST requests with same-origin Origin header", async () => {

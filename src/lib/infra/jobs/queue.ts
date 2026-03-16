@@ -50,3 +50,13 @@ export function getQueue(name: string): Queue {
   queues.set(name, queue);
   return queue;
 }
+
+/**
+ * Close all cached queues. Call during graceful shutdown to release
+ * Redis connections held by BullMQ.
+ */
+export async function closeAllQueues(): Promise<void> {
+  const closePromises = Array.from(queues.values()).map((q) => q.close());
+  await Promise.allSettled(closePromises);
+  queues.clear();
+}

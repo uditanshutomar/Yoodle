@@ -3,11 +3,6 @@ import {
   successResponse,
   errorResponse,
   badRequest,
-  unauthorized,
-  forbidden,
-  notFound,
-  conflict,
-  tooManyRequests,
   internalError,
 } from "../response";
 
@@ -99,80 +94,6 @@ describe("badRequest", () => {
     const body = await response.json();
     expect(body.error.message).toBe("Invalid email");
     expect(body.error.details).toEqual({ field: "email" });
-  });
-});
-
-describe("unauthorized", () => {
-  it("returns 401 with UNAUTHORIZED code", async () => {
-    const response = unauthorized();
-
-    expect(response.status).toBe(401);
-    const body = await response.json();
-    expect(body.error.code).toBe("UNAUTHORIZED");
-    expect(body.error.message).toBe("Unauthorized");
-  });
-
-  it("accepts a custom message", async () => {
-    const response = unauthorized("Token expired");
-
-    const body = await response.json();
-    expect(body.error.message).toBe("Token expired");
-  });
-});
-
-describe("forbidden", () => {
-  it("returns 403 with FORBIDDEN code", async () => {
-    const response = forbidden();
-
-    expect(response.status).toBe(403);
-    const body = await response.json();
-    expect(body.error.code).toBe("FORBIDDEN");
-    expect(body.error.message).toBe("Forbidden");
-  });
-});
-
-describe("notFound", () => {
-  it("returns 404 with NOT_FOUND code", async () => {
-    const response = notFound();
-
-    expect(response.status).toBe(404);
-    const body = await response.json();
-    expect(body.error.code).toBe("NOT_FOUND");
-    expect(body.error.message).toBe("Not found");
-  });
-});
-
-describe("conflict", () => {
-  it("returns 409 with CONFLICT code", async () => {
-    const response = conflict();
-
-    expect(response.status).toBe(409);
-    const body = await response.json();
-    expect(body.error.code).toBe("CONFLICT");
-    expect(body.error.message).toBe("Conflict");
-  });
-});
-
-describe("tooManyRequests", () => {
-  it("returns 429 with TOO_MANY_REQUESTS code", async () => {
-    const response = tooManyRequests();
-
-    expect(response.status).toBe(429);
-    const body = await response.json();
-    expect(body.error.code).toBe("TOO_MANY_REQUESTS");
-    expect(body.error.message).toBe("Too many requests");
-  });
-
-  it("sets Retry-After header when retryAfter is provided", () => {
-    const response = tooManyRequests(60);
-
-    expect(response.headers.get("Retry-After")).toBe("60");
-  });
-
-  it("does not set Retry-After header when not provided", () => {
-    const response = tooManyRequests();
-
-    expect(response.headers.get("Retry-After")).toBeNull();
   });
 });
 

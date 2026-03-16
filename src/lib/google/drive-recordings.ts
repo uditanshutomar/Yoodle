@@ -10,7 +10,18 @@ const YOODLE_FOLDER_NAME = "Yoodle Recordings";
  * If the cached folder ID produces a 404, the cache entry is evicted and retried.
  */
 const FOLDER_CACHE_TTL_MS = 30 * 60 * 1000; // 30 minutes
+const FOLDER_CACHE_MAX_SIZE = 500; // prevent unbounded memory growth
 const folderCache = new Map<string, { id: string; cachedAt: number }>();
+
+/** Set a folder cache entry, evicting the oldest entry if the cache is full. */
+function setFolderCache(userId: string, id: string) {
+  if (folderCache.size >= FOLDER_CACHE_MAX_SIZE) {
+    // Evict the oldest entry (first key in insertion order)
+    const oldest = folderCache.keys().next().value;
+    if (oldest) folderCache.delete(oldest);
+  }
+  folderCache.set(userId, { id, cachedAt: Date.now() });
+}
 
 /** Clear cached folder ID on 404 so the next call re-discovers the folder */
 export function clearFolderCache(userId: string) {
@@ -32,7 +43,7 @@ async function ensureYoodleFolder(userId: string): Promise<string> {
 
   if (search.data.files && search.data.files.length > 0) {
     const folderId = search.data.files[0].id!;
-    folderCache.set(userId, { id: folderId, cachedAt: Date.now() });
+    setFolderCache(userId, folderId);
     return folderId;
   }
 
@@ -46,7 +57,7 @@ async function ensureYoodleFolder(userId: string): Promise<string> {
   });
 
   const folderId = folder.data.id!;
-  folderCache.set(userId, { id: folderId, cachedAt: Date.now() });
+  setFolderCache(userId, folderId);
   return folderId;
 }
 

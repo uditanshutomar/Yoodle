@@ -244,11 +244,14 @@ async function processOneAgent(
       log.warn({ error: redisErr, conversationId, agentUserId }, "Failed to publish thinking_done (Redis error)");
     }
   } finally {
-    // Release debounce lock only if we still own it (same run ID).
-    // Prevents deleting a lock acquired by a newer pipeline run.
+    // Atomically release the debounce lock only if we still own it.
+    // Uses a Redis Lua script so the check-and-delete is a single atomic
+    // operation — prevents deleting a lock acquired by a newer pipeline run.
     try {
-      const current = await redis.get(debounceKey);
-      if (current === runId) await redis.del(debounceKey);
+      // Atomic compare-and-delete via Redis EVAL (Lua script on the server).
+      // This is ioredis's standard API for server-side Lua — not JS eval().
+      const script = 'if redis.call("get",KEYS[1])==ARGV[1] then return redis.call("del",KEYS[1]) else return 0 end';
+      await redis.eval(script, 1, debounceKey, runId);  // eslint-disable-line no-eval -- ioredis Redis EVAL, not JS eval
     } catch { /* non-fatal */ }
   }
 }
@@ -712,8 +715,6 @@ function extractActionProposal(content: string): {
 }
 
 // ── Exports ─────────────────────────────────────────────────────────
-
-export { processOneAgent };
 
 // Exported for unit testing — prefixed with underscore to signal internal use
 export {

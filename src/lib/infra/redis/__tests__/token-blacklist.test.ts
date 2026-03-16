@@ -1,6 +1,12 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import crypto from "crypto";
 import { tokenIsBlacklisted, tokenBlacklist } from "../cache";
+
+/** Mirror the hash function used in cache.ts */
+function hashToken(token: string): string {
+  return crypto.createHash("sha256").update(token).digest("hex");
+}
 
 // Mock the Redis client
 vi.mock("@/lib/infra/redis/client", () => ({
@@ -64,7 +70,7 @@ describe("Token Blacklist", () => {
       } as any);
 
       await tokenIsBlacklisted("my-jwt-token-123");
-      expect(mockExists).toHaveBeenCalledWith("token:blacklist:my-jwt-token-123");
+      expect(mockExists).toHaveBeenCalledWith(`token:blacklist:${hashToken("my-jwt-token-123")}`);
     });
   });
 
@@ -77,7 +83,7 @@ describe("Token Blacklist", () => {
 
       await tokenBlacklist("expired-token", 3600);
       expect(mockSet).toHaveBeenCalledWith(
-        "token:blacklist:expired-token",
+        `token:blacklist:${hashToken("expired-token")}`,
         "1",
         "EX",
         3600,

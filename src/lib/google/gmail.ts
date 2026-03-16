@@ -43,9 +43,19 @@ export async function listEmails(
 
   if (!res.data.messages) return [];
 
-  const emails = await Promise.all(
-    res.data.messages.map((msg) => getEmailDetails(gmail, msg.id!))
-  );
+  // Fetch details in batches of 5 to avoid hammering the Gmail API
+  // with unbounded parallel requests when maxResults is large.
+  const BATCH_SIZE = 5;
+  const messages = res.data.messages;
+  const emails: (EmailMessage | null)[] = [];
+
+  for (let i = 0; i < messages.length; i += BATCH_SIZE) {
+    const batch = messages.slice(i, i + BATCH_SIZE);
+    const results = await Promise.all(
+      batch.map((msg) => getEmailDetails(gmail, msg.id!))
+    );
+    emails.push(...results);
+  }
 
   return emails.filter(Boolean) as EmailMessage[];
 }

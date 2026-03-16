@@ -61,7 +61,7 @@ export async function createEvent(
 ): Promise<CalendarEvent> {
   const { calendar } = await getGoogleServices(userId);
 
-  const timeZone = options.timeZone || Intl.DateTimeFormat().resolvedOptions().timeZone;
+  const timeZone = options.timeZone || "UTC";
 
   const res = await calendar.events.insert({
     calendarId: "primary",
@@ -103,7 +103,7 @@ export async function updateEvent(
 ): Promise<CalendarEvent> {
   const { calendar } = await getGoogleServices(userId);
 
-  const timeZone = updates.timeZone || Intl.DateTimeFormat().resolvedOptions().timeZone;
+  const timeZone = updates.timeZone || "UTC";
   const requestBody: Record<string, unknown> = {};
 
   if (updates.title !== undefined) requestBody.summary = updates.title;

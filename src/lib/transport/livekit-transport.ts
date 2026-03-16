@@ -141,9 +141,16 @@ export class LiveKitTransport implements RoomTransport {
   }
 
   leave(): void {
+    this.room.removeAllListeners();
     this.room.disconnect();
     this.connectionState = "disconnected";
     this.participantCount = 0;
+    // Clear callback arrays to release references and prevent stale callbacks
+    this.joinedCallbacks = [];
+    this.leftCallbacks = [];
+    this.streamCallbacks = [];
+    this.connectionStateCallbacks = [];
+    this.participantUpdatedCallbacks = [];
   }
 
   getRemoteStreams(): Map<string, MediaStream> {

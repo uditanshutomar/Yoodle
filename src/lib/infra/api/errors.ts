@@ -43,13 +43,6 @@ export class NotFoundError extends AppError {
   }
 }
 
-export class ConflictError extends AppError {
-  constructor(message = "Conflict") {
-    super(message, "CONFLICT", 409);
-    this.name = "ConflictError";
-  }
-}
-
 export class RateLimitError extends AppError {
   constructor(
     public readonly retryAfter?: number,
@@ -59,18 +52,3 @@ export class RateLimitError extends AppError {
   }
 }
 
-export class UsageLimitError extends AppError {
-  constructor(
-    public readonly limitType: string,
-    public readonly current: number,
-    public readonly limit: number,
-  ) {
-    super(
-      `Usage limit exceeded for ${limitType}: ${current}/${limit}`,
-      "USAGE_LIMIT_EXCEEDED",
-      402,
-      { limitType, current, limit },
-    );
-    this.name = "UsageLimitError";
-  }
-}
