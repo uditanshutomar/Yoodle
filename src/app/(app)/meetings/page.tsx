@@ -2,13 +2,14 @@
 
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
-import { Video, Plus, Calendar, Users, Clock, History } from "lucide-react";
+import { Video, Plus, Calendar, Users, Clock, Ghost, ChevronDown } from "lucide-react";
+import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import Card from "@/components/ui/Card";
-import Button from "@/components/ui/Button";
 import Badge from "@/components/ui/Badge";
 import EmptyState from "@/components/ui/EmptyState";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { useAuth } from "@/hooks/useAuth";
 
 interface MeetingSummary {
   id: string;
@@ -21,6 +22,15 @@ interface MeetingSummary {
   endedAt?: string;
   participantCount: number;
   createdAt: string;
+}
+
+interface GhostRoomSummary {
+  roomId: string;
+  title: string;
+  code: string;
+  participantCount: number;
+  createdAt: string;
+  expiresAt: string;
 }
 
 const statusColors: Record<string, "default" | "success" | "danger" | "info"> = {
@@ -114,12 +124,52 @@ function MeetingCard({ meeting, isPast }: { meeting: MeetingSummary; isPast?: bo
   );
 }
 
+function GhostRoomCard({ room }: { room: GhostRoomSummary }) {
+  const [timeRemaining, setTimeRemaining] = useState("");
+
+  useEffect(() => {
+    function calc() {
+      const diff = Math.max(0, new Date(room.expiresAt).getTime() - Date.now());
+      const hours = Math.floor(diff / 3600000);
+      const minutes = Math.floor((diff % 3600000) / 60000);
+      setTimeRemaining(`${hours}h ${minutes}m`);
+    }
+    calc();
+    const interval = setInterval(calc, 60000);
+    return () => clearInterval(interval);
+  }, [room.expiresAt]);
+
+  return (
+    <Link href={`/ghost-rooms/${room.roomId}`}>
+      <Card hover className="!p-5 cursor-pointer h-full !border-[#7C3AED] !shadow-[4px_4px_0_#7C3AED]">
+        <div className="flex items-start justify-between mb-3">
+          <Badge variant="info">Ghost</Badge>
+          <span className="flex items-center gap-1 text-xs text-[#7C3AED] font-bold">
+            <Clock size={12} /> {timeRemaining}
+          </span>
+        </div>
+        <h3 className="text-base font-bold text-[var(--text-primary)] mb-1" style={{ fontFamily: "var(--font-heading)" }}>
+          {room.title}
+        </h3>
+        <p className="text-xs text-[var(--text-secondary)] font-mono mb-3">{room.code}</p>
+        <div className="flex items-center gap-4 text-xs text-[var(--text-secondary)]">
+          <span className="flex items-center gap-1"><Users size={12} /> {room.participantCount}</span>
+        </div>
+      </Card>
+    </Link>
+  );
+}
+
 export default function MeetingsPage() {
   const router = useRouter();
+  const { user } = useAuth();
   const [meetings, setMeetings] = useState<MeetingSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [retryCount, setRetryCount] = useState(0);
+  const [activeTab, setActiveTab] = useState<"upcoming" | "past" | "ghost">("upcoming");
+  const [ghostRooms, setGhostRooms] = useState<GhostRoomSummary[]>([]);
+  const [creatingGhost, setCreatingGhost] = useState(false);
 
   useEffect(() => {
     fetch("/api/meetings", { credentials: "include" })
@@ -149,10 +199,54 @@ export default function MeetingsPage() {
       .finally(() => setLoading(false));
   }, [retryCount]);
 
+  useEffect(() => {
+    if (!user) return;
+    fetch("/api/ghost-rooms", { credentials: "include" })
+      .then((r) => r.json())
+      .then((data) => {
+        if (data.success && data.data) setGhostRooms(data.data);
+      })
+      .catch(() => {});
+  }, [user, retryCount]);
+
   const handleRetry = () => {
     setLoading(true);
     setError("");
     setRetryCount((c) => c + 1);
+  };
+
+  const handleInstantMeeting = async () => {
+    try {
+      const res = await fetch("/api/meetings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ title: "Quick Meeting", type: "regular", settings: { allowRecording: false, allowScreenShare: true, waitingRoom: false, muteOnJoin: false } }),
+      });
+      const data = await res.json();
+      if (data.success && data.data) {
+        const id = data.data._id || data.data.id;
+        router.push(`/meetings/${id}`);
+      }
+    } catch { /* ignore */ }
+  };
+
+  const handleCreateGhostRoom = async () => {
+    if (creatingGhost) return;
+    setCreatingGhost(true);
+    try {
+      const res = await fetch("/api/ghost-rooms", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ title: "Ghost Room" }),
+      });
+      const data = await res.json();
+      if (data.success && data.data) {
+        router.push(`/ghost-rooms/${data.data.roomId}`);
+      }
+    } catch { /* ignore */ }
+    finally { setCreatingGhost(false); }
   };
 
   // Split meetings into upcoming (scheduled/live) and past (ended/cancelled)
@@ -180,9 +274,54 @@ export default function MeetingsPage() {
             Meetings
           </h1>
         </div>
-        <Button variant="primary" size="md" icon={Plus} href="/meetings/new">
-          New Meeting
-        </Button>
+
+        {/* New Meeting dropdown */}
+        <DropdownMenu.Root>
+          <DropdownMenu.Trigger asChild>
+            <button className="flex items-center gap-1.5 rounded-xl bg-[#FFE600] border-2 border-[var(--border-strong)] px-4 py-2.5 text-sm font-bold text-[#0A0A0A] shadow-[3px_3px_0_var(--border-strong)] hover:shadow-[1px_1px_0_var(--border-strong)] hover:translate-x-[2px] hover:translate-y-[2px] transition-all" style={{ fontFamily: "var(--font-heading)" }}>
+              <Plus size={16} /> New Meeting <ChevronDown size={14} />
+            </button>
+          </DropdownMenu.Trigger>
+          <DropdownMenu.Portal>
+            <DropdownMenu.Content sideOffset={8} align="end" className="z-50 min-w-[200px] bg-[var(--surface)] border-2 border-[var(--border-strong)] rounded-xl shadow-[var(--shadow-card)] p-1.5">
+              <DropdownMenu.Item onSelect={handleInstantMeeting} className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)] transition-colors cursor-pointer outline-none" style={{ fontFamily: "var(--font-heading)" }}>
+                <Video size={14} /> Instant Meeting
+              </DropdownMenu.Item>
+              <DropdownMenu.Item asChild>
+                <Link href="/meetings/new" className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)] transition-colors cursor-pointer outline-none" style={{ fontFamily: "var(--font-heading)" }}>
+                  <Calendar size={14} /> Schedule Meeting
+                </Link>
+              </DropdownMenu.Item>
+              <DropdownMenu.Separator className="my-1 h-px bg-[var(--border)]" />
+              <DropdownMenu.Item onSelect={handleCreateGhostRoom} className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)] transition-colors cursor-pointer outline-none" style={{ fontFamily: "var(--font-heading)" }}>
+                <Ghost size={14} /> Ghost Room
+              </DropdownMenu.Item>
+            </DropdownMenu.Content>
+          </DropdownMenu.Portal>
+        </DropdownMenu.Root>
+      </motion.div>
+
+      {/* Tab bar */}
+      <motion.div variants={itemVariants} className="flex items-center gap-1 rounded-xl border-2 border-[var(--border)] bg-[var(--surface)] p-1">
+        {(["upcoming", "past", "ghost"] as const).map((tab) => (
+          <button
+            key={tab}
+            onClick={() => setActiveTab(tab)}
+            className={`flex-1 px-4 py-2 rounded-lg text-sm font-bold transition-all ${
+              activeTab === tab
+                ? "bg-[#FFE600] text-[#0A0A0A] shadow-[2px_2px_0_var(--border-strong)]"
+                : "text-[var(--text-muted)] hover:text-[var(--text-primary)]"
+            }`}
+            style={{ fontFamily: "var(--font-heading)" }}
+          >
+            {tab === "upcoming" ? "Upcoming" : tab === "past" ? "Past" : "Ghost Rooms"}
+            {tab === "ghost" && ghostRooms.length > 0 && (
+              <span className="ml-1.5 text-[10px] font-bold bg-[var(--surface-hover)] rounded-full px-1.5 py-0.5">
+                {ghostRooms.length}
+              </span>
+            )}
+          </button>
+        ))}
       </motion.div>
 
       {/* Error banner */}
@@ -204,70 +343,41 @@ export default function MeetingsPage() {
         </motion.div>
       )}
 
+      {/* Content */}
       {loading ? (
         <div className="flex items-center justify-center py-20">
           <motion.div animate={{ rotate: 360 }} transition={{ duration: 1, repeat: Infinity, ease: "linear" }} className="w-8 h-8 border-3 border-[#FFE600] border-t-transparent rounded-full" />
         </div>
-      ) : (upcoming.length === 0 && past.length === 0) ? (
-        <motion.div variants={itemVariants}>
-          <EmptyState
-            title="No meetings yet"
-            description="Create your first meeting to get started. Invite your team and start collaborating!"
-            action={{ label: "Create Meeting", onClick: () => router.push("/meetings/new"), icon: Plus }}
-          />
-        </motion.div>
       ) : (
         <>
-          {/* Upcoming / Live Meetings */}
-          {upcoming.length > 0 && (
-            <motion.div variants={itemVariants} className="space-y-3">
-              <div className="flex items-center gap-2">
-                <Calendar size={16} className="text-[#22C55E]" />
-                <h2 className="text-sm font-bold text-[var(--text-primary)] uppercase tracking-wider" style={{ fontFamily: "var(--font-heading)" }}>
-                  Upcoming & Live
-                </h2>
-                <span className="text-[10px] font-bold text-[var(--text-muted)] bg-[var(--surface-hover)] rounded-full px-2 py-0.5">
-                  {upcoming.length}
-                </span>
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {upcoming.map((meeting) => (
-                  <MeetingCard key={meeting.id} meeting={meeting} />
-                ))}
-              </div>
-            </motion.div>
+          {activeTab === "upcoming" && (
+            upcoming.length > 0 ? (
+              <motion.div variants={itemVariants} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {upcoming.map((m) => <MeetingCard key={m.id} meeting={m} />)}
+              </motion.div>
+            ) : (
+              <EmptyState title="No upcoming meetings" description="Schedule a meeting or start an instant one." action={{ label: "Schedule Meeting", onClick: () => router.push("/meetings/new"), icon: Plus }} />
+            )
           )}
 
-          {/* Past Meetings */}
-          {past.length > 0 && (
-            <motion.div variants={itemVariants} className="space-y-3">
-              <div className="flex items-center gap-2">
-                <History size={16} className="text-[var(--text-muted)]" />
-                <h2 className="text-sm font-bold text-[var(--text-muted)] uppercase tracking-wider" style={{ fontFamily: "var(--font-heading)" }}>
-                  Past Meetings
-                </h2>
-                <span className="text-[10px] font-bold text-[var(--text-muted)] bg-[var(--surface-hover)] rounded-full px-2 py-0.5">
-                  {past.length}
-                </span>
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {past.map((meeting) => (
-                  <MeetingCard key={meeting.id} meeting={meeting} isPast />
-                ))}
-              </div>
-            </motion.div>
+          {activeTab === "past" && (
+            past.length > 0 ? (
+              <motion.div variants={itemVariants} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {past.map((m) => <MeetingCard key={m.id} meeting={m} isPast />)}
+              </motion.div>
+            ) : (
+              <EmptyState title="No past meetings" description="Your completed meetings will appear here." />
+            )
           )}
 
-          {/* Only past meetings, no upcoming */}
-          {upcoming.length === 0 && past.length > 0 && (
-            <motion.div variants={itemVariants} className="rounded-xl border-2 border-dashed border-[var(--border)] p-6 text-center">
-              <p className="text-sm text-[var(--text-muted)] mb-2" style={{ fontFamily: "var(--font-body)" }}>
-                No upcoming meetings scheduled.
-              </p>
-              <Button variant="secondary" size="sm" icon={Plus} onClick={() => router.push("/meetings/new")}>
-                Schedule a Meeting
-              </Button>
-            </motion.div>
+          {activeTab === "ghost" && (
+            ghostRooms.length > 0 ? (
+              <motion.div variants={itemVariants} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {ghostRooms.map((r) => <GhostRoomCard key={r.roomId} room={r} />)}
+              </motion.div>
+            ) : (
+              <EmptyState title="No ghost rooms" description="Create a ghost room for temporary, ephemeral meetings." action={{ label: "Create Ghost Room", onClick: handleCreateGhostRoom, icon: Ghost }} />
+            )
           )}
         </>
       )}
