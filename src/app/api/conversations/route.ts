@@ -134,7 +134,9 @@ export const POST = withHandler(async (req: NextRequest) => {
     const existing = await Conversation.findOne({
       type: "dm",
       "participants.userId": { $all: [userOid, recipientOid] },
-    }).lean();
+    })
+      .select("_id type participants lastMessageAt createdAt")
+      .lean();
 
     if (existing) {
       return successResponse(existing);
@@ -164,7 +166,9 @@ export const POST = withHandler(async (req: NextRequest) => {
         const raceWinner = await Conversation.findOne({
           type: "dm",
           "participants.userId": { $all: [userOid, recipientOid] },
-        }).lean();
+        })
+          .select("_id type participants lastMessageAt createdAt")
+          .lean();
         if (raceWinner) return successResponse(raceWinner);
       }
       throw err;

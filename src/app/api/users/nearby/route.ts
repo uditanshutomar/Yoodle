@@ -66,7 +66,6 @@ export const GET = withHandler(async (req: NextRequest) => {
         status: 1,
         mode: 1,
         location: {
-          coordinates: "$location.coordinates",
           label: "$location.label",
         },
         distanceKm: {

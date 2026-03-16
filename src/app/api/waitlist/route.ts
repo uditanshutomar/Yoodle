@@ -1,15 +1,11 @@
 import { NextRequest } from "next/server";
 import { z } from "zod";
+import { withHandler } from "@/lib/infra/api/with-handler";
+import { successResponse } from "@/lib/infra/api/response";
+import { checkRateLimit } from "@/lib/infra/api/rate-limit";
+import { BadRequestError } from "@/lib/infra/api/errors";
 import connectDB from "@/lib/infra/db/client";
 import Waitlist from "@/lib/infra/db/models/waitlist";
-import {
-  successResponse,
-  errorResponse,
-  internalError,
-} from "@/lib/infra/api/response";
-import { createLogger } from "@/lib/infra/logger";
-
-const log = createLogger("api:waitlist");
 
 const waitlistSchema = z.object({
   email: z.string().email("Please enter a valid email address."),
@@ -18,59 +14,54 @@ const waitlistSchema = z.object({
 });
 
 // POST — join the waitlist
-export async function POST(request: NextRequest) {
-  try {
-    const body = await request.json();
-    const parsed = waitlistSchema.safeParse(body);
+export const POST = withHandler(async (req: NextRequest) => {
+  await checkRateLimit(req, "auth");
 
-    if (!parsed.success) {
-      const errors = parsed.error.flatten().fieldErrors;
-      const firstError =
-        Object.values(errors).flat()[0] || "Invalid input.";
-      return errorResponse("VALIDATION_ERROR", firstError, 400);
-    }
+  const body = await req.json();
+  const parsed = waitlistSchema.safeParse(body);
 
-    await connectDB();
+  if (!parsed.success) {
+    const errors = parsed.error.flatten().fieldErrors;
+    const firstError =
+      Object.values(errors).flat()[0] || "Invalid input.";
+    throw new BadRequestError(firstError);
+  }
 
-    const { email, name, source } = parsed.data;
+  await connectDB();
 
-    // Check if email already exists
-    const existing = await Waitlist.findOne({ email: email.toLowerCase() });
-    if (existing) {
-      return successResponse({
-        message: "You're already on the waitlist!",
-        alreadyJoined: true,
-      });
-    }
+  const { email, name, source } = parsed.data;
 
-    const entry = await Waitlist.create({
-      email: email.toLowerCase(),
-      name: name || undefined,
-      source: source || "website",
+  // Check if email already exists
+  const existing = await Waitlist.findOne({ email: email.toLowerCase() })
+    .select("_id")
+    .lean();
+  if (existing) {
+    return successResponse({
+      message: "You're already on the waitlist!",
+      alreadyJoined: true,
     });
-
-    return successResponse(
-      {
-        message: "You're on the list!",
-        id: entry._id,
-        position: await Waitlist.countDocuments(),
-      },
-      201
-    );
-  } catch (error) {
-    log.error({ err: error }, "POST /api/waitlist failed");
-    return internalError("Something went wrong. Please try again.");
   }
-}
 
-// GET — count (public) or list (admin — future use)
-export async function GET() {
-  try {
-    await connectDB();
-    const count = await Waitlist.countDocuments();
-    return successResponse({ count });
-  } catch (error) {
-    log.error({ err: error }, "GET /api/waitlist failed");
-    return internalError();
-  }
-}
+  const entry = await Waitlist.create({
+    email: email.toLowerCase(),
+    name: name || undefined,
+    source: source || "website",
+  });
+
+  return successResponse(
+    {
+      message: "You're on the list!",
+      id: entry._id,
+      position: await Waitlist.countDocuments(),
+    },
+    201
+  );
+});
+
+// GET — waitlist count
+export const GET = withHandler(async (req: NextRequest) => {
+  await checkRateLimit(req, "general");
+  await connectDB();
+  const count = await Waitlist.countDocuments();
+  return successResponse({ count });
+});

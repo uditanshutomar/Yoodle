@@ -9,7 +9,7 @@ import connectDB from "@/lib/infra/db/client";
 import User from "@/lib/infra/db/models/user";
 
 const searchQuerySchema = z.object({
-  q: z.string().min(1, "Search query is required. Provide a 'q' parameter with at least 1 character.").max(200),
+  q: z.string().min(2, "Search query must be at least 2 characters.").max(200),
   limit: z.coerce.number().int().min(1).max(50).default(20),
 });
 
@@ -25,9 +25,9 @@ export const GET = withHandler(async (req: NextRequest) => {
   const searchParams = req.nextUrl.searchParams;
 
   const rawQ = searchParams.get("q")?.trim();
-  if (!rawQ || rawQ.length < 1) {
+  if (!rawQ || rawQ.length < 2) {
     throw new BadRequestError(
-      "Search query is required. Provide a 'q' parameter with at least 1 character."
+      "Search query must be at least 2 characters."
     );
   }
 
@@ -45,10 +45,9 @@ export const GET = withHandler(async (req: NextRequest) => {
     $or: [
       { name: { $regex: escapedQuery, $options: "i" } },
       { displayName: { $regex: escapedQuery, $options: "i" } },
-      { email: { $regex: escapedQuery, $options: "i" } },
     ],
   })
-    .select("name displayName email avatarUrl status mode")
+    .select("name displayName avatarUrl status mode")
     .limit(limit)
     .lean();
 
