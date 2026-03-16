@@ -48,27 +48,3 @@ export async function getOnlineStatuses(userIds: string[]): Promise<Map<string, 
   }
   return result;
 }
-
-/**
- * Format a user's presence for display.
- */
-export function formatPresenceText(
-  status: string | undefined,
-  lastSeenAt: Date | string | undefined,
-  isOnline: boolean
-): string {
-  if (isOnline) return "Online";
-  if (status === "in-meeting") return "In a meeting";
-  if (status === "dnd") return "Do Not Disturb";
-  if (!lastSeenAt) return "Offline";
-
-  const now = Date.now();
-  const then = new Date(lastSeenAt).getTime();
-  const diff = now - then;
-  const minutes = Math.floor(diff / 60000);
-  if (minutes < 1) return "Last seen just now";
-  if (minutes < 60) return `Last seen ${minutes}m ago`;
-  const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `Last seen ${hours}h ago`;
-  return "Last seen a while ago";
-}

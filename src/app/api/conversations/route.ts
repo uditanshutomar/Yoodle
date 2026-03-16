@@ -77,10 +77,19 @@ export const GET = withHandler(async (req: NextRequest) => {
 
   const unreadCounts = await Promise.all(unreadPipeline);
 
-  // Build response with populated participants and unread count
+  // Build response with populated participants, unread count, and lastMessage
   const result = conversations.map((conv, i) => ({
-    ...conv,
+    _id: conv._id.toString(),
+    type: conv.type,
+    name: conv.name,
     unreadCount: unreadCounts[i],
+    lastMessage: conv.lastMessagePreview
+      ? {
+          content: conv.lastMessagePreview,
+          sender: conv.lastMessageSenderId?.toString() ?? "",
+          createdAt: conv.lastMessageAt?.toISOString() ?? conv.updatedAt?.toISOString(),
+        }
+      : undefined,
     participants: conv.participants.map((p) => {
       const user = userMap.get(p.userId.toString());
       return {
@@ -90,6 +99,8 @@ export const GET = withHandler(async (req: NextRequest) => {
         avatar: user?.avatarUrl,
       };
     }),
+    createdAt: conv.createdAt?.toISOString(),
+    updatedAt: conv.updatedAt?.toISOString(),
   }));
 
   return successResponse(result);

@@ -12,6 +12,7 @@ import {
 import connectDB from "@/lib/infra/db/client";
 import Conversation from "@/lib/infra/db/models/conversation";
 import DirectMessage from "@/lib/infra/db/models/direct-message";
+import { toClientMessage } from "@/lib/chat/message-transform";
 
 // -- GET /api/conversations/[id]/search?q=searchterm -------------------------
 
@@ -56,5 +57,5 @@ export const GET = withHandler(async (req: NextRequest, context) => {
     .populate("senderId", "name displayName avatarUrl")
     .lean();
 
-  return successResponse({ messages, total: messages.length });
+  return successResponse({ messages: messages.map(toClientMessage), total: messages.length });
 });

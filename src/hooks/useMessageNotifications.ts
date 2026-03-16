@@ -6,11 +6,11 @@ import { toast } from "sonner";
 
 interface ConversationData {
   unreadCount?: number;
-  lastMessagePreview?: string;
+  lastMessage?: { content: string; sender: string; createdAt: string };
   name?: string;
   participants?: Array<{
-    userId?: { _id?: string } | string;
-    muted?: boolean;
+    _id: string;
+    name?: string;
   }>;
 }
 
@@ -37,17 +37,10 @@ export function useMessageNotifications() {
         // If unread count increased, find which conversation has new messages
         if (totalUnread > prevUnreadRef.current && prevUnreadRef.current > 0) {
           const newConv = conversations.find(
-            (c) =>
-              c.unreadCount &&
-              c.unreadCount > 0 &&
-              !c.participants?.find((p) => {
-                const uid =
-                  typeof p.userId === "object" ? p.userId?._id : p.userId;
-                return uid === user.id;
-              })?.muted
+            (c) => c.unreadCount && c.unreadCount > 0
           );
           if (newConv) {
-            const preview = newConv.lastMessagePreview || "New message";
+            const preview = newConv.lastMessage?.content || "New message";
             toast(preview.slice(0, 60), {
               description: newConv.name || "New message",
               duration: 4000,

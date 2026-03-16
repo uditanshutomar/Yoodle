@@ -6,35 +6,12 @@ import { CornerUpLeft, Check, X, Loader2 } from "lucide-react";
 import Avatar from "@/components/ui/Avatar";
 import type { ChatMsg } from "@/hooks/useMessages";
 
-// ── Extended message shape for future fields ────────────────────────────
-// The base ChatMsg may be extended over time; we type the extras here.
-
-interface AgentToolCall {
-  name: string;
-  status: "calling" | "success" | "error";
-}
-
-interface AgentMeta {
-  toolCalls?: AgentToolCall[];
-}
-
-interface ExtendedChatMsg extends ChatMsg {
-  senderType?: "user" | "agent" | "system";
-  deleted?: boolean;
-  edited?: boolean;
-  agentMeta?: AgentMeta;
-  replyToMessage?: {
-    content: string;
-    sender: { name: string };
-  };
-}
-
 interface MessageBubbleProps {
-  message: ExtendedChatMsg;
+  message: ChatMsg;
   isOwn: boolean;
   showSender: boolean;
   onReaction: (messageId: string, emoji: string) => void;
-  onReply: (message: ExtendedChatMsg) => void;
+  onReply: (message: ChatMsg) => void;
   currentUserId: string;
 }
 

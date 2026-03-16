@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useCallback, useRef, useEffect } from "react";
-import { useAuth } from "./useAuth";
 
 // ── Types ────────────────────────────────────────────────────────────────
 
@@ -21,9 +20,21 @@ export interface ChatMsg {
   _id: string;
   conversationId: string;
   sender: MessageSender;
+  senderType?: "user" | "agent" | "system";
   content: string;
   replyTo?: string;
+  replyToMessage?: {
+    content: string;
+    sender: { name: string };
+  };
   reactions: Reaction[];
+  edited?: boolean;
+  deleted?: boolean;
+  agentMeta?: {
+    toolCalls?: { name: string; status: string; summary?: string }[];
+    actions?: { label: string; action: string; payload?: Record<string, unknown> }[];
+    forUserId?: string;
+  };
   createdAt: string;
   updatedAt: string;
 }
@@ -31,8 +42,6 @@ export interface ChatMsg {
 // ── Hook ─────────────────────────────────────────────────────────────────
 
 export function useMessages(conversationId: string | null) {
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const { user: _user } = useAuth();
   const [messages, setMessages] = useState<ChatMsg[]>([]);
   const [loading, setLoading] = useState(false);
   const [hasMore, setHasMore] = useState(true);
@@ -119,7 +128,7 @@ export function useMessages(conversationId: string | null) {
         });
 
         // If this message is from an agent, clear their thinking indicator
-        if (msg.sender._id.startsWith("agent_")) {
+        if (msg.senderType === "agent") {
           setTypingUsers((prev) => {
             const next = new Map(prev);
             next.delete(msg.sender._id);
