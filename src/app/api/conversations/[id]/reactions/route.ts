@@ -66,41 +66,44 @@ export const POST = withHandler(async (req: NextRequest, context) => {
     throw new ForbiddenError("Message does not belong to this conversation.");
   }
 
-  // Toggle reaction: check if user already has this emoji
-  const existingReaction = message.reactions.find(
-    (r) => r.emoji === emoji && r.userId.toString() === userId
-  );
+  // Atomic toggle: try to remove first. If nothing was removed, add.
+  // This avoids the TOCTOU race where two concurrent requests both read
+  // "no existing reaction" and both push a duplicate.
+  const userObjectId = new mongoose.Types.ObjectId(userId);
+
+  const pullResult = await DirectMessage.findOneAndUpdate(
+    {
+      _id: messageId,
+      reactions: { $elemMatch: { emoji, userId: userObjectId } },
+    },
+    { $pull: { reactions: { emoji, userId: userObjectId } } },
+    { new: true }
+  ).lean();
 
   let updatedMessage;
-  if (existingReaction) {
-    // Remove the reaction
-    updatedMessage = await DirectMessage.findByIdAndUpdate(
-      messageId,
-      {
-        $pull: {
-          reactions: {
-            emoji,
-            userId: new mongoose.Types.ObjectId(userId),
-          },
-        },
-      },
-      { new: true }
-    ).lean();
+  let action: "add" | "remove";
+
+  if (pullResult) {
+    // Reaction existed and was removed
+    updatedMessage = pullResult;
+    action = "remove";
   } else {
-    // Add the reaction
-    updatedMessage = await DirectMessage.findByIdAndUpdate(
-      messageId,
+    // Reaction didn't exist — add it. Use $addToSet-like guard by
+    // conditioning on "no matching reaction" to prevent duplicates.
+    const pushResult = await DirectMessage.findOneAndUpdate(
+      {
+        _id: messageId,
+        reactions: { $not: { $elemMatch: { emoji, userId: userObjectId } } },
+      },
       {
         $push: {
-          reactions: {
-            emoji,
-            userId: new mongoose.Types.ObjectId(userId),
-            createdAt: new Date(),
-          },
+          reactions: { emoji, userId: userObjectId, createdAt: new Date() },
         },
       },
       { new: true }
     ).lean();
+    updatedMessage = pushResult || message;
+    action = "add";
   }
 
   // Publish to Redis (non-fatal if Redis is down)
@@ -108,13 +111,7 @@ export const POST = withHandler(async (req: NextRequest, context) => {
     const redis = getRedisClient();
     await redis.publish(
       `chat:${id}`,
-      JSON.stringify({
-        type: "reaction",
-        messageId,
-        emoji,
-        userId,
-        action: existingReaction ? "remove" : "add",
-      })
+      JSON.stringify({ type: "reaction", messageId, emoji, userId, action })
     );
   } catch {
     // Reaction is persisted in DB; real-time delivery is best-effort

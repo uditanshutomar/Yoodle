@@ -316,6 +316,34 @@ class EphemeralStore {
     return toRoomData(doc);
   }
 
+  // ── Restore (recovery after failed persistence) ──────────────────
+
+  /**
+   * Re-insert a room that was claimed but failed to persist.
+   * Uses the GhostRoomData structure returned by claimAndDestroyRoom.
+   */
+  async restoreRoom(roomData: GhostRoomData): Promise<void> {
+    await this.connect();
+    const participantsArray = Array.from(roomData.participants.values()).map((p) => ({
+      userId: p.userId,
+      name: p.name,
+      displayName: p.displayName,
+      joinedAt: p.joinedAt,
+      votedToSave: false, // Reset votes so users can re-attempt
+    }));
+    await GhostRoom.create({
+      roomId: roomData.roomId,
+      code: roomData.code,
+      title: roomData.title,
+      hostId: roomData.hostId,
+      participants: participantsArray,
+      messages: roomData.messages,
+      notes: roomData.notes,
+      meetingId: roomData.meetingId,
+      expiresAt: roomData.expiresAt,
+    });
+  }
+
   // ── Destroy ───────────────────────────────────────────────────────
 
   async destroyRoom(roomId: string): Promise<GhostRoomData | undefined> {

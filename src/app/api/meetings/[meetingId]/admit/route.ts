@@ -12,7 +12,10 @@ import "@/lib/infra/db/models/user";
 import { waitingGrantAdmission } from "@/lib/infra/redis/cache";
 
 const bodySchema = z.object({
-  userId: z.string().min(1),
+  userId: z.string().min(1).refine(
+    (val) => mongoose.Types.ObjectId.isValid(val),
+    { message: "Invalid user ID format." }
+  ),
 });
 
 /**

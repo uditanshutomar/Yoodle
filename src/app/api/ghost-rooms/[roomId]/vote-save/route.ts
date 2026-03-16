@@ -63,7 +63,15 @@ export const POST = withHandler(async (req: NextRequest, context) => {
         const result = await persistGhostData(claimedRoom);
         savedMeetingId = result.meetingId;
       } catch (err) {
-        log.error({ err }, "failed to persist ghost room data after vote");
+        log.error({ err }, "failed to persist ghost room data after vote — attempting recovery");
+        // Critical: the room was already deleted from the ephemeral store.
+        // Try to restore it so users don't lose their data.
+        try {
+          await ephemeralStore.restoreRoom(claimedRoom);
+          log.info({ roomId }, "successfully restored ghost room after persistence failure");
+        } catch (restoreErr) {
+          log.error({ restoreErr, roomId }, "CRITICAL: failed to restore ghost room — data may be lost");
+        }
       }
     }
   }

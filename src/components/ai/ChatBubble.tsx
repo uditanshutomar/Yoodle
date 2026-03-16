@@ -103,7 +103,7 @@ function InlineActionCard({
   onDeny,
 }: {
   toolCall: ToolCall;
-  onConfirm?: (actionId: string, actionType: string, args: Record<string, unknown>) => void;
+  onConfirm?: (actionId: string, actionType: string, args: Record<string, unknown>) => void | Promise<void>;
   onDeny?: (actionId: string) => void;
 }) {
   const [status, setStatus] = useState<"pending" | "confirming" | "confirmed" | "denied">("pending");
@@ -116,7 +116,7 @@ function InlineActionCard({
   const handleConfirm = async () => {
     setStatus("confirming");
     try {
-      onConfirm?.(pa.actionId, pa.actionType, pa.actionArgs);
+      await onConfirm?.(pa.actionId, pa.actionType, pa.actionArgs);
       setStatus("confirmed");
     } catch {
       setStatus("pending");

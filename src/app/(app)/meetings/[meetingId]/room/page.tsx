@@ -248,8 +248,6 @@ export default function MeetingRoomPage() {
   }, [showChat, markChatRead, markChatUnread]);
 
   // ── Remote participants (from LiveKit transport) ────────────────────
-  const effectiveRemoteStreams = livekitRemoteStreams;
-
   const effectiveRemoteParticipants: RoomParticipant[] = livekitRemoteParticipants.map((p) => ({
     id: p.id,
     name: p.name,
@@ -262,10 +260,14 @@ export default function MeetingRoomPage() {
   }));
 
   // Speaker detection: combine local + remote
-  const speakingPeers = new Set([
-    ...(isLocalSpeaking ? [user?.id || "local"] : []),
-    ...remoteSpeakingFromVAD,
-  ]);
+  const speakingPeers = useMemo(
+    () =>
+      new Set([
+        ...(isLocalSpeaking ? [user?.id || "local"] : []),
+        ...remoteSpeakingFromVAD,
+      ]),
+    [isLocalSpeaking, user?.id, remoteSpeakingFromVAD],
+  );
   const localStreamRef = useRef<MediaStream | null>(null);
   const mediaStartedRef = useRef(false);
   const screenStreamRef = useRef<MediaStream | null>(null);
@@ -282,7 +284,7 @@ export default function MeetingRoomPage() {
     isRecording,
     startRecording: handleStartRecording,
     stopRecording: handleStopRecording,
-  } = useRecording(localStream, effectiveRemoteStreams, meetingId, room, speechSegmentsRef, meetingTitle);
+  } = useRecording(localStream, livekitRemoteStreams, meetingId, room, speechSegmentsRef, meetingTitle);
 
   const isRecordingRef = useRef(isRecording);
   const handleStopRecordingRef = useRef(handleStopRecording);
@@ -717,7 +719,7 @@ export default function MeetingRoomPage() {
       stream:
         p.id === localUser.id
           ? (isScreenSharing ? screenStream : localStream)
-          : effectiveRemoteStreams.get(p.id) || null,
+          : livekitRemoteStreams.get(p.id) || null,
     }),
   );
 
@@ -867,7 +869,7 @@ export default function MeetingRoomPage() {
                 stream:
                   screenSharePresenter.id === localUser.id
                     ? localStream
-                    : effectiveRemoteStreams.get(screenSharePresenter.id) || null,
+                    : livekitRemoteStreams.get(screenSharePresenter.id) || null,
               })}
               participants={bubbleParticipants}
               selfId={localUser.id}

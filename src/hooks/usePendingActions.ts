@@ -44,7 +44,7 @@ export function usePendingActions() {
 
       const data = await res.json();
       if (!res.ok) {
-        throw new Error(data?.message || "Confirm failed");
+        throw new Error(data?.error?.message || "Confirm failed");
       }
       setActions((prev) =>
         prev.map((a) =>
@@ -120,10 +120,6 @@ export function usePendingActions() {
     []
   );
 
-  const clearResolved = useCallback(() => {
-    setActions((prev) => prev.filter((a) => a.status === "pending" || a.status === "confirming" || a.status === "revising"));
-  }, []);
-
   // Show confirmed/denied cards briefly (2s) before removing them
   const pendingActions = actions.filter((a) => a.status !== "denied");
 
@@ -140,5 +136,5 @@ export function usePendingActions() {
     autoCleanConfirmed(actionId);
   }, [confirmAction, autoCleanConfirmed]);
 
-  return { actions, pendingActions, addAction, confirmAction: confirmAndClear, denyAction, reviseAction, clearResolved };
+  return { actions, pendingActions, addAction, confirmAction: confirmAndClear, denyAction, reviseAction };
 }
