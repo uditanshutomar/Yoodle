@@ -19,6 +19,12 @@ import { randomUUID } from "crypto";
 
 const log = createLogger("agent-processor");
 
+/** Gemini call timeout — prevents thinking indicator from hanging forever */
+const GEMINI_TIMEOUT_MS = 15_000;
+
+/** Don't send DND auto-reply if one was sent in the last 5 minutes */
+const DND_DEBOUNCE_MS = 5 * 60 * 1000;
+
 // ── Public entry point ──────────────────────────────────────────────
 
 /**
@@ -54,14 +60,27 @@ async function processOneAgent(
   triggerMessage: { senderId: string; content: string },
   agentUserId: string
 ) {
+  // Guard: don't let an agent respond to its own messages (infinite loop)
+  if (triggerMessage.senderId === agentUserId) return;
+
   const redis = getRedisClient();
   const user = await User.findById(agentUserId).lean();
   if (!user) return;
 
   const userName = user.displayName || user.name || "User";
 
-  // DND auto-reply — skip the full pipeline
+  // DND auto-reply — skip the full pipeline, but debounce to avoid spam
   if (user.status === "dnd") {
+    const recentDndReply = await DirectMessage.findOne({
+      conversationId: new mongoose.Types.ObjectId(conversationId),
+      senderId: new mongoose.Types.ObjectId(agentUserId),
+      senderType: "agent",
+      content: { $regex: /focus mode/i },
+      createdAt: { $gte: new Date(Date.now() - DND_DEBOUNCE_MS) },
+    }).lean();
+
+    if (recentDndReply) return; // Already sent a DND reply recently
+
     const autoReply = `${userName} is in focus mode right now. I'll make sure they see your message when they're back!`;
     await saveAndPublishAgentMessage(conversationId, agentUserId, autoReply, redis);
     return;
@@ -79,11 +98,13 @@ async function processOneAgent(
 
   try {
     // ── Load context ────────────────────────────────────────────
-    const [recentMessages, conversationCtx] = await Promise.all([
+    const [recentMessages, conversationCtx, triggerSender] = await Promise.all([
       loadRecentMessages(conversationId, 30),
       loadOrCreateContext(conversationId),
+      User.findById(triggerMessage.senderId).lean().then((u) => u?.displayName || u?.name || "Someone"),
     ]);
 
+    const triggerSenderName = triggerSender as string;
     const history = formatMessageHistory(recentMessages);
     const last10 = formatMessageHistory(recentMessages.slice(-10));
 
@@ -94,7 +115,8 @@ async function processOneAgent(
       formatOpenQuestions(conversationCtx.openQuestions),
       formatActionItems(conversationCtx.actionItems),
       history,
-      triggerMessage.content
+      triggerMessage.content,
+      triggerSenderName
     );
 
     const analysisRaw = await callGemini(analyzePrompt);
@@ -145,7 +167,8 @@ async function processOneAgent(
       conversationCtx.summary,
       JSON.stringify(analysis),
       gatheredDataStr,
-      last10
+      last10,
+      triggerSenderName
     );
 
     const response = await callGemini(respondPrompt);
@@ -178,7 +201,17 @@ async function processOneAgent(
 
 async function runReflect(
   conversationId: string,
-  currentCtx: { summary: string; actionItems: unknown[]; decisions: unknown[]; openQuestions: unknown[]; facts: unknown[] },
+  currentCtx: {
+    summary: string;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    actionItems: any[];
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    decisions: any[];
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    openQuestions: any[];
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    facts: any[];
+  },
   recentMessages?: unknown[] | null,
   formattedMessages?: string[]
 ) {
@@ -187,14 +220,26 @@ async function runReflect(
       formattedMessages ||
       (recentMessages ? (recentMessages as unknown[]).map((m) => formatOneMessage(m)) : []);
 
+    // Pass IDs to the reflect prompt so it can reference them for resolution
+    const contextForPrompt = {
+      summary: currentCtx.summary,
+      actionItems: currentCtx.actionItems.slice(-10).map((i) => ({
+        id: i.id,
+        assignee: i.assignee,
+        description: i.description,
+        status: i.status,
+      })),
+      decisions: currentCtx.decisions.slice(-5),
+      openQuestions: currentCtx.openQuestions.slice(-5).map((q) => ({
+        id: q.id,
+        question: q.question,
+        askedBy: q.askedBy,
+      })),
+      facts: currentCtx.facts.slice(-10),
+    };
+
     const reflectPrompt = buildReflectPrompt(
-      JSON.stringify({
-        summary: currentCtx.summary,
-        actionItems: currentCtx.actionItems.slice(-10),
-        decisions: currentCtx.decisions.slice(-5),
-        openQuestions: currentCtx.openQuestions.slice(-5),
-        facts: currentCtx.facts.slice(-10),
-      }),
+      JSON.stringify(contextForPrompt),
       messages.slice(-15).join("\n")
     );
 
@@ -202,19 +247,35 @@ async function runReflect(
     const reflectData = safeParseJson(reflectRaw);
     if (!reflectData) return;
 
-    // Apply updates to conversation context
-    const update: Record<string, unknown> = {
-      lastUpdatedAt: new Date(),
-    };
+    const convObjId = new mongoose.Types.ObjectId(conversationId);
 
+    // Step 1: $set for summary + resolve action items by marking status
+    const setOps: Record<string, unknown> = { lastUpdatedAt: new Date() };
     if (reflectData.summaryUpdate) {
-      update.summary = reflectData.summaryUpdate;
+      setOps.summary = reflectData.summaryUpdate;
     }
 
-    const pushOps: Record<string, unknown> = {};
-    const pullOps: Record<string, unknown> = {};
+    // Resolve action items (mark as done by ID)
+    if (reflectData.resolvedActionItemIds?.length > 0) {
+      await ConversationContext.updateOne(
+        { conversationId: convObjId },
+        { $set: { "actionItems.$[item].status": "done" } },
+        { arrayFilters: [{ "item.id": { $in: reflectData.resolvedActionItemIds } }], upsert: true }
+      );
+    }
 
-    // Add new action items
+    // Step 2: $pull to remove resolved questions (separate op to avoid $push/$pull conflict)
+    if (reflectData.resolvedQuestionIds?.length > 0) {
+      await ConversationContext.updateOne(
+        { conversationId: convObjId },
+        { $pull: { openQuestions: { id: { $in: reflectData.resolvedQuestionIds } } } },
+        { upsert: true }
+      );
+    }
+
+    // Step 3: $set + $push for new items (single atomic operation)
+    const pushOps: Record<string, unknown> = {};
+
     if (reflectData.newActionItems?.length > 0) {
       pushOps.actionItems = {
         $each: reflectData.newActionItems.map((item: { assignee: string; description: string }) => ({
@@ -224,26 +285,10 @@ async function runReflect(
           mentionedAt: new Date(),
           status: "open",
         })),
-        $slice: -20, // Keep only last 20
+        $slice: -20,
       };
     }
 
-    // Resolve action items
-    if (reflectData.resolvedActionItemIds?.length > 0) {
-      await ConversationContext.updateOne(
-        { conversationId: new mongoose.Types.ObjectId(conversationId) },
-        {
-          $set: {
-            "actionItems.$[item].status": "done",
-          },
-        },
-        {
-          arrayFilters: [{ "item.id": { $in: reflectData.resolvedActionItemIds } }],
-        }
-      );
-    }
-
-    // Add new decisions
     if (reflectData.newDecisions?.length > 0) {
       pushOps.decisions = {
         $each: reflectData.newDecisions.map((d: { description: string; participants: string[] }) => ({
@@ -255,7 +300,6 @@ async function runReflect(
       };
     }
 
-    // Add new facts
     if (reflectData.newFacts?.length > 0) {
       pushOps.facts = {
         $each: reflectData.newFacts.map((f: { content: string; mentionedBy: string }) => ({
@@ -267,12 +311,6 @@ async function runReflect(
       };
     }
 
-    // Resolve questions
-    if (reflectData.resolvedQuestionIds?.length > 0) {
-      pullOps.openQuestions = { id: { $in: reflectData.resolvedQuestionIds } };
-    }
-
-    // Add new questions
     if (reflectData.newQuestions?.length > 0) {
       pushOps.openQuestions = {
         $each: reflectData.newQuestions.map((q: { question: string; askedBy: string }) => ({
@@ -285,14 +323,12 @@ async function runReflect(
       };
     }
 
-    // Build the final update operation
-    const updateOp: Record<string, unknown> = { $set: update };
-    if (Object.keys(pushOps).length > 0) updateOp.$push = pushOps;
-    if (Object.keys(pullOps).length > 0) updateOp.$pull = pullOps;
+    const finalOp: Record<string, unknown> = { $set: setOps };
+    if (Object.keys(pushOps).length > 0) finalOp.$push = pushOps;
 
     await ConversationContext.updateOne(
-      { conversationId: new mongoose.Types.ObjectId(conversationId) },
-      updateOp,
+      { conversationId: convObjId },
+      finalOp,
       { upsert: true }
     );
 
@@ -307,7 +343,12 @@ async function runReflect(
 
 async function callGemini(prompt: string): Promise<string> {
   const model = getModel();
-  const result = await model.generateContent(prompt);
+  const result = await Promise.race([
+    model.generateContent(prompt),
+    new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error("Gemini call timed out")), GEMINI_TIMEOUT_MS)
+    ),
+  ]);
   return result.response.text().trim();
 }
 

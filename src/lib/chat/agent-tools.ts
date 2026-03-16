@@ -10,6 +10,9 @@ export interface GatheredData {
   errors?: string[];
 }
 
+/** Tool execution timeout — 10s per tool to avoid blocking the pipeline */
+const TOOL_TIMEOUT_MS = 10_000;
+
 /**
  * Execute tool plan from the DECIDE stage.
  * Returns formatted string data the RESPOND stage can use.
@@ -27,22 +30,36 @@ export async function executeToolPlan(
 
   if (tools.includes("check_calendar")) {
     promises.push(
-      fetchCalendar(userId).then((data) => {
-        result.calendar = data;
-      })
+      withTimeout(fetchCalendar(userId), TOOL_TIMEOUT_MS, "Calendar: Timed out fetching data.")
+        .then((data) => { result.calendar = data; })
     );
   }
 
   if (tools.includes("check_tasks")) {
     promises.push(
-      fetchTasks(userId).then((data) => {
-        result.tasks = data;
-      })
+      withTimeout(fetchTasks(userId), TOOL_TIMEOUT_MS, "Tasks: Timed out fetching data.")
+        .then((data) => { result.tasks = data; })
     );
   }
 
   await Promise.allSettled(promises);
   return result;
+}
+
+/** Race a promise against a timeout, returning fallback string on timeout */
+async function withTimeout(
+  promise: Promise<string>,
+  ms: number,
+  fallback: string
+): Promise<string> {
+  try {
+    return await Promise.race([
+      promise,
+      new Promise<string>((resolve) => setTimeout(() => resolve(fallback), ms)),
+    ]);
+  } catch {
+    return fallback;
+  }
 }
 
 async function fetchCalendar(userId: string): Promise<string> {
@@ -61,61 +78,70 @@ async function fetchCalendar(userId: string): Promise<string> {
       return "Calendar: No events in the next 3 days — wide open.";
     }
 
+    // Use the ISO start/end times directly — Gemini can interpret them correctly
+    // and the Google Calendar API returns times in the user's calendar timezone
     const formatted = events.map((e) => {
       const start = new Date(e.start);
       const end = new Date(e.end);
-      const day = start.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
-      const timeRange = `${start.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}–${end.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}`;
-      const attendees = e.attendees?.length
-        ? ` (with ${e.attendees.map((a: { email: string }) => a.email.split("@")[0]).join(", ")})`
+      // Format using the ISO string which preserves timezone from Google Calendar
+      const day = formatDay(start);
+      const timeRange = `${formatTime(start)}–${formatTime(end)}`;
+      const attendeeList = e.attendees?.length
+        ? ` (with ${e.attendees.slice(0, 5).map((a: { email: string }) => a.email.split("@")[0]).join(", ")}${e.attendees.length > 5 ? ` +${e.attendees.length - 5} more` : ""})`
         : "";
-      return `  ${day} ${timeRange}: ${e.title}${attendees}`;
+      return `  ${day} ${timeRange}: ${e.title}${attendeeList}`;
     });
 
-    // Also compute free slots for today
-    const todayEnd = new Date(now);
-    todayEnd.setHours(18, 0, 0, 0); // Assume work ends at 6pm
+    // Compute free slots for today
+    const todayStr = now.toISOString().split("T")[0];
+    const todayEvents = events
+      .filter((e) => e.start.startsWith(todayStr) || new Date(e.start).toDateString() === now.toDateString())
+      .sort((a, b) => new Date(a.start).getTime() - new Date(b.start).getTime());
 
-    const todayEvents = events.filter((e) => {
-      const start = new Date(e.start);
-      return start.toDateString() === now.toDateString();
-    });
+    // Work hours: 9am–6pm (relative to current server time, good enough for gap detection)
+    const workStart = new Date(now);
+    workStart.setHours(9, 0, 0, 0);
+    const workEnd = new Date(now);
+    workEnd.setHours(18, 0, 0, 0);
 
     let freeSlots = "";
-    if (todayEvents.length === 0) {
-      freeSlots = `\nFree today: All day until 6:00 PM`;
+    if (now > workEnd) {
+      freeSlots = "\nWork hours are over for today.";
+    } else if (todayEvents.length === 0) {
+      freeSlots = `\nFree today: ${formatTime(now > workStart ? now : workStart)}–${formatTime(workEnd)}`;
     } else {
-      // Simple gap detection
       const gaps: string[] = [];
-      let cursor = new Date(Math.max(now.getTime(), new Date(now).setHours(9, 0, 0, 0)));
+      let cursor = new Date(Math.max(now.getTime(), workStart.getTime()));
 
       for (const evt of todayEvents) {
         const evtStart = new Date(evt.start);
         const evtEnd = new Date(evt.end);
+
+        // Skip events that already ended
+        if (evtEnd <= cursor) continue;
+
         if (evtStart > cursor) {
           const gapMins = Math.round((evtStart.getTime() - cursor.getTime()) / 60000);
           if (gapMins >= 30) {
-            gaps.push(
-              `${cursor.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}–${evtStart.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })} (${gapMins}min)`
-            );
+            gaps.push(`${formatTime(cursor)}–${formatTime(evtStart)} (${gapMins}min)`);
           }
         }
-        cursor = evtEnd > cursor ? evtEnd : cursor;
+        // Move cursor to the later of current cursor or event end
+        if (evtEnd > cursor) cursor = evtEnd;
       }
 
-      if (cursor < todayEnd) {
-        const gapMins = Math.round((todayEnd.getTime() - cursor.getTime()) / 60000);
+      // Check remaining time after last event
+      if (cursor < workEnd) {
+        const gapMins = Math.round((workEnd.getTime() - cursor.getTime()) / 60000);
         if (gapMins >= 30) {
-          gaps.push(
-            `${cursor.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}–6:00 PM (${gapMins}min)`
-          );
+          gaps.push(`${formatTime(cursor)}–${formatTime(workEnd)} (${gapMins}min)`);
         }
       }
 
       if (gaps.length > 0) {
         freeSlots = `\nFree slots today: ${gaps.join(", ")}`;
       } else {
-        freeSlots = `\nNo free slots today (back-to-back until 6 PM)`;
+        freeSlots = "\nNo free slots today (back-to-back meetings)";
       }
     }
 
@@ -137,22 +163,38 @@ async function fetchTasks(userId: string): Promise<string> {
       return "Tasks: No pending tasks.";
     }
 
+    const now = new Date();
     const formatted = tasks.map((t) => {
-      const due = t.due
-        ? ` (due ${new Date(t.due).toLocaleDateString("en-US", { month: "short", day: "numeric" })})`
-        : "";
-      return `  - ${t.title}${due}`;
+      const due = t.due ? ` (due ${formatDay(new Date(t.due))})` : "";
+      const isOverdue = t.due && new Date(t.due) < now;
+      return `  ${isOverdue ? "⚠ " : "- "}${t.title}${due}`;
     });
 
-    const overdue = tasks.filter((t) => t.due && new Date(t.due) < new Date());
+    const overdue = tasks.filter((t) => t.due && new Date(t.due) < now);
     const overdueNote =
-      overdue.length > 0 ? `\n⚠ ${overdue.length} overdue task(s)` : "";
+      overdue.length > 0 ? `\n${overdue.length} OVERDUE` : "";
 
-    return `Tasks (${tasks.length} pending):\n${formatted.join("\n")}${overdueNote}`;
+    return `Tasks (${tasks.length} pending${overdueNote}):\n${formatted.join("\n")}`;
   } catch (error) {
     log.warn({ error, userId }, "Failed to fetch tasks for agent");
     return "Tasks: Unable to access (Google account may not be connected).";
   }
+}
+
+/** Format a Date to short day string like "Mon Mar 15" */
+function formatDay(d: Date): string {
+  const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+  const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  return `${days[d.getDay()]} ${months[d.getMonth()]} ${d.getDate()}`;
+}
+
+/** Format a Date to short time string like "2:30 PM" */
+function formatTime(d: Date): string {
+  const h = d.getHours();
+  const m = d.getMinutes();
+  const ampm = h >= 12 ? "PM" : "AM";
+  const hour = h % 12 || 12;
+  return m === 0 ? `${hour} ${ampm}` : `${hour}:${m.toString().padStart(2, "0")} ${ampm}`;
 }
 
 /**

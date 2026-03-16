@@ -89,7 +89,8 @@ export function buildAnalyzePrompt(
   openQuestions: string,
   actionItems: string,
   formattedHistory: string,
-  triggerMessage: string
+  triggerMessage: string,
+  triggerSenderName: string
 ): string {
   return `You are analyzing a group conversation on Yoodle to help ${userName}'s agent decide how to contribute.
 
@@ -105,19 +106,19 @@ ${actionItems || "(none)"}
 RECENT MESSAGES:
 ${formattedHistory}
 
-LATEST MESSAGE:
+LATEST MESSAGE (from ${triggerSenderName}):
 ${triggerMessage}
 
-Classify this situation. Output ONLY valid JSON, no markdown fences:
-{
-  "classification": "scheduling|action_item|question|decision|social|information_sharing",
-  "addressedTo": ["everyone"] or ["specific_name"],
-  "unresolvedItems": ["description of unresolved things"],
-  "keyEntities": ["dates, people, topics mentioned"],
-  "requiresData": true/false,
-  "dataNeeded": ["calendar", "tasks", "none"],
-  "urgency": "high|medium|low"
-}`;
+Classify this situation. Output ONLY valid JSON, no markdown fences.
+
+Example output:
+{"classification":"scheduling","addressedTo":["${userName}"],"unresolvedItems":["need to pick a meeting time"],"keyEntities":["tomorrow","standup"],"requiresData":true,"dataNeeded":["calendar"],"urgency":"medium"}
+
+classification must be one of: "scheduling", "action_item", "question", "decision", "social", "information_sharing"
+addressedTo: array of names, or ["everyone"]
+requiresData: boolean (true or false)
+dataNeeded: array containing "calendar", "tasks", or "none"
+urgency: "high", "medium", or "low"`;
 }
 
 export function buildDecidePrompt(
@@ -143,15 +144,15 @@ STAY SILENT if:
 - You don't have data to add concrete value — silence is better than filler
 - The message is a reaction, emoji, or simple acknowledgment
 
-Output ONLY valid JSON, no markdown fences:
-{
-  "decision": "RESPOND" or "SILENT" or "UPDATE_MEMORY_ONLY",
-  "reason": "brief explanation",
-  "toolPlan": ["check_calendar", "check_tasks"]
-}
+Output ONLY valid JSON, no markdown fences.
 
-toolPlan options: "check_calendar", "check_tasks", "none"
-Only include tools you actually need. Empty array or ["none"] if no data needed.`;
+Example outputs:
+{"decision":"RESPOND","reason":"user asked about availability, can check calendar","toolPlan":["check_calendar"]}
+{"decision":"SILENT","reason":"casual chat, nothing to add","toolPlan":[]}
+{"decision":"UPDATE_MEMORY_ONLY","reason":"important decision was made, saving to memory","toolPlan":[]}
+
+decision: "RESPOND", "SILENT", or "UPDATE_MEMORY_ONLY"
+toolPlan: array with "check_calendar", "check_tasks", or empty array`;
 }
 
 export function buildRespondPrompt(
@@ -159,9 +160,11 @@ export function buildRespondPrompt(
   contextSummary: string,
   analysisJson: string,
   gatheredData: string,
-  recentMessages: string
+  recentMessages: string,
+  triggerSenderName: string
 ): string {
   return `You are ${userName}'s Doodle — a sharp, helpful teammate in a group chat on Yoodle.
+You are replying to a message from ${triggerSenderName}.
 
 CONVERSATION CONTEXT:
 ${contextSummary || "(new conversation)"}
@@ -207,21 +210,21 @@ ${currentContext || "{}"}
 NEW MESSAGES SINCE LAST UPDATE:
 ${newMessages}
 
-Extract and return ONLY valid JSON, no markdown fences:
-{
-  "summaryUpdate": "concise updated summary of conversation state (max 200 chars)",
-  "newActionItems": [{"assignee": "name", "description": "what"}],
-  "resolvedActionItemIds": ["id1"],
-  "newDecisions": [{"description": "what was decided", "participants": ["who"]}],
-  "newFacts": [{"content": "key fact", "mentionedBy": "who"}],
-  "resolvedQuestionIds": ["id1"],
-  "newQuestions": [{"question": "unanswered question", "askedBy": "who"}]
-}
+Extract and return ONLY valid JSON, no markdown fences.
+
+Example output:
+{"summaryUpdate":"Team planning Q2 launch, John owns design","newActionItems":[{"assignee":"John","description":"Send API docs by Friday"}],"resolvedActionItemIds":["a1b2c3d4"],"newDecisions":[{"description":"Using PostgreSQL for the new service","participants":["John","Sarah"]}],"newFacts":[{"content":"Launch date is March 30","mentionedBy":"Sarah"}],"resolvedQuestionIds":["e5f6g7h8"],"newQuestions":[{"question":"Who handles the deployment?","askedBy":"John"}]}
+
+IMPORTANT for resolvedActionItemIds and resolvedQuestionIds:
+- Use the EXACT "id" values from the CURRENT MEMORY above (e.g. "a1b2c3d4")
+- Only mark items as resolved if the conversation clearly addresses them
+- If no items are resolved, use empty arrays
 
 Rules:
 - Only extract CONCRETE items, not vague ones
 - Action items must have a clear owner and deliverable
 - Facts should be things worth remembering later (dates, preferences, decisions)
-- If nothing meaningful to extract, return empty arrays
-- Keep summary focused on what's ACTIVE, not history`;
+- If nothing meaningful to extract, return empty arrays for those fields
+- summaryUpdate: max 200 chars, focused on what's ACTIVE, not history
+- If nothing changed, return: {"summaryUpdate":"","newActionItems":[],"resolvedActionItemIds":[],"newDecisions":[],"newFacts":[],"resolvedQuestionIds":[],"newQuestions":[]}`;
 }
