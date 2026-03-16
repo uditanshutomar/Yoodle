@@ -293,16 +293,22 @@ export function useAIChat() {
     setIsStreaming(false);
   }, []);
 
+  // Abort active SSE stream on unmount
+  useEffect(() => {
+    return () => { abortRef.current?.abort(); };
+  }, []);
+
   const clearMessages = useCallback(() => {
     setMessages([]);
     try { sessionStorage.removeItem(STORAGE_KEY); } catch { /* ignore */ }
   }, []);
 
-  const fetchBriefing = useCallback(async () => {
+  const fetchBriefing = useCallback(async (signal?: AbortSignal) => {
     try {
       const res = await fetch("/api/ai/briefing", {
         method: "POST",
         credentials: "include",
+        signal,
       });
       if (!res.ok) return;
       const data = await res.json();
@@ -319,7 +325,8 @@ export function useAIChat() {
           return [briefingMsg, ...prev];
         });
       }
-    } catch {
+    } catch (err) {
+      if (err instanceof DOMException && err.name === "AbortError") return;
       // Silent fail — briefing is best-effort
     }
   }, []);
@@ -327,9 +334,13 @@ export function useAIChat() {
   // Fetch briefing on mount and every 15 minutes
   useEffect(() => {
     if (!user) return;
-    fetchBriefing();
-    const interval = setInterval(fetchBriefing, 15 * 60 * 1000);
-    return () => clearInterval(interval);
+    const controller = new AbortController();
+    fetchBriefing(controller.signal);
+    const interval = setInterval(() => fetchBriefing(controller.signal), 15 * 60 * 1000);
+    return () => {
+      controller.abort();
+      clearInterval(interval);
+    };
   }, [user, fetchBriefing]);
 
   return { messages, isStreaming, sendMessage, stopStreaming, clearMessages, setOnPendingAction, fetchBriefing };

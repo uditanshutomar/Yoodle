@@ -61,20 +61,21 @@ export default function TeamMap({ active }: TeamMapProps) {
   const [fetchError, setFetchError] = useState<string | null>(null);
 
   // Fetch nearby users when we have a location
-  const fetchNearby = useCallback(async () => {
+  const fetchNearby = useCallback(async (signal?: AbortSignal) => {
     if (!latitude || !longitude || !active) return;
 
     try {
       const res = await fetch(
         `/api/users/nearby?lng=${longitude}&lat=${latitude}&radiusKm=10&limit=20`,
-        { credentials: "include" },
+        { credentials: "include", signal },
       );
       if (res.ok) {
         const json = await res.json();
         setNearbyUsers(json.data || []);
         setFetchError(null);
       }
-    } catch {
+    } catch (err) {
+      if (err instanceof DOMException && err.name === "AbortError") return;
       setFetchError("Couldn't load nearby Yoodlers");
     }
   }, [latitude, longitude, active]);
@@ -83,10 +84,14 @@ export default function TeamMap({ active }: TeamMapProps) {
   useEffect(() => { fetchNearbyRef.current = fetchNearby; }, [fetchNearby]);
 
   useEffect(() => {
-    void fetchNearbyRef.current();
-    if (!active) return;
-    const interval = setInterval(() => void fetchNearbyRef.current(), 15_000);
-    return () => clearInterval(interval);
+    const controller = new AbortController();
+    void fetchNearbyRef.current(controller.signal);
+    if (!active) return () => controller.abort();
+    const interval = setInterval(() => void fetchNearbyRef.current(controller.signal), 15_000);
+    return () => {
+      controller.abort();
+      clearInterval(interval);
+    };
   }, [active]);
 
   // No API key configured

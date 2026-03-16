@@ -44,6 +44,7 @@ export function useTranscription(
   const localStreamRef = useRef<MediaStream | null>(null);
   const safetyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isEnabledRef = useRef(false);
+  const isMountedRef = useRef(true);
 
   /** Max duration per segment (prevents runaway recording). */
   const MAX_SEGMENT_MS = 30_000;
@@ -74,7 +75,7 @@ export function useTranscription(
           body: formData,
         });
 
-        if (res.ok) {
+        if (res.ok && isMountedRef.current) {
           const data = await res.json();
           const text = data.data?.text;
           if (text) {
@@ -201,7 +202,9 @@ export function useTranscription(
   // ── Cleanup on unmount ────────────────────────────────────────────
 
   useEffect(() => {
+    isMountedRef.current = true;
     return () => {
+      isMountedRef.current = false;
       if (safetyTimerRef.current) {
         clearTimeout(safetyTimerRef.current);
         safetyTimerRef.current = null;

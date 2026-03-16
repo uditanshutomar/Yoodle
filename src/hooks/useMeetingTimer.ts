@@ -2,6 +2,15 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 
+/** Format seconds as m:ss (or -m:ss for overtime). Pure function — no deps. */
+function formatTime(seconds: number): string {
+  const abs = Math.abs(seconds);
+  const m = Math.floor(abs / 60);
+  const s = abs % 60;
+  const prefix = seconds < 0 ? "-" : "";
+  return `${prefix}${m}:${s.toString().padStart(2, "0")}`;
+}
+
 interface MeetingTimerOptions {
   meetingId: string;
   /** Scheduled duration in minutes (from DB). Falls back to 15 if absent. */
@@ -78,14 +87,6 @@ export function useMeetingTimer({
       warningFiredRef.current = false;
     }
   }, [remainingSeconds]);
-
-  const formatTime = (seconds: number): string => {
-    const abs = Math.abs(seconds);
-    const m = Math.floor(abs / 60);
-    const s = abs % 60;
-    const prefix = seconds < 0 ? "-" : "";
-    return `${prefix}${m}:${s.toString().padStart(2, "0")}`;
-  };
 
   const extendMeeting = useCallback(
     async (additionalMinutes: number): Promise<boolean> => {
