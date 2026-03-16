@@ -80,3 +80,148 @@ Rules:
 
   REVISE_ACTION: `You are revising a proposed action based on user feedback. You will receive the original action details and the user's requested changes. Return the revised action in the EXACT same JSON format as the original, with only the requested fields changed. Return ONLY valid JSON, no explanation text.`,
 } as const;
+
+// ── ReAct Agent Pipeline Prompts ─────────────────────────────────────
+
+export function buildAnalyzePrompt(
+  userName: string,
+  contextSummary: string,
+  openQuestions: string,
+  actionItems: string,
+  formattedHistory: string,
+  triggerMessage: string
+): string {
+  return `You are analyzing a group conversation on Yoodle to help ${userName}'s agent decide how to contribute.
+
+CONVERSATION MEMORY:
+${contextSummary || "(no prior context)"}
+
+OPEN QUESTIONS:
+${openQuestions || "(none)"}
+
+PENDING ACTION ITEMS:
+${actionItems || "(none)"}
+
+RECENT MESSAGES:
+${formattedHistory}
+
+LATEST MESSAGE:
+${triggerMessage}
+
+Classify this situation. Output ONLY valid JSON, no markdown fences:
+{
+  "classification": "scheduling|action_item|question|decision|social|information_sharing",
+  "addressedTo": ["everyone"] or ["specific_name"],
+  "unresolvedItems": ["description of unresolved things"],
+  "keyEntities": ["dates, people, topics mentioned"],
+  "requiresData": true/false,
+  "dataNeeded": ["calendar", "tasks", "none"],
+  "urgency": "high|medium|low"
+}`;
+}
+
+export function buildDecidePrompt(
+  userName: string,
+  analysisJson: string
+): string {
+  return `Given this analysis of the conversation:
+${analysisJson}
+
+You are ${userName}'s agent in a group chat. Should you respond?
+
+RESPOND if:
+- ${userName} is directly asked something and you can answer with data
+- You can resolve an open question with concrete information (availability, task status, facts)
+- There's an action item for ${userName} that needs acknowledgment
+- You can offer a specific, data-backed suggestion (NOT a question)
+- The conversation involves scheduling and you can check ${userName}'s calendar
+
+STAY SILENT if:
+- You would only be asking a question back (like "when works for you?") — this is the #1 anti-pattern
+- The conversation is social/casual and not directed at ${userName}
+- Someone else already answered adequately
+- You don't have data to add concrete value — silence is better than filler
+- The message is a reaction, emoji, or simple acknowledgment
+
+Output ONLY valid JSON, no markdown fences:
+{
+  "decision": "RESPOND" or "SILENT" or "UPDATE_MEMORY_ONLY",
+  "reason": "brief explanation",
+  "toolPlan": ["check_calendar", "check_tasks"]
+}
+
+toolPlan options: "check_calendar", "check_tasks", "none"
+Only include tools you actually need. Empty array or ["none"] if no data needed.`;
+}
+
+export function buildRespondPrompt(
+  userName: string,
+  contextSummary: string,
+  analysisJson: string,
+  gatheredData: string,
+  recentMessages: string
+): string {
+  return `You are ${userName}'s Doodle — a sharp, helpful teammate in a group chat on Yoodle.
+
+CONVERSATION CONTEXT:
+${contextSummary || "(new conversation)"}
+
+ANALYSIS:
+${analysisJson}
+
+DATA YOU GATHERED:
+${gatheredData || "(no data fetched)"}
+
+RECENT MESSAGES:
+${recentMessages}
+
+RULES:
+- Lead with concrete information, never generic questions
+- If you checked a calendar, state the specific availability — don't ask "when works?"
+- If there are tasks due, mention specific titles and dates — don't say "you have some tasks"
+- Max 2-3 sentences unless detail is genuinely needed
+- Speak like a teammate, not a bot — casual but sharp
+- ${userName}'s interests come first — protect their time
+- Use markdown sparingly (bold for key info only)
+- Never start with "Hey!", "Sure!", "Of course!" — just say the thing
+- If you genuinely can't help, say so in one sentence max
+
+ANTI-PATTERNS (never do these):
+- "When would you like to schedule the meeting?" → instead state availability
+- "I can help with that!" → instead just help
+- "Let me know if you need anything!" → instead offer something specific
+- "That sounds great!" → don't be a cheerleader, add value or stay silent
+
+Respond naturally as ${userName}'s agent. Just the message text, no prefix like "Agent:" or "Doodle:".`;
+}
+
+export function buildReflectPrompt(
+  currentContext: string,
+  newMessages: string
+): string {
+  return `Given this conversation exchange, update the conversation memory.
+
+CURRENT MEMORY:
+${currentContext || "{}"}
+
+NEW MESSAGES SINCE LAST UPDATE:
+${newMessages}
+
+Extract and return ONLY valid JSON, no markdown fences:
+{
+  "summaryUpdate": "concise updated summary of conversation state (max 200 chars)",
+  "newActionItems": [{"assignee": "name", "description": "what"}],
+  "resolvedActionItemIds": ["id1"],
+  "newDecisions": [{"description": "what was decided", "participants": ["who"]}],
+  "newFacts": [{"content": "key fact", "mentionedBy": "who"}],
+  "resolvedQuestionIds": ["id1"],
+  "newQuestions": [{"question": "unanswered question", "askedBy": "who"}]
+}
+
+Rules:
+- Only extract CONCRETE items, not vague ones
+- Action items must have a clear owner and deliverable
+- Facts should be things worth remembering later (dates, preferences, decisions)
+- If nothing meaningful to extract, return empty arrays
+- Keep summary focused on what's ACTIVE, not history`;
+}
