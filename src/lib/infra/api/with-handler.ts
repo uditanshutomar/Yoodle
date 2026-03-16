@@ -32,48 +32,68 @@ export function withHandler(handler: InnerHandler): NextRouteHandler {
     const requestId = crypto.randomUUID().slice(0, 8);
 
     try {
-      // CSRF protection: verify Origin header on state-changing methods
+      // CSRF protection: verify Origin/Referer on state-changing methods
       if (["POST", "PUT", "PATCH", "DELETE"].includes(req.method)) {
         const origin = req.headers.get("origin");
-        if (origin) {
-          const allowedOrigins = new Set<string>();
-
-          // Allow the configured app URL origin (if set)
-          const appUrl = process.env.NEXT_PUBLIC_APP_URL;
-          if (appUrl) {
-            try {
-              allowedOrigins.add(new URL(appUrl).origin);
-            } catch {
-              log.warn({ requestId, appUrl }, "CSRF: Invalid NEXT_PUBLIC_APP_URL");
-            }
+        // Fall back to Referer when Origin is absent (e.g. some browsers, redirect chains)
+        const referer = req.headers.get("referer");
+        let sourceOrigin: string | null = origin;
+        if (!sourceOrigin && referer) {
+          try {
+            sourceOrigin = new URL(referer).origin;
+          } catch {
+            sourceOrigin = null;
           }
+        }
 
-          // Allow the request URL origin (handles port/protocol differences)
-          allowedOrigins.add(new URL(req.url).origin);
+        if (!sourceOrigin) {
+          // Neither Origin nor Referer present — reject state-changing request
+          log.warn(
+            { requestId, method: req.method, url: req.nextUrl.pathname },
+            "CSRF: No Origin or Referer header on state-changing request",
+          );
+          return errorResponse("FORBIDDEN", "Missing request origin", 403);
+        }
 
-          // Allow origin derived from Host header (most reliable in proxied setups)
+        // Build allowed origins from environment config only (not from request headers)
+        const allowedOrigins = new Set<string>();
+
+        const appUrl = process.env.NEXT_PUBLIC_APP_URL;
+        if (appUrl) {
+          try {
+            allowedOrigins.add(new URL(appUrl).origin);
+          } catch {
+            log.warn({ requestId, appUrl }, "CSRF: Invalid NEXT_PUBLIC_APP_URL");
+          }
+        }
+
+        // Allow the request URL origin (derived by Next.js, not attacker-controlled)
+        allowedOrigins.add(new URL(req.url).origin);
+
+        // In development, also derive from Host header for convenience (e.g. port changes)
+        if (process.env.NODE_ENV !== "production") {
           const host = req.headers.get("host");
           if (host) {
             const protocol = req.headers.get("x-forwarded-proto") || "http";
             allowedOrigins.add(`${protocol}://${host}`);
           }
+        }
 
-          // Normalize localhost ↔ 127.0.0.1 equivalence
-          const normalizeLocalhost = (o: string) =>
-            o.replace("://localhost", "://127.0.0.1");
-          const expandedOrigins = new Set(allowedOrigins);
-          for (const o of allowedOrigins) {
-            expandedOrigins.add(normalizeLocalhost(o));
-            expandedOrigins.add(o.replace("://127.0.0.1", "://localhost"));
-          }
+        // Normalize localhost ↔ 127.0.0.1 equivalence
+        const normalizeLocalhost = (o: string) =>
+          o.replace("://localhost", "://127.0.0.1");
+        const expandedOrigins = new Set(allowedOrigins);
+        for (const o of allowedOrigins) {
+          expandedOrigins.add(normalizeLocalhost(o));
+          expandedOrigins.add(o.replace("://127.0.0.1", "://localhost"));
+        }
 
-          if (!expandedOrigins.has(origin)) {
-            log.warn(
-              { requestId, origin, allowed: [...expandedOrigins] },
-              "CSRF: Origin mismatch",
-            );
-            return errorResponse("FORBIDDEN", "Invalid request origin", 403);
-          }
+        if (!expandedOrigins.has(sourceOrigin)) {
+          log.warn(
+            { requestId, sourceOrigin, allowed: [...expandedOrigins] },
+            "CSRF: Origin mismatch",
+          );
+          return errorResponse("FORBIDDEN", "Invalid request origin", 403);
         }
       }
 
@@ -144,12 +164,19 @@ function handleError(
       `${req.method} ${req.nextUrl.pathname} → 400: Validation error`,
     );
 
-    return errorResponse("VALIDATION_ERROR", "Validation failed", 400, {
-      issues: error.issues.map((i) => ({
-        path: i.path.join("."),
-        message: i.message,
-      })),
-    });
+    // In production, omit field-level details to avoid exposing internal schema.
+    // In development, include full details for debugging convenience.
+    const details =
+      process.env.NODE_ENV === "production"
+        ? undefined
+        : {
+            issues: error.issues.map((i) => ({
+              path: i.path.join("."),
+              message: i.message,
+            })),
+          };
+
+    return errorResponse("VALIDATION_ERROR", "Validation failed", 400, details);
   }
 
   // Unknown errors — report to Sentry with request context

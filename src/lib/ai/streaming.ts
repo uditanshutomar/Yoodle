@@ -38,10 +38,11 @@ export function createStreamingResponse(
         controller.enqueue(encoder.encode("data: [DONE]\n\n"));
         controller.close();
       } catch (error) {
-        const message =
-          error instanceof Error ? error.message : "Stream error";
+        // Log the real error server-side; send a generic message to the client
+        // to avoid leaking internal details (API keys, paths, connection strings).
+        console.error("SSE stream error:", error);
         try {
-          const errorData = `data: ${JSON.stringify({ error: message })}\n\n`;
+          const errorData = `data: ${JSON.stringify({ error: "An error occurred while processing your request." })}\n\n`;
           controller.enqueue(encoder.encode(errorData));
           controller.close();
         } catch {

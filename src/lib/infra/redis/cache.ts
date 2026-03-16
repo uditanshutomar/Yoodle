@@ -1,5 +1,11 @@
+import crypto from "crypto";
 import { getRedisClient } from "./client";
 import { createLogger } from "@/lib/infra/logger";
+
+/** Hash a token with SHA-256 for use as a Redis key (fixed-length, no token exposure). */
+function hashToken(token: string): string {
+  return crypto.createHash("sha256").update(token).digest("hex");
+}
 
 const logger = createLogger("redis-cache");
 
@@ -160,7 +166,7 @@ export async function tokenBlacklist(
 ): Promise<void> {
   try {
     const client = getRedisClient();
-    await client.set(`token:blacklist:${token}`, "1", "EX", ttlSeconds);
+    await client.set(`token:blacklist:${hashToken(token)}`, "1", "EX", ttlSeconds);
   } catch (err) {
     // Log but don't throw — logout should still proceed client-side
     logger.error({ err }, "Failed to blacklist token");
@@ -178,7 +184,7 @@ export async function tokenIsBlacklisted(
 ): Promise<boolean> {
   try {
     const client = getRedisClient();
-    const exists = await client.exists(`token:blacklist:${token}`);
+    const exists = await client.exists(`token:blacklist:${hashToken(token)}`);
     return exists === 1;
   } catch (err) {
     logger.error({ err }, "Token blacklist check failed");

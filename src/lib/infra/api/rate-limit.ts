@@ -41,7 +41,21 @@ function getClientKey(req: NextRequest): string {
   const realIp = req.headers.get("x-real-ip")?.trim();
   if (realIp && isValidIp(realIp)) return realIp;
 
-  return "unknown";
+  // No identifiable IP — use a per-request hash to avoid a single shared bucket.
+  // This means unknown clients each get their own limit (they still get rate-limited
+  // but can't share a bucket to collectively DOS a single key).
+  const userAgent = req.headers.get("user-agent") || "";
+  const accept = req.headers.get("accept") || "";
+  return `anon:${simpleHash(userAgent + accept)}`;
+}
+
+/** Fast non-crypto hash for rate-limit bucketing (not security-sensitive). */
+function simpleHash(s: string): string {
+  let hash = 0;
+  for (let i = 0; i < s.length; i++) {
+    hash = ((hash << 5) - hash + s.charCodeAt(i)) | 0;
+  }
+  return (hash >>> 0).toString(36);
 }
 
 /** Basic IP format validation (IPv4 or IPv6) */

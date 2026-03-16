@@ -107,6 +107,20 @@ export function encodeMessage(msg: DataMessage): Uint8Array {
   return encoder.encode(JSON.stringify(msg));
 }
 
+const VALID_MESSAGE_TYPES = new Set<string>(
+  Object.values(DataMessageType),
+);
+
 export function decodeMessage(data: Uint8Array): DataMessage {
-  return JSON.parse(decoder.decode(data)) as DataMessage;
+  const parsed: unknown = JSON.parse(decoder.decode(data));
+  if (
+    typeof parsed !== "object" ||
+    parsed === null ||
+    !("type" in parsed) ||
+    typeof (parsed as Record<string, unknown>).type !== "string" ||
+    !VALID_MESSAGE_TYPES.has((parsed as Record<string, unknown>).type as string)
+  ) {
+    throw new Error("Invalid data channel message: unknown or missing type.");
+  }
+  return parsed as DataMessage;
 }

@@ -162,6 +162,10 @@ const recordingSchema = new Schema<IRecordingDocument>(
     fileUrl: {
       type: String,
       required: true,
+      validate: {
+        validator: (v: string) => /^https?:\/\//i.test(v),
+        message: "fileUrl must use http:// or https:// scheme.",
+      },
     },
     fileSize: {
       type: Number,

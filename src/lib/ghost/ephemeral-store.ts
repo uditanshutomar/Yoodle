@@ -233,6 +233,8 @@ class EphemeralStore {
 
     const fullMessage: GhostMessage = {
       ...message,
+      // Strip HTML tags from message content to prevent XSS when rendered
+      content: message.content.replace(/<[^>]*>/g, ""),
       id: nanoid(8),
     };
 

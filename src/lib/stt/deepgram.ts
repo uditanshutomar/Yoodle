@@ -81,9 +81,12 @@ export class DeepgramSTTProvider implements STTProvider {
     );
 
     if (!response.ok) {
+      // Log full error server-side; throw generic message to avoid leaking
+      // Deepgram API details or internal configuration to the client.
       const errorBody = await response.text();
+      console.error(`Deepgram STT failed (${response.status}):`, errorBody);
       throw new Error(
-        `Deepgram STT failed (${response.status}): ${errorBody}`
+        `Speech-to-text service error (status ${response.status}).`
       );
     }
 

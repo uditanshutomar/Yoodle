@@ -14,9 +14,9 @@ import connectDB from "@/lib/infra/db/client";
 import Meeting from "@/lib/infra/db/models/meeting";
 import mongoose from "mongoose";
 import {
-  LIVEKIT_URL,
-  LIVEKIT_API_KEY,
-  LIVEKIT_API_SECRET,
+  getLiveKitUrl,
+  getLiveKitApiKey,
+  getLiveKitApiSecret,
   isLiveKitConfigured,
 } from "@/lib/livekit/config";
 import { createLogger } from "@/lib/infra/logger";
@@ -82,9 +82,9 @@ export const POST = withHandler(async (req: NextRequest) => {
 
   try {
     const roomService = new RoomServiceClient(
-      LIVEKIT_URL,
-      LIVEKIT_API_KEY,
-      LIVEKIT_API_SECRET,
+      getLiveKitUrl(),
+      getLiveKitApiKey(),
+      getLiveKitApiSecret(),
     );
     const rooms = await roomService.listRooms([livekitRoomId]);
     if (rooms.length > 0 && rooms[0].numParticipants >= maxParticipants) {
@@ -100,7 +100,7 @@ export const POST = withHandler(async (req: NextRequest) => {
   }
 
   // ── Issue token ────────────────────────────────────────────────
-  const token = new AccessToken(LIVEKIT_API_KEY, LIVEKIT_API_SECRET, {
+  const token = new AccessToken(getLiveKitApiKey(), getLiveKitApiSecret(), {
     identity: userId,
     name,
     ttl: "6h",

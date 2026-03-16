@@ -41,6 +41,21 @@ function getGoogleConfig() {
   const clientId = process.env.GOOGLE_CLIENT_ID;
   const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
   const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+
+  // In production, require NEXT_PUBLIC_APP_URL to be explicitly set with https
+  if (process.env.NODE_ENV === "production") {
+    if (!process.env.NEXT_PUBLIC_APP_URL) {
+      throw new Error(
+        "NEXT_PUBLIC_APP_URL must be set in production (e.g. https://app.yoodle.com).",
+      );
+    }
+    if (!process.env.NEXT_PUBLIC_APP_URL.startsWith("https://")) {
+      throw new Error(
+        "NEXT_PUBLIC_APP_URL must use https:// in production.",
+      );
+    }
+  }
+
   const redirectUri = `${appUrl}/api/auth/google/callback`;
 
   if (!clientId || !clientSecret) {
