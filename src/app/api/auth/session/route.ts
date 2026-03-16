@@ -19,9 +19,9 @@ export const GET = withHandler(async (req: NextRequest) => {
 
   await connectDB();
 
-  const user = await User.findById(userId).select(
-    "-refreshTokenHash -__v -googleTokens.accessToken -googleTokens.refreshToken -googleTokens.expiresAt -googleTokens.scope"
-  );
+  const user = await User.findById(userId)
+    .select("-refreshTokenHash -__v -googleTokens.accessToken -googleTokens.refreshToken -googleTokens.expiresAt -googleTokens.scope")
+    .lean();
 
   if (!user) {
     throw new NotFoundError("User not found.");
