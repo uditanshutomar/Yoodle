@@ -39,6 +39,12 @@ function generateGhostCode(): string {
   return `ghost-${generateSegment()}-${generateSegment()}`;
 }
 
+// ── Sanitize strings to prevent XSS ───────────────────────────────────
+
+function stripHtml(str: string): string {
+  return str.replace(/<[^>]*>/g, "");
+}
+
 // ── Default room duration: 4 hours ────────────────────────────────────
 
 const DEFAULT_DURATION_MS = 4 * 60 * 60 * 1000;
@@ -97,16 +103,19 @@ class EphemeralStore {
     const code = generateGhostCode();
     const now = new Date();
 
+    const safeName = stripHtml(hostName);
+    const safeTitle = title ? stripHtml(title) : "Ghost Room";
+
     const doc = await GhostRoom.create({
       roomId,
       code,
-      title: title || "Ghost Room",
+      title: safeTitle,
       hostId,
       expiresAt: new Date(now.getTime() + DEFAULT_DURATION_MS),
       participants: [
         {
           userId: hostId,
-          name: hostName,
+          name: safeName,
           joinedAt: now,
           votedToSave: false,
         },
@@ -116,7 +125,7 @@ class EphemeralStore {
           id: nanoid(8),
           senderId: "system",
           senderName: "System",
-          content: `${hostName} created the ghost room`,
+          content: `${safeName} created the ghost room`,
           timestamp: now.getTime(),
           type: "system",
         },
@@ -159,6 +168,8 @@ class EphemeralStore {
   ): Promise<boolean> {
     await this.connect();
     const now = new Date();
+    const safeName = stripHtml(name);
+    const safeDisplayName = displayName ? stripHtml(displayName) : undefined;
 
     // Single atomic operation: only push if the user is NOT already present.
     // Avoids the TOCTOU race of a separate findOne + findOneAndUpdate.
@@ -172,8 +183,8 @@ class EphemeralStore {
         $push: {
           participants: {
             userId,
-            name,
-            displayName,
+            name: safeName,
+            displayName: safeDisplayName,
             joinedAt: now,
             votedToSave: false,
           },
@@ -181,7 +192,7 @@ class EphemeralStore {
             id: nanoid(8),
             senderId: "system",
             senderName: "System",
-            content: `${displayName || name} joined the ghost room`,
+            content: `${safeDisplayName || safeName} joined the ghost room`,
             timestamp: now.getTime(),
             type: "system",
           },
@@ -238,7 +249,7 @@ class EphemeralStore {
     const fullMessage: GhostMessage = {
       ...message,
       // Strip HTML tags from message content to prevent XSS when rendered
-      content: message.content.replace(/<[^>]*>/g, ""),
+      content: stripHtml(message.content),
       id: nanoid(8),
     };
 

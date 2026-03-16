@@ -53,6 +53,14 @@ export const POST = withHandler(async (req: NextRequest) => {
     throw new BadRequestError("Invalid meeting ID.");
   }
 
+  // Validate speakerName length and speakerId format
+  if (speakerName.length > 200) {
+    throw new BadRequestError("Speaker name is too long (max 200 characters).");
+  }
+  if (!mongoose.Types.ObjectId.isValid(speakerId)) {
+    throw new BadRequestError("Invalid speaker ID format.");
+  }
+
   // Validate audio file size (max 25 MB for a single chunk)
   const MAX_AUDIO_CHUNK_SIZE = 25 * 1024 * 1024;
   if (audioFile.size > MAX_AUDIO_CHUNK_SIZE) {
@@ -83,7 +91,7 @@ export const POST = withHandler(async (req: NextRequest) => {
           speaker: speakerName,
           speakerId,
           text,
-          timestamp: timestamp ? parseInt(timestamp, 10) : Date.now(),
+          timestamp: timestamp && !isNaN(Number(timestamp)) ? parseInt(timestamp, 10) : Date.now(),
         },
       },
     },

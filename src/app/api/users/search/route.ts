@@ -9,7 +9,7 @@ import connectDB from "@/lib/infra/db/client";
 import User from "@/lib/infra/db/models/user";
 
 const searchQuerySchema = z.object({
-  q: z.string().min(1, "Search query is required. Provide a 'q' parameter with at least 1 character."),
+  q: z.string().min(1, "Search query is required. Provide a 'q' parameter with at least 1 character.").max(200),
   limit: z.coerce.number().int().min(1).max(50).default(20),
 });
 

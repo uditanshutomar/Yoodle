@@ -26,10 +26,10 @@ async function findRoom(roomId: string) {
 
 const patchSchema = z.object({
   action: z.enum(["addMessage", "updateNotes", "join"]),
-  content: z.string().min(1).optional(),
-  notes: z.string().optional(),
-  name: z.string().optional(),
-  displayName: z.string().optional(),
+  content: z.string().min(1).max(5000).optional(),
+  notes: z.string().max(10000).optional(),
+  name: z.string().min(1).max(100).optional(),
+  displayName: z.string().min(1).max(100).optional(),
 });
 
 // -- GET /api/ghost-rooms/:roomId ----------------------------------------------

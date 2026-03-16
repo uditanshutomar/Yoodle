@@ -22,8 +22,8 @@ const querySchema = z.object({
 const createEventSchema = z.object({
   title: z.string().min(1).max(500),
   description: z.string().max(5000).optional(),
-  start: z.string().min(1, "Start time required."),
-  end: z.string().min(1, "End time required."),
+  start: z.string().datetime({ message: "Invalid start datetime. Use ISO 8601 format." }),
+  end: z.string().datetime({ message: "Invalid end datetime. Use ISO 8601 format." }),
   location: z.string().max(500).optional(),
   attendees: z.array(z.string().email()).optional(),
   attendeeUserIds: z.array(
@@ -36,11 +36,11 @@ const createEventSchema = z.object({
 });
 
 const updateEventSchema = z.object({
-  eventId: z.string().min(1, "Event ID required."),
+  eventId: z.string().min(1, "Event ID required.").max(200),
   title: z.string().min(1).max(500).optional(),
   description: z.string().max(5000).optional(),
-  start: z.string().optional(),
-  end: z.string().optional(),
+  start: z.string().datetime({ message: "Invalid start datetime." }).optional(),
+  end: z.string().datetime({ message: "Invalid end datetime." }).optional(),
   location: z.string().max(500).optional(),
   attendees: z.array(z.string().email()).optional(),
 });
