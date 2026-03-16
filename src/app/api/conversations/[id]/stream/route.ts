@@ -49,7 +49,7 @@ export async function GET(
         }, 15000);
 
         // Forward Redis messages as typed SSE events
-        subscriber.on("message", (_channel: string, message: string) => {
+        const messageHandler = (_channel: string, message: string) => {
           try {
             const parsed = JSON.parse(message);
             const eventType = parsed.type || "message";
@@ -68,11 +68,13 @@ export async function GET(
             // Forward raw if JSON parsing fails
             controller.enqueue(encoder.encode(`data: ${message}\n\n`));
           }
-        });
+        };
+        subscriber.on("message", messageHandler);
 
         // Clean up when the client disconnects
         req.signal.addEventListener("abort", () => {
           clearInterval(heartbeat);
+          subscriber.off("message", messageHandler);
           subscriber.unsubscribe().catch(() => {});
           subscriber.quit().catch(() => {});
           try {

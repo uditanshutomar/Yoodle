@@ -5,7 +5,7 @@ import { useAuth } from "./useAuth";
 
 /**
  * Lightweight hook that only tracks the total unread message count.
- * Intended for sidebar badges — avoids pulling full conversation data.
+ * Uses a dedicated lightweight endpoint instead of fetching all conversations.
  */
 export function useTotalUnread() {
   const { user } = useAuth();
@@ -18,21 +18,17 @@ export function useTotalUnread() {
 
     const poll = async () => {
       try {
-        const res = await fetch("/api/conversations", {
+        const res = await fetch("/api/conversations/unread-count", {
           credentials: "include",
         });
         if (!res.ok) return;
 
         const json = await res.json();
-        if (json.success && Array.isArray(json.data)) {
-          const total = (json.data as { unreadCount?: number }[]).reduce(
-            (sum, c) => sum + (c.unreadCount || 0),
-            0,
-          );
-          if (active) setTotalUnread(total);
+        if (json.success && typeof json.data?.totalUnread === "number") {
+          if (active) setTotalUnread(json.data.totalUnread);
         }
       } catch {
-        // Silent fail
+        // Silent fail — badge will show stale count until next poll
       }
     };
 

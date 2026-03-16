@@ -13,7 +13,6 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   ArrowLeft,
   Brain,
-  Search,
   SendHorizontal,
   ChevronDown,
   Loader2,
@@ -104,22 +103,19 @@ export default function ChatThread({
 
     async function fetchConvo() {
       try {
-        const res = await fetch("/api/conversations", {
+        const res = await fetch(`/api/conversations/${conversationId}`, {
           credentials: "include",
         });
         if (!res.ok) return;
         const json = await res.json();
-        if (!json.success || !Array.isArray(json.data)) return;
-        const found = (json.data as ConversationInfo[]).find(
-          (c) => c._id === conversationId,
-        );
-        if (!cancelled && found) setConvoInfo(found);
+        if (!json.success || !json.data) return;
+        if (!cancelled) setConvoInfo(json.data as ConversationInfo);
       } catch {
         // Silent fail
       }
     }
 
-    fetchConvo();
+    if (conversationId) fetchConvo();
     return () => {
       cancelled = true;
     };
@@ -379,12 +375,6 @@ export default function ChatThread({
             title="Toggle AI agent"
           >
             <Brain className="h-5 w-5" />
-          </button>
-          <button
-            className="p-2 rounded-lg text-[var(--text-muted)] hover:bg-[var(--surface-hover)] transition-colors"
-            title="Search"
-          >
-            <Search className="h-5 w-5" />
           </button>
         </div>
       </div>
