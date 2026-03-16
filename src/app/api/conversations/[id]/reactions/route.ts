@@ -58,7 +58,7 @@ export const POST = withHandler(async (req: NextRequest, context) => {
   }
 
   // Find the message and verify it belongs to this conversation
-  const message = await DirectMessage.findById(messageId);
+  const message = await DirectMessage.findById(messageId).select("conversationId reactions").lean();
   if (!message) {
     throw new NotFoundError("Message not found.");
   }
@@ -90,10 +90,13 @@ export const POST = withHandler(async (req: NextRequest, context) => {
   } else {
     // Reaction didn't exist — add it. Use $addToSet-like guard by
     // conditioning on "no matching reaction" to prevent duplicates.
+    // Also cap total reactions at 200 to prevent unbounded growth.
+    const MAX_REACTIONS = 200;
     const pushResult = await DirectMessage.findOneAndUpdate(
       {
         _id: messageId,
         reactions: { $not: { $elemMatch: { emoji, userId: userObjectId } } },
+        $expr: { $lt: [{ $size: { $ifNull: ["$reactions", []] } }, MAX_REACTIONS] },
       },
       {
         $push: {

@@ -12,7 +12,7 @@ import mongoose from "mongoose";
 import { getSTTProvider } from "@/lib/stt";
 
 async function verifyMeetingParticipant(userId: string, meetingId: string): Promise<boolean> {
-  const meeting = await Meeting.findById(meetingId);
+  const meeting = await Meeting.findById(meetingId).select("hostId participants").lean();
   if (!meeting) return false;
   return (
     meeting.hostId.toString() === userId ||
@@ -88,10 +88,15 @@ export const POST = withHandler(async (req: NextRequest) => {
     {
       $push: {
         segments: {
-          speaker: speakerName,
-          speakerId,
-          text,
-          timestamp: timestamp && !isNaN(Number(timestamp)) ? parseInt(timestamp, 10) : Date.now(),
+          $each: [
+            {
+              speaker: speakerName,
+              speakerId,
+              text,
+              timestamp: timestamp && !isNaN(Number(timestamp)) ? parseInt(timestamp, 10) : Date.now(),
+            },
+          ],
+          $slice: -2000,
         },
       },
     },

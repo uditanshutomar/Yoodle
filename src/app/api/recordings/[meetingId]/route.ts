@@ -26,12 +26,13 @@ export const GET = withHandler(async (req: NextRequest, context) => {
 
   // Verify the user is a participant or host of this meeting
   await connectDB();
-  const meeting = await Meeting.findById(meetingId);
+  const meeting = await Meeting.findById(meetingId).select("hostId participants").lean();
   if (!meeting) {
     throw new NotFoundError("Meeting not found.");
   }
+  const hostIdStr = meeting.hostId.toString();
   const isParticipant =
-    meeting.hostId.toString() === userId ||
+    hostIdStr === userId ||
     meeting.participants.some((p: { userId: { toString: () => string } }) => p.userId.toString() === userId);
   if (!isParticipant) {
     throw new ForbiddenError("You are not a participant in this meeting.");
@@ -41,14 +42,14 @@ export const GET = withHandler(async (req: NextRequest, context) => {
   const hasAccess = await hasGoogleAccess(userId);
   if (!hasAccess) {
     // Also try with the host's account — recordings are stored in host's Drive
-    const hostHasAccess = await hasGoogleAccess(meeting.hostId.toString());
+    const hostHasAccess = await hasGoogleAccess(hostIdStr);
     if (!hostHasAccess) {
       return successResponse({ recordings: [], meetingId });
     }
 
     // Fetch from host's Drive
     const recordings = await listMeetingRecordings(
-      meeting.hostId.toString(),
+      hostIdStr,
       meetingId
     );
 

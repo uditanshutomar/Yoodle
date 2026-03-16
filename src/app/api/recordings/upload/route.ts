@@ -71,7 +71,7 @@ export const POST = withHandler(async (req: NextRequest) => {
 
   // Verify user is a participant in this meeting
   await connectDB();
-  const meeting = await Meeting.findById(meetingId);
+  const meeting = await Meeting.findById(meetingId).select("hostId participants settings title").lean();
   if (!meeting) {
     throw new NotFoundError("Meeting not found.");
   }
@@ -131,12 +131,14 @@ export const POST = withHandler(async (req: NextRequest) => {
     try {
       const segments = JSON.parse(speechSegmentsRaw);
       if (Array.isArray(segments) && segments.length > 0) {
+        // Cap incoming segments to prevent abuse
+        const cappedSegments = segments.slice(0, 5000);
         await Transcript.findOneAndUpdate(
           { meetingId },
           {
             $push: {
               segments: {
-                $each: segments.map(
+                $each: cappedSegments.map(
                   (seg: {
                     speakerName: string;
                     speakerId: string;
@@ -150,6 +152,7 @@ export const POST = withHandler(async (req: NextRequest) => {
                     duration: seg.endTime - seg.startTime,
                   })
                 ),
+                $slice: -5000,
               },
             },
           },
