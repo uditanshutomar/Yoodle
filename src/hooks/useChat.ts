@@ -58,7 +58,7 @@ export function useChat(
         setMessages((prev) => {
           // Deduplicate (optimistic add from sendMessage)
           if (prev.some((m) => m.id === chat.id)) return prev;
-          return [
+          const next = [
             ...prev,
             {
               id: chat.id,
@@ -69,6 +69,8 @@ export function useChat(
               timestamp: chat.timestamp,
             },
           ];
+          // Cap at 500 messages to prevent unbounded growth in long meetings
+          return next.length > 500 ? next.slice(-500) : next;
         });
 
         // Increment unread if from someone else and chat panel is closed

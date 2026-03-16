@@ -282,8 +282,12 @@ export function useMessages(conversationId: string | null) {
       }
     };
 
-    // Reset retry counter on successful connection
+    // Reset retry counter on successful connection + re-fetch to fill gaps
     es.onopen = () => {
+      if (sseRetriesRef.current > 0) {
+        // Reconnected after a disconnect — fetch latest messages to fill the gap
+        fetchMessages();
+      }
       sseRetriesRef.current = 0;
     };
 

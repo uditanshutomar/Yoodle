@@ -79,9 +79,13 @@ export function useTranscription(
           const data = await res.json();
           const text = data.data?.text;
           if (text) {
-            setTranscriptText((prev) =>
-              prev ? `${prev} ${text}` : text,
-            );
+            setTranscriptText((prev) => {
+              const next = prev ? `${prev} ${text}` : text;
+              // Cap at 100KB to prevent unbounded growth in long meetings
+              return next.length > 100_000
+                ? next.slice(-100_000)
+                : next;
+            });
           }
         }
       } catch {
