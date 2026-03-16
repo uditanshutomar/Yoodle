@@ -42,7 +42,7 @@ export default function ChatWindow({
   };
 
   return (
-    <div className="flex flex-col h-full bg-[var(--surface)] border-2 border-[var(--border-strong)] rounded-2xl shadow-[var(--shadow-card)] overflow-hidden">
+    <div className="flex flex-col h-full bg-[var(--surface)] overflow-hidden">
       {/* Header */}
       <div className="flex items-center justify-between px-5 py-3 border-b-2 border-[var(--border)] bg-[#FFE600]/10">
         <div className="flex items-center gap-2">
