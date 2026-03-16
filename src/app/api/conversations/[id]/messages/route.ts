@@ -132,9 +132,9 @@ export const POST = withHandler(async (req: NextRequest, context) => {
     JSON.stringify({ type: "message", data: clientMessage })
   );
 
-  // Fire-and-forget: trigger agent responses
+  // Fire-and-forget: trigger agent responses (including the sender's own agent)
   const mentionsDoodle = content.toLowerCase().includes("@doodle");
-  if (mentionsDoodle || conversation.participants.some((p: { agentEnabled?: boolean; userId: { toString(): string } }) => p.agentEnabled && p.userId.toString() !== userId)) {
+  if (mentionsDoodle || conversation.participants.some((p: { agentEnabled?: boolean }) => p.agentEnabled)) {
     import("@/lib/chat/agent-processor").then(({ processAgentResponses }) => {
       processAgentResponses(id, { senderId: userId, content }).catch(() => {});
     });

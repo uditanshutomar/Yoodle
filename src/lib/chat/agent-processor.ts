@@ -22,9 +22,9 @@ export async function processAgentResponses(
     const conv = await Conversation.findById(conversationId);
     if (!conv) return;
 
-    // Find participants with agent enabled (excluding the message sender)
+    // Find all participants with agent enabled (including the sender's own agent)
     const agentParticipants = conv.participants.filter(
-      (p) => p.agentEnabled && p.userId.toString() !== triggerMessage.senderId
+      (p) => p.agentEnabled
     );
 
     if (agentParticipants.length === 0) return;

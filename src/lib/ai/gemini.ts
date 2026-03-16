@@ -19,7 +19,7 @@ function getClient(): GoogleGenerativeAI {
 }
 
 export function getModel(modelName?: string): GenerativeModel {
-  const model = modelName || process.env.GEMINI_MODEL || "gemini-2.0-flash";
+  const model = modelName || process.env.GEMINI_MODEL || "gemini-3.1-pro-preview";
   return getClient().getGenerativeModel({ model });
 }
 
