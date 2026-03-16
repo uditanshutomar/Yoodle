@@ -27,11 +27,13 @@ export const GET = withHandler(async (req: NextRequest, context) => {
   const workspace = await Workspace.findById(workspaceId).lean();
   if (!workspace) throw new NotFoundError("Workspace not found.");
 
-  const isMember = workspace.members.some(
-    (m) => m.userId.toString() === userId
+  const member = workspace.members.find(
+    (m: { userId: { toString: () => string }; role: string }) =>
+      m.userId.toString() === userId
   );
-  if (!isMember && workspace.ownerId.toString() !== userId) {
-    throw new ForbiddenError("Not a member.");
+  const isOwner = workspace.ownerId.toString() === userId;
+  if (!isOwner && (!member || (member.role !== "owner" && member.role !== "admin"))) {
+    throw new ForbiddenError("Only owners and admins can view audit logs.");
   }
 
   const [logs, total] = await Promise.all([

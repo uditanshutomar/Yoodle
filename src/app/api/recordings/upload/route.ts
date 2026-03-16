@@ -1,4 +1,5 @@
 import { NextRequest } from "next/server";
+import mongoose from "mongoose";
 import { withHandler } from "@/lib/infra/api/with-handler";
 import { successResponse } from "@/lib/infra/api/response";
 import { checkRateLimit } from "@/lib/infra/api/rate-limit";
@@ -53,6 +54,9 @@ export const POST = withHandler(async (req: NextRequest) => {
   }
   if (!meetingId) {
     throw new BadRequestError("Meeting ID is required.");
+  }
+  if (!mongoose.Types.ObjectId.isValid(meetingId)) {
+    throw new BadRequestError("Invalid meeting ID.");
   }
 
   // Validate file size

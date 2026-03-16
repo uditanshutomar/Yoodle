@@ -5,7 +5,7 @@ import { withHandler } from "@/lib/infra/api/with-handler";
 import { successResponse } from "@/lib/infra/api/response";
 import { checkRateLimit } from "@/lib/infra/api/rate-limit";
 import { getUserIdFromRequest } from "@/lib/infra/auth/middleware";
-import { ForbiddenError, NotFoundError } from "@/lib/infra/api/errors";
+import { BadRequestError, ForbiddenError, NotFoundError } from "@/lib/infra/api/errors";
 import connectDB from "@/lib/infra/db/client";
 import Meeting from "@/lib/infra/db/models/meeting";
 import "@/lib/infra/db/models/user";
@@ -39,8 +39,12 @@ export const POST = withHandler(async (req: NextRequest, context) => {
       ? { _id: new mongoose.Types.ObjectId(meetingId) }
       : { code: meetingId.toLowerCase() };
 
-  const meeting = await Meeting.findOne(filter).select("_id hostId").lean();
+  const meeting = await Meeting.findOne(filter).select("_id hostId status").lean();
   if (!meeting) throw new NotFoundError("Meeting not found.");
+
+  if (meeting.status === "ended" || meeting.status === "cancelled") {
+    throw new BadRequestError("Cannot admit users in an ended or cancelled meeting.");
+  }
 
   // Only the host can admit users
   const hostId =

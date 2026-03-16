@@ -126,18 +126,6 @@ export const PATCH = withHandler(async (req: NextRequest, context) => {
 
   await connectDB();
 
-  const filter = buildMeetingFilter(meetingId);
-  const meeting = await Meeting.findOne(filter);
-
-  if (!meeting) {
-    throw new NotFoundError("Meeting not found.");
-  }
-
-  // Only host can update
-  if (meeting.hostId.toString() !== userId) {
-    throw new ForbiddenError("Only the host can update this meeting.");
-  }
-
   // Build update fields
   const updateFields: Record<string, unknown> = {};
 
@@ -162,13 +150,29 @@ export const PATCH = withHandler(async (req: NextRequest, context) => {
     throw new BadRequestError("No valid fields to update.");
   }
 
+  // Atomic update: filter ensures caller is host and meeting is active
+  const filter = buildMeetingFilter(meetingId);
   const updatedMeeting = await Meeting.findOneAndUpdate(
-    filter,
+    {
+      ...filter,
+      hostId: new mongoose.Types.ObjectId(userId),
+      status: { $nin: ["ended", "cancelled"] },
+    },
     { $set: updateFields },
     { new: true, runValidators: true }
   )
     .populate("hostId", "name email displayName avatarUrl")
     .populate("participants.userId", "name email displayName avatarUrl");
+
+  if (!updatedMeeting) {
+    // Determine the reason for failure
+    const meeting = await Meeting.findOne(filter).select("hostId status").lean();
+    if (!meeting) throw new NotFoundError("Meeting not found.");
+    if (meeting.status === "ended" || meeting.status === "cancelled") {
+      throw new BadRequestError("Cannot update an ended or cancelled meeting.");
+    }
+    throw new ForbiddenError("Only the host can update this meeting.");
+  }
 
   return successResponse({ meeting: updatedMeeting });
 });
