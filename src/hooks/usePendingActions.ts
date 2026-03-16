@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 
 export interface PendingAction {
   actionId: string;
@@ -13,6 +13,17 @@ export interface PendingAction {
 
 export function usePendingActions() {
   const [actions, setActions] = useState<PendingAction[]>([]);
+  const cleanupTimersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
+
+  // Clear all pending timers on unmount
+  useEffect(() => {
+    return () => {
+      for (const timer of cleanupTimersRef.current.values()) {
+        clearTimeout(timer);
+      }
+      cleanupTimersRef.current.clear();
+    };
+  }, []);
 
   const addAction = useCallback((action: Omit<PendingAction, "status">) => {
     setActions((prev) => [
@@ -22,16 +33,15 @@ export function usePendingActions() {
   }, []);
 
   const confirmAction = useCallback(async (actionId: string) => {
-    // Read the action from state via the setter to avoid stale closures
-    let actionSnapshot: PendingAction | undefined;
-    setActions((prev) => {
-      actionSnapshot = prev.find((a) => a.actionId === actionId);
-      if (!actionSnapshot) return prev;
-      return prev.map((a) => (a.actionId === actionId ? { ...a, status: "confirming" as const } : a));
+    // Read current action snapshot synchronously, then update status
+    const actionSnapshot = await new Promise<PendingAction | undefined>((resolve) => {
+      setActions((prev) => {
+        const found = prev.find((a) => a.actionId === actionId);
+        resolve(found);
+        if (!found) return prev;
+        return prev.map((a) => (a.actionId === actionId ? { ...a, status: "confirming" as const } : a));
+      });
     });
-
-    // Wait a tick for the setter to run, then use the snapshot
-    await new Promise((r) => setTimeout(r, 0));
     if (!actionSnapshot) return;
 
     try {
@@ -68,14 +78,14 @@ export function usePendingActions() {
 
   const reviseAction = useCallback(
     async (actionId: string, userFeedback: string) => {
-      let actionSnapshot: PendingAction | undefined;
-      setActions((prev) => {
-        actionSnapshot = prev.find((a) => a.actionId === actionId);
-        if (!actionSnapshot) return prev;
-        return prev.map((a) => (a.actionId === actionId ? { ...a, status: "revising" as const } : a));
+      const actionSnapshot = await new Promise<PendingAction | undefined>((resolve) => {
+        setActions((prev) => {
+          const found = prev.find((a) => a.actionId === actionId);
+          resolve(found);
+          if (!found) return prev;
+          return prev.map((a) => (a.actionId === actionId ? { ...a, status: "revising" as const } : a));
+        });
       });
-
-      await new Promise((r) => setTimeout(r, 0));
       if (!actionSnapshot) return;
 
       try {
@@ -126,14 +136,19 @@ export function usePendingActions() {
   // Wrap confirmAction to auto-clean only on success
   const confirmAndClear = useCallback(async (actionId: string) => {
     await confirmAction(actionId);
-    // Only schedule cleanup if the action was successfully confirmed
-    // (confirmAction resets to "pending" on failure, so check current state)
+    // Read current state to check if confirmation succeeded — use a ref-stable
+    // getter instead of putting setTimeout inside a state setter.
     setActions((prev) => {
       const action = prev.find((a) => a.actionId === actionId);
       if (action?.status === "confirmed") {
-        setTimeout(() => {
-          setActions((p) => p.filter((a) => a.actionId !== actionId));
-        }, 2000);
+        // Schedule cleanup outside the setter via microtask
+        queueMicrotask(() => {
+          const timer = setTimeout(() => {
+            cleanupTimersRef.current.delete(actionId);
+            setActions((p) => p.filter((a) => a.actionId !== actionId));
+          }, 2000);
+          cleanupTimersRef.current.set(actionId, timer);
+        });
       }
       return prev;
     });

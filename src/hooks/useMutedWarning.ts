@@ -20,6 +20,7 @@ export function useMutedWarning(
   const [showWarning, setShowWarning] = useState(false);
   const lastWarningRef = useRef(0);
   const speakingStartRef = useRef<number | null>(null);
+  const warningTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     if (isAudioEnabled || !localStream) {
@@ -70,7 +71,11 @@ export function useMutedWarning(
             if (now - lastWarningRef.current > WARNING_COOLDOWN_MS) {
               lastWarningRef.current = now;
               setShowWarning(true);
-              setTimeout(() => setShowWarning(false), WARNING_DISPLAY_MS);
+              if (warningTimerRef.current) clearTimeout(warningTimerRef.current);
+              warningTimerRef.current = setTimeout(() => {
+                warningTimerRef.current = null;
+                setShowWarning(false);
+              }, WARNING_DISPLAY_MS);
             }
             speakingStartRef.current = null;
           }
@@ -88,6 +93,10 @@ export function useMutedWarning(
 
     return () => {
       if (animationId !== null) cancelAnimationFrame(animationId);
+      if (warningTimerRef.current) {
+        clearTimeout(warningTimerRef.current);
+        warningTimerRef.current = null;
+      }
       monitorTrack.stop();
       if (audioContext && audioContext.state !== "closed") {
         audioContext.close().catch(() => {});

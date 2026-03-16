@@ -77,12 +77,17 @@ export function useVoiceActivity({
     if (!room) return;
 
     const handleActiveSpeakers = (speakers: Participant[]) => {
-      const ids = new Set(
-        speakers
-          .filter((p) => p.identity !== userId)
-          .map((p) => p.identity),
-      );
-      setRemoteSpeakingPeers(ids);
+      const ids = speakers
+        .filter((p) => p.identity !== userId)
+        .map((p) => p.identity);
+      // Only update state if the set of speaking peers actually changed
+      setRemoteSpeakingPeers((prev) => {
+        if (prev.size !== ids.length) return new Set(ids);
+        for (const id of ids) {
+          if (!prev.has(id)) return new Set(ids);
+        }
+        return prev;
+      });
     };
 
     room.on(RoomEvent.ActiveSpeakersChanged, handleActiveSpeakers);

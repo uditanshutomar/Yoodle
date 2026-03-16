@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import { toast } from "sonner";
 
 export interface UseSpeechToTextReturn {
@@ -170,6 +170,13 @@ export function useSpeechToText(): UseSpeechToTextReturn {
     cleanup();
     setInterimText("");
     return text;
+  }, [cleanup]);
+
+  // Clean up WebSocket, MediaRecorder, and mic tracks on unmount
+  useEffect(() => {
+    return () => {
+      cleanup();
+    };
   }, [cleanup]);
 
   return {
