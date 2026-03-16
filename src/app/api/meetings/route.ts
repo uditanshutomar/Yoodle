@@ -1,8 +1,8 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { z } from "zod";
 import mongoose from "mongoose";
 import { withHandler } from "@/lib/infra/api/with-handler";
-import { successResponse } from "@/lib/infra/api/response";
+import { successResponse, errorResponse } from "@/lib/infra/api/response";
 import { checkRateLimit } from "@/lib/infra/api/rate-limit";
 import { getUserIdFromRequest } from "@/lib/infra/auth/middleware";
 import connectDB from "@/lib/infra/db/client";
@@ -113,9 +113,10 @@ export const POST = withHandler(async (req: NextRequest) => {
 
   // Enforce max participants from feature flags
   if (settings?.maxParticipants && settings.maxParticipants > features.maxParticipantsPerRoom) {
-    return NextResponse.json(
-      { success: false, error: { code: "PARTICIPANT_LIMIT", message: `Maximum ${features.maxParticipantsPerRoom} participants allowed on ${features.edition} edition` } },
-      { status: 400 }
+    return errorResponse(
+      "PARTICIPANT_LIMIT",
+      `Maximum ${features.maxParticipantsPerRoom} participants allowed on ${features.edition} edition`,
+      400,
     );
   }
 

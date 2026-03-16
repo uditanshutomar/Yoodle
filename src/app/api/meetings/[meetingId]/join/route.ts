@@ -285,14 +285,18 @@ export const POST = withHandler(async (req: NextRequest, context) => {
       .populate("hostId", "name email displayName avatarUrl")
       .populate("participants.userId", "name email displayName avatarUrl");
 
+    if (!updated) {
+      throw new NotFoundError("Meeting not found after rejoin.");
+    }
+
     // Fire-and-forget: ensure meeting conversation exists
-    ensureMeetingConversation(updated!._id.toString(), updated!).catch(() => {});
+    ensureMeetingConversation(updated._id.toString(), updated).catch(() => {});
 
     return successResponse({
       meeting: updated,
       roomSession: buildRoomSession(
-        updated!,
-        updated!._id.toString(),
+        updated,
+        updated._id.toString(),
         preferences,
         "joined",
       ),
@@ -364,14 +368,18 @@ export const POST = withHandler(async (req: NextRequest, context) => {
     .populate("hostId", "name email displayName avatarUrl")
     .populate("participants.userId", "name email displayName avatarUrl");
 
+  if (!populated) {
+    throw new NotFoundError("Meeting not found after join.");
+  }
+
   // Fire-and-forget: ensure meeting conversation exists
-  ensureMeetingConversation(populated!._id.toString(), populated!).catch(() => {});
+  ensureMeetingConversation(populated._id.toString(), populated).catch(() => {});
 
   return successResponse({
     meeting: populated,
     roomSession: buildRoomSession(
-      populated!,
-      populated!._id.toString(),
+      populated,
+      populated._id.toString(),
       preferences,
       "joined",
     ),
