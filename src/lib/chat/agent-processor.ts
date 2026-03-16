@@ -66,8 +66,8 @@ async function processOneAgent(
     `chat:${conversationId}`,
     JSON.stringify({
       type: "agent_thinking",
-      userId: agentUserId,
-      agentName: `${user.displayName}'s Doodle`,
+      agentId: agentUserId,
+      name: `${user.displayName}'s Doodle`,
     })
   );
 
@@ -99,7 +99,7 @@ async function processOneAgent(
     // Clear thinking indicator
     await redis.publish(
       `chat:${conversationId}`,
-      JSON.stringify({ type: "agent_thinking_done", userId: agentUserId })
+      JSON.stringify({ type: "agent_thinking_done", agentId: agentUserId })
     );
     return;
   }
