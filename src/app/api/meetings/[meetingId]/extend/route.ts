@@ -51,7 +51,8 @@ export const POST = withHandler(async (req: NextRequest, context) => {
   await connectDB();
 
   const filter = buildMeetingFilter(meetingId);
-  const meeting = await Meeting.findOne(filter);
+  const meeting = await Meeting.findOne(filter)
+    .select("hostId status scheduledDuration calendarEventId scheduledAt startedAt createdAt");
 
   if (!meeting) throw new NotFoundError("Meeting not found.");
   if (meeting.hostId.toString() !== userId) {

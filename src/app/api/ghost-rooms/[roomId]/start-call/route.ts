@@ -43,7 +43,9 @@ export const POST = withHandler(async (req: NextRequest, context) => {
 
   // If a meeting already exists for this ghost room, return it
   if (ghostRoom.meetingId) {
-    const existing = await Meeting.findById(ghostRoom.meetingId);
+    const existing = await Meeting.findById(ghostRoom.meetingId)
+      .select("_id code status")
+      .lean();
     if (existing && existing.status !== "ended" && existing.status !== "cancelled") {
       return successResponse({
         meetingId: existing._id.toString(),

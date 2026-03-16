@@ -3,6 +3,7 @@ import mongoose from "mongoose";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { withHandler } from "@/lib/infra/api/with-handler";
 import { successResponse } from "@/lib/infra/api/response";
+import { checkRateLimit } from "@/lib/infra/api/rate-limit";
 import { getUserIdFromRequest } from "@/lib/infra/auth/middleware";
 import { NotFoundError, BadRequestError, ForbiddenError } from "@/lib/infra/api/errors";
 import connectDB from "@/lib/infra/db/client";
@@ -67,6 +68,7 @@ export const GET = withHandler(
     req: NextRequest,
     context?: { params: Promise<Record<string, string>> }
   ) => {
+    await checkRateLimit(req, "general");
     const userId = await getUserIdFromRequest(req);
     const { meetingId } = (await context!.params) as { meetingId: string };
     await connectDB();
@@ -92,11 +94,14 @@ export const POST = withHandler(
     req: NextRequest,
     context?: { params: Promise<Record<string, string>> }
   ) => {
+    await checkRateLimit(req, "general");
     const userId = await getUserIdFromRequest(req);
     const { meetingId } = (await context!.params) as { meetingId: string };
     await connectDB();
 
-    const meeting = await Meeting.findOne(buildMeetingFilter(meetingId));
+    const meeting = await Meeting.findOne(buildMeetingFilter(meetingId))
+      .select("_id title type hostId participants calendarEventId")
+      .lean();
     if (!meeting) throw new NotFoundError("Meeting not found.");
 
     // Authorization: only host or participants can generate MoM

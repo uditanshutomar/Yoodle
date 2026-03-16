@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
 import { getUserIdFromRequest } from "@/lib/infra/auth/middleware";
+import { checkRateLimit } from "@/lib/infra/api/rate-limit";
 import { getRedisClient } from "@/lib/infra/redis/client";
 import connectDB from "@/lib/infra/db/client";
 import Conversation from "@/lib/infra/db/models/conversation";
@@ -10,6 +11,7 @@ export async function GET(
   context: { params: Promise<Record<string, string>> }
 ) {
   try {
+    await checkRateLimit(req, "general");
     const userId = await getUserIdFromRequest(req);
     const { id } = await context.params;
 
@@ -25,7 +27,9 @@ export async function GET(
     const conv = await Conversation.findOne({
       _id: new mongoose.Types.ObjectId(id),
       "participants.userId": new mongoose.Types.ObjectId(userId),
-    });
+    })
+      .select("_id")
+      .lean();
     if (!conv) {
       return new Response(JSON.stringify({ error: "Not found" }), {
         status: 404,

@@ -71,7 +71,7 @@ export const POST = withHandler(async (req: NextRequest, context) => {
 
   if (!result) {
     // Determine the reason for failure
-    const meeting = await Meeting.findOne(filter);
+    const meeting = await Meeting.findOne(filter).select("participants").lean();
     if (!meeting) {
       throw new NotFoundError("Meeting not found.");
     }
@@ -121,7 +121,7 @@ export const POST = withHandler(async (req: NextRequest, context) => {
     // Post MoM to linked conversation (fire-and-forget)
     (async () => {
       try {
-        const conv = await Conversation.findOne({ meetingId: result._id });
+        const conv = await Conversation.findOne({ meetingId: result._id }).select("_id").lean();
         if (!conv) return;
 
         // Post "meeting ended" system message
