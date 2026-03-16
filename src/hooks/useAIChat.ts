@@ -306,7 +306,7 @@ export function useAIChat() {
       });
       if (!res.ok) return;
       const data = await res.json();
-      if (data.data?.briefing) {
+      if (data.success && data.data?.briefing) {
         const briefingMsg: ChatMessage = {
           id: `briefing-${Date.now()}`,
           role: "assistant",

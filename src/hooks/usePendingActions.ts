@@ -120,21 +120,24 @@ export function usePendingActions() {
     []
   );
 
-  // Show confirmed/denied cards briefly (2s) before removing them
+  // Filter out denied actions for display
   const pendingActions = actions.filter((a) => a.status !== "denied");
 
-  // Auto-clear confirmed actions after 2 seconds
-  const autoCleanConfirmed = useCallback((actionId: string) => {
-    setTimeout(() => {
-      setActions((prev) => prev.filter((a) => a.actionId !== actionId));
-    }, 2000);
-  }, []);
-
-  // Wrap confirmAction to auto-clear after success
+  // Wrap confirmAction to auto-clean only on success
   const confirmAndClear = useCallback(async (actionId: string) => {
     await confirmAction(actionId);
-    autoCleanConfirmed(actionId);
-  }, [confirmAction, autoCleanConfirmed]);
+    // Only schedule cleanup if the action was successfully confirmed
+    // (confirmAction resets to "pending" on failure, so check current state)
+    setActions((prev) => {
+      const action = prev.find((a) => a.actionId === actionId);
+      if (action?.status === "confirmed") {
+        setTimeout(() => {
+          setActions((p) => p.filter((a) => a.actionId !== actionId));
+        }, 2000);
+      }
+      return prev;
+    });
+  }, [confirmAction]);
 
   return { actions, pendingActions, addAction, confirmAction: confirmAndClear, denyAction, reviseAction };
 }
