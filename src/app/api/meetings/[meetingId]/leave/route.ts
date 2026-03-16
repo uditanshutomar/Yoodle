@@ -216,8 +216,5 @@ export const POST = withHandler(async (req: NextRequest, context) => {
     .populate("hostId", "name email displayName avatarUrl")
     .populate("participants.userId", "name email displayName avatarUrl");
 
-  return successResponse({
-    data: { meeting: populated },
-    message: "You have left the meeting.",
-  });
+  return successResponse({ meeting: populated });
 });

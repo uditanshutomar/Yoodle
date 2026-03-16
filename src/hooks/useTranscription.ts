@@ -76,9 +76,10 @@ export function useTranscription(
 
         if (res.ok) {
           const data = await res.json();
-          if (data.text) {
+          const text = data.data?.text;
+          if (text) {
             setTranscriptText((prev) =>
-              prev ? `${prev} ${data.text}` : data.text,
+              prev ? `${prev} ${text}` : text,
             );
           }
         }

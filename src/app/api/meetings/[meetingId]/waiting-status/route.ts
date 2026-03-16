@@ -3,6 +3,7 @@ import mongoose from "mongoose";
 import { withHandler } from "@/lib/infra/api/with-handler";
 import { successResponse } from "@/lib/infra/api/response";
 import { getUserIdFromRequest } from "@/lib/infra/auth/middleware";
+import { checkRateLimit } from "@/lib/infra/api/rate-limit";
 import { NotFoundError } from "@/lib/infra/api/errors";
 import connectDB from "@/lib/infra/db/client";
 import Meeting from "@/lib/infra/db/models/meeting";
@@ -24,6 +25,7 @@ import {
  *    Returns `{ users: WaitingUser[] }`.
  */
 export const GET = withHandler(async (req: NextRequest, context) => {
+  await checkRateLimit(req, "meetings");
   const authenticatedUserId = await getUserIdFromRequest(req);
   const { meetingId } = await context!.params;
 

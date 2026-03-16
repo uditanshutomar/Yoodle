@@ -48,6 +48,7 @@ const aiMemorySchema = new Schema<IAIMemoryDocument>(
     content: {
       type: String,
       required: true,
+      maxlength: 4000,
     },
     source: {
       type: String,

@@ -177,20 +177,17 @@ export const PATCH = withHandler(async (req: NextRequest) => {
   }
 
   return successResponse({
-    data: {
-      id: updatedUser._id.toString(),
-      email: updatedUser.email,
-      name: updatedUser.name,
-      displayName: updatedUser.displayName,
-      avatarUrl: updatedUser.avatarUrl,
-      mode: updatedUser.mode,
-      status: updatedUser.status,
-      location: updatedUser.location,
-      preferences: updatedUser.preferences,
-      lastSeenAt: updatedUser.lastSeenAt,
-      createdAt: updatedUser.createdAt,
-      updatedAt: updatedUser.updatedAt,
-    },
-    message: "Profile updated successfully.",
+    id: updatedUser._id.toString(),
+    email: updatedUser.email,
+    name: updatedUser.name,
+    displayName: updatedUser.displayName,
+    avatarUrl: updatedUser.avatarUrl,
+    mode: updatedUser.mode,
+    status: updatedUser.status,
+    location: updatedUser.location,
+    preferences: updatedUser.preferences,
+    lastSeenAt: updatedUser.lastSeenAt,
+    createdAt: updatedUser.createdAt,
+    updatedAt: updatedUser.updatedAt,
   });
 });

@@ -93,10 +93,7 @@ export const POST = withHandler(async (req: NextRequest, context) => {
   );
 
   return successResponse({
-    data: {
-      meetingId: meeting._id.toString(),
-      newHostUserId: body.newHostUserId,
-    },
-    message: "Host role transferred.",
+    meetingId: meeting._id.toString(),
+    newHostUserId: body.newHostUserId,
   });
 });

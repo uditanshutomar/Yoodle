@@ -4,7 +4,7 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 import { withHandler } from "@/lib/infra/api/with-handler";
 import { successResponse } from "@/lib/infra/api/response";
 import { getUserIdFromRequest } from "@/lib/infra/auth/middleware";
-import { NotFoundError, BadRequestError } from "@/lib/infra/api/errors";
+import { NotFoundError, BadRequestError, ForbiddenError } from "@/lib/infra/api/errors";
 import connectDB from "@/lib/infra/db/client";
 import Meeting from "@/lib/infra/db/models/meeting";
 import "@/lib/infra/db/models/user";
@@ -26,6 +26,15 @@ function buildMeetingFilter(meetingId: string): Record<string, unknown> {
     return { _id: new mongoose.Types.ObjectId(meetingId) };
   }
   return { code: meetingId.toLowerCase() };
+}
+
+/** Check if a user is the host or a participant of a meeting */
+function isHostOrParticipant(
+  meeting: { hostId: mongoose.Types.ObjectId; participants: { userId: mongoose.Types.ObjectId }[] },
+  userId: string,
+): boolean {
+  if (meeting.hostId.toString() === userId) return true;
+  return meeting.participants.some((p) => p.userId?.toString() === userId);
 }
 
 // ── MoM generation prompt ───────────────────────────────────────────
@@ -58,15 +67,19 @@ export const GET = withHandler(
     req: NextRequest,
     context?: { params: Promise<Record<string, string>> }
   ) => {
-    await getUserIdFromRequest(req); // Auth check — MoM should not be publicly accessible
+    const userId = await getUserIdFromRequest(req);
     const { meetingId } = (await context!.params) as { meetingId: string };
     await connectDB();
 
     const meeting = await Meeting.findOne(buildMeetingFilter(meetingId))
-      .select("mom")
+      .select("mom hostId participants")
       .lean();
 
     if (!meeting) throw new NotFoundError("Meeting not found.");
+
+    if (!isHostOrParticipant(meeting as unknown as { hostId: mongoose.Types.ObjectId; participants: { userId: mongoose.Types.ObjectId }[] }, userId)) {
+      throw new ForbiddenError("You must be a participant of this meeting to view its minutes.");
+    }
 
     return successResponse({ mom: (meeting as unknown as Record<string, unknown>).mom || null });
   }
@@ -85,6 +98,11 @@ export const POST = withHandler(
 
     const meeting = await Meeting.findOne(buildMeetingFilter(meetingId));
     if (!meeting) throw new NotFoundError("Meeting not found.");
+
+    // Authorization: only host or participants can generate MoM
+    if (!isHostOrParticipant(meeting, userId)) {
+      throw new ForbiddenError("You must be a participant of this meeting to generate minutes.");
+    }
 
     // Ghost meetings cannot generate MoM unless converted to regular
     if (meeting.type === "ghost") {

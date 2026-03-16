@@ -72,6 +72,7 @@ const locationSchema = new Schema<IUserLocation>(
     },
     label: {
       type: String,
+      maxlength: 200,
     },
     updatedAt: {
       type: Date,
@@ -123,14 +124,17 @@ const userSchema = new Schema<IUserDocument>(
       type: String,
       required: true,
       trim: true,
+      maxlength: 200,
     },
     displayName: {
       type: String,
       required: true,
       trim: true,
+      maxlength: 100,
     },
     avatarUrl: {
       type: String,
+      maxlength: 2048,
     },
     role: {
       type: String,
@@ -150,6 +154,7 @@ const userSchema = new Schema<IUserDocument>(
     timezone: {
       type: String,
       trim: true,
+      maxlength: 100,
     },
     location: {
       type: locationSchema,
@@ -191,6 +196,7 @@ const userSchema = new Schema<IUserDocument>(
 );
 
 userSchema.index({ "location": "2dsphere" });
+userSchema.index({ name: "text", displayName: "text" });
 
 const User: Model<IUserDocument> =
   mongoose.models.User || mongoose.model<IUserDocument>("User", userSchema);

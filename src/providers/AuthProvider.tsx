@@ -89,7 +89,7 @@ export default function AuthProvider({ children }: { children: ReactNode }) {
       if (res.ok && data.data?.url) {
         return { success: true, url: data.data.url, message: "Redirecting to Google..." };
       }
-      return { success: false, message: data.message || "Failed to start Google sign-in." };
+      return { success: false, message: data.error?.message || "Failed to start Google sign-in." };
     } catch {
       return { success: false, message: "Network error. Try again." };
     }

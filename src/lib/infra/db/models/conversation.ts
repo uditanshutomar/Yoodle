@@ -51,7 +51,7 @@ const participantSchema = new Schema<IConversationParticipant>(
 const conversationSchema = new Schema<IConversationDocument>(
   {
     type: { type: String, enum: CONVERSATION_TYPES, required: true },
-    name: { type: String, trim: true },
+    name: { type: String, trim: true, maxlength: 200 },
     participants: { type: [participantSchema], required: true },
     pinnedMessageIds: [{ type: Schema.Types.ObjectId, ref: "DirectMessage" }],
     lastMessageAt: { type: Date },
@@ -60,12 +60,13 @@ const conversationSchema = new Schema<IConversationDocument>(
     meetingId: { type: Schema.Types.ObjectId, ref: "Meeting" },
     createdBy: { type: Schema.Types.ObjectId, ref: "User", required: true },
     // Sorted pair key for DM uniqueness (e.g. "aaa...bbb"). Set only for type=dm.
-    dmPairKey: { type: String },
+    dmPairKey: { type: String, maxlength: 100 },
   },
   { timestamps: true, collection: "conversations" }
 );
 
 conversationSchema.index({ "participants.userId": 1, lastMessageAt: -1 });
+conversationSchema.index({ meetingId: 1 }, { sparse: true });
 // DM uniqueness: use a dedicated field with sorted user IDs so that
 // (A,B) and (B,A) map to the same key.  A unique partial index on this
 // field prevents duplicate DM conversations reliably — unlike a compound

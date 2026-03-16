@@ -42,7 +42,7 @@ export interface IDirectMessageDocument extends IDirectMessage, Document {
 
 const reactionSchema = new Schema<IReaction>(
   {
-    emoji: { type: String, required: true },
+    emoji: { type: String, required: true, maxlength: 32 },
     userId: { type: Schema.Types.ObjectId, ref: "User", required: true },
     createdAt: { type: Date, default: Date.now },
   },

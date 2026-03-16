@@ -56,6 +56,9 @@ export function useMessages(conversationId: string | null) {
     new Map(),
   );
 
+  // SSE reconnect: incrementing this forces the SSE effect to re-run
+  const [sseRetry, setSseRetry] = useState(0);
+
   // Refs for cleanup and cursor tracking
   const eventSourceRef = useRef<EventSource | null>(null);
   const typingTimersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(
@@ -63,6 +66,7 @@ export function useMessages(conversationId: string | null) {
   );
   const cursorRef = useRef<string | null>(null);
   const isMountedRef = useRef(true);
+  const sseRetriesRef = useRef(0);
 
   // ── Fetch initial messages ───────────────────────────────────────────
 
@@ -259,11 +263,35 @@ export function useMessages(conversationId: string | null) {
       // Optional: could update read receipts in the future
     });
 
+    // ── Reconnection on error ────────────────────────────────────
+    let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+
+    es.onerror = () => {
+      // EventSource auto-reconnects for transient errors (readyState=CONNECTING).
+      // If readyState is CLOSED, the browser gave up — manually reconnect
+      // with exponential backoff by re-triggering this effect.
+      if (es.readyState === EventSource.CLOSED && sseRetriesRef.current < 5) {
+        const delay = Math.min(1000 * 2 ** sseRetriesRef.current, 30000);
+        sseRetriesRef.current++;
+        reconnectTimer = setTimeout(() => {
+          setSseRetry((n) => n + 1);
+        }, delay);
+      }
+    };
+
+    // Reset retry counter on successful connection
+    es.onopen = () => {
+      sseRetriesRef.current = 0;
+    };
+
     return () => {
+      if (reconnectTimer) clearTimeout(reconnectTimer);
       es.close();
       eventSourceRef.current = null;
     };
-  }, [conversationId]);
+    // sseRetry forces re-creation of EventSource on reconnect
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [conversationId, sseRetry]);
 
   // ── Fetch on mount / conversation change ─────────────────────────────
 

@@ -127,7 +127,7 @@ export function useAIChat() {
 
         if (!res.ok) {
           const errorData = await res.json().catch(() => null);
-          throw new Error(errorData?.message || `AI request failed (${res.status})`);
+          throw new Error(errorData?.error?.message || `AI request failed (${res.status})`);
         }
 
         const reader = res.body?.getReader();

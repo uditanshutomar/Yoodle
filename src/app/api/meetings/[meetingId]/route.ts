@@ -170,10 +170,7 @@ export const PATCH = withHandler(async (req: NextRequest, context) => {
     .populate("hostId", "name email displayName avatarUrl")
     .populate("participants.userId", "name email displayName avatarUrl");
 
-  return successResponse({
-    data: { meeting: updatedMeeting },
-    message: "Meeting updated successfully.",
-  });
+  return successResponse({ meeting: updatedMeeting });
 });
 
 // ── DELETE /api/meetings/:meetingId ─────────────────────────────────
@@ -211,7 +208,5 @@ export const DELETE = withHandler(async (req: NextRequest, context) => {
   meeting.endedAt = new Date();
   await meeting.save();
 
-  return successResponse({
-    message: "Meeting cancelled successfully.",
-  });
+  return successResponse({ cancelled: true });
 });

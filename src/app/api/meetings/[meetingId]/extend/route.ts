@@ -85,11 +85,8 @@ export const POST = withHandler(async (req: NextRequest, context) => {
   }
 
   return successResponse({
-    data: {
-      meetingId: meeting._id.toString(),
-      scheduledDuration: newDuration,
-      calendarUpdated,
-    },
-    message: `Meeting extended to ${newDuration} min`,
+    meetingId: meeting._id.toString(),
+    scheduledDuration: newDuration,
+    calendarUpdated,
   });
 });
