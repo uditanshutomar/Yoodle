@@ -47,6 +47,13 @@ async function postAgentMessage(
     /* Redis pub/sub is best-effort */
   }
 
+  try {
+    const { incrementUnseen } = await import("./proactive-insights");
+    await incrementUnseen(agentUserId);
+  } catch {
+    /* best-effort */
+  }
+
   return msg;
 }
 
