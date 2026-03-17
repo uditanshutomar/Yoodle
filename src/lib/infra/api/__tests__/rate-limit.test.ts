@@ -15,7 +15,7 @@ function createMockRequest(ip = "192.168.1.1"): NextRequest {
 
 describe("RATE_LIMITS", () => {
   it("has expected preset groups", () => {
-    expect(RATE_LIMITS.auth).toEqual({ limit: 5, window: 60 });
+    expect(RATE_LIMITS.auth).toEqual({ limit: 30, window: 60 });
     expect(RATE_LIMITS.ai).toEqual({ limit: 20, window: 60 });
     expect(RATE_LIMITS.voice).toEqual({ limit: 10, window: 60 });
     expect(RATE_LIMITS.meetings).toEqual({ limit: 60, window: 60 });
@@ -122,7 +122,7 @@ describe("checkRateLimit", () => {
       exec: vi.fn().mockResolvedValue([
         [null, 0],
         [null, 1],
-        [null, 6],  // 6 requests, exceeds auth limit of 5
+        [null, 31],  // 31 requests, exceeds auth limit of 30
         [null, 1],
       ]),
     };

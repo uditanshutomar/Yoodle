@@ -7,9 +7,16 @@ vi.mock("@/lib/infra/db/client", () => ({
   default: vi.fn().mockResolvedValue(undefined),
 }));
 
-const mockWaitlistFindOne = vi.fn();
 const mockWaitlistCreate = vi.fn();
 const mockWaitlistCountDocuments = vi.fn();
+
+// Store the resolved value so findOne().select().lean() chain works
+let findOneResult: unknown = null;
+const mockWaitlistFindOne = vi.fn(() => ({
+  select: vi.fn().mockReturnValue({
+    lean: vi.fn().mockImplementation(() => Promise.resolve(findOneResult)),
+  }),
+}));
 
 vi.mock("@/lib/infra/db/models/waitlist", () => ({
   default: {
@@ -42,7 +49,7 @@ describe("POST /api/waitlist", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     // Default: no duplicate, creation succeeds
-    mockWaitlistFindOne.mockResolvedValue(null);
+    findOneResult = null;
     mockWaitlistCreate.mockResolvedValue({
       _id: "waitlist-entry-123",
       email: "new@example.com",
@@ -103,10 +110,10 @@ describe("POST /api/waitlist", () => {
   });
 
   it("returns idempotent success when email already exists (duplicate)", async () => {
-    mockWaitlistFindOne.mockResolvedValue({
+    findOneResult = {
       _id: "existing-entry",
       email: "dupe@example.com",
-    });
+    };
 
     const req = createPostRequest({ email: "dupe@example.com" });
     const response = await POST(req);
@@ -119,10 +126,10 @@ describe("POST /api/waitlist", () => {
   });
 
   it("does NOT call Waitlist.create when email already exists", async () => {
-    mockWaitlistFindOne.mockResolvedValue({
+    findOneResult = {
       _id: "existing-entry",
       email: "dupe@example.com",
-    });
+    };
 
     const req = createPostRequest({ email: "dupe@example.com" });
     await POST(req);
@@ -182,7 +189,11 @@ describe("POST /api/waitlist", () => {
   });
 
   it("returns 500 when an unexpected error occurs", async () => {
-    mockWaitlistFindOne.mockRejectedValue(new Error("DB crashed"));
+    mockWaitlistFindOne.mockReturnValue({
+      select: vi.fn().mockReturnValue({
+        lean: vi.fn().mockRejectedValue(new Error("DB crashed")),
+      }),
+    });
 
     const req = createPostRequest({ email: "user@example.com" });
     const response = await POST(req);
@@ -199,8 +210,18 @@ describe("GET /api/waitlist", () => {
     mockWaitlistCountDocuments.mockResolvedValue(100);
   });
 
+  function createGetRequest() {
+    return new NextRequest("http://localhost:3000/api/waitlist", {
+      method: "GET",
+      headers: {
+        Origin: "http://localhost:3000",
+        Host: "localhost:3000",
+      },
+    });
+  }
+
   it("returns 200 with waitlist count", async () => {
-    const response = await GET();
+    const response = await GET(createGetRequest());
     const body = await response.json();
 
     expect(response.status).toBe(200);
@@ -211,7 +232,7 @@ describe("GET /api/waitlist", () => {
   it("returns 500 when countDocuments fails", async () => {
     mockWaitlistCountDocuments.mockRejectedValue(new Error("DB error"));
 
-    const response = await GET();
+    const response = await GET(createGetRequest());
     const body = await response.json();
 
     expect(response.status).toBe(500);
