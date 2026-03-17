@@ -3,18 +3,19 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import CalendarPanel from "./CalendarPanel";
-import TasksPanel from "./TasksPanel";
+import TasksBoardPanel from "./TasksBoardPanel";
 import MeetingHistory from "./MeetingHistory";
 import MeetingDetail from "./MeetingDetail";
+import TeamMap from "./TeamMap";
 import { MeetingRecord } from "./meetingsData";
 import { useAuth } from "@/hooks/useAuth";
 import { usePendingActions } from "@/hooks/usePendingActions";
 import { useRouter } from "next/navigation";
 import { useAIDrawer } from "@/components/ai/AIDrawer";
-import { Bot } from "lucide-react";
+import Image from "next/image";
 
 export default function Dashboard() {
-    const { user } = useAuth();
+    const { user, refreshSession } = useAuth();
     const router = useRouter();
     const aiDrawer = useAIDrawer();
     const [mode, setMode] = useState<"lockin" | "invisible" | "social">(
@@ -46,8 +47,10 @@ export default function Dashboard() {
             headers: { "Content-Type": "application/json" },
             credentials: "include",
             body: JSON.stringify({ mode: newMode }),
-        }).catch(() => {});
-    }, []);
+        })
+            .then(() => refreshSession())
+            .catch(() => {});
+    }, [refreshSession]);
 
     const [joinCode, setJoinCode] = useState("");
     const [greeting, setGreeting] = useState("");
@@ -190,37 +193,80 @@ export default function Dashboard() {
                     </div>
                 </div>
 
-                {/* -- AI Briefing Card -- */}
-                <motion.button
-                    onClick={() => aiDrawer.open()}
-                    whileHover={{ scale: 1.01 }}
-                    className="w-full text-left rounded-2xl border-2 border-[#FFE600] bg-[#FFE600]/5 px-5 py-4 transition-colors hover:bg-[#FFE600]/10"
-                >
-                    <div className="flex items-center gap-3 mb-2">
-                        <Bot size={18} className="text-[#FFE600]" />
-                        <span className="text-sm font-bold text-[var(--text-primary)]" style={{ fontFamily: "var(--font-heading)" }}>
-                            AI Briefing
-                        </span>
-                        <span className="text-[10px] text-[var(--text-muted)] ml-auto">Tap for details &rarr;</span>
+                {/* -- Calendar + Tasks/AI side-by-side -- */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-stretch">
+                    <div>
+                        <CalendarPanel />
                     </div>
-                    <p className="text-xs text-[var(--text-secondary)] leading-relaxed">
-                        Ask Doodle Poodle to summarize your day, prep for meetings, or check what&apos;s pending.
-                    </p>
-                </motion.button>
+                    <div className="flex flex-col gap-4">
+                        {/* Tasks Card */}
+                        <motion.div
+                            initial={{ y: 20, opacity: 0 }}
+                            animate={{ y: 0, opacity: 1 }}
+                            transition={{ delay: 0.25, type: "spring", stiffness: 200, damping: 25 }}
+                            className="flex-1 rounded-2xl border-2 border-[var(--border-strong)] bg-[var(--surface)] shadow-[4px_4px_0_var(--border-strong)] overflow-hidden"
+                        >
+                            <div className="h-full p-4">
+                                <TasksBoardPanel
+                                    pendingActions={pendingActions}
+                                    onConfirmAction={confirmAction}
+                                    onDenyAction={denyAction}
+                                    onReviseAction={reviseAction}
+                                />
+                            </div>
+                        </motion.div>
 
-                {/* -- Recent Meetings -- */}
+                        {/* AI Briefing Card */}
+                        <motion.div
+                            initial={{ y: 20, opacity: 0 }}
+                            animate={{ y: 0, opacity: 1 }}
+                            transition={{ delay: 0.3, type: "spring", stiffness: 200, damping: 25 }}
+                            className="flex-1 rounded-2xl border-2 border-[var(--border-strong)] bg-[var(--surface)] shadow-[4px_4px_0_var(--border-strong)] overflow-hidden cursor-pointer hover:shadow-[2px_2px_0_var(--border-strong)] hover:translate-x-[2px] hover:translate-y-[2px] transition-all"
+                            onClick={() => aiDrawer.open()}
+                        >
+                            <div className="h-full p-4 flex flex-col">
+                                <div className="flex items-center gap-2 mb-4">
+                                    <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[#FFE600] border-2 border-[var(--border-strong)] overflow-hidden">
+                                        <Image src={mode === "lockin" ? "/mascot-lockin.png" : mode === "invisible" ? "/mascot-invisible.png" : "/mascot-social.png"} alt="Yoodle" width={28} height={28} className="mix-blend-multiply object-cover" />
+                                    </div>
+                                    <div>
+                                        <span className="text-sm font-bold text-[var(--text-primary)] block" style={{ fontFamily: "var(--font-heading)" }}>
+                                            Doodle Poodle
+                                        </span>
+                                        <span className="text-[10px] text-[var(--text-muted)]">Your AI meeting buddy</span>
+                                    </div>
+                                    <span className="text-[10px] text-[var(--text-muted)] ml-auto font-medium" style={{ fontFamily: "var(--font-heading)" }}>⌘J &rarr;</span>
+                                </div>
+                                <div className="grid grid-cols-2 gap-2 flex-1">
+                                    {[
+                                        { label: "Summarize my day", icon: "M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" },
+                                        { label: "Prep for meeting", icon: "M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2M9 11a4 4 0 100-8 4 4 0 000 8M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75" },
+                                        { label: "Draft follow-up", icon: "M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2zM22 6l-10 7L2 6" },
+                                        { label: "What's pending?", icon: "M12 2a10 10 0 100 20 10 10 0 000-20zM12 6v6l4 2" },
+                                    ].map((item) => (
+                                        <div
+                                            key={item.label}
+                                            className="flex items-center gap-2 px-3 py-3 rounded-xl bg-[var(--surface-hover)] border border-[var(--border)] hover:border-[#FFE600] hover:bg-[#FFE600]/10 transition-colors group"
+                                        >
+                                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="text-[var(--text-muted)] group-hover:text-[#B8860B] transition-colors flex-shrink-0">
+                                                <path d={item.icon} />
+                                            </svg>
+                                            <span className="text-xs font-medium text-[var(--text-secondary)] group-hover:text-[var(--text-primary)] transition-colors" style={{ fontFamily: "var(--font-body)" }}>
+                                                {item.label}
+                                            </span>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        </motion.div>
+                    </div>
+                </div>
+
+                {/* -- Past Meetings -- */}
                 <MeetingHistory onSelectMeeting={(m) => setSelectedMeeting(m)} />
 
-                {/* -- Calendar + Tasks side-by-side -- */}
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                    <CalendarPanel />
-                    <TasksPanel
-                        pendingActions={pendingActions}
-                        onConfirmAction={confirmAction}
-                        onDenyAction={denyAction}
-                        onReviseAction={reviseAction}
-                    />
-                </div>
+                {/* -- Nearby Yoodlers Map -- */}
+                <TeamMap active={mode === "social"} />
 
             </div>
 
