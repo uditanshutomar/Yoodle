@@ -1064,6 +1064,41 @@ export const WORKSPACE_TOOLS: FunctionDeclarationsTool = {
         required: ["topic"],
       },
     },
+    // ── Memory ────────────────────────────────────────────────────
+    {
+      name: "remember_this",
+      description: "Store an explicit memory the user asked you to remember. Use when user says 'remember that...' or 'note that...'",
+      parameters: {
+        type: SchemaType.OBJECT,
+        properties: {
+          content: { type: SchemaType.STRING, description: "The fact or preference to remember" },
+          category: {
+            type: SchemaType.STRING,
+            format: "enum",
+            enum: ["preference", "context", "task", "relationship", "habit", "project", "workflow"],
+            description: "Category of memory",
+          },
+        },
+        required: ["content", "category"],
+      },
+    },
+    {
+      name: "recall_memory",
+      description: "Search the user's stored memories by topic. Use when user asks 'what do you remember about...' or when you need context about a project or preference.",
+      parameters: {
+        type: SchemaType.OBJECT,
+        properties: {
+          query: { type: SchemaType.STRING, description: "Search query to find relevant memories" },
+          category: {
+            type: SchemaType.STRING,
+            format: "enum",
+            enum: ["preference", "context", "task", "relationship", "habit", "project", "workflow"],
+            description: "Optional category filter",
+          },
+        },
+        required: ["query"],
+      },
+    },
   ],
 };
 
@@ -2375,6 +2410,83 @@ export async function executeWorkspaceTool(
         }
 
         return { success: true, summary: `Created ${createdTasks.length} tasks from meeting`, data: { tasks: createdTasks } };
+      }
+
+      // ── Memory ────────────────────────────────────────────────
+      case "remember_this": {
+        const memContent = args.content as string;
+        const memCategory = args.category as string;
+
+        if (!memContent || memContent.length > 2000) {
+          return { success: false, summary: "Content required, max 2000 chars" };
+        }
+
+        const memCount = await AIMemory.countDocuments({ userId: new mongoose.Types.ObjectId(userId) });
+        if (memCount >= 100) {
+          const toEvict = await AIMemory.findOne({
+            userId: new mongoose.Types.ObjectId(userId),
+            userExplicit: { $ne: true },
+          })
+            .sort({ confidence: 1, updatedAt: 1 })
+            .lean();
+          if (toEvict) await AIMemory.deleteOne({ _id: toEvict._id });
+        }
+
+        const DECAY_RATES: Record<string, number> = {
+          project: 0.2, workflow: 0.2, preference: 0.3,
+          relationship: 0.3, habit: 0.4, context: 0.5, task: 0.6,
+        };
+
+        await AIMemory.create({
+          userId: new mongoose.Types.ObjectId(userId),
+          category: memCategory,
+          content: memContent,
+          source: "explicit",
+          confidence: 0.9,
+          decayRate: DECAY_RATES[memCategory] ?? 0.5,
+          userExplicit: true,
+        });
+
+        return { success: true, summary: `Remembered: "${memContent.slice(0, 100)}..."` };
+      }
+
+      case "recall_memory": {
+        const recallQuery = args.query as string;
+        const recallCategory = args.category as string | undefined;
+
+        const memFilter: Record<string, unknown> = {
+          userId: new mongoose.Types.ObjectId(userId),
+          $or: [{ expiresAt: { $exists: false } }, { expiresAt: { $gt: new Date() } }],
+        };
+        if (recallCategory) memFilter.category = recallCategory;
+
+        const escapedQuery = recallQuery.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+        const memories = await AIMemory.find({
+          ...memFilter,
+          content: { $regex: escapedQuery, $options: "i" },
+        })
+          .sort({ confidence: -1 })
+          .limit(10)
+          .lean();
+
+        if (memories.length === 0) {
+          return { success: true, summary: "No memories found matching that query.", data: { memories: [] } };
+        }
+
+        return {
+          success: true,
+          summary: `Found ${memories.length} memory(ies) matching "${recallQuery}"`,
+          data: {
+            memories: memories.map((m) => ({
+              id: m._id.toString(),
+              category: m.category,
+              content: m.content,
+              confidence: m.confidence,
+              userExplicit: m.userExplicit ?? false,
+              createdAt: m.createdAt.toISOString(),
+            })),
+          },
+        };
       }
 
       default:
