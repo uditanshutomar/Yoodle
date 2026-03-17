@@ -1,6 +1,7 @@
 "use client";
 
 import { User, MessageSquare } from "lucide-react";
+import Image from "next/image";
 import { motion } from "framer-motion";
 import type { PersonCardData } from "./types";
 
@@ -17,9 +18,11 @@ export default function PersonCard({ data, onMessage }: PersonCardProps) {
       className="flex items-center gap-2.5 rounded-xl border border-[var(--border-default)] bg-[var(--surface-elevated)] px-3 py-2.5"
     >
       {data.avatar ? (
-        <img
+        <Image
           src={data.avatar}
           alt={data.name}
+          width={28}
+          height={28}
           className="h-7 w-7 shrink-0 rounded-full object-cover"
         />
       ) : (

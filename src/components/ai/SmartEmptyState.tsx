@@ -1,5 +1,6 @@
 "use client";
 
+import { useMemo } from "react";
 import { Sun, Moon, CloudSun } from "lucide-react";
 import Image from "next/image";
 import SuggestionChips from "./SuggestionChips";
@@ -34,23 +35,26 @@ export default function SmartEmptyState({ onSend, briefingMetadata }: SmartEmpty
   const { text: greeting, Icon: GreetingIcon } = getGreeting();
   const firstName = user?.displayName?.split(" ")[0] || user?.name?.split(" ")[0] || "";
 
-  const insights: Array<{ emoji: string; text: string; prompt: string }> = [];
-  if (briefingMetadata) {
+  const insights = useMemo(() => {
+    const items: Array<{ emoji: string; text: string; prompt: string }> = [];
+    if (!briefingMetadata) return items;
+
     if (briefingMetadata.boardOverdueCount && briefingMetadata.boardOverdueCount > 0) {
-      insights.push({ emoji: "\u26A0\uFE0F", text: `${briefingMetadata.boardOverdueCount} tasks overdue`, prompt: "Show me my overdue tasks" });
+      items.push({ emoji: "\u26A0\uFE0F", text: `${briefingMetadata.boardOverdueCount} tasks overdue`, prompt: "Show me my overdue tasks" });
     }
     if (briefingMetadata.nextMeetingTime) {
       const meetingDate = new Date(briefingMetadata.nextMeetingTime);
-      const diff = meetingDate.getTime() - Date.now();
+      const diff = meetingDate.getTime() - new Date().getTime();
       if (diff > 0 && diff < 2 * 60 * 60 * 1000) {
         const mins = Math.round(diff / 60000);
-        insights.push({ emoji: "\uD83D\uDCC5", text: `Meeting in ${mins} min`, prompt: "Prepare me for my next meeting" });
+        items.push({ emoji: "\uD83D\uDCC5", text: `Meeting in ${mins} min`, prompt: "Prepare me for my next meeting" });
       }
     }
     if (briefingMetadata.unreadCount && briefingMetadata.unreadCount > 0) {
-      insights.push({ emoji: "\uD83D\uDCAC", text: `${briefingMetadata.unreadCount} unread messages`, prompt: "Summarize my unread messages" });
+      items.push({ emoji: "\uD83D\uDCAC", text: `${briefingMetadata.unreadCount} unread messages`, prompt: "Summarize my unread messages" });
     }
-  }
+    return items;
+  }, [briefingMetadata]);
 
   return (
     <div className="flex flex-col items-center justify-center h-full px-6">
