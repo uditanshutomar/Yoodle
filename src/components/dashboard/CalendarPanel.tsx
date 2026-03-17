@@ -34,9 +34,12 @@ type CalEvent = {
     bgColor: string;
     location?: string;
     meetLink?: string;
+    htmlLink?: string;
     attendeeCount: number;
     isAllDay: boolean;
     fullDate: Date;
+    isTaskDeadline?: boolean;
+    isYoodleMeeting?: boolean;
 };
 
 interface YoodleUser {
@@ -184,9 +187,10 @@ function apiEventToCalEvent(event: APICalendarEvent, index: number, weekSunday: 
             id: event.id, title: event.title || "Untitled", time: "All day",
             dayIndex, startHour: 0, duration: 24,
             color: colorSet.color, bgColor: colorSet.bgColor,
-            location: event.location, meetLink: event.meetLink,
+            location: event.location, meetLink: event.meetLink, htmlLink: event.htmlLink,
             attendeeCount: event.attendees?.length || 0, isAllDay: true,
             fullDate: startDate,
+            isYoodleMeeting: !!(event.location?.includes("/meetings/") || event.description?.includes("Yoodle meeting")),
         };
     }
 
@@ -208,9 +212,10 @@ function apiEventToCalEvent(event: APICalendarEvent, index: number, weekSunday: 
         dayIndex, startHour: Math.max(startHour, GRID_START_HOUR),
         duration: Math.min(duration, GRID_END_HOUR - Math.max(startHour, GRID_START_HOUR)),
         color: colorSet.color, bgColor: colorSet.bgColor,
-        location: event.location, meetLink: event.meetLink,
+        location: event.location, meetLink: event.meetLink, htmlLink: event.htmlLink,
         attendeeCount: event.attendees?.length || 0, isAllDay: false,
         fullDate: startDate,
+        isYoodleMeeting: !!(event.location?.includes("/meetings/") || event.description?.includes("Yoodle meeting")),
     };
 }
 
@@ -229,21 +234,26 @@ function apiEventToMonthEvent(event: APICalendarEvent, index: number): CalEvent 
         time: isAllDay ? "All day" : `${formatHour(startHour)} – ${formatHour(startHour + duration)}`,
         dayIndex: startDate.getDay(), startHour, duration,
         color: colorSet.color, bgColor: colorSet.bgColor,
-        location: event.location, meetLink: event.meetLink,
+        location: event.location, meetLink: event.meetLink, htmlLink: event.htmlLink,
         attendeeCount: event.attendees?.length || 0, isAllDay,
         fullDate: startDate,
+        isYoodleMeeting: !!(event.location?.includes("/meetings/") || event.description?.includes("Yoodle meeting")),
     };
 }
 
 /* ─── EventDetailPopup ─── */
-function EventDetailPopup({ event, daysOfWeek, currentMonth, onClose }: {
+function EventDetailPopup({ event, daysOfWeek, currentMonth, onClose, onDelete }: {
     event: CalEvent;
     daysOfWeek: { day: string; date: number; fullDate: Date }[];
     currentMonth: string;
     onClose: () => void;
+    onDelete: (eventId: string) => void;
 }) {
+    const [confirmDelete, setConfirmDelete] = useState(false);
+    const [deleting, setDeleting] = useState(false);
     const dayInfo = daysOfWeek[event.dayIndex];
-    const yoodleLink = event.location?.includes("/meetings/join?code=") ? event.location : null;
+    const isYoodleUrl = (url?: string) => url?.match(/\/meetings\/(join\?code=|yoo-[a-z0-9]+-[a-z0-9]+\/room)/);
+    const yoodleLink = isYoodleUrl(event.location) ? event.location : isYoodleUrl(event.meetLink) ? event.meetLink : null;
     const meetLink = yoodleLink || event.meetLink;
 
     return (
@@ -297,18 +307,48 @@ function EventDetailPopup({ event, daysOfWeek, currentMonth, onClose }: {
                 )}
             </div>
 
-            {meetLink ? (
+            {meetLink && (
                 <a href={meetLink} target="_blank" rel="noopener noreferrer"
                     className="mt-4 flex items-center justify-center gap-2 rounded-xl bg-[#FFE600] px-4 py-2.5 text-xs font-bold text-[#0A0A0A] border-2 border-[#0A0A0A] shadow-[2px_2px_0_#0A0A0A] hover:shadow-[1px_1px_0_#0A0A0A] hover:translate-x-[1px] hover:translate-y-[1px] transition-all"
                     style={{ fontFamily: "var(--font-heading)" }}>
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polygon points="23 7 16 12 23 17 23 7" /><rect x="1" y="5" width="15" height="14" rx="2" ry="2" /></svg>
                     {yoodleLink ? "Join Yoodle" : "Join Meeting"}
                 </a>
-            ) : (
-                <div className="mt-4 flex items-center justify-center gap-2 rounded-xl bg-[var(--surface-hover)] px-4 py-2.5 text-xs font-semibold text-[var(--text-muted)]" style={{ fontFamily: "var(--font-heading)" }}>
-                    No meeting link
-                </div>
             )}
+
+            {/* Edit & Delete actions */}
+            <div className="mt-3 flex items-center gap-2">
+                {event.htmlLink && (
+                    <a href={event.htmlLink} target="_blank" rel="noopener noreferrer"
+                        className="flex-1 flex items-center justify-center gap-1.5 rounded-lg border border-[var(--border)] bg-[var(--surface-hover)] px-3 py-2 text-[11px] font-bold text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:border-[var(--border-strong)] transition-colors"
+                        style={{ fontFamily: "var(--font-heading)" }}>
+                        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                        Edit in Google
+                    </a>
+                )}
+                {confirmDelete ? (
+                    <div className="flex items-center gap-1.5">
+                        <button onClick={() => setConfirmDelete(false)} disabled={deleting}
+                            className="rounded-lg border border-[var(--border)] px-2.5 py-2 text-[11px] font-bold text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] transition-colors"
+                            style={{ fontFamily: "var(--font-heading)" }}>
+                            Cancel
+                        </button>
+                        <button onClick={async () => { setDeleting(true); await onDelete(event.id); }}
+                            disabled={deleting}
+                            className="rounded-lg bg-[#EF4444] px-2.5 py-2 text-[11px] font-bold text-white hover:bg-[#DC2626] transition-colors disabled:opacity-50"
+                            style={{ fontFamily: "var(--font-heading)" }}>
+                            {deleting ? "..." : "Confirm"}
+                        </button>
+                    </div>
+                ) : (
+                    <button onClick={() => setConfirmDelete(true)}
+                        className="flex items-center justify-center gap-1.5 rounded-lg border border-[var(--border)] px-3 py-2 text-[11px] font-bold text-[#EF4444]/70 hover:text-[#EF4444] hover:border-[#EF4444]/30 transition-colors"
+                        style={{ fontFamily: "var(--font-heading)" }}>
+                        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                        Delete
+                    </button>
+                )}
+            </div>
         </motion.div>
     );
 }
@@ -795,6 +835,7 @@ export default function CalendarPanel() {
     const [selectedEvent, setSelectedEvent] = useState<CalEvent | null>(null);
     const [events, setEvents] = useState<CalEvent[]>([]);
     const [monthEvents, setMonthEvents] = useState<CalEvent[]>([]);
+    const [taskDeadlines, setTaskDeadlines] = useState<CalEvent[]>([]);
     const [loading, setLoading] = useState(true);
     const [noGoogleAccess, setNoGoogleAccess] = useState(false);
     const [portalReady, setPortalReady] = useState(false);
@@ -882,7 +923,61 @@ export default function CalendarPanel() {
         }
     }, [weekOffset, view]);
 
-    useEffect(() => { fetchEvents(); }, [fetchEvents]);
+    const fetchTaskDeadlines = useCallback(async () => {
+        try {
+            const now = new Date();
+            let timeMin: Date, timeMax: Date;
+            if (view === "Month") {
+                const { gridStart, gridEnd } = getMonthData(weekOffset);
+                timeMin = gridStart;
+                timeMax = gridEnd;
+            } else {
+                const sunday = new Date(now);
+                sunday.setDate(now.getDate() - now.getDay() + weekOffset * 7);
+                sunday.setHours(0, 0, 0, 0);
+                timeMin = sunday;
+                timeMax = new Date(sunday);
+                timeMax.setDate(sunday.getDate() + 7);
+            }
+            const res = await fetch(
+                `/api/tasks/my?dueDateMin=${timeMin.toISOString()}&dueDateMax=${timeMax.toISOString()}&limit=50`,
+                { credentials: "include" }
+            );
+            if (!res.ok) return;
+            const data = await res.json();
+            const tasks = data.data || [];
+            const TASK_COLORS: Record<string, { color: string; bgColor: string }> = {
+                urgent: { color: "#EF4444", bgColor: "#FEE2E2" },
+                high: { color: "#F59E0B", bgColor: "#FEF3C7" },
+                medium: { color: "#6366F1", bgColor: "#EEF2FF" },
+                low: { color: "#22C55E", bgColor: "#DCFCE7" },
+                none: { color: "#6366F1", bgColor: "#EEF2FF" },
+            };
+            const deadlines: CalEvent[] = tasks
+                .filter((t: { dueDate?: string; completedAt?: string }) => t.dueDate && !t.completedAt)
+                .map((t: { _id: string; title: string; dueDate: string; priority?: string }) => {
+                    const dueDate = new Date(t.dueDate + (t.dueDate.includes("T") ? "" : "T00:00:00"));
+                    const colors = TASK_COLORS[t.priority || "none"] || TASK_COLORS.none;
+                    return {
+                        id: `task-${t._id}`,
+                        title: `📋 ${t.title}`,
+                        time: "Due",
+                        dayIndex: dueDate.getDay(),
+                        startHour: 0,
+                        duration: 24,
+                        color: colors.color,
+                        bgColor: colors.bgColor,
+                        attendeeCount: 0,
+                        isAllDay: true,
+                        fullDate: dueDate,
+                        isTaskDeadline: true,
+                    } as CalEvent;
+                });
+            setTaskDeadlines(deadlines);
+        } catch { /* ignore */ }
+    }, [weekOffset, view]);
+
+    useEffect(() => { fetchEvents(); fetchTaskDeadlines(); }, [fetchEvents, fetchTaskDeadlines]);
 
     /* ─── Navigation ─── */
     const handleNavPrev = useCallback(() => {
@@ -985,6 +1080,18 @@ export default function CalendarPanel() {
         finally { setQuickSaving(false); }
     }, [quickAdd, DAYS_OF_WEEK, fetchEvents]);
 
+    const handleDeleteEvent = useCallback(async (eventId: string) => {
+        try {
+            const res = await fetch(`/api/calendar/events?eventId=${encodeURIComponent(eventId)}`, {
+                method: "DELETE",
+                credentials: "include",
+            });
+            if (!res.ok) throw new Error("Failed to delete event");
+            setSelectedEvent(null);
+            await fetchEvents();
+        } catch { /* delete failed */ }
+    }, [fetchEvents]);
+
     const handleQuickMoreOptions = useCallback((title: string) => {
         if (!quickAdd) return;
         const dayDate = DAYS_OF_WEEK[quickAdd.dayIndex]?.fullDate;
@@ -1005,7 +1112,7 @@ export default function CalendarPanel() {
     }, []);
 
     /* ─── Computed event lists ─── */
-    const allDayEvents = useMemo(() => events.filter((e) => e.isAllDay), [events]);
+    const allDayEvents = useMemo(() => [...events.filter((e) => e.isAllDay), ...taskDeadlines], [events, taskDeadlines]);
     const timedEvents = useMemo(() => events.filter((e) => !e.isAllDay), [events]);
     const totalHours = GRID_END_HOUR - GRID_START_HOUR;
 
@@ -1264,7 +1371,7 @@ export default function CalendarPanel() {
 
                 {/* ── Views ── */}
                 {view === "Month" && (
-                    <MonthView weekOffset={weekOffset} events={monthEvents.length > 0 ? monthEvents : events} onDayClick={handleMonthDayClick} />
+                    <MonthView weekOffset={weekOffset} events={[...(monthEvents.length > 0 ? monthEvents : events), ...taskDeadlines]} onDayClick={handleMonthDayClick} />
                 )}
 
                 {view === "Day" && (() => {
@@ -1329,6 +1436,12 @@ export default function CalendarPanel() {
                                             className="absolute rounded-lg px-2 py-1.5 cursor-pointer overflow-hidden transition-all hover:shadow-md border"
                                             style={{ top: topOffset, height: Math.max(height, 26), left: `calc(56px + (${event.dayIndex} * ((100% - 60px) / 7)))`, width: `calc((100% - 60px) / 7 - 4px)`, backgroundColor: event.bgColor, borderColor: `${event.color}20`, borderLeft: `3px solid ${event.color}`, zIndex: 10 }}>
                                             <p className="text-[11px] font-bold truncate" style={{ color: event.color, fontFamily: "var(--font-heading)" }}>{event.title}</p>
+                                            {event.isYoodleMeeting && event.duration >= 0.5 && (
+                                                <span className="inline-flex items-center gap-0.5 text-[8px] text-[var(--text-muted)] mt-0.5">
+                                                    <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg>
+                                                    Yoodle
+                                                </span>
+                                            )}
                                             {event.duration >= 0.75 && <p className="text-[9px] text-[var(--text-secondary)] mt-0.5">{event.time}</p>}
                                             {event.attendeeCount > 0 && event.duration >= 1.25 && (
                                                 <p className="text-[8px] text-[var(--text-muted)] mt-0.5">{event.attendeeCount} attendee{event.attendeeCount > 1 ? "s" : ""}</p>
@@ -1369,7 +1482,7 @@ export default function CalendarPanel() {
                 {/* Event detail popup */}
                 <AnimatePresence>
                     {selectedEvent && (
-                        <EventDetailPopup event={selectedEvent} daysOfWeek={DAYS_OF_WEEK} currentMonth={CURRENT_MONTH} onClose={() => setSelectedEvent(null)} />
+                        <EventDetailPopup event={selectedEvent} daysOfWeek={DAYS_OF_WEEK} currentMonth={CURRENT_MONTH} onClose={() => setSelectedEvent(null)} onDelete={handleDeleteEvent} />
                     )}
                 </AnimatePresence>
             </motion.div>

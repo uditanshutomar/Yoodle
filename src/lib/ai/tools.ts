@@ -21,6 +21,7 @@ import { readSheet, writeSheet, appendToSheet, createSpreadsheet, clearSheetRang
 import connectDB from "@/lib/infra/db/client";
 import AIMemory from "@/lib/infra/db/models/ai-memory";
 import Meeting from "@/lib/infra/db/models/meeting";
+import User from "@/lib/infra/db/models/user";
 import { generateMeetingCode } from "@/lib/utils/id";
 import mongoose from "mongoose";
 import { createLogger } from "@/lib/infra/logger";
@@ -222,6 +223,12 @@ export const WORKSPACE_TOOLS: FunctionDeclarationsTool = {
             type: SchemaType.STRING,
             description:
               "IANA time zone for the event (e.g. 'America/New_York', 'Asia/Kolkata'). Defaults to the user's system time zone.",
+          },
+          recurrence: {
+            type: SchemaType.ARRAY,
+            items: { type: SchemaType.STRING },
+            description:
+              "RFC 5545 recurrence rules (optional). E.g. ['RRULE:FREQ=WEEKLY;BYDAY=MO,WE,FR'], ['RRULE:FREQ=DAILY;COUNT=5'], ['RRULE:FREQ=MONTHLY;BYMONTHDAY=15'].",
           },
         },
         required: ["title", "start", "end"],
@@ -1008,6 +1015,31 @@ export async function executeWorkspaceTool(
 
       // ── Calendar ─────────────────────────────────────────────
       case "create_calendar_event": {
+        // Resolve timezone: prefer AI-provided, fallback to user's profile, then UTC
+        let tz = args.timeZone as string | undefined;
+        if (!tz) {
+          try {
+            await connectDB();
+            const user = await User.findById(userId).select("timezone").lean();
+            tz = (user as { timezone?: string } | null)?.timezone || undefined;
+          } catch { /* fallback to UTC */ }
+        }
+        // Check for scheduling conflicts
+        let conflictWarning = "";
+        try {
+          const conflictEvents = await listEvents(userId, {
+            timeMin: args.start as string,
+            timeMax: args.end as string,
+            maxResults: 5,
+          });
+          if (conflictEvents.length > 0) {
+            const conflictList = conflictEvents
+              .map((e) => `"${e.title}" (${new Date(e.start).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}–${new Date(e.end).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })})`)
+              .join(", ");
+            conflictWarning = ` ⚠️ Overlaps with: ${conflictList}`;
+          }
+        } catch { /* conflict check is best-effort */ }
+
         const event = await createEvent(userId, {
           title: args.title as string,
           start: args.start as string,
@@ -1016,7 +1048,8 @@ export async function executeWorkspaceTool(
           attendees: args.attendees as string[] | undefined,
           location: args.location as string | undefined,
           addMeetLink: args.addMeetLink as boolean | undefined,
-          timeZone: args.timeZone as string | undefined,
+          timeZone: tz,
+          recurrence: args.recurrence as string[] | undefined,
         });
         const attendeeEmails = (event.attendees ?? []).map((a) => a.email).filter(Boolean);
         const attendeeStr =
@@ -1025,7 +1058,7 @@ export async function executeWorkspaceTool(
             : "";
         return {
           success: true,
-          summary: `Created event "${event.title}" at ${event.start}${attendeeStr}${event.meetLink ? " (with Meet link)" : ""}`,
+          summary: `Created event "${event.title}" at ${event.start}${attendeeStr}${event.meetLink ? " (with Meet link)" : ""}${conflictWarning}`,
           data: {
             id: event.id,
             title: event.title,
@@ -1059,6 +1092,15 @@ export async function executeWorkspaceTool(
       }
 
       case "update_calendar_event": {
+        // Resolve timezone for update too
+        let updateTz = args.timeZone as string | undefined;
+        if (!updateTz && (args.start || args.end)) {
+          try {
+            await connectDB();
+            const user = await User.findById(userId).select("timezone").lean();
+            updateTz = (user as { timezone?: string } | null)?.timezone || undefined;
+          } catch { /* fallback to UTC */ }
+        }
         const updated = await updateEvent(
           userId,
           args.eventId as string,
@@ -1069,7 +1111,7 @@ export async function executeWorkspaceTool(
             description: args.description as string | undefined,
             attendees: args.attendees as string[] | undefined,
             location: args.location as string | undefined,
-            timeZone: args.timeZone as string | undefined,
+            timeZone: updateTz,
           }
         );
         return {
