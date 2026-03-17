@@ -165,7 +165,7 @@ export const POST = withHandler(async (req: NextRequest, context) => {
   const mentionsDoodle = content.toLowerCase().includes("@doodle");
   if (mentionsDoodle || conversation.participants.some((p: { agentEnabled?: boolean }) => p.agentEnabled)) {
     import("@/lib/chat/agent-processor").then(({ processAgentResponses }) => {
-      processAgentResponses(id, { senderId: userId, content }).catch(() => {});
+      processAgentResponses(id, { senderId: userId, content, senderType: "user" }).catch(() => {});
     }).catch(() => {});
   }
 

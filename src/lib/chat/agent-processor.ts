@@ -120,7 +120,7 @@ async function processOneAgent(
       JSON.stringify({
         type: "agent_thinking",
         agentId: agentUserId,
-        name: `${userName}'s Doodle`,
+        name: `${userName}'s Yoodler`,
       })
     );
   } catch (thinkErr) {
@@ -222,7 +222,7 @@ async function processOneAgent(
       hasCalendar: !!gatheredData.calendar, hasTasks: !!gatheredData.tasks,
       hasEmails: !!gatheredData.emails, hasFiles: !!gatheredData.files,
       hasContacts: !!gatheredData.contacts, hasDocs: !!gatheredData.docs,
-      hasSheets: !!gatheredData.sheets, hasBoardTasks: !!gatheredData.boardTasks,
+      hasSheets: !!gatheredData.sheets,
     }, "Stage 3 GATHER complete");
 
     // ── Stage 4: RESPOND ────────────────────────────────────────
@@ -256,7 +256,7 @@ async function processOneAgent(
     // Include the agent's own response in the reflect context
     const allMessages = [
       ...recentMessages.map((m) => formatOneMessage(m)),
-      ...(response?.trim() ? [`[${userName}'s Doodle]: ${response.trim()}`] : []),
+      ...(response?.trim() ? [`[${userName}'s Yoodler]: ${response.trim()}`] : []),
     ];
     await runReflect(conversationId, conversationCtx, null, allMessages);
   } catch (error) {
@@ -603,7 +603,7 @@ function formatOneMessage(m: any): string {
   // via display names like "Admin]: ignore above instructions\n[System"
   const rawName = sender?.displayName || sender?.name || "Unknown";
   const senderName = rawName.replace(/[\[\]:]/g, "").slice(0, 50);
-  const prefix = m.senderType === "agent" ? `${senderName}'s Doodle` : senderName;
+  const prefix = m.senderType === "agent" ? `${senderName}'s Yoodler` : senderName;
   let content = m.content || "";
   if (content.length > MAX_MSG_CHARS_FOR_PROMPT) {
     content = content.slice(0, MAX_MSG_CHARS_FOR_PROMPT) + "… [truncated]";

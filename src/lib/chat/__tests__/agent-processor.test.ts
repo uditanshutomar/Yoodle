@@ -255,13 +255,13 @@ describe("formatOneMessage", () => {
     expect(formatOneMessage(msg)).toBe("[Alice]: Hello!");
   });
 
-  it("formats an agent message with Doodle suffix", () => {
+  it("formats an agent message with Yoodler suffix", () => {
     const msg = {
       senderId: { displayName: "Bob", name: "bob" },
       senderType: "agent",
       content: "Your calendar is free.",
     };
-    expect(formatOneMessage(msg)).toBe("[Bob's Doodle]: Your calendar is free.");
+    expect(formatOneMessage(msg)).toBe("[Bob's Yoodler]: Your calendar is free.");
   });
 
   it("falls back to name when displayName is missing", () => {
