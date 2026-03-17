@@ -47,18 +47,22 @@ function hasSnapshotChanged(
   if (!prev) return true;
   if (prev.unreadCount !== curr.unreadCount) return true;
   if (prev.nextMeetingId !== curr.nextMeetingId) return true;
-  // Skip comparison when either snapshot has null (API call failed) —
-  // don't trigger a false-positive diff from a transient API failure.
-  if (prev.overdueTaskCount !== null && curr.overdueTaskCount !== null &&
-      prev.overdueTaskCount !== curr.overdueTaskCount) return true;
+  // Board tasks (replaces Google Tasks diff)
+  if (prev.boardOverdueCount !== null && curr.boardOverdueCount !== null &&
+      prev.boardOverdueCount !== curr.boardOverdueCount) return true;
+  if (prev.boardTaskCount !== null && curr.boardTaskCount !== null &&
+      prev.boardTaskCount !== curr.boardTaskCount) return true;
   if (prev.emailIds !== null && curr.emailIds !== null) {
     if (prev.emailIds.length !== curr.emailIds.length) return true;
     if (prev.emailIds.some((id, i) => curr.emailIds![i] !== id)) return true;
   }
-  if (prev.taskIds !== null && curr.taskIds !== null) {
-    if (prev.taskIds.length !== curr.taskIds.length) return true;
-    if (prev.taskIds.some((id, i) => curr.taskIds![i] !== id)) return true;
+  if (prev.boardTaskIds !== null && curr.boardTaskIds !== null) {
+    if (prev.boardTaskIds.length !== curr.boardTaskIds.length) return true;
+    if (prev.boardTaskIds.some((id, i) => curr.boardTaskIds![i] !== id)) return true;
   }
+  // Meeting actions changed
+  if (prev.unresolvedMeetingActions !== null && curr.unresolvedMeetingActions !== null &&
+      prev.unresolvedMeetingActions !== curr.unresolvedMeetingActions) return true;
   return false;
 }
 
@@ -120,7 +124,7 @@ export const POST = withHandler(async (req: NextRequest) => {
     metadata: {
       unreadCount: snapshot.unreadCount,
       nextMeetingTime: snapshot.nextMeetingTime,
-      overdueTaskCount: snapshot.overdueTaskCount,
+      boardOverdueCount: snapshot.boardOverdueCount,
     },
   });
 });

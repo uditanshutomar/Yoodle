@@ -1,8 +1,8 @@
 import { hasGoogleAccess } from "./client";
 import { listEmails, getUnreadCount } from "./gmail";
 import { listEvents } from "./calendar";
-import { listTasks } from "./tasks";
 import { listFiles } from "./drive";
+import { buildBoardContext, buildMeetingContext, buildConversationContextSummary } from "@/lib/board/context";
 
 /**
  * Escape XML-significant characters to prevent prompt injection
@@ -29,8 +29,13 @@ export interface WorkspaceSnapshot {
   emailIds: string[] | null;
   nextMeetingId: string | null;
   nextMeetingTime: string | null;
-  overdueTaskCount: number | null;
-  taskIds: string[] | null;
+  // Board tasks (replaces Google Tasks)
+  boardTaskCount: number | null;
+  boardOverdueCount: number | null;
+  boardTaskIds: string[] | null;
+  // Meeting + conversation awareness
+  unresolvedMeetingActions: number | null;
+  activeConversationThreads: number | null;
   timestamp: number;
 }
 
@@ -54,8 +59,11 @@ export async function buildWorkspaceContext(
       emailIds: null,
       nextMeetingId: null,
       nextMeetingTime: null,
-      overdueTaskCount: null,
-      taskIds: null,
+      boardTaskCount: null,
+      boardOverdueCount: null,
+      boardTaskIds: null,
+      unresolvedMeetingActions: null,
+      activeConversationThreads: null,
       timestamp: Date.now(),
     },
   };
@@ -65,13 +73,15 @@ export async function buildWorkspaceContext(
 
   const parts: string[] = [];
 
-  const [emailResult, calendarResult, tasksResult, driveResult, unreadResult] =
+  const [emailResult, calendarResult, boardResult, driveResult, unreadResult, meetingResult, conversationResult] =
     await Promise.allSettled([
       listEmails(userId, { maxResults: 10 }),
       listEvents(userId, { maxResults: 10 }),
-      listTasks(userId, "@default", { maxResults: 10 }),
+      buildBoardContext(userId),
       listFiles(userId, { maxResults: 5, orderBy: "modifiedTime desc" }),
       getUnreadCount(userId),
+      buildMeetingContext(userId),
+      buildConversationContextSummary(userId),
     ]);
 
   const snapshot: WorkspaceSnapshot = {
@@ -79,11 +89,14 @@ export async function buildWorkspaceContext(
     emailIds:
       emailResult.status === "fulfilled"
         ? emailResult.value.map((e) => e.id).filter((id): id is string => !!id)
-        : null, // null = API call failed, distinct from [] = no emails
+        : null,
     nextMeetingId: null,
     nextMeetingTime: null,
-    overdueTaskCount: null, // set below if tasks API succeeds
-    taskIds: null,          // set below if tasks API succeeds
+    boardTaskCount: boardResult.status === "fulfilled" ? boardResult.value.taskCount : null,
+    boardOverdueCount: boardResult.status === "fulfilled" ? boardResult.value.overdueCount : null,
+    boardTaskIds: boardResult.status === "fulfilled" ? boardResult.value.taskIds : null,
+    unresolvedMeetingActions: meetingResult.status === "fulfilled" ? meetingResult.value.unresolvedActions : null,
+    activeConversationThreads: conversationResult.status === "fulfilled" ? conversationResult.value.activeThreadCount : null,
     timestamp: Date.now(),
   };
 
@@ -135,23 +148,19 @@ export async function buildWorkspaceContext(
     parts.push(`Upcoming calendar events:\n${eventSummaries}`);
   }
 
-  if (tasksResult.status === "fulfilled" && tasksResult.value.length > 0) {
-    const now = new Date();
-    let overdueCount = 0;
-    snapshot.taskIds = tasksResult.value.map((t) => t.id).filter(Boolean);
+  // Board tasks (replaces Google Tasks)
+  if (boardResult.status === "fulfilled" && boardResult.value.contextXml) {
+    parts.push(boardResult.value.contextXml);
+  }
 
-    const taskSummaries = tasksResult.value
-      .map((t) => {
-        const isOverdue = t.due && new Date(t.due) < now && t.status !== "completed";
-        if (isOverdue) overdueCount++;
-        const overdueTag = isOverdue ? " **[OVERDUE]**" : "";
-        return `  - [id:${t.id}] ${escapeXml(t.title)}${t.due ? ` (due: ${t.due})` : ""}${
-          t.notes ? ` — ${escapeXml(t.notes)}` : ""
-        }${overdueTag}`;
-      })
-      .join("\n");
-    snapshot.overdueTaskCount = overdueCount;
-    parts.push(`Pending Google Tasks:\n${taskSummaries}`);
+  // Meeting context
+  if (meetingResult.status === "fulfilled" && meetingResult.value.contextXml) {
+    parts.push(meetingResult.value.contextXml);
+  }
+
+  // Conversation context
+  if (conversationResult.status === "fulfilled" && conversationResult.value.contextXml) {
+    parts.push(conversationResult.value.contextXml);
   }
 
   if (driveResult.status === "fulfilled" && driveResult.value.length > 0) {
