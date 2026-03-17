@@ -323,7 +323,48 @@ async function fetchCalendar(userId: string, timezone?: string): Promise<string>
       }
     }
 
-    return `Calendar (next 3 days):\n${formatted.join("\n")}${freeSlots}`;
+    // ── Proactive Meeting Prep Alert ──────────────────────────────
+    const thirtyMinFromNow = new Date(Date.now() + 30 * 60 * 1000);
+    const upcomingMeeting = events.find(e => {
+      const start = safeDate(e.start);
+      return start && start > now && start <= thirtyMinFromNow;
+    });
+
+    let meetingPrepNote = "";
+    if (upcomingMeeting) {
+      const minutesUntil = Math.round((new Date(upcomingMeeting.start).getTime() - now.getTime()) / 60000);
+      const isYoodle = upcomingMeeting.location?.includes("/meetings/");
+
+      meetingPrepNote = `\n\n💡 Meeting Prep: "${upcomingMeeting.title}" starts in ${minutesUntil} min`;
+
+      if (isYoodle) {
+        // Try to find linked Yoodle meeting and its tasks
+        try {
+          const Meeting = (await import("@/lib/infra/db/models/meeting")).default;
+          const MeetingTask = (await import("@/lib/infra/db/models/task")).default;
+          await (await import("@/lib/infra/db/client")).default();
+
+          // Extract meeting code from URL
+          const codeMatch = upcomingMeeting.location?.match(/yoo-[a-z0-9]+-[a-z0-9]+/);
+          if (codeMatch) {
+            const meeting = await Meeting.findOne({ code: codeMatch[0] }).select("_id").lean();
+            if (meeting) {
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              const tasks = await (MeetingTask as any).find({ meetingId: meeting._id }).select("title status completedAt").lean();
+              if (tasks.length > 0) {
+                const done = tasks.filter((t: { completedAt?: Date | null }) => t.completedAt).length;
+                const pending = tasks.length - done;
+                meetingPrepNote += `\n  Linked tasks: ${done} done, ${pending} pending`;
+              }
+            }
+          }
+        } catch { /* best effort */ }
+
+        meetingPrepNote += `\n  Join: ${upcomingMeeting.location}`;
+      }
+    }
+
+    return `Calendar (next 3 days):\n${formatted.join("\n")}${freeSlots}${meetingPrepNote}`;
   } catch (error) {
     log.warn({ error, userId }, "Failed to fetch calendar for agent");
     return "Calendar: Unable to access (Google account may not be connected).";

@@ -18,12 +18,14 @@ export interface CalendarEvent {
 export interface CreateEventOptions {
   title: string;
   description?: string;
-  start: string; // ISO 8601
-  end: string; // ISO 8601
+  start: string; // ISO 8601 datetime or YYYY-MM-DD for all-day events
+  end: string; // ISO 8601 datetime or YYYY-MM-DD for all-day events
   location?: string;
   attendees?: string[];
   addMeetLink?: boolean;
   timeZone?: string;
+  allDay?: boolean;
+  recurrence?: string[]; // RRULE strings, e.g. ["RRULE:FREQ=WEEKLY;BYDAY=MO;COUNT=10"]
 }
 
 /**
@@ -63,6 +65,9 @@ export async function createEvent(
 
   const timeZone = options.timeZone || "UTC";
 
+  // Detect all-day events: either explicitly flagged or date-only strings (YYYY-MM-DD)
+  const isAllDay = options.allDay || (/^\d{4}-\d{2}-\d{2}$/.test(options.start) && /^\d{4}-\d{2}-\d{2}$/.test(options.end));
+
   const res = await calendar.events.insert({
     calendarId: "primary",
     conferenceDataVersion: options.addMeetLink ? 1 : 0,
@@ -70,15 +75,14 @@ export async function createEvent(
       summary: options.title,
       description: options.description,
       location: options.location,
-      start: {
-        dateTime: options.start,
-        timeZone,
-      },
-      end: {
-        dateTime: options.end,
-        timeZone,
-      },
+      start: isAllDay
+        ? { date: options.start }
+        : { dateTime: options.start, timeZone },
+      end: isAllDay
+        ? { date: options.end }
+        : { dateTime: options.end, timeZone },
       attendees: options.attendees?.map((email) => ({ email })),
+      recurrence: options.recurrence,
       conferenceData: options.addMeetLink
         ? {
             createRequest: {
@@ -123,6 +127,23 @@ export async function updateEvent(
     calendarId: "primary",
     eventId,
     requestBody,
+  });
+
+  return formatEvent(res.data);
+}
+
+/**
+ * Get a single calendar event by ID.
+ */
+export async function getEvent(
+  userId: string,
+  eventId: string
+): Promise<CalendarEvent> {
+  const { calendar } = await getGoogleServices(userId);
+
+  const res = await calendar.events.get({
+    calendarId: "primary",
+    eventId,
   });
 
   return formatEvent(res.data);

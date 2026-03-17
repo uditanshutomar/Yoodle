@@ -146,6 +146,36 @@ export async function buildWorkspaceContext(
       })
       .join("\n");
     parts.push(`Upcoming calendar events:\n${eventSummaries}`);
+
+    // ── Proactive Meeting Prep for next meeting ──────────────────
+    if (firstFutureEvent) {
+      const minutesUntil = Math.round((new Date(firstFutureEvent.start).getTime() - now) / 60000);
+      const isYoodle = firstFutureEvent.location?.includes("/meetings/");
+
+      if (minutesUntil <= 30 && isYoodle) {
+        try {
+          const { default: connectDB } = await import("@/lib/infra/db/client");
+          const { default: MeetingModel } = await import("@/lib/infra/db/models/meeting");
+          const { default: TaskModel } = await import("@/lib/infra/db/models/task");
+          await connectDB();
+
+          const codeMatch = firstFutureEvent.location?.match(/yoo-[a-z0-9]+-[a-z0-9]+/);
+          if (codeMatch) {
+            const meeting = await MeetingModel.findOne({ code: codeMatch[0] }).select("_id").lean();
+            if (meeting) {
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              const tasks = await (TaskModel as any).find({ meetingId: (meeting as { _id: unknown })._id }).select("title status completedAt").lean();
+              if (tasks.length > 0) {
+                const done = tasks.filter((t: { completedAt?: Date | null }) => t.completedAt).length;
+                const inProgress = tasks.filter((t: { completedAt?: Date | null; status?: string }) => !t.completedAt && t.status === "in_progress").length;
+                const pending = tasks.length - done - inProgress;
+                parts.push(`Meeting Prep: "${escapeXml(firstFutureEvent.title)}" starts in ${minutesUntil} min\n  Linked tasks: ${done} done, ${inProgress} in progress, ${pending} pending\n  Join: ${escapeXml(firstFutureEvent.location || "")}`);
+              }
+            }
+          }
+        } catch { /* best effort — don't break briefing if this fails */ }
+      }
+    }
   }
 
   // Board tasks (replaces Google Tasks)

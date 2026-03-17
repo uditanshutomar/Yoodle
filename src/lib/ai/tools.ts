@@ -4,7 +4,7 @@ import {
   SchemaType,
 } from "@google/generative-ai";
 import { sendEmail, searchEmails, modifyEmailLabels, listEmails, getUnreadCount, getEmail, replyToEmail } from "@/lib/google/gmail";
-import { createEvent, listEvents, updateEvent, deleteEvent } from "@/lib/google/calendar";
+import { createEvent, listEvents, updateEvent, deleteEvent, getEvent } from "@/lib/google/calendar";
 import {
   createBoardTask, updateBoardTask, moveBoardTask,
   assignBoardTask, deleteBoardTask, listBoardTasks, searchBoardTasks,
@@ -318,6 +318,36 @@ export const WORKSPACE_TOOLS: FunctionDeclarationsTool = {
         required: ["eventId"],
       },
     },
+    {
+      name: "share_calendar_event",
+      description:
+        "Share a specific calendar event as a rich card in the conversation. Use when a user asks about a specific event or when presenting event details.",
+      parameters: {
+        type: SchemaType.OBJECT,
+        properties: {
+          eventId: {
+            type: SchemaType.STRING,
+            description: "The Google Calendar event ID to share.",
+          },
+        },
+        required: ["eventId"],
+      },
+    },
+    {
+      name: "get_calendar_event",
+      description:
+        "Retrieve details of a specific calendar event by ID. Use when you need to look up or reason about a particular event.",
+      parameters: {
+        type: SchemaType.OBJECT,
+        properties: {
+          eventId: {
+            type: SchemaType.STRING,
+            description: "The Google Calendar event ID to retrieve.",
+          },
+        },
+        required: ["eventId"],
+      },
+    },
 
     {
       name: "create_focus_block",
@@ -350,6 +380,43 @@ export const WORKSPACE_TOOLS: FunctionDeclarationsTool = {
           workHoursEnd: { type: SchemaType.NUMBER, description: "Work hours end in 24h format (default 18)." },
         },
         required: ["userEmails"],
+      },
+    },
+
+    {
+      name: "propose_meeting_times",
+      description:
+        "Propose multiple time slots for a group meeting and format them for team members to choose from. Use after finding free slots with find_mutual_free_slots, or when manually proposing times. The AI should present the slots clearly so users can pick their preferred option.",
+      parameters: {
+        type: SchemaType.OBJECT,
+        properties: {
+          title: {
+            type: SchemaType.STRING,
+            description: "Meeting title.",
+          },
+          slots: {
+            type: SchemaType.ARRAY,
+            items: {
+              type: SchemaType.OBJECT,
+              properties: {
+                start: { type: SchemaType.STRING, description: "Slot start time in ISO 8601 format." },
+                end: { type: SchemaType.STRING, description: "Slot end time in ISO 8601 format." },
+              },
+              required: ["start", "end"],
+            },
+            description: "Proposed time slots.",
+          },
+          durationMinutes: {
+            type: SchemaType.NUMBER,
+            description: "Meeting duration in minutes.",
+          },
+          attendeeEmails: {
+            type: SchemaType.ARRAY,
+            items: { type: SchemaType.STRING },
+            description: "Who should attend (optional).",
+          },
+        },
+        required: ["title", "slots", "durationMinutes"],
       },
     },
 
@@ -865,8 +932,34 @@ export const WORKSPACE_TOOLS: FunctionDeclarationsTool = {
             description:
               "Whether to also create a Google Calendar event with the Yoodle link. Default: true.",
           },
+          createAgendaDoc: {
+            type: SchemaType.BOOLEAN,
+            description:
+              "If true, creates a Google Doc for the meeting agenda and links it to the calendar event and meeting description.",
+          },
         },
         required: ["title"],
+      },
+    },
+    {
+      name: "create_meeting_agenda",
+      description:
+        "Create a Google Doc agenda for an existing meeting and link it to the calendar event. Use when user wants to prepare an agenda for a scheduled meeting.",
+      parameters: {
+        type: SchemaType.OBJECT,
+        properties: {
+          meetingId: {
+            type: SchemaType.STRING,
+            description: "The ID of the existing Yoodle meeting.",
+          },
+          agendaTopics: {
+            type: SchemaType.ARRAY,
+            items: { type: SchemaType.STRING },
+            description:
+              "Optional list of agenda topics to pre-populate the doc with.",
+          },
+        },
+        required: ["meetingId"],
       },
     },
 
@@ -1166,6 +1259,60 @@ export async function executeWorkspaceTool(
         return {
           success: true,
           summary: `Deleted calendar event ${args.eventId}`,
+        };
+      }
+
+      case "share_calendar_event": {
+        const shareEventId = args.eventId as string;
+        if (!shareEventId) return { success: false, summary: "Event ID is required." };
+
+        const shareEvent = await getEvent(userId, shareEventId);
+        if (!shareEvent) return { success: false, summary: "Event not found." };
+
+        const attendeeList = shareEvent.attendees?.length
+          ? shareEvent.attendees.map(a => `${a.name || a.email} (${a.responseStatus})`).join(", ")
+          : "No attendees";
+
+        return {
+          success: true,
+          summary: `📅 **${shareEvent.title}**\n⏰ ${shareEvent.start} → ${shareEvent.end}\n📍 ${shareEvent.location || "No location"}\n👥 ${attendeeList}${shareEvent.meetLink ? `\n🔗 ${shareEvent.meetLink}` : ""}`,
+          data: {
+            id: shareEvent.id,
+            title: shareEvent.title,
+            start: shareEvent.start,
+            end: shareEvent.end,
+            location: shareEvent.location,
+            attendees: shareEvent.attendees,
+            meetLink: shareEvent.meetLink,
+            htmlLink: shareEvent.htmlLink,
+          },
+        };
+      }
+
+      case "get_calendar_event": {
+        const getEventId = args.eventId as string;
+        if (!getEventId) return { success: false, summary: "Event ID is required." };
+
+        const calEvent = await getEvent(userId, getEventId);
+        if (!calEvent) return { success: false, summary: "Event not found." };
+
+        const calAttendeeList = calEvent.attendees?.length
+          ? calEvent.attendees.map(a => `${a.name || a.email} (${a.responseStatus})`).join(", ")
+          : "No attendees";
+
+        return {
+          success: true,
+          summary: `📅 **${calEvent.title}**\n⏰ ${calEvent.start} → ${calEvent.end}\n📍 ${calEvent.location || "No location"}\n👥 ${calAttendeeList}${calEvent.meetLink ? `\n🔗 ${calEvent.meetLink}` : ""}`,
+          data: {
+            id: calEvent.id,
+            title: calEvent.title,
+            start: calEvent.start,
+            end: calEvent.end,
+            location: calEvent.location,
+            attendees: calEvent.attendees,
+            meetLink: calEvent.meetLink,
+            htmlLink: calEvent.htmlLink,
+          },
         };
       }
 
@@ -1642,6 +1789,24 @@ export async function executeWorkspaceTool(
           }
         }
 
+        // Optionally create a Google Doc agenda and link it
+        let agendaDocUrl: string | undefined;
+        if (args.createAgendaDoc) {
+          try {
+            const doc = await createGoogleDoc(userId, `📋 Agenda: ${title}`);
+            if (doc?.webViewLink) {
+              agendaDocUrl = doc.webViewLink;
+              // Update calendar event description to include agenda link
+              if (calendarEventId) {
+                const updatedDesc = `Join Yoodle meeting: ${yoodleLink}\n\n📋 Meeting Agenda: ${doc.webViewLink}`;
+                await updateEvent(userId, calendarEventId, { description: updatedDesc });
+              }
+            }
+          } catch (agendaErr) {
+            log.warn({ err: agendaErr }, "failed to create agenda doc for yoodle meeting");
+          }
+        }
+
         // Send invite email if attendees provided
         let emailSent = false;
         if (attendeeEmails.length > 0) {
@@ -1649,7 +1814,7 @@ export async function executeWorkspaceTool(
             await sendEmail(userId, {
               to: attendeeEmails,
               subject: `Meeting invite: ${title}`,
-              body: `You're invited to a Yoodle meeting!\n\nTitle: ${title}\n${scheduledAt ? `When: ${new Date(scheduledAt).toLocaleString()}\n` : ""}Join here: ${yoodleLink}\n\nSee you there!`,
+              body: `You're invited to a Yoodle meeting!\n\nTitle: ${title}\n${scheduledAt ? `When: ${new Date(scheduledAt).toLocaleString()}\n` : ""}Join here: ${yoodleLink}${agendaDocUrl ? `\n\n📋 Meeting Agenda: ${agendaDocUrl}` : ""}\n\nSee you there!`,
             });
             emailSent = true;
           } catch (emailErr) {
@@ -1660,7 +1825,7 @@ export async function executeWorkspaceTool(
         const attendeeStr = attendeeEmails.length > 0 ? ` — invited ${attendeeEmails.join(", ")}` : "";
         return {
           success: true,
-          summary: `Created Yoodle meeting "${title}"${attendeeStr}${calendarEventId ? " + added to calendar" : ""}${emailSent ? " + email sent" : ""}`,
+          summary: `Created Yoodle meeting "${title}"${attendeeStr}${calendarEventId ? " + added to calendar" : ""}${emailSent ? " + email sent" : ""}${agendaDocUrl ? " + agenda doc created" : ""}`,
           data: {
             meetingId: meeting._id.toString(),
             code,
@@ -1668,7 +1833,90 @@ export async function executeWorkspaceTool(
             yoodleLink,
             calendarEventId,
             emailSent,
+            agendaDocUrl,
           },
+        };
+      }
+
+      // ── Meeting Agenda ─────────────────────────────────────────
+      case "create_meeting_agenda": {
+        await connectDB();
+
+        const meetingId = args.meetingId as string;
+        const agendaTopics = (args.agendaTopics as string[] | undefined) || [];
+
+        if (!mongoose.Types.ObjectId.isValid(meetingId)) {
+          return { success: false, summary: "Invalid meeting ID." };
+        }
+
+        const meetingDoc = await Meeting.findById(meetingId);
+        if (!meetingDoc) {
+          return { success: false, summary: "Meeting not found." };
+        }
+
+        const doc = await createGoogleDoc(userId, `📋 Agenda: ${meetingDoc.title}`);
+        if (!doc?.webViewLink) {
+          return { success: false, summary: "Failed to create agenda document." };
+        }
+
+        // If topics provided, append them to the doc
+        if (agendaTopics.length > 0) {
+          try {
+            const topicsText = agendaTopics.map((t, i) => `${i + 1}. ${t}`).join("\n");
+            await appendToDoc(userId, doc.id, topicsText);
+          } catch (topicErr) {
+            log.warn({ err: topicErr }, "failed to append agenda topics to doc");
+          }
+        }
+
+        // If the meeting has a calendar event, update the description with the agenda link
+        if (meetingDoc.calendarEventId) {
+          try {
+            const baseUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.NEXT_PUBLIC_BASE_URL || process.env.NEXTAUTH_URL || "http://localhost:3000";
+            const yoodleLink = `${baseUrl}/meetings/${meetingDoc.code}/room`;
+            const updatedDesc = `Join Yoodle meeting: ${yoodleLink}\n\n📋 Meeting Agenda: ${doc.webViewLink}`;
+            await updateEvent(userId, meetingDoc.calendarEventId, { description: updatedDesc });
+          } catch (calErr) {
+            log.warn({ err: calErr }, "failed to update calendar event with agenda link");
+          }
+        }
+
+        return {
+          success: true,
+          summary: `Created agenda doc for "${meetingDoc.title}"${agendaTopics.length > 0 ? ` with ${agendaTopics.length} topics` : ""}`,
+          data: {
+            meetingId,
+            agendaDocUrl: doc.webViewLink,
+            agendaDocId: doc.id,
+          },
+        };
+      }
+
+      // ── Scheduling Poll ──────────────────────────────────────
+      case "propose_meeting_times": {
+        const pmtTitle = args.title as string;
+        const pmtSlots = args.slots as { start: string; end: string }[];
+        const pmtDuration = args.durationMinutes as number;
+        const pmtAttendees = (args.attendeeEmails as string[]) || [];
+
+        if (!pmtSlots?.length) return { success: false, summary: "No time slots provided." };
+
+        const formatSlot = (s: { start: string; end: string }, i: number) => {
+          const start = new Date(s.start);
+          const end = new Date(s.end);
+          const day = start.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
+          const startTime = start.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+          const endTime = end.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+          return `**Option ${i + 1}:** ${day}, ${startTime} – ${endTime}`;
+        };
+
+        const slotList = pmtSlots.map((s, i) => formatSlot(s, i)).join("\n");
+        const attendeeNote = pmtAttendees.length > 0 ? `\nAttendees: ${pmtAttendees.join(", ")}` : "";
+
+        return {
+          success: true,
+          summary: `📅 **Scheduling: ${pmtTitle}** (${pmtDuration} min)${attendeeNote}\n\n${slotList}\n\nWhich time works best? Reply with the option number, or suggest an alternative.`,
+          data: { title: pmtTitle, slots: pmtSlots, durationMinutes: pmtDuration, attendees: pmtAttendees },
         };
       }
 
