@@ -991,6 +991,80 @@ export const WORKSPACE_TOOLS: FunctionDeclarationsTool = {
         required: ["actionType", "args", "summary"],
       },
     },
+
+    // ── Conversation Intelligence ──────────────────────────────────
+    {
+      name: "summarize_conversation",
+      description: "Summarize a conversation's history. Use when the user asks 'summarize this chat', 'what did we discuss', or 'catch me up'. Returns conversation context including summary, decisions, action items, and recent messages.",
+      parameters: {
+        type: SchemaType.OBJECT,
+        properties: {
+          conversationId: { type: SchemaType.STRING, description: "The conversation ID to summarize. Use the current conversation ID." },
+          depth: { type: SchemaType.STRING, description: "'quick' for last 20 messages, 'full' for entire history. Default: 'quick'." },
+        },
+        required: ["conversationId"],
+      },
+    },
+    {
+      name: "search_messages",
+      description: "Search across the user's conversation messages by keyword. Use when the user asks 'find where we discussed X', 'search for messages about Y', or needs to find a past conversation topic.",
+      parameters: {
+        type: SchemaType.OBJECT,
+        properties: {
+          query: { type: SchemaType.STRING, description: "Search keywords to find in message content." },
+          conversationId: { type: SchemaType.STRING, description: "Optional: limit search to a specific conversation." },
+          limit: { type: SchemaType.NUMBER, description: "Max results to return. Default: 10." },
+        },
+        required: ["query"],
+      },
+    },
+    {
+      name: "generate_standup",
+      description: "Generate a daily standup summary. Shows tasks completed yesterday, tasks in progress today, and blockers. Use when user asks for 'standup', 'daily update', or 'what did I do yesterday'.",
+      parameters: {
+        type: SchemaType.OBJECT,
+        properties: {
+          userId: { type: SchemaType.STRING, description: "User ID to generate standup for. Defaults to the requesting user." },
+          boardId: { type: SchemaType.STRING, description: "Optional: limit to a specific board." },
+        },
+        required: [],
+      },
+    },
+    {
+      name: "conversation_insights",
+      description: "Analyze a conversation and surface insights: unresolved questions, decisions made, open action items. Use when user asks 'what's open in this chat?', 'any unresolved items?', or 'what decisions did we make?'.",
+      parameters: {
+        type: SchemaType.OBJECT,
+        properties: {
+          conversationId: { type: SchemaType.STRING, description: "The conversation ID to analyze." },
+        },
+        required: ["conversationId"],
+      },
+    },
+    {
+      name: "translate_message",
+      description: "Translate a message to a different language. Use when the user asks to translate a message or when a non-primary-language message is detected.",
+      parameters: {
+        type: SchemaType.OBJECT,
+        properties: {
+          text: { type: SchemaType.STRING, description: "The text to translate." },
+          targetLanguage: { type: SchemaType.STRING, description: "Target language (e.g., 'Spanish', 'French', 'Japanese', 'Hindi')." },
+        },
+        required: ["text", "targetLanguage"],
+      },
+    },
+    {
+      name: "suggest_mentions",
+      description: "Suggest relevant people to mention based on conversation topic. Use when the user discusses a topic and relevant people should be looped in.",
+      parameters: {
+        type: SchemaType.OBJECT,
+        properties: {
+          topic: { type: SchemaType.STRING, description: "The topic or context to find relevant people for." },
+          conversationId: { type: SchemaType.STRING, description: "Current conversation ID for participant context." },
+        },
+        required: ["topic"],
+      },
+    },
   ],
 };
 
@@ -2001,6 +2075,230 @@ export async function executeWorkspaceTool(
             summary,
           },
         };
+      }
+
+      // ── Conversation Intelligence ──────────────────────────────────
+
+      case "summarize_conversation": {
+        await connectDB();
+        const ConversationContext = (await import("@/lib/infra/db/models/conversation-context")).default;
+        const DirectMessageModel = (await import("@/lib/infra/db/models/direct-message")).default;
+        const ConversationModel = (await import("@/lib/infra/db/models/conversation")).default;
+
+        const convId = args.conversationId as string;
+        const depth = (args.depth as string) || "quick";
+
+        // Verify user is a participant
+        const conv = await ConversationModel.findById(convId).lean();
+        if (!conv) return { success: false, summary: "Conversation not found." };
+        const isParticipant = (conv as { participants: { userId: { toString(): string } }[] }).participants.some(
+          (p: { userId: { toString(): string } }) => p.userId.toString() === userId
+        );
+        if (!isParticipant) return { success: false, summary: "You are not a participant in this conversation." };
+
+        const ctx = await ConversationContext.findOne({ conversationId: convId }).lean();
+        const limit = depth === "full" ? 200 : 20;
+        const messages = await DirectMessageModel.find({ conversationId: convId, deleted: false })
+          .sort({ createdAt: -1 }).limit(limit)
+          .populate("senderId", "displayName name").lean();
+
+        const msgSummary = (messages as unknown as Record<string, unknown>[]).reverse().map((m: Record<string, unknown>) => {
+          const sender = m.senderId as { displayName?: string; name?: string } | null;
+          const name = sender?.displayName || sender?.name || "Unknown";
+          const date = new Date(m.createdAt as string).toLocaleDateString();
+          return `[${date}] ${name}: ${(m.content as string).slice(0, 150)}`;
+        }).join("\n");
+
+        const ctxTyped = ctx as { summary?: string; actionItems?: { status: string; description: string; assignee: string }[]; decisions?: unknown[]; openQuestions?: unknown[] } | null;
+        const contextSummary = ctxTyped ? {
+          summary: ctxTyped.summary,
+          openActionItems: ctxTyped.actionItems?.filter((a: { status: string }) => a.status === "open").length || 0,
+          decisions: ctxTyped.decisions?.length || 0,
+          openQuestions: ctxTyped.openQuestions?.length || 0,
+          actionItems: ctxTyped.actionItems?.filter((a: { status: string }) => a.status === "open")
+            .map((a: { description: string; assignee: string }) => `${a.description} (${a.assignee})`),
+        } : null;
+
+        return { success: true, summary: `Conversation summary (${depth}, ${messages.length} messages)`, data: { context: contextSummary, recentMessages: msgSummary } };
+      }
+
+      case "search_messages": {
+        await connectDB();
+        const DirectMessageModel = (await import("@/lib/infra/db/models/direct-message")).default;
+        const ConversationModel = (await import("@/lib/infra/db/models/conversation")).default;
+
+        const query = args.query as string;
+        const maxResults = Math.min((args.limit as number) || 10, 20);
+
+        const userConvs = await ConversationModel.find(
+          { "participants.userId": new mongoose.Types.ObjectId(userId) }, { _id: 1 }
+        ).lean();
+        const convIds = userConvs.map((c: { _id: unknown }) => c._id);
+
+        const filter: Record<string, unknown> = {
+          conversationId: args.conversationId
+            ? new mongoose.Types.ObjectId(args.conversationId as string)
+            : { $in: convIds },
+          deleted: false,
+          $text: { $search: query },
+        };
+
+        const messages = await DirectMessageModel.find(filter, { score: { $meta: "textScore" } })
+          .sort({ score: { $meta: "textScore" } }).limit(maxResults)
+          .populate("senderId", "displayName name")
+          .populate("conversationId", "name type").lean();
+
+        const results = (messages as unknown as Record<string, unknown>[]).map((m: Record<string, unknown>) => {
+          const sender = m.senderId as { displayName?: string; name?: string } | null;
+          const convDoc = m.conversationId as { name?: string; type?: string } | null;
+          return {
+            content: (m.content as string).slice(0, 200),
+            sender: sender?.displayName || sender?.name || "Unknown",
+            conversation: convDoc?.name || (convDoc?.type === "dm" ? "DM" : "Group"),
+            date: m.createdAt,
+          };
+        });
+
+        return { success: true, summary: `Found ${results.length} messages matching "${query}"`, data: results };
+      }
+
+      case "generate_standup": {
+        await connectDB();
+        const targetUserId = (args.userId as string) || userId;
+
+        const now = new Date();
+        const yesterday = new Date(now);
+        yesterday.setDate(yesterday.getDate() - 1);
+        yesterday.setHours(0, 0, 0, 0);
+        const todayStart = new Date(now);
+        todayStart.setHours(0, 0, 0, 0);
+
+        const boardFilter: Record<string, unknown> = {};
+        if (args.boardId) boardFilter.boardId = new mongoose.Types.ObjectId(args.boardId as string);
+
+        const completedYesterday = await Task.find({
+          ...boardFilter, assigneeId: new mongoose.Types.ObjectId(targetUserId),
+          completedAt: { $gte: yesterday, $lt: todayStart },
+        }).select("title boardId").lean();
+
+        const inProgress = await Task.find({
+          ...boardFilter, assigneeId: new mongoose.Types.ObjectId(targetUserId),
+          completedAt: null, columnId: { $exists: true },
+        }).select("title priority dueDate boardId columnId").sort({ dueDate: 1 }).limit(10).lean();
+
+        const overdue = await Task.find({
+          ...boardFilter, assigneeId: new mongoose.Types.ObjectId(targetUserId),
+          completedAt: null, dueDate: { $lt: now },
+        }).select("title priority dueDate").lean();
+
+        return {
+          success: true,
+          summary: `Standup: ${completedYesterday.length} done yesterday, ${inProgress.length} in progress, ${overdue.length} overdue`,
+          data: {
+            completedYesterday: completedYesterday.map((t) => t.title),
+            inProgress: inProgress.map((t) => ({ title: t.title, priority: t.priority, dueDate: t.dueDate })),
+            blockers: overdue.map((t) => ({ title: t.title, priority: t.priority, dueDate: t.dueDate })),
+          },
+        };
+      }
+
+      case "conversation_insights": {
+        await connectDB();
+        const ConversationContext = (await import("@/lib/infra/db/models/conversation-context")).default;
+        const ConversationModel = (await import("@/lib/infra/db/models/conversation")).default;
+
+        const convId = args.conversationId as string;
+        const conv = await ConversationModel.findById(convId).lean();
+        if (!conv) return { success: false, summary: "Conversation not found." };
+        const isParticipant = (conv as { participants: { userId: { toString(): string } }[] }).participants.some(
+          (p: { userId: { toString(): string } }) => p.userId.toString() === userId
+        );
+        if (!isParticipant) return { success: false, summary: "Not a participant." };
+
+        const ctx = await ConversationContext.findOne({ conversationId: convId }).lean();
+        if (!ctx) return { success: true, summary: "No conversation context yet.", data: {} };
+
+        const ctxTyped = ctx as { summary?: string; openQuestions?: unknown[]; decisions?: unknown[]; actionItems?: { status: string }[]; facts?: unknown[]; lastUpdatedAt?: unknown };
+        return {
+          success: true, summary: "Conversation insights retrieved",
+          data: {
+            summary: ctxTyped.summary,
+            unresolvedQuestions: ctxTyped.openQuestions || [],
+            decisions: ctxTyped.decisions || [],
+            openActionItems: (ctxTyped.actionItems || []).filter((a: { status: string }) => a.status === "open"),
+            totalFacts: (ctxTyped.facts || []).length,
+            lastUpdated: ctxTyped.lastUpdatedAt,
+          },
+        };
+      }
+
+      case "translate_message": {
+        const { getModel } = await import("@/lib/ai/gemini");
+        const model = getModel();
+        const text = args.text as string;
+        const targetLang = args.targetLanguage as string;
+
+        const result = await model.generateContent(
+          `Translate the following text to ${targetLang}. Return ONLY the translated text, no explanations.\n\nText: ${text}`
+        );
+        const translated = result.response.text()?.trim() || "";
+
+        return { success: true, summary: `Translated to ${targetLang}`, data: { original: text, translated, targetLanguage: targetLang } };
+      }
+
+      case "suggest_mentions": {
+        await connectDB();
+        const topic = args.topic as string;
+        const topicLower = topic.toLowerCase();
+
+        const relatedTasks = await Task.find({
+          $or: [
+            { title: { $regex: topicLower, $options: "i" } },
+            { description: { $regex: topicLower, $options: "i" } },
+          ],
+          completedAt: null,
+        }).select("assigneeId creatorId title")
+          .populate("assigneeId", "displayName name email")
+          .populate("creatorId", "displayName name email")
+          .limit(10).lean();
+
+        const userMap = new Map<string, { name: string; email: string; reason: string }>();
+        for (const task of relatedTasks) {
+          const assignee = task.assigneeId as unknown as { _id: { toString(): string }; displayName?: string; name?: string; email?: string } | null;
+          const creator = task.creatorId as unknown as { _id: { toString(): string }; displayName?: string; name?: string; email?: string } | null;
+
+          if (assignee && assignee._id?.toString() !== userId) {
+            const id = assignee._id.toString();
+            if (!userMap.has(id)) {
+              userMap.set(id, { name: assignee.displayName || assignee.name || "Unknown", email: assignee.email || "", reason: `Assigned to "${task.title}"` });
+            }
+          }
+          if (creator && creator._id?.toString() !== userId) {
+            const id = creator._id.toString();
+            if (!userMap.has(id)) {
+              userMap.set(id, { name: creator.displayName || creator.name || "Unknown", email: creator.email || "", reason: `Created "${task.title}"` });
+            }
+          }
+        }
+
+        const relatedMeetings = await Meeting.find({
+          title: { $regex: topicLower, $options: "i" },
+          status: { $in: ["scheduled", "active", "ended"] },
+        }).select("participants title").limit(5).lean();
+
+        for (const meeting of relatedMeetings) {
+          for (const p of meeting.participants || []) {
+            const pId = p.userId.toString();
+            if (pId !== userId && !userMap.has(pId)) {
+              const u = await User.findById(pId).select("displayName name email").lean();
+              if (u) {
+                userMap.set(pId, { name: u.displayName || u.name || "Unknown", email: u.email || "", reason: `Attended meeting "${meeting.title}"` });
+              }
+            }
+          }
+        }
+
+        return { success: true, summary: `${userMap.size} people related to "${topic}"`, data: Array.from(userMap.values()).slice(0, 5) };
       }
 
       default:
