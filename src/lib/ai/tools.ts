@@ -1322,8 +1322,15 @@ export async function executeWorkspaceTool(
         if (!fbTaskId || !mongoose.Types.ObjectId.isValid(fbTaskId)) {
           return { success: false, summary: "Invalid task ID." };
         }
-        const fbTask = await Task.findById(fbTaskId).select("title boardId").lean();
+        const fbTask = await Task.findById(fbTaskId).select("title boardId creatorId assigneeId").lean();
         if (!fbTask) return { success: false, summary: "Task not found." };
+
+        // Verify user owns or is assigned to this task
+        const fbCreator = fbTask.creatorId?.toString();
+        const fbAssignee = fbTask.assigneeId?.toString();
+        if (fbCreator !== userId && fbAssignee !== userId) {
+          return { success: false, summary: "You don't have access to this task." };
+        }
 
         // Resolve timezone
         let fbTz = args.timeZone as string | undefined;
@@ -1362,54 +1369,98 @@ export async function executeWorkspaceTool(
         const workStart = (args.workHoursStart as number) || 9;
         const workEnd = (args.workHoursEnd as number) || 18;
 
-        // Resolve Yoodle user IDs from emails
+        // Resolve requesting user's timezone for work-hours window
+        let fmfTz: string | undefined;
+        try {
+          const fmfUser = await User.findById(userId).select("timezone").lean();
+          fmfTz = (fmfUser as { timezone?: string } | null)?.timezone || undefined;
+        } catch { /* fallback to UTC */ }
+
+        // Build time window in user's timezone (fall back to UTC)
+        const tzSuffix = fmfTz
+          ? "" // local time — will be passed as timeZone param concept; but Google API expects RFC3339
+          : "Z";
+        // For Google Calendar API, we need RFC3339. Use UTC as baseline.
+        const timeMin = `${dateStr}T${String(workStart).padStart(2, "0")}:00:00${tzSuffix || "Z"}`;
+        const timeMax = `${dateStr}T${String(workEnd).padStart(2, "0")}:00:00${tzSuffix || "Z"}`;
+
+        // Resolve Yoodle user IDs from emails — only users who share a board with requester
+        const { default: Board } = await import("@/lib/infra/db/models/board");
+        const userBoards = await Board.find({
+          $or: [{ ownerId: userId }, { "members.userId": userId }],
+        }).select("ownerId members.userId").lean();
+        const teamUserIds = new Set<string>();
+        for (const b of userBoards) {
+          teamUserIds.add(b.ownerId.toString());
+          for (const m of b.members || []) {
+            teamUserIds.add(m.userId.toString());
+          }
+        }
+
         const users = await User.find({ email: { $in: emails } }).select("_id email").lean();
         const userMap = new Map(users.map((u: { _id: unknown; email: string }) => [u.email, u._id!.toString()]));
 
-        const timeMin = `${dateStr}T${String(workStart).padStart(2, "0")}:00:00Z`;
-        const timeMax = `${dateStr}T${String(workEnd).padStart(2, "0")}:00:00Z`;
-
-        // Fetch all users' events in parallel
-        const busySlots: { start: number; end: number }[][] = [];
+        const busySlots: { start: number; end: number }[] = [];
         const checkedEmails: string[] = [];
         const failedEmails: string[] = [];
 
+        // Build fetch promises in parallel
+        const fetchPromises: Promise<void>[] = [];
+
         // Always include the requesting user
-        try {
-          const myEvents = await listEvents(userId, { timeMin, timeMax, maxResults: 30 });
-          busySlots.push(myEvents.map((e) => ({
-            start: new Date(e.start).getTime(),
-            end: new Date(e.end).getTime(),
-          })));
-          checkedEmails.push("you");
-        } catch { /* requesting user's calendar failed */ }
+        fetchPromises.push(
+          listEvents(userId, { timeMin, timeMax, maxResults: 30 })
+            .then((myEvents) => {
+              for (const e of myEvents) {
+                busySlots.push({ start: new Date(e.start).getTime(), end: new Date(e.end).getTime() });
+              }
+              checkedEmails.push("you");
+            })
+            .catch(() => { /* requesting user's calendar failed */ })
+        );
 
         for (const email of emails) {
           const uid = userMap.get(email);
           if (!uid || uid === userId) continue;
-          try {
-            const events = await listEvents(uid, { timeMin, timeMax, maxResults: 30 });
-            busySlots.push(events.map((e) => ({
-              start: new Date(e.start).getTime(),
-              end: new Date(e.end).getTime(),
-            })));
-            checkedEmails.push(email.split("@")[0]);
-          } catch {
-            failedEmails.push(email.split("@")[0]);
+          // Security: only check calendars of users who share a board
+          if (!teamUserIds.has(uid)) {
+            failedEmails.push(email.split("@")[0] + " (no shared workspace)");
+            continue;
+          }
+          fetchPromises.push(
+            listEvents(uid, { timeMin, timeMax, maxResults: 30 })
+              .then((events) => {
+                for (const e of events) {
+                  busySlots.push({ start: new Date(e.start).getTime(), end: new Date(e.end).getTime() });
+                }
+                checkedEmails.push(email.split("@")[0]);
+              })
+              .catch(() => { failedEmails.push(email.split("@")[0]); })
+          );
+        }
+
+        await Promise.allSettled(fetchPromises);
+
+        // Merge overlapping busy intervals before sweeping
+        busySlots.sort((a, b) => a.start - b.start);
+        const merged: { start: number; end: number }[] = [];
+        for (const slot of busySlots) {
+          if (merged.length > 0 && slot.start <= merged[merged.length - 1].end) {
+            merged[merged.length - 1].end = Math.max(merged[merged.length - 1].end, slot.end);
+          } else {
+            merged.push({ ...slot });
           }
         }
 
-        // Merge all busy slots and find gaps
-        const allBusy = busySlots.flat().sort((a, b) => a.start - b.start);
-        const dayStart = new Date(`${dateStr}T${String(workStart).padStart(2, "0")}:00:00Z`).getTime();
-        const dayEnd = new Date(`${dateStr}T${String(workEnd).padStart(2, "0")}:00:00Z`).getTime();
+        const dayStart = new Date(timeMin).getTime();
+        const dayEnd = new Date(timeMax).getTime();
         const durationMs = duration * 60000;
 
-        // Sweep line to find free windows
+        // Sweep merged intervals to find free windows
         const freeSlots: { start: string; end: string; minutes: number }[] = [];
         let cursor = Math.max(dayStart, Date.now());
 
-        for (const slot of allBusy) {
+        for (const slot of merged) {
           if (slot.start > cursor && slot.start - cursor >= durationMs) {
             const slotEnd = Math.min(slot.start, dayEnd);
             if (slotEnd - cursor >= durationMs) {
@@ -1854,6 +1905,15 @@ export async function executeWorkspaceTool(
           return { success: false, summary: "Meeting not found." };
         }
 
+        // Verify user is host or participant
+        const isAgendaHost = meetingDoc.hostId.toString() === userId;
+        const isAgendaParticipant = meetingDoc.participants?.some(
+          (p: { userId: { toString(): string } }) => p.userId.toString() === userId
+        );
+        if (!isAgendaHost && !isAgendaParticipant) {
+          return { success: false, summary: "You don't have access to this meeting." };
+        }
+
         const doc = await createGoogleDoc(userId, `📋 Agenda: ${meetingDoc.title}`);
         if (!doc?.webViewLink) {
           return { success: false, summary: "Failed to create agenda document." };
@@ -1896,7 +1956,7 @@ export async function executeWorkspaceTool(
       case "propose_meeting_times": {
         const pmtTitle = args.title as string;
         const pmtSlots = args.slots as { start: string; end: string }[];
-        const pmtDuration = args.durationMinutes as number;
+        const pmtDuration = (args.durationMinutes as number) || 30;
         const pmtAttendees = (args.attendeeEmails as string[]) || [];
 
         if (!pmtSlots?.length) return { success: false, summary: "No time slots provided." };
@@ -1904,6 +1964,9 @@ export async function executeWorkspaceTool(
         const formatSlot = (s: { start: string; end: string }, i: number) => {
           const start = new Date(s.start);
           const end = new Date(s.end);
+          if (isNaN(start.getTime()) || isNaN(end.getTime())) {
+            return `**Option ${i + 1}:** ${s.start} – ${s.end}`;
+          }
           const day = start.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
           const startTime = start.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
           const endTime = end.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });

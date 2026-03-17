@@ -134,19 +134,25 @@ export async function updateEvent(
 
 /**
  * Get a single calendar event by ID.
+ * Returns null if the event is not found, deleted, or inaccessible.
  */
 export async function getEvent(
   userId: string,
   eventId: string
-): Promise<CalendarEvent> {
-  const { calendar } = await getGoogleServices(userId);
+): Promise<CalendarEvent | null> {
+  try {
+    const { calendar } = await getGoogleServices(userId);
 
-  const res = await calendar.events.get({
-    calendarId: "primary",
-    eventId,
-  });
+    const res = await calendar.events.get({
+      calendarId: "primary",
+      eventId,
+    });
 
-  return formatEvent(res.data);
+    return formatEvent(res.data);
+  } catch {
+    // 404 (not found), 410 (gone/deleted), or permission errors
+    return null;
+  }
 }
 
 /**

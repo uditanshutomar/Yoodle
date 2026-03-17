@@ -159,7 +159,7 @@ export async function buildWorkspaceContext(
           const { default: TaskModel } = await import("@/lib/infra/db/models/task");
           await connectDB();
 
-          const codeMatch = firstFutureEvent.location?.match(/yoo-[a-z0-9]+-[a-z0-9]+/);
+          const codeMatch = firstFutureEvent.location?.match(/yoo-[a-z0-9]{3}-[a-z0-9]{3}/);
           if (codeMatch) {
             const meeting = await MeetingModel.findOne({ code: codeMatch[0] }).select("_id").lean();
             if (meeting) {

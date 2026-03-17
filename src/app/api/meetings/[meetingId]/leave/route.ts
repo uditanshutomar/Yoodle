@@ -130,6 +130,8 @@ export const POST = withHandler(async (req: NextRequest, context) => {
     );
 
     // Sync calendar event to actual meeting duration (rounded to 15-min slots)
+    // Use host's OAuth token since they own the calendar event
+    const hostIdStr = result.hostId.toString();
     if (result.calendarEventId) {
       try {
         const startTime = result.startedAt || result.scheduledAt || result.createdAt;
@@ -137,7 +139,7 @@ export const POST = withHandler(async (req: NextRequest, context) => {
         const roundedMinutes = Math.max(15, Math.round(actualMinutes / 15) * 15);
         const newEnd = new Date(startTime.getTime() + roundedMinutes * 60000);
 
-        await updateEvent(userId, result.calendarEventId, {
+        await updateEvent(hostIdStr, result.calendarEventId, {
           end: newEnd.toISOString(),
         });
       } catch (calErr) {
@@ -254,7 +256,7 @@ export const POST = withHandler(async (req: NextRequest, context) => {
             `\nFull notes: ${momLink}`,
           ].filter(Boolean).join("\n");
 
-          await updateEvent(userId, result.calendarEventId, {
+          await updateEvent(hostIdStr, result.calendarEventId, {
             description: updatedDesc,
           });
         }

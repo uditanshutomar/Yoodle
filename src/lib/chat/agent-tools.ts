@@ -254,26 +254,24 @@ async function fetchCalendar(userId: string, timezone?: string): Promise<string>
       .sort((a, b) => new Date(a.start).getTime() - new Date(b.start).getTime());
 
     // Work hours: 9am–6pm in the USER's timezone (not server time)
-    // Build today's 9:00 and 18:00 by constructing ISO strings in the user's tz
     const buildTzDate = (hour: number): Date => {
       if (timezone) {
-        // Get today's date string in user's timezone, then construct a Date at that hour
-        const parts = new Intl.DateTimeFormat("en-US", {
-          timeZone: timezone,
-          year: "numeric", month: "2-digit", day: "2-digit",
-        }).formatToParts(now);
-        const y = parts.find(p => p.type === "year")?.value;
-        const m = parts.find(p => p.type === "month")?.value;
-        const d = parts.find(p => p.type === "day")?.value;
-        // Create a date string that will be interpreted in the user's timezone context
-        const isoStr = `${y}-${m}-${d}T${String(hour).padStart(2, "0")}:00:00`;
-        // Parse using the timezone offset approach
-        const tempDate = new Date(isoStr + "Z"); // UTC version
-        // Calculate the offset between UTC and user's timezone
-        const utcStr = tempDate.toLocaleString("en-US", { timeZone: "UTC" });
-        const tzStr = tempDate.toLocaleString("en-US", { timeZone: timezone });
-        const offsetMs = new Date(utcStr).getTime() - new Date(tzStr).getTime();
-        return new Date(tempDate.getTime() + offsetMs);
+        // Get today's date in user's timezone
+        const dateStr = now.toLocaleDateString("en-CA", { timeZone: timezone }); // "YYYY-MM-DD"
+        // Start with that hour in UTC, then correct by measuring the tz offset
+        const utcGuess = new Date(`${dateStr}T${String(hour).padStart(2, "0")}:00:00Z`);
+        // What hour does the user's clock show at this UTC instant?
+        const userHour = parseInt(
+          new Intl.DateTimeFormat("en-US", {
+            timeZone: timezone,
+            hour: "numeric",
+            hour12: false,
+          }).format(utcGuess),
+          10,
+        );
+        // Correct by the difference: if user sees 14 but we want 9, shift by (9-14)*3600s
+        const correctionMs = (hour - userHour) * 3600 * 1000;
+        return new Date(utcGuess.getTime() + correctionMs);
       }
       const d = new Date(now);
       d.setHours(hour, 0, 0, 0);
@@ -292,8 +290,11 @@ async function fetchCalendar(userId: string, timezone?: string): Promise<string>
       let cursor = new Date(Math.max(now.getTime(), workStart.getTime()));
 
       for (const evt of todayEvents) {
-        const evtStart = new Date(evt.start);
-        const evtEnd = new Date(evt.end);
+        const evtStart = safeDate(evt.start);
+        const evtEnd = safeDate(evt.end);
+
+        // Skip events with unparseable start/end
+        if (!evtStart || !evtEnd) continue;
 
         // Skip events that already ended
         if (evtEnd <= cursor) continue;
@@ -340,19 +341,18 @@ async function fetchCalendar(userId: string, timezone?: string): Promise<string>
       if (isYoodle) {
         // Try to find linked Yoodle meeting and its tasks
         try {
-          const Meeting = (await import("@/lib/infra/db/models/meeting")).default;
-          const MeetingTask = (await import("@/lib/infra/db/models/task")).default;
-          await (await import("@/lib/infra/db/client")).default();
+          const MeetingModel = (await import("@/lib/infra/db/models/meeting")).default;
+          await connectDB();
 
-          // Extract meeting code from URL
-          const codeMatch = upcomingMeeting.location?.match(/yoo-[a-z0-9]+-[a-z0-9]+/);
+          // Extract meeting code from URL (exact format: yoo-xxx-xxx)
+          const codeMatch = upcomingMeeting.location?.match(/yoo-[a-z0-9]{3}-[a-z0-9]{3}/);
           if (codeMatch) {
-            const meeting = await Meeting.findOne({ code: codeMatch[0] }).select("_id").lean();
+            const meeting = await MeetingModel.findOne({ code: codeMatch[0] }).select("_id").lean();
             if (meeting) {
               // eslint-disable-next-line @typescript-eslint/no-explicit-any
-              const tasks = await (MeetingTask as any).find({ meetingId: meeting._id }).select("title status completedAt").lean();
+              const tasks = await Task.find({ meetingId: (meeting as any)._id } as any).select("title status completedAt").lean();
               if (tasks.length > 0) {
-                const done = tasks.filter((t: { completedAt?: Date | null }) => t.completedAt).length;
+                const done = tasks.filter((t) => t.completedAt).length;
                 const pending = tasks.length - done;
                 meetingPrepNote += `\n  Linked tasks: ${done} done, ${pending} pending`;
               }
@@ -429,11 +429,13 @@ async function fetchTasks(userId: string): Promise<string> {
 
     // Flag tasks with due dates approaching (within 3 days) that may need calendar blocks
     const threeDaysFromNow = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000);
-    const needsCalendarBlock = validTasks.filter(
-      (t) => t.dueDate && new Date(String(t.dueDate)) <= threeDaysFromNow && new Date(String(t.dueDate)) > now && t.priority !== "none"
-    );
+    const needsCalendarBlock = validTasks.filter((t) => {
+      if (!t.dueDate || t.priority === "none") return false;
+      const due = new Date(t.dueDate);
+      return due > now && due <= threeDaysFromNow;
+    });
     const calendarBlockNote = needsCalendarBlock.length > 0
-      ? `\n💡 ${needsCalendarBlock.length} task(s) due within 3 days may need calendar blocks: ${needsCalendarBlock.map((t) => `"${t.title}" (due ${formatDay(new Date(String(t.dueDate)))})`).join(", ")}`
+      ? `\n💡 ${needsCalendarBlock.length} task(s) due within 3 days may need calendar blocks: ${needsCalendarBlock.map((t) => `"${t.title}" (due ${formatDay(new Date(t.dueDate!))})`).join(", ")}`
       : "";
 
     return `Tasks (${validTasks.length} pending across ${boards.length} board${boards.length > 1 ? "s" : ""}${overdueNote}):\n${formatted.join("\n")}${calendarBlockNote}`;
