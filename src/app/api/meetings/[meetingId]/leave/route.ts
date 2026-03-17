@@ -241,7 +241,67 @@ export const POST = withHandler(async (req: NextRequest, context) => {
         log.warn({ err, meetingId: result._id }, "failed to post MoM to conversation");
       }
 
-      // 3. Update calendar event with MoM summary (independent of steps 1 & 2)
+      // 3. Extract action items from MoM and propose tasks
+      try {
+        if (meetingWithMom?.mom?.actionItems?.length) {
+          const actionItems = meetingWithMom.mom.actionItems;
+
+          const taskProposals = actionItems.map(
+            (a: { task: string; owner: string; due: string }) =>
+              `- **${a.task}** -> ${a.owner} (due: ${a.due})`
+          ).join("\n");
+
+          const proposalContent = [
+            `**Action Items from "${meetingWithMom.title}"**`,
+            "",
+            "I detected these action items from the meeting:",
+            taskProposals,
+            "",
+            "Would you like me to create tasks for these?",
+          ].join("\n");
+
+          const proposalMsg = await DirectMessage.create({
+            conversationId: convId,
+            senderId: result.hostId,
+            senderType: "agent",
+            content: proposalContent,
+            type: "agent",
+            agentMeta: {
+              forUserId: result.hostId,
+              pendingAction: {
+                actionId: `action-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`,
+                actionType: "create_tasks_from_meeting",
+                args: {
+                  meetingId: result._id.toString(),
+                  actionItems: actionItems,
+                },
+                summary: `Create ${actionItems.length} tasks from meeting "${meetingWithMom.title}"`,
+                status: "pending",
+              },
+            },
+          });
+
+          await Conversation.updateOne(
+            { _id: convId },
+            {
+              $set: {
+                lastMessageAt: proposalMsg.createdAt,
+                lastMessagePreview: "Action items detected from meeting",
+                lastMessageSenderId: proposalMsg.senderId,
+              },
+            },
+          );
+
+          try {
+            const redis = getRedisClient();
+            await redis.publish(`chat:${convId}`, JSON.stringify({ type: "message", message: proposalMsg }));
+          } catch { /* Redis optional */ }
+        }
+      } catch (err) {
+        log.warn({ err, meetingId: result._id }, "failed to extract action items from meeting");
+      }
+
+      // 4. Update calendar event with MoM summary (independent of steps 1 & 2)
       try {
         if (result.calendarEventId && meetingWithMom?.mom?.summary) {
           const baseUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000";

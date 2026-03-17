@@ -2301,6 +2301,38 @@ export async function executeWorkspaceTool(
         return { success: true, summary: `${userMap.size} people related to "${topic}"`, data: Array.from(userMap.values()).slice(0, 5) };
       }
 
+      case "create_tasks_from_meeting": {
+        await connectDB();
+        const Board = (await import("@/lib/infra/db/models/board")).default;
+        const meetingId = args.meetingId as string;
+        const actionItems = args.actionItems as { task: string; owner: string; due: string }[];
+
+        const board = await Board.findOne({
+          creatorId: new mongoose.Types.ObjectId(userId),
+          type: "personal",
+        }).lean();
+        if (!board) return { success: false, summary: "No personal board found." };
+        const firstColumn = board.columns?.[0]?.id;
+
+        const createdTasks = [];
+        for (const item of actionItems) {
+          const dueDate = item.due && item.due !== "N/A" ? new Date(item.due) : undefined;
+          const task = await Task.create({
+            title: item.task,
+            boardId: board._id,
+            columnId: firstColumn,
+            creatorId: new mongoose.Types.ObjectId(userId),
+            assigneeId: new mongoose.Types.ObjectId(userId),
+            meetingId: new mongoose.Types.ObjectId(meetingId),
+            priority: "medium",
+            ...(dueDate && !isNaN(dueDate.getTime()) ? { dueDate } : {}),
+          });
+          createdTasks.push(task.title);
+        }
+
+        return { success: true, summary: `Created ${createdTasks.length} tasks from meeting`, data: { tasks: createdTasks } };
+      }
+
       default:
         return {
           success: false,
