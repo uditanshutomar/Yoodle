@@ -6,6 +6,8 @@ export const MEMORY_CATEGORIES = [
   "task",
   "relationship",
   "habit",
+  "project",
+  "workflow",
 ] as const;
 export type MemoryCategory = (typeof MEMORY_CATEGORIES)[number];
 
@@ -14,6 +16,7 @@ export const MEMORY_SOURCES = [
   "chat",
   "manual",
   "inferred",
+  "explicit",
 ] as const;
 export type MemorySource = (typeof MEMORY_SOURCES)[number];
 
@@ -25,6 +28,8 @@ export interface IAIMemory {
   confidence: number;
   relatedMeetingId?: Types.ObjectId;
   expiresAt?: Date;
+  decayRate?: number;
+  userExplicit?: boolean;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -67,6 +72,16 @@ const aiMemorySchema = new Schema<IAIMemoryDocument>(
     },
     expiresAt: {
       type: Date,
+    },
+    decayRate: {
+      type: Number,
+      min: 0,
+      max: 1,
+      default: 0.5,
+    },
+    userExplicit: {
+      type: Boolean,
+      default: false,
     },
   },
   {
