@@ -3,7 +3,7 @@ import { createLogger } from "@/lib/infra/logger";
 
 const log = createLogger("proactive-limiter");
 
-const GLOBAL_CAP = 3;
+const GLOBAL_CAP = 5;
 const TTL_SECONDS = 86400; // 24 hours
 
 export type ProactiveType =
@@ -12,7 +12,10 @@ export type ProactiveType =
   | "meeting_prep"
   | "blocked_task_alert"
   | "weekly_digest"
-  | "task_status";
+  | "task_status"
+  | "stale_task_nudge"
+  | "unread_highlights"
+  | "weekly_pattern_summary";
 
 /**
  * Atomically check whether a proactive message of the given type is allowed.
