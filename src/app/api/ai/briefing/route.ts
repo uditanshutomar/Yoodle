@@ -124,7 +124,9 @@ export const POST = withHandler(async (req: NextRequest) => {
     metadata: {
       unreadCount: snapshot.unreadCount,
       nextMeetingTime: snapshot.nextMeetingTime,
+      boardTaskCount: snapshot.boardTaskCount,
       boardOverdueCount: snapshot.boardOverdueCount,
+      unresolvedMeetingActions: snapshot.unresolvedMeetingActions,
     },
   });
 });
