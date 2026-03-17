@@ -303,132 +303,103 @@ export const WORKSPACE_TOOLS: FunctionDeclarationsTool = {
       },
     },
 
-    // ── Google Tasks ───────────────────────────────────────────────
+    // ── Board Tasks ──────────────────────────────────────────────
     {
-      name: "create_task",
+      name: "create_board_task",
       description:
-        "Create a new task in Google Tasks. Use when the user asks to add a task, to-do, or reminder.",
+        "Create a new task on a kanban board. Use when the user asks to add a task, to-do, or work item. If no boardId specified, uses the user's personal board.",
       parameters: {
         type: SchemaType.OBJECT,
         properties: {
-          title: {
-            type: SchemaType.STRING,
-            description: "Task title.",
-          },
-          notes: {
-            type: SchemaType.STRING,
-            description: "Task notes or details (optional).",
-          },
-          due: {
-            type: SchemaType.STRING,
-            description:
-              "Due date in ISO 8601 format, e.g. '2025-01-15T00:00:00.000Z' (optional).",
-          },
-          taskListId: {
-            type: SchemaType.STRING,
-            description: "Task list ID to create the task in (default: '@default').",
-          },
+          title: { type: SchemaType.STRING, description: "Task title." },
+          description: { type: SchemaType.STRING, description: "Task description in markdown (optional)." },
+          boardId: { type: SchemaType.STRING, description: "Board ID to create the task on. Omit to use the user's personal board." },
+          columnId: { type: SchemaType.STRING, description: "Column ID to place the task in. Defaults to the first column (To Do)." },
+          priority: { type: SchemaType.STRING, description: "Priority: 'urgent', 'high', 'medium', 'low', or 'none'. Default: 'none'." },
+          assigneeId: { type: SchemaType.STRING, description: "User ID to assign the task to (optional)." },
+          dueDate: { type: SchemaType.STRING, description: "Due date in ISO 8601 format (optional)." },
+          labels: { type: SchemaType.ARRAY, items: { type: SchemaType.STRING }, description: "Label IDs to apply (optional)." },
         },
         required: ["title"],
       },
     },
     {
-      name: "complete_task",
-      description: "Mark a Google Task as completed.",
+      name: "update_board_task",
+      description: "Update an existing board task's title, description, priority, due date, or labels.",
       parameters: {
         type: SchemaType.OBJECT,
         properties: {
-          taskId: {
-            type: SchemaType.STRING,
-            description: "The task ID to complete.",
-          },
-          taskListId: {
-            type: SchemaType.STRING,
-            description:
-              "The task list ID containing the task (default: '@default').",
-          },
+          taskId: { type: SchemaType.STRING, description: "The board task ID to update." },
+          title: { type: SchemaType.STRING, description: "New title (optional)." },
+          description: { type: SchemaType.STRING, description: "New description (optional)." },
+          priority: { type: SchemaType.STRING, description: "New priority (optional)." },
+          dueDate: { type: SchemaType.STRING, description: "New due date in ISO 8601 (optional)." },
+          labels: { type: SchemaType.ARRAY, items: { type: SchemaType.STRING }, description: "New label IDs (optional)." },
         },
         required: ["taskId"],
       },
     },
     {
-      name: "update_task",
-      description: "Update an existing Google Task's title, notes, or due date.",
+      name: "move_board_task",
+      description: "Move a board task to a different column (change status). Use when user says to move, complete, or change status of a task.",
       parameters: {
         type: SchemaType.OBJECT,
         properties: {
-          taskId: {
-            type: SchemaType.STRING,
-            description: "The task ID to update.",
-          },
-          taskListId: {
-            type: SchemaType.STRING,
-            description: "The task list ID (default: '@default').",
-          },
-          title: {
-            type: SchemaType.STRING,
-            description: "New task title (optional).",
-          },
-          notes: {
-            type: SchemaType.STRING,
-            description: "New task notes (optional).",
-          },
-          due: {
-            type: SchemaType.STRING,
-            description: "New due date in ISO 8601 format (optional).",
-          },
+          taskId: { type: SchemaType.STRING, description: "The task ID to move." },
+          columnId: { type: SchemaType.STRING, description: "Target column ID." },
+        },
+        required: ["taskId", "columnId"],
+      },
+    },
+    {
+      name: "assign_board_task",
+      description: "Assign or reassign a board task to a user.",
+      parameters: {
+        type: SchemaType.OBJECT,
+        properties: {
+          taskId: { type: SchemaType.STRING, description: "The task ID." },
+          assigneeId: { type: SchemaType.STRING, description: "User ID to assign to." },
+        },
+        required: ["taskId", "assigneeId"],
+      },
+    },
+    {
+      name: "delete_board_task",
+      description: "Delete a board task permanently.",
+      parameters: {
+        type: SchemaType.OBJECT,
+        properties: {
+          taskId: { type: SchemaType.STRING, description: "The task ID to delete." },
         },
         required: ["taskId"],
       },
     },
     {
-      name: "delete_task",
-      description: "Delete a Google Task permanently.",
+      name: "list_board_tasks",
+      description: "List board tasks with optional filters. Use to check tasks on a board, find overdue items, or see what's assigned to someone.",
       parameters: {
         type: SchemaType.OBJECT,
         properties: {
-          taskId: {
-            type: SchemaType.STRING,
-            description: "The task ID to delete.",
-          },
-          taskListId: {
-            type: SchemaType.STRING,
-            description: "The task list ID (default: '@default').",
-          },
-        },
-        required: ["taskId"],
-      },
-    },
-    {
-      name: "list_tasks",
-      description:
-        "List tasks from Google Tasks. Use to check the user's pending tasks.",
-      parameters: {
-        type: SchemaType.OBJECT,
-        properties: {
-          showCompleted: {
-            type: SchemaType.BOOLEAN,
-            description: "Whether to include completed tasks (default: false).",
-          },
-          maxResults: {
-            type: SchemaType.NUMBER,
-            description: "Max number of tasks to return (default: 20).",
-          },
-          taskListId: {
-            type: SchemaType.STRING,
-            description: "Task list ID to query (default: '@default').",
-          },
+          boardId: { type: SchemaType.STRING, description: "Filter by board ID (optional — returns tasks across all user's boards if omitted)." },
+          assigneeId: { type: SchemaType.STRING, description: "Filter by assignee user ID (optional)." },
+          priority: { type: SchemaType.STRING, description: "Filter by priority: 'urgent', 'high', 'medium', 'low' (optional)." },
+          columnId: { type: SchemaType.STRING, description: "Filter by column/status (optional)." },
+          overdueOnly: { type: SchemaType.BOOLEAN, description: "Only return overdue tasks (optional)." },
+          limit: { type: SchemaType.NUMBER, description: "Max results (default: 20)." },
         },
         required: [],
       },
     },
     {
-      name: "list_task_lists",
-      description: "List all of the user's Google Task lists.",
+      name: "search_board_tasks",
+      description: "Search board tasks by text across titles and descriptions.",
       parameters: {
         type: SchemaType.OBJECT,
-        properties: {},
-        required: [],
+        properties: {
+          query: { type: SchemaType.STRING, description: "Search query text." },
+          boardId: { type: SchemaType.STRING, description: "Limit search to a specific board (optional)." },
+        },
+        required: ["query"],
       },
     },
 
