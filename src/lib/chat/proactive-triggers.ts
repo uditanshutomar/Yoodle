@@ -308,3 +308,167 @@ export async function triggerBlockedTaskAlerts(): Promise<void> {
     log.error({ err }, "triggerBlockedTaskAlerts failed");
   }
 }
+
+/* ─── 5. Stale Task Nudge ─── */
+
+export async function triggerStaleTasks(): Promise<void> {
+  try {
+    await connectDB();
+    const Task = (await import("@/lib/infra/db/models/task")).default;
+    const Conversation = (await import("@/lib/infra/db/models/conversation")).default;
+
+    const fiveDaysAgo = new Date(Date.now() - 5 * 24 * 60 * 60 * 1000);
+
+    const tasks = await Task.find({
+      completedAt: null,
+      updatedAt: { $lte: fiveDaysAgo },
+      assigneeId: { $exists: true },
+    })
+      .limit(15)
+      .lean();
+
+    log.info({ count: tasks.length }, "Stale task nudge: tasks found");
+
+    for (const task of tasks) {
+      try {
+        const assigneeId = task.assigneeId!.toString();
+
+        const conv = await Conversation.findOne({
+          "participants.userId": new mongoose.Types.ObjectId(assigneeId),
+          "participants.agentEnabled": true,
+        }).lean();
+
+        if (!conv) continue;
+
+        const cid = conv._id.toString();
+        if (await isAgentMuted(cid, assigneeId)) continue;
+        if (!(await canSendProactive(cid, assigneeId, "stale_task_nudge"))) continue;
+
+        const daysSinceUpdate = Math.floor(
+          (Date.now() - new Date(task.updatedAt).getTime()) / (1000 * 60 * 60 * 24),
+        );
+        const content = `"${task.title}" hasn't moved in ${daysSinceUpdate} days. Blocked, deprioritized, or need help?`;
+
+        await postAgentMessage(cid, assigneeId, content);
+        log.info({ taskId: task._id, assigneeId }, "Stale task nudge sent");
+      } catch (err) {
+        log.error({ err, taskId: task._id }, "Stale task nudge: task error");
+      }
+    }
+  } catch (err) {
+    log.error({ err }, "triggerStaleTasks failed");
+  }
+}
+
+/* ─── 6. Weekly Pattern Summary ─── */
+
+export async function triggerWeeklyPatternSummary(): Promise<void> {
+  try {
+    const now = new Date();
+    if (now.getDay() !== 1) {
+      log.info("Weekly pattern summary: not Monday, skipping");
+      return;
+    }
+
+    await connectDB();
+    const Task = (await import("@/lib/infra/db/models/task")).default;
+    const Meeting = (await import("@/lib/infra/db/models/meeting")).default;
+    const Conversation = (await import("@/lib/infra/db/models/conversation")).default;
+
+    const conversations = await Conversation.find({
+      "participants.agentEnabled": true,
+    })
+      .limit(50)
+      .lean();
+
+    for (const conv of conversations) {
+      for (const p of conv.participants) {
+        if (!p.agentEnabled) continue;
+
+        try {
+          const uid = p.userId.toString();
+          const cid = conv._id.toString();
+
+          if (await isAgentMuted(cid, uid)) continue;
+          if (!(await canSendProactive(cid, uid, "weekly_pattern_summary"))) continue;
+
+          const lastWeekStart = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+          const thisWeekEnd = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+
+          const [completedCount, overdueCount, upcomingMeetings] = await Promise.all([
+            Task.countDocuments({
+              assigneeId: new mongoose.Types.ObjectId(uid),
+              completedAt: { $gte: lastWeekStart, $lte: now },
+            }),
+            Task.countDocuments({
+              assigneeId: new mongoose.Types.ObjectId(uid),
+              completedAt: null,
+              dueDate: { $lt: now },
+            }),
+            Meeting.countDocuments({
+              "participants.userId": new mongoose.Types.ObjectId(uid),
+              status: "scheduled",
+              scheduledAt: { $gte: now, $lte: thisWeekEnd },
+            }),
+          ]);
+
+          const content = `**Weekly Summary**\nLast week: ${completedCount} tasks completed${overdueCount > 0 ? `, ${overdueCount} overdue` : ""}.\nThis week: ${upcomingMeetings} meetings scheduled.`;
+
+          await postAgentMessage(cid, uid, content);
+          log.info({ userId: uid }, "Weekly pattern summary sent");
+        } catch (err) {
+          log.error({ err, convId: conv._id }, "Weekly pattern: participant error");
+        }
+      }
+    }
+  } catch (err) {
+    log.error({ err }, "triggerWeeklyPatternSummary failed");
+  }
+}
+
+/* ─── 7. Unread Conversation Highlights ─── */
+
+export async function triggerUnreadHighlights(): Promise<void> {
+  try {
+    await connectDB();
+    const Conversation = (await import("@/lib/infra/db/models/conversation")).default;
+    const DirectMessage = (await import("@/lib/infra/db/models/direct-message")).default;
+
+    const conversations = await Conversation.find({
+      "participants.agentEnabled": true,
+    })
+      .limit(50)
+      .lean();
+
+    for (const conv of conversations) {
+      for (const p of conv.participants) {
+        if (!p.agentEnabled) continue;
+
+        try {
+          const uid = p.userId.toString();
+          const cid = conv._id.toString();
+
+          if (await isAgentMuted(cid, uid)) continue;
+          if (!(await canSendProactive(cid, uid, "unread_highlights"))) continue;
+
+          const fourHoursAgo = new Date(Date.now() - 4 * 60 * 60 * 1000);
+          const unreadCount = await DirectMessage.countDocuments({
+            conversationId: conv._id,
+            senderId: { $ne: new mongoose.Types.ObjectId(uid) },
+            createdAt: { $gte: fourHoursAgo },
+          });
+
+          if (unreadCount < 5) continue;
+
+          const content = `You have ${unreadCount} new messages in this conversation. Want a quick summary?`;
+          await postAgentMessage(cid, uid, content);
+          log.info({ userId: uid, unreadCount }, "Unread highlights sent");
+        } catch (err) {
+          log.error({ err, convId: conv._id }, "Unread highlights: participant error");
+        }
+      }
+    }
+  } catch (err) {
+    log.error({ err }, "triggerUnreadHighlights failed");
+  }
+}
