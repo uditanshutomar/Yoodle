@@ -7,6 +7,7 @@ import Image from "next/image";
 import ChatBubble from "./ChatBubble";
 import SuggestionChips from "./SuggestionChips";
 import SmartEmptyState from "./SmartEmptyState";
+import InsightQueue, { type InsightItem } from "./InsightQueue";
 import VoiceInputButton from "@/components/chat/VoiceInputButton";
 import { useAuth } from "@/hooks/useAuth";
 import type { ChatMessage } from "@/hooks/useAIChat";
@@ -55,6 +56,10 @@ export default function ChatWindow({
     setVoiceInterim("");
   };
 
+  const [insights, setInsights] = useState<InsightItem[]>([]);
+  const handleInsightDismiss = (id: string) => setInsights((prev) => prev.filter((i) => i.id !== id));
+  const handleInsightAction = (prompt: string) => onSend(prompt);
+
   return (
     <div className="flex flex-col h-full bg-[var(--surface)] overflow-hidden">
       {/* Header */}
@@ -97,6 +102,12 @@ export default function ChatWindow({
           )}
         </div>
       </div>
+
+      <InsightQueue
+        insights={insights}
+        onAction={handleInsightAction}
+        onDismiss={handleInsightDismiss}
+      />
 
       {/* Messages */}
       <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4 min-h-0">
