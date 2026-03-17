@@ -470,11 +470,12 @@ async function loadUserMemories(userId: string): Promise<string> {
       $or: [{ expiresAt: { $exists: false } }, { expiresAt: { $gt: new Date() } }],
     })
       .sort({ confidence: -1, updatedAt: -1 })
-      .limit(20)
+      .limit(30)
       .lean();
 
     if (memories.length === 0) return "";
 
+    const categoryOrder = ["project", "workflow", "preference", "relationship", "habit", "context", "task"];
     const grouped: Record<string, string[]> = {};
     for (const m of memories) {
       const cat = m.category;
@@ -483,8 +484,10 @@ async function loadUserMemories(userId: string): Promise<string> {
     }
 
     const parts: string[] = [];
-    for (const [category, items] of Object.entries(grouped)) {
-      parts.push(`${category}: ${items.join("; ")}`);
+    for (const cat of categoryOrder) {
+      if (grouped[cat]) {
+        parts.push(`${cat}: ${grouped[cat].join("; ")}`);
+      }
     }
     return parts.join("\n");
   } catch (error) {
