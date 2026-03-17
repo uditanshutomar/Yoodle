@@ -17,6 +17,7 @@ describe("Task model schema", () => {
 
   it("priority enum has correct values", async () => {
     const { default: Task } = await import("../task");
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const priorityPath = Task.schema.path("priority") as any;
     expect(priorityPath.enumValues).toEqual(["urgent", "high", "medium", "low", "none"]);
   });

@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { LayoutGrid, Plus, ChevronRight, Calendar, AlertCircle } from "lucide-react";
+import { LayoutGrid, ChevronRight, AlertCircle } from "lucide-react";
 import { useBoard, type BoardTask, type Board } from "@/hooks/useBoard";
 import KanbanBoard from "@/components/board/KanbanBoard";
 import TaskDetail from "@/components/board/TaskDetail";
@@ -46,7 +46,7 @@ function ActionCard({
             AI Suggestion
           </p>
           <p className="text-xs text-[var(--text-secondary)] mt-0.5 line-clamp-2">
-            {action.description || action.actionType.replace(/_/g, " ")}
+            {action.summary || action.actionType.replace(/_/g, " ")}
           </p>
         </div>
       </div>
@@ -194,7 +194,7 @@ export default function TasksBoardPanel({
         const res = await fetch("/api/boards", { credentials: "include" });
         if (!res.ok) return;
         const json = await res.json();
-        const personal = json.data?.find((b: Board) => (b as any).scope === "personal");
+        const personal = json.data?.find((b: Board & { scope?: string }) => b.scope === "personal");
         if (personal) {
           setPersonalBoardId(personal._id);
         } else {
@@ -285,11 +285,11 @@ export default function TasksBoardPanel({
             <AnimatePresence>
               {pendingActions.map((action) => (
                 <ActionCard
-                  key={action.id}
+                  key={action.actionId}
                   action={action}
-                  onConfirm={() => onConfirmAction?.(action.id)}
-                  onDeny={() => onDenyAction?.(action.id)}
-                  onRevise={(fb) => onReviseAction?.(action.id, fb)}
+                  onConfirm={() => onConfirmAction?.(action.actionId)}
+                  onDeny={() => onDenyAction?.(action.actionId)}
+                  onRevise={(fb) => onReviseAction?.(action.actionId, fb)}
                 />
               ))}
             </AnimatePresence>
@@ -317,7 +317,7 @@ export default function TasksBoardPanel({
               </motion.button>
             </div>
           ) : (
-            myTasks.map((task, i) => (
+            myTasks.map((task) => (
               <CompactTaskItem
                 key={task._id}
                 task={task}

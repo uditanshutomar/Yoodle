@@ -75,8 +75,13 @@ export function useBoard(boardId?: string) {
   }, [boardId]);
 
   useEffect(() => {
-    setLoading(true);
-    Promise.all([fetchBoard(), fetchTasks()]).finally(() => setLoading(false));
+    let cancelled = false;
+    async function load() {
+      await Promise.all([fetchBoard(), fetchTasks()]);
+      if (!cancelled) setLoading(false);
+    }
+    load();
+    return () => { cancelled = true; };
   }, [fetchBoard, fetchTasks]);
 
   const createTask = useCallback(

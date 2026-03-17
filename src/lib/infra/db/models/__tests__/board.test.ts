@@ -16,6 +16,7 @@ describe("Board model schema", () => {
 
   it("scope enum only allows personal and conversation", async () => {
     const { default: Board } = await import("../board");
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const scopePath = Board.schema.path("scope") as any;
     expect(scopePath.enumValues).toEqual(["personal", "conversation"]);
   });
