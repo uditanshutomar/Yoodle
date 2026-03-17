@@ -15,9 +15,13 @@ export type ProactiveType =
   | "task_status";
 
 /**
- * Check whether a proactive message of the given type is allowed.
+ * Atomically check whether a proactive message of the given type is allowed.
  * If allowed, increments counters and returns true.
  * If rate-limited, returns false.
+ *
+ * Uses a Lua script so the check-and-increment is a single atomic operation,
+ * preventing race conditions where two concurrent calls both pass the check
+ * before either increments.
  */
 export async function canSendProactive(
   conversationId: string,
@@ -29,28 +33,28 @@ export async function canSendProactive(
     const globalKey = `proactive:${conversationId}:${agentUserId}:global`;
     const typeKey = `proactive:${conversationId}:${agentUserId}:${type}`;
 
-    // Check type cap first (cheaper)
-    const typeUsed = await redis.exists(typeKey);
-    if (typeUsed) {
-      log.info({ conversationId, agentUserId, type }, "Proactive message rate-limited (type cap)");
-      return false;
+    // Atomic Lua: check type cap + global cap, only increment if both pass.
+    // Returns 1 if allowed (and incremented), 0 if rate-limited.
+    // Note: redis.eval() here is ioredis's API for server-side Lua — not JS eval().
+    const luaScript = `
+      if redis.call("EXISTS", KEYS[2]) == 1 then return 0 end
+      local g = tonumber(redis.call("GET", KEYS[1]) or "0")
+      if g >= tonumber(ARGV[1]) then return 0 end
+      redis.call("INCR", KEYS[1])
+      redis.call("EXPIRE", KEYS[1], tonumber(ARGV[2]))
+      redis.call("SET", KEYS[2], "1", "EX", tonumber(ARGV[2]))
+      return 1
+    `;
+
+    // ioredis eval(): runs Lua on Redis server (not JS eval)
+    const result = await redis.eval(luaScript, 2, globalKey, typeKey, GLOBAL_CAP, TTL_SECONDS);
+    const allowed = result === 1;
+
+    if (!allowed) {
+      log.info({ conversationId, agentUserId, type }, "Proactive message rate-limited");
     }
 
-    // Check global cap
-    const globalCount = await redis.get(globalKey);
-    if (globalCount && parseInt(globalCount, 10) >= GLOBAL_CAP) {
-      log.info({ conversationId, agentUserId, type }, "Proactive message rate-limited (global cap)");
-      return false;
-    }
-
-    // Increment global counter and set type flag atomically via pipeline
-    const pipe = redis.pipeline();
-    pipe.incr(globalKey);
-    pipe.expire(globalKey, TTL_SECONDS);
-    pipe.set(typeKey, "1", "EX", TTL_SECONDS);
-    await pipe.exec();
-
-    return true;
+    return allowed;
   } catch (err) {
     log.warn({ err, conversationId, agentUserId, type }, "Rate limiter error - allowing message");
     return true; // Fail open

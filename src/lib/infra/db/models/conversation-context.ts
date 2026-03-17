@@ -113,6 +113,9 @@ const conversationContextSchema = new Schema<IConversationContextDocument>(
   { timestamps: true, collection: "conversation_contexts" }
 );
 
+// Index for finding conversations linked to a specific task (used by proactive triggers)
+conversationContextSchema.index({ linkedTaskIds: 1 });
+
 const ConversationContext: Model<IConversationContextDocument> =
   mongoose.models.ConversationContext ||
   mongoose.model<IConversationContextDocument>(

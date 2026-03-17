@@ -4,12 +4,15 @@ import { createLogger } from "@/lib/infra/logger";
 const log = createLogger("cron:proactive");
 
 export async function POST(req: NextRequest) {
+  const cronSecret = process.env.CRON_SECRET;
+  if (!cronSecret) {
+    log.error("CRON_SECRET is not configured — rejecting request");
+    return new Response("Server misconfigured", { status: 500 });
+  }
+
   const secret =
     req.headers.get("x-cron-secret") || req.headers.get("authorization");
-  if (
-    secret !== `Bearer ${process.env.CRON_SECRET}` &&
-    secret !== process.env.CRON_SECRET
-  ) {
+  if (secret !== `Bearer ${cronSecret}` && secret !== cronSecret) {
     return new Response("Unauthorized", { status: 401 });
   }
 

@@ -445,7 +445,7 @@ async function runReflect(
         mentionedAt: new Date(),
       }));
       await ConversationContext.updateOne(
-        { conversationId },
+        { conversationId: convObjId },
         { $push: { facts: { $each: taskFacts, $slice: -15 } } }
       );
     }
@@ -691,9 +691,11 @@ async function saveAndPublishAgentMessage(
   await Conversation.updateOne(
     { _id: conversationId },
     {
-      lastMessageAt: agentMessage.createdAt,
-      lastMessagePreview: cleanContent.slice(0, 100),
-      lastMessageSenderId: new mongoose.Types.ObjectId(agentUserId),
+      $set: {
+        lastMessageAt: agentMessage.createdAt,
+        lastMessagePreview: cleanContent.slice(0, 100),
+        lastMessageSenderId: new mongoose.Types.ObjectId(agentUserId),
+      },
     }
   );
 
