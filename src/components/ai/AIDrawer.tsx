@@ -6,6 +6,7 @@ import Image from "next/image";
 import ChatWindow from "@/components/ai/ChatWindow";
 import { useAIChat } from "@/hooks/useAIChat";
 import { useAuth } from "@/hooks/useAuth";
+import { useInsightCount } from "@/hooks/useInsightCount";
 
 const MASCOT_BY_MODE: Record<string, string> = {
   social: "/mascot-social.png",
@@ -31,9 +32,10 @@ export const useAIDrawer = () => useContext(AIDrawerContext);
 
 export function AIDrawerProvider({ children }: { children: React.ReactNode }) {
   const [isOpen, setIsOpen] = useState(false);
-  const open = useCallback(() => setIsOpen(true), []);
   const close = useCallback(() => setIsOpen(false), []);
   const toggle = useCallback(() => setIsOpen((p) => !p), []);
+  const { count: insightCount, clearCount } = useInsightCount(!isOpen);
+  const open = useCallback(() => { setIsOpen(true); clearCount(); }, [clearCount]);
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -50,12 +52,12 @@ export function AIDrawerProvider({ children }: { children: React.ReactNode }) {
     <AIDrawerContext.Provider value={{ isOpen, open, close, toggle }}>
       {children}
       <AIDrawerPanel isOpen={isOpen} onClose={close} />
-      <AIDrawerFAB onClick={toggle} isOpen={isOpen} />
+      <AIDrawerFAB onClick={toggle} isOpen={isOpen} insightCount={insightCount} />
     </AIDrawerContext.Provider>
   );
 }
 
-function AIDrawerFAB({ onClick, isOpen }: { onClick: () => void; isOpen: boolean }) {
+function AIDrawerFAB({ onClick, isOpen, insightCount }: { onClick: () => void; isOpen: boolean; insightCount: number }) {
   const { user } = useAuth();
   const mascotSrc = MASCOT_BY_MODE[user?.mode || "social"] || MASCOT_BY_MODE.social;
   const constraintsRef = useRef<HTMLDivElement>(null);
@@ -84,6 +86,11 @@ function AIDrawerFAB({ onClick, isOpen }: { onClick: () => void; isOpen: boolean
         title="Ask Doodle (⌘J) — drag me anywhere!"
       >
         <Image src={mascotSrc} alt="Yoodle" width={56} height={56} className="mix-blend-multiply pointer-events-none select-none object-cover" draggable={false} />
+        {insightCount > 0 && (
+          <span className="absolute -top-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white border-2 border-[var(--background)] animate-pulse">
+            {insightCount > 9 ? "9+" : insightCount}
+          </span>
+        )}
       </motion.button>
     </div>
   );
