@@ -2,6 +2,7 @@
 
 import { useState, useCallback, useRef, useEffect } from "react";
 import { useAuth } from "./useAuth";
+import type { CardData } from "@/components/ai/cards/types";
 
 export interface ToolCall {
   id: string;
@@ -24,6 +25,7 @@ export interface ChatMessage {
   content: string;
   timestamp: number;
   toolCalls?: ToolCall[];
+  cards?: CardData[];
 }
 
 const STORAGE_KEY = "yoodle-ai-chat-messages";
@@ -136,6 +138,7 @@ export function useAIChat() {
         const decoder = new TextDecoder();
         let accumulated = "";
         let toolCalls: ToolCall[] = [];
+        let cards: CardData[] = [];
         let buffer = ""; // Buffer for incomplete SSE lines across chunks
 
         while (true) {
@@ -173,7 +176,7 @@ export function useAIChat() {
                 setMessages((prev) =>
                   prev.map((m) =>
                     m.id === assistantMsg.id
-                      ? { ...m, content: accumulated, toolCalls: [...toolCalls] }
+                      ? { ...m, content: accumulated, toolCalls: [...toolCalls], cards: [...cards] }
                       : m
                   )
                 );
@@ -189,7 +192,7 @@ export function useAIChat() {
                 setMessages((prev) =>
                   prev.map((m) =>
                     m.id === assistantMsg.id
-                      ? { ...m, content: accumulated, toolCalls: [...toolCalls] }
+                      ? { ...m, content: accumulated, toolCalls: [...toolCalls], cards: [...cards] }
                       : m
                   )
                 );
@@ -227,10 +230,18 @@ export function useAIChat() {
                   }
                   return tc;
                 });
+
+                // Extract card data from tool results
+                const resultData = parsed.data as Record<string, unknown> | undefined;
+                if (resultData?.cards) {
+                  const newCards = resultData.cards as CardData[];
+                  cards = [...cards, ...newCards];
+                }
+
                 setMessages((prev) =>
                   prev.map((m) =>
                     m.id === assistantMsg.id
-                      ? { ...m, content: accumulated, toolCalls: [...toolCalls] }
+                      ? { ...m, content: accumulated, toolCalls: [...toolCalls], cards: [...cards] }
                       : m
                   )
                 );
@@ -260,7 +271,7 @@ export function useAIChat() {
                 setMessages((prev) =>
                   prev.map((m) =>
                     m.id === assistantMsg.id
-                      ? { ...m, content: accumulated, toolCalls: [...toolCalls] }
+                      ? { ...m, content: accumulated, toolCalls: [...toolCalls], cards: [...cards] }
                       : m
                   )
                 );
