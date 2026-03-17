@@ -7,6 +7,8 @@ import Image from "next/image";
 import ReactMarkdown from "react-markdown";
 import { useAuth } from "@/hooks/useAuth";
 import type { ToolCall } from "@/hooks/useAIChat";
+import { CardRenderer } from "./cards";
+import type { CardData } from "./cards/types";
 
 const MASCOT_BY_MODE: Record<string, string> = {
   social: "/mascot-social.png",
@@ -21,6 +23,7 @@ interface ChatBubbleProps {
   timestamp?: number;
   isStreaming?: boolean;
   toolCalls?: ToolCall[];
+  cards?: CardData[];
   onConfirmAction?: (actionId: string, actionType: string, args: Record<string, unknown>) => void;
   onDenyAction?: (actionId: string) => void;
 }
@@ -236,13 +239,14 @@ const ACTION_ICONS: Record<string, React.ElementType> = {
   clear_sheet_range: FileText,
 };
 
-export default function ChatBubble({ id, role, content, timestamp, isStreaming, toolCalls, onConfirmAction, onDenyAction }: ChatBubbleProps) {
+export default function ChatBubble({ id, role, content, timestamp, isStreaming, toolCalls, cards, onConfirmAction, onDenyAction }: ChatBubbleProps) {
   const { user } = useAuth();
   const mascotSrc = MASCOT_BY_MODE[user?.mode || "social"] || MASCOT_BY_MODE.social;
   const isAssistant = role === "assistant";
   const hasToolCalls = toolCalls && toolCalls.length > 0;
   const hasPendingActions = toolCalls?.some((tc) => tc.pendingAction) ?? false;
   const isBriefing = id?.startsWith("briefing-");
+  const hasCards = cards && cards.length > 0;
 
   // Briefing card — compact, left yellow border, no bubble shape
   if (isBriefing && isAssistant) {
@@ -322,6 +326,11 @@ export default function ChatBubble({ id, role, content, timestamp, isStreaming, 
               />
             ))}
           </div>
+        )}
+
+        {/* Structured response cards */}
+        {isAssistant && hasCards && (
+          <CardRenderer cards={cards} />
         )}
 
         <div

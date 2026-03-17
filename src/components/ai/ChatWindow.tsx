@@ -136,6 +136,7 @@ export default function ChatWindow({
             timestamp={msg.timestamp}
             isStreaming={isStreaming && msg.role === "assistant" && msg === messages[messages.length - 1]}
             toolCalls={msg.toolCalls}
+            cards={msg.cards}
           />
         ))}
         <div ref={bottomRef} />
