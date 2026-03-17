@@ -18,10 +18,15 @@ const ALLOWED_ACTION_TYPES = new Set([
   "create_task_from_meeting", "create_task_from_email", "create_task_from_chat",
   "schedule_meeting_for_task", "link_doc_to_task", "link_meeting_to_task",
   "generate_subtasks", "get_task_context",
-  "search_drive_files", "list_drive_files", "create_google_doc",
+  "search_drive_files", "list_drive_files",
+  "create_google_doc", "create_spreadsheet",
   "read_doc", "append_to_doc", "find_replace_in_doc",
-  "read_sheet", "write_sheet", "append_to_sheet", "create_spreadsheet", "clear_sheet_range",
+  "read_sheet", "write_sheet", "append_to_sheet", "clear_sheet_range",
   "search_contacts", "save_memory", "create_yoodle_meeting", "propose_action",
+  // Conversation intelligence
+  "summarize_conversation", "search_messages", "generate_standup",
+  "conversation_insights", "translate_message", "suggest_mentions",
+  "create_tasks_from_meeting",
 ]);
 
 const confirmSchema = z.object({
