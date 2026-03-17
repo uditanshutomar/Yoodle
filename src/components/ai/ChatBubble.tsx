@@ -2,9 +2,17 @@
 
 import { useState } from "react";
 import { motion } from "framer-motion";
-import { Bot, User, Mail, Calendar, CheckSquare, Search, FileText, Users, Loader2, Check, X, ClipboardList } from "lucide-react";
+import { User, Mail, Calendar, CheckSquare, Search, FileText, Users, Loader2, Check, X, ClipboardList } from "lucide-react";
+import Image from "next/image";
 import ReactMarkdown from "react-markdown";
+import { useAuth } from "@/hooks/useAuth";
 import type { ToolCall } from "@/hooks/useAIChat";
+
+const MASCOT_BY_MODE: Record<string, string> = {
+  social: "/mascot-social.png",
+  lockin: "/mascot-lockin.png",
+  invisible: "/mascot-invisible.png",
+};
 
 interface ChatBubbleProps {
   id?: string;
@@ -32,13 +40,23 @@ const TOOL_DISPLAY: Record<string, { label: string; icon: React.ElementType }> =
   list_calendar_events: { label: "Listing calendar events", icon: Calendar },
   update_calendar_event: { label: "Updating calendar event", icon: Calendar },
   delete_calendar_event: { label: "Deleting calendar event", icon: Calendar },
-  // Tasks
-  create_task: { label: "Creating task", icon: CheckSquare },
-  complete_task: { label: "Completing task", icon: CheckSquare },
-  update_task: { label: "Updating task", icon: CheckSquare },
-  delete_task: { label: "Deleting task", icon: CheckSquare },
-  list_tasks: { label: "Listing tasks", icon: CheckSquare },
-  list_task_lists: { label: "Listing task lists", icon: CheckSquare },
+  // Board Tasks
+  create_board_task: { label: "Creating task", icon: CheckSquare },
+  update_board_task: { label: "Updating task", icon: CheckSquare },
+  move_board_task: { label: "Moving task", icon: CheckSquare },
+  assign_board_task: { label: "Assigning task", icon: CheckSquare },
+  delete_board_task: { label: "Deleting task", icon: CheckSquare },
+  list_board_tasks: { label: "Listing tasks", icon: CheckSquare },
+  search_board_tasks: { label: "Searching tasks", icon: CheckSquare },
+  // Cross-domain
+  create_task_from_meeting: { label: "Creating task from meeting", icon: CheckSquare },
+  create_task_from_email: { label: "Creating task from email", icon: Mail },
+  create_task_from_chat: { label: "Creating task from chat", icon: CheckSquare },
+  schedule_meeting_for_task: { label: "Scheduling meeting", icon: Calendar },
+  link_doc_to_task: { label: "Linking document", icon: FileText },
+  link_meeting_to_task: { label: "Linking meeting", icon: Calendar },
+  generate_subtasks: { label: "Generating subtasks", icon: CheckSquare },
+  get_task_context: { label: "Getting task context", icon: CheckSquare },
   // Drive
   search_drive_files: { label: "Searching Drive files", icon: FileText },
   list_drive_files: { label: "Listing Drive files", icon: FileText },
@@ -199,10 +217,18 @@ const ACTION_ICONS: Record<string, React.ElementType> = {
   create_calendar_event: Calendar,
   update_calendar_event: Calendar,
   delete_calendar_event: Calendar,
-  create_task: CheckSquare,
-  complete_task: CheckSquare,
-  update_task: CheckSquare,
-  delete_task: CheckSquare,
+  create_board_task: CheckSquare,
+  update_board_task: CheckSquare,
+  move_board_task: CheckSquare,
+  assign_board_task: CheckSquare,
+  delete_board_task: CheckSquare,
+  create_task_from_meeting: CheckSquare,
+  create_task_from_email: Mail,
+  create_task_from_chat: CheckSquare,
+  schedule_meeting_for_task: Calendar,
+  link_doc_to_task: FileText,
+  link_meeting_to_task: Calendar,
+  generate_subtasks: CheckSquare,
   append_to_doc: FileText,
   find_replace_in_doc: FileText,
   write_sheet: FileText,
@@ -211,6 +237,8 @@ const ACTION_ICONS: Record<string, React.ElementType> = {
 };
 
 export default function ChatBubble({ id, role, content, timestamp, isStreaming, toolCalls, onConfirmAction, onDenyAction }: ChatBubbleProps) {
+  const { user } = useAuth();
+  const mascotSrc = MASCOT_BY_MODE[user?.mode || "social"] || MASCOT_BY_MODE.social;
   const isAssistant = role === "assistant";
   const hasToolCalls = toolCalls && toolCalls.length > 0;
   const hasPendingActions = toolCalls?.some((tc) => tc.pendingAction) ?? false;
@@ -265,7 +293,7 @@ export default function ChatBubble({ id, role, content, timestamp, isStreaming, 
         }`}
       >
         {isAssistant ? (
-          <Bot size={14} className="text-[#0A0A0A]" />
+          <Image src={mascotSrc} alt="Yoodle" width={18} height={18} className="mix-blend-multiply" />
         ) : (
           <User size={14} className="text-white" />
         )}
