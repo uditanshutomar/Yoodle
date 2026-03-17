@@ -8,6 +8,7 @@ import { getUserIdFromRequest } from "@/lib/infra/auth/middleware";
 import { BadRequestError, NotFoundError, ForbiddenError } from "@/lib/infra/api/errors";
 import connectDB from "@/lib/infra/db/client";
 import Meeting from "@/lib/infra/db/models/meeting";
+import { deleteEvent } from "@/lib/google/calendar";
 import "@/lib/infra/db/models/user"; // register User schema for .populate("hostId")
 
 // ── Helpers ─────────────────────────────────────────────────────────
@@ -202,8 +203,18 @@ export const DELETE = withHandler(async (req: NextRequest, context) => {
       status: { $nin: ["ended", "cancelled"] },
     },
     { $set: { status: "cancelled", endedAt: new Date() } },
-    { new: true, projection: { _id: 1, status: 1 } },
+    { new: true, projection: { _id: 1, status: 1, calendarEventId: 1 } },
   );
+
+  // Clean up Google Calendar event if one was created
+  if (result?.calendarEventId) {
+    try {
+      await deleteEvent(userId, result.calendarEventId);
+    } catch {
+      // Calendar cleanup is best-effort — don't fail the meeting cancellation
+      // The event may already have been deleted externally
+    }
+  }
 
   if (!result) {
     // Distinguish "not found" from "forbidden" from "already cancelled"

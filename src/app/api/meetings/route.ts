@@ -10,6 +10,10 @@ import Meeting from "@/lib/infra/db/models/meeting";
 import "@/lib/infra/db/models/user"; // register User schema for .populate("hostId")
 import { generateMeetingCode } from "@/lib/utils/id";
 import { features } from "@/lib/features/flags";
+import { createEvent } from "@/lib/google/calendar";
+import { createLogger } from "@/lib/infra/logger";
+
+const log = createLogger("meetings:create");
 
 // ── Validation schemas ──────────────────────────────────────────────
 
@@ -150,6 +154,31 @@ export const POST = withHandler(async (req: NextRequest) => {
         }
       : undefined,
   });
+
+  // Auto-create Google Calendar event for scheduled meetings
+  if (meeting.scheduledAt) {
+    try {
+      const baseUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000";
+      const yoodleLink = `${baseUrl}/meetings/${meeting.code}/room`;
+      const durationMin = meeting.scheduledDuration || 30;
+      const endDate = new Date(meeting.scheduledAt.getTime() + durationMin * 60000);
+
+      const calEvent = await createEvent(userId, {
+        title: meeting.title,
+        start: meeting.scheduledAt.toISOString(),
+        end: endDate.toISOString(),
+        description: `Join Yoodle meeting: ${yoodleLink}`,
+        location: yoodleLink,
+        addMeetLink: false,
+      });
+
+      if (calEvent?.id) {
+        await Meeting.updateOne({ _id: meeting._id }, { $set: { calendarEventId: calEvent.id } });
+      }
+    } catch (calErr) {
+      log.warn({ err: calErr, meetingId: meeting._id }, "failed to create calendar event for meeting");
+    }
+  }
 
   // Populate host info before returning
   await meeting.populate("hostId", "name email displayName avatarUrl");
