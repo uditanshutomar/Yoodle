@@ -19,7 +19,6 @@ export interface GatheredData {
   contacts?: string;
   docs?: string;
   sheets?: string;
-  boardTasks?: string;
   errors?: string[];
 }
 
@@ -61,13 +60,6 @@ export async function executeToolPlan(
     promises.push(
       withTimeout(fetchEmails(userId), TOOL_TIMEOUT_MS, "Emails: Timed out fetching data.")
         .then((data) => { result.emails = data; })
-    );
-  }
-
-  if (tools.includes("check_board_tasks")) {
-    promises.push(
-      withTimeout(fetchBoardTasks(userId), TOOL_TIMEOUT_MS, "Board Tasks: Timed out fetching data.")
-        .then((data) => { result.boardTasks = data; })
     );
   }
 
@@ -246,21 +238,49 @@ async function fetchCalendar(userId: string, timezone?: string): Promise<string>
       return `  ${day} ${timeRange}: ${e.title}${attendeeList}`;
     });
 
-    // Compute free slots for today — use local date comparison (not UTC-based toISOString)
-    const todayDateStr = now.toDateString();
+    // Compute free slots for today — compare dates in user's timezone
+    const todayInTz = timezone
+      ? now.toLocaleDateString("en-CA", { timeZone: timezone }) // "YYYY-MM-DD" format
+      : now.toLocaleDateString("en-CA");
     const todayEvents = events
       .filter((e) => {
         const d = safeDate(e.start);
         if (!d) return false; // Skip unparseable all-day events from free-slot calc
-        return d.toDateString() === todayDateStr;
+        const eventDay = timezone
+          ? d.toLocaleDateString("en-CA", { timeZone: timezone })
+          : d.toLocaleDateString("en-CA");
+        return eventDay === todayInTz;
       })
       .sort((a, b) => new Date(a.start).getTime() - new Date(b.start).getTime());
 
-    // Work hours: 9am–6pm — use user timezone if available for accurate calculation
-    const workStart = new Date(now);
-    workStart.setHours(9, 0, 0, 0);
-    const workEnd = new Date(now);
-    workEnd.setHours(18, 0, 0, 0);
+    // Work hours: 9am–6pm in the USER's timezone (not server time)
+    // Build today's 9:00 and 18:00 by constructing ISO strings in the user's tz
+    const buildTzDate = (hour: number): Date => {
+      if (timezone) {
+        // Get today's date string in user's timezone, then construct a Date at that hour
+        const parts = new Intl.DateTimeFormat("en-US", {
+          timeZone: timezone,
+          year: "numeric", month: "2-digit", day: "2-digit",
+        }).formatToParts(now);
+        const y = parts.find(p => p.type === "year")?.value;
+        const m = parts.find(p => p.type === "month")?.value;
+        const d = parts.find(p => p.type === "day")?.value;
+        // Create a date string that will be interpreted in the user's timezone context
+        const isoStr = `${y}-${m}-${d}T${String(hour).padStart(2, "0")}:00:00`;
+        // Parse using the timezone offset approach
+        const tempDate = new Date(isoStr + "Z"); // UTC version
+        // Calculate the offset between UTC and user's timezone
+        const utcStr = tempDate.toLocaleString("en-US", { timeZone: "UTC" });
+        const tzStr = tempDate.toLocaleString("en-US", { timeZone: timezone });
+        const offsetMs = new Date(utcStr).getTime() - new Date(tzStr).getTime();
+        return new Date(tempDate.getTime() + offsetMs);
+      }
+      const d = new Date(now);
+      d.setHours(hour, 0, 0, 0);
+      return d;
+    };
+    const workStart = buildTzDate(9);
+    const workEnd = buildTzDate(18);
 
     let freeSlots = "";
     if (now > workEnd) {
@@ -366,7 +386,16 @@ async function fetchTasks(userId: string): Promise<string> {
     const overdueNote =
       overdue.length > 0 ? `\n${overdue.length} OVERDUE` : "";
 
-    return `Tasks (${validTasks.length} pending across ${boards.length} board${boards.length > 1 ? "s" : ""}${overdueNote}):\n${formatted.join("\n")}`;
+    // Flag tasks with due dates approaching (within 3 days) that may need calendar blocks
+    const threeDaysFromNow = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000);
+    const needsCalendarBlock = validTasks.filter(
+      (t) => t.dueDate && new Date(String(t.dueDate)) <= threeDaysFromNow && new Date(String(t.dueDate)) > now && t.priority !== "none"
+    );
+    const calendarBlockNote = needsCalendarBlock.length > 0
+      ? `\n💡 ${needsCalendarBlock.length} task(s) due within 3 days may need calendar blocks: ${needsCalendarBlock.map((t) => `"${t.title}" (due ${formatDay(new Date(String(t.dueDate)))})`).join(", ")}`
+      : "";
+
+    return `Tasks (${validTasks.length} pending across ${boards.length} board${boards.length > 1 ? "s" : ""}${overdueNote}):\n${formatted.join("\n")}${calendarBlockNote}`;
   } catch (error) {
     log.warn({ error, userId }, "Failed to fetch board tasks for agent");
     return "Tasks: Unable to access board tasks.";
@@ -409,41 +438,6 @@ async function fetchEmails(userId: string): Promise<string> {
     log.warn({ error, userId }, "Failed to fetch emails for agent");
     return "Emails: Unable to access (Google account may not be connected).";
   }
-}
-
-async function fetchBoardTasks(userId: string): Promise<string> {
-  const boards = await Board.find({
-    $or: [{ ownerId: userId }, { "members.userId": userId }],
-  }).lean();
-
-  if (boards.length === 0) return "No boards found.";
-
-  const boardIds = boards.map((b) => b._id);
-  const tasks = await Task.find({
-    boardId: { $in: boardIds },
-    completedAt: null,
-  })
-    .sort({ dueDate: 1 })
-    .limit(20)
-    .populate("assigneeId", "displayName name")
-    .lean();
-
-  if (tasks.length === 0) return "No pending board tasks.";
-
-  const boardMap = new Map(boards.map((b) => [b._id.toString(), b]));
-  const now = new Date();
-
-  const lines = tasks.map((t) => {
-    const board = boardMap.get(t.boardId.toString());
-    const col = board?.columns?.find((c: { id: string; title: string }) => c.id === t.columnId);
-    const assignee = (t.assigneeId as { displayName?: string } | null)?.displayName || "Unassigned";
-    const isOverdue = t.dueDate && new Date(t.dueDate) < now;
-    const overdueTag = isOverdue ? " [OVERDUE]" : "";
-    const dueStr = t.dueDate ? ` (due: ${new Date(t.dueDate).toISOString().split("T")[0]})` : "";
-    return `- "${t.title}" [${col?.title || "?"}] ${t.priority} priority, assigned to ${assignee}${dueStr}${overdueTag}`;
-  });
-
-  return `Board tasks (${tasks.length} pending):\n${lines.join("\n")}`;
 }
 
 async function fetchRecentFiles(userId: string): Promise<string> {
@@ -626,7 +620,6 @@ export function formatGatheredData(data: GatheredData): string {
   if (data.contacts) parts.push(data.contacts);
   if (data.docs) parts.push(data.docs);
   if (data.sheets) parts.push(data.sheets);
-  if (data.boardTasks) parts.push(data.boardTasks);
   if (parts.length === 0) return "(no data fetched)";
   return parts.join("\n\n");
 }

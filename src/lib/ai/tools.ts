@@ -23,6 +23,7 @@ import AIMemory from "@/lib/infra/db/models/ai-memory";
 import Meeting from "@/lib/infra/db/models/meeting";
 import User from "@/lib/infra/db/models/user";
 import { generateMeetingCode } from "@/lib/utils/id";
+import Task from "@/lib/infra/db/models/task";
 import mongoose from "mongoose";
 import { createLogger } from "@/lib/infra/logger";
 
@@ -315,6 +316,40 @@ export const WORKSPACE_TOOLS: FunctionDeclarationsTool = {
           },
         },
         required: ["eventId"],
+      },
+    },
+
+    {
+      name: "create_focus_block",
+      description: "Create a calendar focus/work block for a specific task. Automatically titles the event with the task name and links back to the task. Use when a task has a due date but no calendar time blocked for it.",
+      parameters: {
+        type: SchemaType.OBJECT,
+        properties: {
+          taskId: { type: SchemaType.STRING, description: "The task ID to create a focus block for." },
+          start: { type: SchemaType.STRING, description: "Start time in ISO 8601 format." },
+          end: { type: SchemaType.STRING, description: "End time in ISO 8601 format." },
+          timeZone: { type: SchemaType.STRING, description: "IANA timezone (e.g. America/New_York). Optional." },
+        },
+        required: ["taskId", "start", "end"],
+      },
+    },
+    {
+      name: "find_mutual_free_slots",
+      description: "Find mutual free time slots across multiple team members for scheduling a meeting. Checks each user's Google Calendar and returns overlapping availability. Use when someone asks 'when can we all meet?' or needs to find a time that works for everyone.",
+      parameters: {
+        type: SchemaType.OBJECT,
+        properties: {
+          userEmails: {
+            type: SchemaType.ARRAY,
+            items: { type: SchemaType.STRING },
+            description: "Email addresses of team members to check availability for.",
+          },
+          date: { type: SchemaType.STRING, description: "Date to check in YYYY-MM-DD format. Defaults to today." },
+          durationMinutes: { type: SchemaType.NUMBER, description: "Desired meeting duration in minutes (default 30)." },
+          workHoursStart: { type: SchemaType.NUMBER, description: "Work hours start in 24h format (default 9)." },
+          workHoursEnd: { type: SchemaType.NUMBER, description: "Work hours end in 24h format (default 18)." },
+        },
+        required: ["userEmails"],
       },
     },
 
@@ -1131,6 +1166,132 @@ export async function executeWorkspaceTool(
         return {
           success: true,
           summary: `Deleted calendar event ${args.eventId}`,
+        };
+      }
+
+      case "create_focus_block": {
+        await connectDB();
+        const fbTaskId = args.taskId as string;
+        if (!fbTaskId || !mongoose.Types.ObjectId.isValid(fbTaskId)) {
+          return { success: false, summary: "Invalid task ID." };
+        }
+        const fbTask = await Task.findById(fbTaskId).select("title boardId").lean();
+        if (!fbTask) return { success: false, summary: "Task not found." };
+
+        // Resolve timezone
+        let fbTz = args.timeZone as string | undefined;
+        if (!fbTz) {
+          try {
+            const fbUser = await User.findById(userId).select("timezone").lean();
+            fbTz = (fbUser as { timezone?: string } | null)?.timezone || undefined;
+          } catch { /* fallback */ }
+        }
+
+        const baseUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000";
+        const taskLink = `${baseUrl}/boards/${fbTask.boardId}?task=${fbTaskId}`;
+
+        const fbEvent = await createEvent(userId, {
+          title: `🔨 ${fbTask.title}`,
+          start: args.start as string,
+          end: args.end as string,
+          description: `Focus block for task: ${fbTask.title}\nOpen task: ${taskLink}`,
+          timeZone: fbTz,
+        });
+
+        return {
+          success: true,
+          summary: `Created focus block "🔨 ${fbTask.title}" from ${args.start} to ${args.end}`,
+          data: { eventId: fbEvent.id, taskId: fbTaskId, title: fbTask.title },
+        };
+      }
+
+      case "find_mutual_free_slots": {
+        await connectDB();
+        const emails = (args.userEmails as string[]) || [];
+        if (emails.length === 0) return { success: false, summary: "No user emails provided." };
+
+        const dateStr = (args.date as string) || new Date().toISOString().split("T")[0];
+        const duration = (args.durationMinutes as number) || 30;
+        const workStart = (args.workHoursStart as number) || 9;
+        const workEnd = (args.workHoursEnd as number) || 18;
+
+        // Resolve Yoodle user IDs from emails
+        const users = await User.find({ email: { $in: emails } }).select("_id email").lean();
+        const userMap = new Map(users.map((u: { _id: unknown; email: string }) => [u.email, u._id!.toString()]));
+
+        const timeMin = `${dateStr}T${String(workStart).padStart(2, "0")}:00:00Z`;
+        const timeMax = `${dateStr}T${String(workEnd).padStart(2, "0")}:00:00Z`;
+
+        // Fetch all users' events in parallel
+        const busySlots: { start: number; end: number }[][] = [];
+        const checkedEmails: string[] = [];
+        const failedEmails: string[] = [];
+
+        // Always include the requesting user
+        try {
+          const myEvents = await listEvents(userId, { timeMin, timeMax, maxResults: 30 });
+          busySlots.push(myEvents.map((e) => ({
+            start: new Date(e.start).getTime(),
+            end: new Date(e.end).getTime(),
+          })));
+          checkedEmails.push("you");
+        } catch { /* requesting user's calendar failed */ }
+
+        for (const email of emails) {
+          const uid = userMap.get(email);
+          if (!uid || uid === userId) continue;
+          try {
+            const events = await listEvents(uid, { timeMin, timeMax, maxResults: 30 });
+            busySlots.push(events.map((e) => ({
+              start: new Date(e.start).getTime(),
+              end: new Date(e.end).getTime(),
+            })));
+            checkedEmails.push(email.split("@")[0]);
+          } catch {
+            failedEmails.push(email.split("@")[0]);
+          }
+        }
+
+        // Merge all busy slots and find gaps
+        const allBusy = busySlots.flat().sort((a, b) => a.start - b.start);
+        const dayStart = new Date(`${dateStr}T${String(workStart).padStart(2, "0")}:00:00Z`).getTime();
+        const dayEnd = new Date(`${dateStr}T${String(workEnd).padStart(2, "0")}:00:00Z`).getTime();
+        const durationMs = duration * 60000;
+
+        // Sweep line to find free windows
+        const freeSlots: { start: string; end: string; minutes: number }[] = [];
+        let cursor = Math.max(dayStart, Date.now());
+
+        for (const slot of allBusy) {
+          if (slot.start > cursor && slot.start - cursor >= durationMs) {
+            const slotEnd = Math.min(slot.start, dayEnd);
+            if (slotEnd - cursor >= durationMs) {
+              freeSlots.push({
+                start: new Date(cursor).toISOString(),
+                end: new Date(slotEnd).toISOString(),
+                minutes: Math.round((slotEnd - cursor) / 60000),
+              });
+            }
+          }
+          cursor = Math.max(cursor, slot.end);
+        }
+
+        // Check remaining time after last event
+        if (dayEnd > cursor && dayEnd - cursor >= durationMs) {
+          freeSlots.push({
+            start: new Date(cursor).toISOString(),
+            end: new Date(dayEnd).toISOString(),
+            minutes: Math.round((dayEnd - cursor) / 60000),
+          });
+        }
+
+        const failedNote = failedEmails.length > 0 ? ` (couldn't check: ${failedEmails.join(", ")})` : "";
+        return {
+          success: true,
+          summary: freeSlots.length > 0
+            ? `Found ${freeSlots.length} mutual free slot(s) on ${dateStr} for ${checkedEmails.join(", ")}${failedNote}`
+            : `No mutual free slots found on ${dateStr} for ${duration}+ minutes${failedNote}`,
+          data: { date: dateStr, freeSlots, checkedUsers: checkedEmails, failedUsers: failedEmails },
         };
       }
 

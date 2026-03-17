@@ -16,6 +16,21 @@ import { createLogger } from "@/lib/infra/logger";
 
 const log = createLogger("meetings:leave");
 
+// ── Types ───────────────────────────────────────────────────────────
+
+interface MeetingMom {
+  summary?: string;
+  keyDecisions?: string[];
+  discussionPoints?: string[];
+  actionItems?: { task: string; owner: string; due: string }[];
+  nextSteps?: string[];
+}
+
+interface MeetingWithMom {
+  title?: string;
+  mom?: MeetingMom;
+}
+
 // ── Helpers ─────────────────────────────────────────────────────────
 
 const MEETING_CODE_REGEX = /^yoo-[a-z0-9]{3}-[a-z0-9]{3}$/;
@@ -173,9 +188,16 @@ export const POST = withHandler(async (req: NextRequest, context) => {
         log.warn({ err, meetingId: result._id }, "failed to post meeting-ended message");
       }
 
+      // Fetch MoM data once — used by steps 2 and 3
+      let meetingWithMom: MeetingWithMom | null = null;
+      try {
+        meetingWithMom = await Meeting.findById(result._id).select("mom title").lean();
+      } catch (err) {
+        log.warn({ err, meetingId: result._id }, "failed to fetch meeting MoM data");
+      }
+
       // 2. Post MoM if it exists (independent of step 1)
       try {
-        const meetingWithMom = await Meeting.findById(result._id).select("mom title").lean();
         if (meetingWithMom?.mom?.summary) {
           const mom = meetingWithMom.mom;
           const momContent = [
@@ -215,6 +237,29 @@ export const POST = withHandler(async (req: NextRequest, context) => {
         }
       } catch (err) {
         log.warn({ err, meetingId: result._id }, "failed to post MoM to conversation");
+      }
+
+      // 3. Update calendar event with MoM summary (independent of steps 1 & 2)
+      try {
+        if (result.calendarEventId && meetingWithMom?.mom?.summary) {
+          const baseUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000";
+          const yoodleLink = `${baseUrl}/meetings/${result.code}/room`;
+          const momLink = `${baseUrl}/meetings/${result._id}`;
+          const updatedDesc = [
+            `Join Yoodle meeting: ${yoodleLink}`,
+            ``,
+            `📝 Meeting Notes:`,
+            meetingWithMom.mom.summary,
+            meetingWithMom.mom.keyDecisions?.length ? `\nKey Decisions: ${meetingWithMom.mom.keyDecisions.join("; ")}` : "",
+            `\nFull notes: ${momLink}`,
+          ].filter(Boolean).join("\n");
+
+          await updateEvent(userId, result.calendarEventId, {
+            description: updatedDesc,
+          });
+        }
+      } catch (err) {
+        log.warn({ err, meetingId: result._id }, "failed to update calendar event with MoM");
       }
     })();
   } else if (isHost && remainingParticipants.length > 0) {
