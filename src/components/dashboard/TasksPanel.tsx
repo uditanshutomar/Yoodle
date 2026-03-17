@@ -75,7 +75,7 @@ function ActionCard({
     <motion.div
       initial={{ opacity: 0, y: 6 }}
       animate={{ opacity: 1, y: 0 }}
-      className="rounded-xl border-[1.5px] border-[#FFE600]/40 bg-[#FFE600]/5 p-2.5"
+      className="rounded-xl border-[1.5px] border-[#FFE600]/40 bg-[#FFE600]/5 p-2.5 h-full"
     >
       {/* Header */}
       <div className="flex items-start gap-2">
@@ -304,7 +304,7 @@ export default function TasksPanel({ pendingActions, onConfirmAction, onDenyActi
     /* ── Loading skeleton ── */
     if (loading) {
         return (
-            <div className="rounded-2xl border-2 border-[var(--border-strong)] bg-[var(--surface)] shadow-[var(--shadow-card)] p-4">
+            <div>
                 <div className="flex items-center justify-between mb-3">
                     <h2 className="text-sm font-bold text-[var(--text-primary)]" style={{ fontFamily: "var(--font-heading)" }}>
                         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#22C55E" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="inline -mt-0.5 mr-1">
@@ -324,12 +324,7 @@ export default function TasksPanel({ pendingActions, onConfirmAction, onDenyActi
     }
 
     return (
-        <motion.div
-            initial={{ y: 20, opacity: 0 }}
-            animate={{ y: 0, opacity: 1 }}
-            transition={{ delay: 0.35, type: "spring", stiffness: 200, damping: 25 }}
-            className="rounded-2xl border-2 border-[var(--border-strong)] bg-[var(--surface)] shadow-[var(--shadow-card)] overflow-hidden p-4"
-        >
+        <div>
             {/* Header */}
             <div className="flex items-center justify-between mb-3">
                 <h2 className="text-sm font-bold text-[var(--text-primary)]" style={{ fontFamily: "var(--font-heading)" }}>
@@ -509,7 +504,7 @@ export default function TasksPanel({ pendingActions, onConfirmAction, onDenyActi
                     )}
                 </>
             )}
-        </motion.div>
+        </div>
     );
 }
 

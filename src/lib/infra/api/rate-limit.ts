@@ -14,7 +14,7 @@ interface RateLimitConfig {
 
 /** Rate limit presets for different endpoint groups */
 export const RATE_LIMITS = {
-  auth: { limit: 5, window: 60 } as RateLimitConfig, // login, signup, verify
+  auth: { limit: 30, window: 60 } as RateLimitConfig, // login, signup, verify
   session: { limit: 30, window: 60 } as RateLimitConfig, // session check, refresh
   ai: { limit: 20, window: 60 } as RateLimitConfig,
   voice: { limit: 10, window: 60 } as RateLimitConfig,

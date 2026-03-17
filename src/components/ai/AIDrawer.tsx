@@ -1,10 +1,17 @@
 "use client";
 
-import { createContext, useContext, useState, useCallback, useEffect } from "react";
+import { createContext, useContext, useState, useCallback, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { X, Bot } from "lucide-react";
+import Image from "next/image";
 import ChatWindow from "@/components/ai/ChatWindow";
 import { useAIChat } from "@/hooks/useAIChat";
+import { useAuth } from "@/hooks/useAuth";
+
+const MASCOT_BY_MODE: Record<string, string> = {
+  social: "/mascot-social.png",
+  lockin: "/mascot-lockin.png",
+  invisible: "/mascot-invisible.png",
+};
 
 interface AIDrawerContextValue {
   isOpen: boolean;
@@ -49,20 +56,36 @@ export function AIDrawerProvider({ children }: { children: React.ReactNode }) {
 }
 
 function AIDrawerFAB({ onClick, isOpen }: { onClick: () => void; isOpen: boolean }) {
+  const { user } = useAuth();
+  const mascotSrc = MASCOT_BY_MODE[user?.mode || "social"] || MASCOT_BY_MODE.social;
+  const constraintsRef = useRef<HTMLDivElement>(null);
+  const isDragging = useRef(false);
+  const [dragging, setDragging] = useState(false);
+
   if (isOpen) return null;
 
   return (
-    <motion.button
-      initial={{ scale: 0 }}
-      animate={{ scale: 1 }}
-      whileHover={{ scale: 1.1, rotate: -5 }}
-      whileTap={{ scale: 0.9 }}
-      onClick={onClick}
-      className="fixed bottom-6 right-6 z-50 flex h-14 w-14 items-center justify-center rounded-full bg-[#FFE600] border-2 border-[var(--border-strong)] shadow-[3px_3px_0_var(--border-strong)] lg:bottom-8 lg:right-8"
-      title="Ask Doodle (⌘J)"
-    >
-      <Bot size={24} className="text-[#0A0A0A]" />
-    </motion.button>
+    <div ref={constraintsRef} className="fixed inset-0 z-50 pointer-events-none">
+      <motion.button
+        drag
+        dragConstraints={constraintsRef}
+        dragElastic={0.1}
+        dragMomentum={false}
+        onDragStart={() => { isDragging.current = true; setDragging(true); }}
+        onDragEnd={() => { setDragging(false); setTimeout(() => { isDragging.current = false; }, 0); }}
+        onClick={() => { if (!isDragging.current) onClick(); }}
+        initial={{ scale: 0, x: 0, y: 0 }}
+        animate={{ scale: dragging ? 2 : 1 }}
+        whileHover={{ scale: dragging ? 2 : 1.1, rotate: dragging ? 0 : -5 }}
+        whileTap={{ scale: dragging ? 2 : 0.95 }}
+        transition={{ type: "spring", stiffness: 300, damping: 20 }}
+        style={{ position: "absolute", bottom: 24, right: 24 }}
+        className="pointer-events-auto flex h-16 w-16 items-center justify-center rounded-full bg-[#FFE600] border-2 border-[var(--border-strong)] shadow-[3px_3px_0_var(--border-strong)] cursor-grab active:cursor-grabbing overflow-hidden"
+        title="Ask Doodle (⌘J) — drag me anywhere!"
+      >
+        <Image src={mascotSrc} alt="Yoodle" width={56} height={56} className="mix-blend-multiply pointer-events-none select-none object-cover" draggable={false} />
+      </motion.button>
+    </div>
   );
 }
 
@@ -87,25 +110,6 @@ function AIDrawerPanel({ isOpen, onClose }: { isOpen: boolean; onClose: () => vo
             exit={{ x: "100%" }}
             transition={{ type: "spring", stiffness: 300, damping: 30 }}
           >
-            <div className="flex items-center justify-between px-4 py-3 border-b-2 border-[var(--border)]">
-              <div className="flex items-center gap-2">
-                <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[#FFE600] border-2 border-[var(--border-strong)]">
-                  <Bot size={16} className="text-[#0A0A0A]" />
-                </div>
-                <div>
-                  <h3 className="text-sm font-bold text-[var(--text-primary)]" style={{ fontFamily: "var(--font-heading)" }}>
-                    Doodle Poodle
-                  </h3>
-                  <p className="text-[10px] text-[var(--text-muted)]">⌘J to toggle</p>
-                </div>
-              </div>
-              <button
-                onClick={onClose}
-                className="rounded-lg p-1.5 text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-hover)] transition-colors"
-              >
-                <X size={18} />
-              </button>
-            </div>
             <div className="flex-1 min-h-0">
               <ChatWindow
                 messages={messages}
@@ -113,6 +117,7 @@ function AIDrawerPanel({ isOpen, onClose }: { isOpen: boolean; onClose: () => vo
                 onSend={sendMessage}
                 onStop={stopStreaming}
                 onClear={clearMessages}
+                onClose={onClose}
               />
             </div>
           </motion.aside>

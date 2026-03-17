@@ -15,7 +15,7 @@ vi.mock("@/lib/infra/logger", () => ({
 }));
 vi.mock("@/lib/google/client", () => ({}));
 vi.mock("@/lib/google/calendar", () => ({}));
-vi.mock("@/lib/google/tasks", () => ({}));
+
 vi.mock("@/lib/google/gmail", () => ({}));
 vi.mock("@/lib/google/drive", () => ({}));
 vi.mock("@/lib/google/contacts", () => ({}));

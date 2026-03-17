@@ -63,9 +63,9 @@ const GRID_END_HOUR = 24;
 const ROW_HEIGHT = 44;
 
 const HOURS_LABELS: string[] = [];
-for (let h = GRID_START_HOUR; h <= GRID_END_HOUR; h++) {
-    const ampm = h >= 12 ? "pm" : "am";
-    const h12 = h === 0 ? 12 : h > 12 ? h - 12 : h;
+for (let h = GRID_START_HOUR; h < GRID_END_HOUR; h++) {
+    const ampm = h >= 12 && h < 24 ? "pm" : "am";
+    const h12 = h === 0 || h === 24 ? 12 : h > 12 ? h - 12 : h;
     HOURS_LABELS.push(`${h12} ${ampm}`);
 }
 
@@ -736,7 +736,7 @@ function DayView({ dayData, events, allDayEvents, currentTimeOffset, quickAdd, q
             )}
             <div className="relative cursor-crosshair" style={{ height: totalHours * ROW_HEIGHT }} onClick={handleClick}>
                 {HOURS_LABELS.map((hour, i) => (
-                    <div key={hour} className="absolute left-0 right-0 flex items-start" style={{ top: i * ROW_HEIGHT }}>
+                    <div key={i} className="absolute left-0 right-0 flex items-start" style={{ top: i * ROW_HEIGHT }}>
                         <span className="w-14 flex-shrink-0 text-[10px] text-[var(--text-muted)] font-medium -mt-1.5 pr-2 text-right" style={{ fontFamily: "var(--font-heading)" }}>{hour}</span>
                         <div className="flex-1 border-t border-[var(--border)]" />
                     </div>
@@ -1018,11 +1018,22 @@ export default function CalendarPanel() {
         return `${CURRENT_MONTH}, ${CURRENT_YEAR}`;
     }, [view, weekOffset, CURRENT_MONTH, CURRENT_YEAR]);
 
+    const collapsedScrollRef = useRef<HTMLDivElement>(null);
+
+    // Auto-scroll collapsed calendar to current time
+    useEffect(() => {
+        if (!expanded && collapsedScrollRef.current && currentTimeOffset !== null) {
+            const COLLAPSED_ROW_HEIGHT = 48;
+            const scrollTarget = Math.max(0, (currentTimeOffset - 1) * COLLAPSED_ROW_HEIGHT);
+            collapsedScrollRef.current.scrollTo({ top: scrollTarget, behavior: "smooth" });
+        }
+    }, [expanded, currentTimeOffset, loading]);
+
     // Hydration guard: render a static placeholder until client-side mount.
     // This prevents React error #418 caused by server/client date mismatches.
     if (!mounted) {
         return (
-            <div className="relative rounded-2xl border-2 border-[var(--border-strong)] bg-[var(--surface)] shadow-[var(--shadow-card)] overflow-hidden p-4 lg:max-w-[340px] lg:ml-auto">
+            <div className="relative rounded-2xl border-2 border-[var(--border-strong)] bg-[var(--surface)] shadow-[var(--shadow-card)] overflow-hidden p-4">
                 <div className="py-6 space-y-3">
                     {[...Array(4)].map((_, i) => (
                         <div key={i} className="flex items-center gap-2 px-1">
@@ -1040,14 +1051,14 @@ export default function CalendarPanel() {
     const collapsedVisibleEvents = timedEvents.filter((e) => COLLAPSED_INDICES.includes(e.dayIndex));
     const collapsedAllDay = allDayEvents.filter((e) => COLLAPSED_INDICES.includes(e.dayIndex));
     const COLLAPSED_ROW_HEIGHT = 48;
-    const COLLAPSED_HOURS = HOURS_LABELS.slice(7, 16); // 7am–3pm for compact view
+    const COLLAPSED_HOURS = HOURS_LABELS; // Show all hours, scrollable
 
     const collapsedCard = (
         <motion.div
             initial={{ y: 20, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
             transition={{ delay: 0.2, type: "spring", stiffness: 200, damping: 25 }}
-            className="relative rounded-2xl border-2 border-[var(--border-strong)] bg-[var(--surface)] shadow-[var(--shadow-card)] overflow-hidden p-4 cursor-pointer lg:max-w-[340px] lg:ml-auto"
+            className="relative rounded-2xl border-2 border-[var(--border-strong)] bg-[var(--surface)] shadow-[var(--shadow-card)] overflow-hidden p-4 cursor-pointer"
             onClick={() => setExpanded(true)}
         >
             {/* Header */}
@@ -1103,9 +1114,10 @@ export default function CalendarPanel() {
                     ))}
                 </div>
             ) : (
-                <div className="relative" style={{ height: COLLAPSED_HOURS.length * COLLAPSED_ROW_HEIGHT }}>
+                <div ref={collapsedScrollRef} className="relative overflow-y-auto" style={{ maxHeight: 9 * COLLAPSED_ROW_HEIGHT }}>
+                    <div className="relative" style={{ height: COLLAPSED_HOURS.length * COLLAPSED_ROW_HEIGHT }}>
                     {COLLAPSED_HOURS.map((hour, i) => (
-                        <div key={hour} className="absolute left-0 right-0 flex items-start" style={{ top: i * COLLAPSED_ROW_HEIGHT }}>
+                        <div key={i} className="absolute left-0 right-0 flex items-start" style={{ top: i * COLLAPSED_ROW_HEIGHT }}>
                             <span className="w-10 flex-shrink-0 text-[9px] text-[var(--text-muted)] font-medium -mt-1" style={{ fontFamily: "var(--font-heading)" }}>{hour}</span>
                             <div className="flex-1 border-t border-[var(--border)]" />
                         </div>
@@ -1113,8 +1125,8 @@ export default function CalendarPanel() {
                     {collapsedVisibleEvents.map((event) => {
                         const relIdx = COLLAPSED_INDICES.indexOf(event.dayIndex);
                         if (relIdx < 0) return null;
-                        const COLLAPSED_START_HOUR = 7;
-                        if (event.startHour + event.duration <= COLLAPSED_START_HOUR || event.startHour >= COLLAPSED_START_HOUR + COLLAPSED_HOURS.length) return null;
+                        const COLLAPSED_START_HOUR = GRID_START_HOUR;
+                        if (event.startHour + event.duration <= COLLAPSED_START_HOUR || event.startHour >= GRID_END_HOUR) return null;
                         const topOffset = (event.startHour - COLLAPSED_START_HOUR) * COLLAPSED_ROW_HEIGHT + 2;
                         const height = event.duration * COLLAPSED_ROW_HEIGHT - 4;
                         const colWidth = 100 / COLLAPSED_INDICES.length;
@@ -1133,6 +1145,13 @@ export default function CalendarPanel() {
                             <p className="text-[10px] font-semibold text-[var(--text-muted)]" style={{ fontFamily: "var(--font-heading)" }}>Nothing scheduled</p>
                         </div>
                     )}
+                    {currentTimeOffset !== null && currentTimeOffset >= 0 && (
+                        <div className="absolute left-10 right-0 z-30 flex items-center pointer-events-none" style={{ top: currentTimeOffset * COLLAPSED_ROW_HEIGHT }}>
+                            <div className="w-2 h-2 rounded-full bg-[#EF4444] -ml-1" />
+                            <div className="flex-1 h-[2px] bg-[#EF4444]" />
+                        </div>
+                    )}
+                    </div>
                 </div>
             )}
         </motion.div>
@@ -1290,7 +1309,7 @@ export default function CalendarPanel() {
                         <div ref={scrollRef} className="flex-1 overflow-y-auto overflow-x-hidden px-6">
                             <div ref={gridRef} className="relative cursor-crosshair" style={{ height: totalHours * ROW_HEIGHT }} onClick={handleGridClick}>
                                 {HOURS_LABELS.map((hour, i) => (
-                                    <div key={hour} className="absolute left-0 right-0 flex items-start" style={{ top: i * ROW_HEIGHT }}>
+                                    <div key={i} className="absolute left-0 right-0 flex items-start" style={{ top: i * ROW_HEIGHT }}>
                                         <span className="w-14 flex-shrink-0 text-[10px] text-[var(--text-muted)] font-medium -mt-1.5 pr-2 text-right" style={{ fontFamily: "var(--font-heading)" }}>{hour}</span>
                                         <div className="flex-1 border-t border-[var(--border)]" />
                                     </div>

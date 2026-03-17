@@ -5,6 +5,8 @@ import {
   buildReflectPrompt,
 } from "@/lib/ai/prompts";
 import { executeToolPlan, formatGatheredData } from "@/lib/chat/agent-tools";
+import Board from "@/lib/infra/db/models/board";
+import Task from "@/lib/infra/db/models/task";
 import DirectMessage from "@/lib/infra/db/models/direct-message";
 import Conversation from "@/lib/infra/db/models/conversation";
 import ConversationContext from "@/lib/infra/db/models/conversation-context";
@@ -143,10 +145,31 @@ async function processOneAgent(
     // Build conversation type context (1:1 vs group, participant count)
     const convType = conv?.type === "dm" ? "1:1 DM" : `group chat (${conv?.participants?.length || 0} members)`;
 
+    // Check if conversation has a linked board
+    let boardContextStr = "";
+    try {
+      const linkedBoard = await Board.findOne({ conversationId }).lean();
+      if (linkedBoard) {
+        const boardTasks = await Task.find({ boardId: linkedBoard._id, completedAt: null })
+          .sort({ dueDate: 1 })
+          .limit(10)
+          .populate("assigneeId", "displayName")
+          .lean();
+        const taskLines = boardTasks.map((t) => {
+          const col = linkedBoard.columns?.find((c: { id: string; title: string }) => c.id === t.columnId);
+          const assignee = (t.assigneeId as { displayName?: string } | null)?.displayName || "Unassigned";
+          return `  - "${t.title}" [${col?.title}] ${t.priority}, ${assignee}`;
+        });
+        boardContextStr = `\n\nConversation Board: "${linkedBoard.title}" (${boardTasks.length} tasks)\n${taskLines.join("\n")}`;
+      }
+    } catch {
+      // Ignore errors — board context is supplementary
+    }
+
     // ── Stage 1+2: ANALYZE & DECIDE (merged) ─────────────────────
     const analyzeAndDecidePrompt = buildAnalyzeAndDecidePrompt(
       userName,
-      conversationCtx.summary,
+      conversationCtx.summary + boardContextStr,
       formatOpenQuestions(conversationCtx.openQuestions),
       formatActionItems(conversationCtx.actionItems),
       history,
@@ -199,7 +222,7 @@ async function processOneAgent(
       hasCalendar: !!gatheredData.calendar, hasTasks: !!gatheredData.tasks,
       hasEmails: !!gatheredData.emails, hasFiles: !!gatheredData.files,
       hasContacts: !!gatheredData.contacts, hasDocs: !!gatheredData.docs,
-      hasSheets: !!gatheredData.sheets,
+      hasSheets: !!gatheredData.sheets, hasBoardTasks: !!gatheredData.boardTasks,
     }, "Stage 3 GATHER complete");
 
     // ── Stage 4: RESPOND ────────────────────────────────────────

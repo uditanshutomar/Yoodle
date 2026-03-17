@@ -1,10 +1,12 @@
 import { listEvents } from "@/lib/google/calendar";
-import { listTasks, listTaskLists } from "@/lib/google/tasks";
+import connectDB from "@/lib/infra/db/client";
 import { listEmails, getUnreadCount } from "@/lib/google/gmail";
 import { listFiles, searchFiles } from "@/lib/google/drive";
 import { searchContacts } from "@/lib/google/contacts";
 import { getDocContent } from "@/lib/google/docs";
 import { readSheet } from "@/lib/google/sheets";
+import Board from "@/lib/infra/db/models/board";
+import Task from "@/lib/infra/db/models/task";
 import { createLogger } from "@/lib/infra/logger";
 
 const log = createLogger("agent-tools");
@@ -17,6 +19,7 @@ export interface GatheredData {
   contacts?: string;
   docs?: string;
   sheets?: string;
+  boardTasks?: string;
   errors?: string[];
 }
 
@@ -58,6 +61,13 @@ export async function executeToolPlan(
     promises.push(
       withTimeout(fetchEmails(userId), TOOL_TIMEOUT_MS, "Emails: Timed out fetching data.")
         .then((data) => { result.emails = data; })
+    );
+  }
+
+  if (tools.includes("check_board_tasks")) {
+    promises.push(
+      withTimeout(fetchBoardTasks(userId), TOOL_TIMEOUT_MS, "Board Tasks: Timed out fetching data.")
+        .then((data) => { result.boardTasks = data; })
     );
   }
 
@@ -302,57 +312,64 @@ async function fetchCalendar(userId: string, timezone?: string): Promise<string>
 
 async function fetchTasks(userId: string): Promise<string> {
   try {
-    // Fetch all task lists, then get tasks from each
-    const taskLists = await listTaskLists(userId);
-    if (taskLists.length === 0) {
-      return "Tasks: No task lists found.";
+    await connectDB();
+
+    // Find all boards the user owns or is a member of
+    const boards = await Board.find({
+      $or: [
+        { ownerId: userId },
+        { "members.userId": userId },
+      ],
+    }).lean();
+
+    if (boards.length === 0) {
+      return "Tasks: No boards found.";
     }
 
-    const allTasks: { title: string; due?: string; listName: string }[] = [];
+    const boardIds = boards.map((b) => b._id);
+    const boardMap = new Map(boards.map((b) => [b._id.toString(), b]));
 
-    // Fetch tasks from all lists in parallel (limit to first 5 lists)
-    const listsToFetch = taskLists.slice(0, 5);
-    const results = await Promise.allSettled(
-      listsToFetch.map(async (tl) => {
-        const tasks = await listTasks(userId, tl.id, {
-          showCompleted: false,
-          maxResults: 10,
-        });
-        return tasks.map((t) => ({ ...t, listName: tl.title }));
-      })
-    );
+    // Fetch incomplete tasks (no completedAt) across all boards
+    const tasks = await Task.find({
+      boardId: { $in: boardIds },
+      completedAt: null,
+    })
+      .sort({ dueDate: 1, priority: 1 })
+      .limit(50)
+      .populate("assigneeId", "displayName name")
+      .lean();
 
-    for (const r of results) {
-      if (r.status === "fulfilled") allTasks.push(...r.value);
-    }
-
-    if (allTasks.length === 0) {
-      return "Tasks: No pending tasks across all lists.";
+    if (tasks.length === 0) {
+      return "Tasks: No pending tasks across all boards.";
     }
 
     const now = new Date();
-    // Filter out tasks with empty titles (Google API can return null → normalised to "")
-    const validTasks = allTasks.filter((t) => t.title.trim().length > 0);
+    const validTasks = tasks.filter((t) => t.title.trim().length > 0);
 
     if (validTasks.length === 0) {
-      return "Tasks: No pending tasks across all lists.";
+      return "Tasks: No pending tasks across all boards.";
     }
 
     const formatted = validTasks.map((t) => {
-      const due = t.due ? ` (due ${formatDay(new Date(t.due))})` : "";
-      const isOverdue = t.due && new Date(t.due) < now;
-      const listTag = taskLists.length > 1 ? ` [${t.listName}]` : "";
-      return `  ${isOverdue ? "⚠ " : "- "}${t.title}${due}${listTag}`;
+      const due = t.dueDate ? ` (due ${formatDay(new Date(t.dueDate))})` : "";
+      const isOverdue = t.dueDate && new Date(t.dueDate) < now;
+      const board = boardMap.get(t.boardId.toString());
+      const col = board?.columns?.find((c: { id: string; title: string }) => c.id === t.columnId);
+      const assignee = (t.assigneeId as { displayName?: string } | null)?.displayName || "Unassigned";
+      const boardTag = boards.length > 1 && board ? ` [${board.title}]` : "";
+      const priorityTag = t.priority !== "none" ? ` {${t.priority}}` : "";
+      const colTag = col ? ` (${col.title})` : "";
+      return `  ${isOverdue ? "⚠ " : "- "}${t.title}${due}${priorityTag}${colTag} → ${assignee}${boardTag}`;
     });
 
-    const overdue = validTasks.filter((t) => t.due && new Date(t.due) < now);
+    const overdue = validTasks.filter((t) => t.dueDate && new Date(t.dueDate) < now);
     const overdueNote =
       overdue.length > 0 ? `\n${overdue.length} OVERDUE` : "";
 
-    return `Tasks (${validTasks.length} pending across ${taskLists.length} list${taskLists.length > 1 ? "s" : ""}${overdueNote}):\n${formatted.join("\n")}`;
+    return `Tasks (${validTasks.length} pending across ${boards.length} board${boards.length > 1 ? "s" : ""}${overdueNote}):\n${formatted.join("\n")}`;
   } catch (error) {
-    log.warn({ error, userId }, "Failed to fetch tasks for agent");
-    return "Tasks: Unable to access (Google account may not be connected).";
+    log.warn({ error, userId }, "Failed to fetch board tasks for agent");
+    return "Tasks: Unable to access board tasks.";
   }
 }
 
@@ -392,6 +409,41 @@ async function fetchEmails(userId: string): Promise<string> {
     log.warn({ error, userId }, "Failed to fetch emails for agent");
     return "Emails: Unable to access (Google account may not be connected).";
   }
+}
+
+async function fetchBoardTasks(userId: string): Promise<string> {
+  const boards = await Board.find({
+    $or: [{ ownerId: userId }, { "members.userId": userId }],
+  }).lean();
+
+  if (boards.length === 0) return "No boards found.";
+
+  const boardIds = boards.map((b) => b._id);
+  const tasks = await Task.find({
+    boardId: { $in: boardIds },
+    completedAt: null,
+  })
+    .sort({ dueDate: 1 })
+    .limit(20)
+    .populate("assigneeId", "displayName name")
+    .lean();
+
+  if (tasks.length === 0) return "No pending board tasks.";
+
+  const boardMap = new Map(boards.map((b) => [b._id.toString(), b]));
+  const now = new Date();
+
+  const lines = tasks.map((t) => {
+    const board = boardMap.get(t.boardId.toString());
+    const col = board?.columns?.find((c: { id: string; title: string }) => c.id === t.columnId);
+    const assignee = (t.assigneeId as { displayName?: string } | null)?.displayName || "Unassigned";
+    const isOverdue = t.dueDate && new Date(t.dueDate) < now;
+    const overdueTag = isOverdue ? " [OVERDUE]" : "";
+    const dueStr = t.dueDate ? ` (due: ${new Date(t.dueDate).toISOString().split("T")[0]})` : "";
+    return `- "${t.title}" [${col?.title || "?"}] ${t.priority} priority, assigned to ${assignee}${dueStr}${overdueTag}`;
+  });
+
+  return `Board tasks (${tasks.length} pending):\n${lines.join("\n")}`;
 }
 
 async function fetchRecentFiles(userId: string): Promise<string> {
@@ -574,6 +626,7 @@ export function formatGatheredData(data: GatheredData): string {
   if (data.contacts) parts.push(data.contacts);
   if (data.docs) parts.push(data.docs);
   if (data.sheets) parts.push(data.sheets);
+  if (data.boardTasks) parts.push(data.boardTasks);
   if (parts.length === 0) return "(no data fetched)";
   return parts.join("\n\n");
 }
