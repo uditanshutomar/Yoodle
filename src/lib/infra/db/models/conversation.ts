@@ -9,6 +9,7 @@ export interface IConversationParticipant {
   lastReadAt?: Date;
   agentEnabled: boolean;
   muted: boolean;
+  agentMutedUntil?: Date;
   role: "admin" | "member";
 }
 
@@ -43,6 +44,7 @@ const participantSchema = new Schema<IConversationParticipant>(
     lastReadAt: { type: Date },
     agentEnabled: { type: Boolean, default: false },
     muted: { type: Boolean, default: false },
+    agentMutedUntil: { type: Date },
     role: { type: String, enum: ["admin", "member"], default: "member" },
   },
   { _id: false }

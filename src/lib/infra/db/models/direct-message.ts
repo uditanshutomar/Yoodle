@@ -20,6 +20,8 @@ export interface IDirectMessage {
   edited: boolean;
   editedAt?: Date;
   deleted: boolean;
+  priority?: "high" | "normal";
+  meetingContext?: boolean;
   agentMeta?: {
     toolCalls?: { name: string; status: string; summary?: string }[];
     actions?: { label: string; action: string; payload?: Record<string, unknown> }[];
@@ -66,6 +68,8 @@ const directMessageSchema = new Schema<IDirectMessageDocument>(
     edited: { type: Boolean, default: false },
     editedAt: { type: Date },
     deleted: { type: Boolean, default: false },
+    priority: { type: String, enum: ["high", "normal"], default: "normal" },
+    meetingContext: { type: Boolean },
     agentMeta: {
       type: Schema.Types.Mixed,
     },

@@ -35,6 +35,8 @@ export interface IConversationContext {
   decisions: IDecision[];
   openQuestions: IOpenQuestion[];
   facts: IFact[];
+  linkedTaskIds: Types.ObjectId[];
+  linkedMeetingIds: Types.ObjectId[];
   lastUpdatedAt: Date;
   createdAt: Date;
   updatedAt: Date;
@@ -104,6 +106,8 @@ const conversationContextSchema = new Schema<IConversationContextDocument>(
     decisions: { type: [decisionSchema], default: [] },
     openQuestions: { type: [openQuestionSchema], default: [] },
     facts: { type: [factSchema], default: [] },
+    linkedTaskIds: [{ type: Schema.Types.ObjectId, ref: "Task" }],
+    linkedMeetingIds: [{ type: Schema.Types.ObjectId, ref: "Meeting" }],
     lastUpdatedAt: { type: Date, default: Date.now },
   },
   { timestamps: true, collection: "conversation_contexts" }
