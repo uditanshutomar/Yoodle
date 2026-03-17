@@ -11,7 +11,13 @@ const ALLOWED_ACTION_TYPES = new Set([
   "send_email", "search_emails", "list_emails", "get_unread_count",
   "mark_email_read", "get_email", "reply_to_email",
   "create_calendar_event", "list_calendar_events", "update_calendar_event", "delete_calendar_event",
-  "create_task", "complete_task", "update_task", "delete_task", "list_tasks", "list_task_lists",
+  // Board tasks
+  "create_board_task", "update_board_task", "move_board_task",
+  "assign_board_task", "delete_board_task", "list_board_tasks", "search_board_tasks",
+  // Cross-domain tools
+  "create_task_from_meeting", "create_task_from_email", "create_task_from_chat",
+  "schedule_meeting_for_task", "link_doc_to_task", "link_meeting_to_task",
+  "generate_subtasks", "get_task_context",
   "search_drive_files", "list_drive_files", "create_google_doc",
   "read_doc", "append_to_doc", "find_replace_in_doc",
   "read_sheet", "write_sheet", "append_to_sheet", "create_spreadsheet", "clear_sheet_range",
