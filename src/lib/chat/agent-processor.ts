@@ -214,7 +214,7 @@ async function processOneAgent(
     // ── Stage 3: GATHER ─────────────────────────────────────────
     const toolPlan: string[] = Array.isArray(decision.toolPlan) ? decision.toolPlan : [];
     const userTimezone = (user as { timezone?: string }).timezone;
-    const gatheredData = await executeToolPlan(agentUserId, toolPlan, userTimezone);
+    const gatheredData = await executeToolPlan(agentUserId, toolPlan, userTimezone, conversationId);
     const gatheredDataStr = formatGatheredData(gatheredData);
 
     log.info({

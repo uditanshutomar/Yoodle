@@ -33,7 +33,8 @@ const TOOL_TIMEOUT_MS = 10_000;
 export async function executeToolPlan(
   userId: string,
   toolPlan: string[],
-  timezone?: string
+  timezone?: string,
+  conversationId?: string
 ): Promise<GatheredData> {
   const result: GatheredData = { errors: [] };
 
@@ -136,6 +137,42 @@ export async function executeToolPlan(
   const fileParts = [recentFilesData, searchFilesData].filter(Boolean);
   if (fileParts.length > 0) {
     result.files = fileParts.join("\n\n");
+  }
+
+  // Enrich with conversation-linked data
+  if (conversationId) {
+    try {
+      const ConversationContext = (await import("@/lib/infra/db/models/conversation-context")).default;
+      const ctx = await ConversationContext.findOne({ conversationId }).lean();
+      if (ctx) {
+        const openItems = (ctx.actionItems || [])
+          .filter((a: { status: string }) => a.status === "open")
+          .map((a: { description: string; assignee: string }) => `  - ${a.description} (${a.assignee})`)
+          .join("\n");
+        if (openItems) {
+          result.tasks = (result.tasks || "") + `\n\n--- Open Action Items from this Conversation ---\n${openItems}`;
+        }
+
+        const linkedMeetingIds = ctx.linkedMeetingIds || [];
+        if (linkedMeetingIds.length > 0) {
+          const MeetingModel = (await import("@/lib/infra/db/models/meeting")).default;
+          const recentMeetings = await MeetingModel.find({
+            _id: { $in: linkedMeetingIds },
+          }).select("title mom endedAt").sort({ endedAt: -1 }).limit(3).lean();
+
+          const meetingNotes = recentMeetings
+            .filter((m: { mom?: { summary?: string } }) => m.mom?.summary)
+            .map((m: { title?: string; mom?: { summary?: string } }) =>
+              `  - ${m.title}: ${m.mom?.summary?.slice(0, 150)}`
+            ).join("\n");
+          if (meetingNotes) {
+            result.calendar = (result.calendar || "") + `\n\n--- Recent Meeting Notes (linked to this chat) ---\n${meetingNotes}`;
+          }
+        }
+      }
+    } catch {
+      // Non-fatal enrichment
+    }
   }
 
   return result;
