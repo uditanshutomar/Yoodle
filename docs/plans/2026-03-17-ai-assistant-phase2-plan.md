@@ -1,45 +1,108 @@
-# AI Assistant Enhancement — Phase 2: Proactive Intelligence + Context/Memory
+# AI Assistant Phase 2: Proactive Intelligence + Context/Memory — Implementation Plan
 
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
-**Goal:** Add 5 new proactive trigger types, a notification badge on the FAB, proactive insight queue in the drawer, cross-entity context enrichment, and Memory v2 with new categories and explicit user control.
+**Goal:** Add 5 new proactive triggers with FAB notification badge + insight queue, upgrade AI Memory with 2 new categories and explicit memory tools, add cross-entity context enrichment, and session persistence.
 
-**Architecture:** Extend the existing proactive trigger system (`proactive-triggers.ts` + cron route) with new trigger functions. Add a lightweight insight storage model and API endpoint. Enhance the agent pipeline's GATHER stage with context enrichment. Upgrade the AIMemory schema with new categories and fields.
+**Architecture:** Backend-heavy phase. New proactive trigger functions slot into the existing cron loop. A new `ProactiveInsight` Redis-backed store feeds a notification badge on the FAB and an insight queue in the drawer. Memory schema gets 2 new categories + `decayRate`/`userExplicit` fields. A `context-enricher.ts` utility enriches tool results with related entities. Session persistence is a frontend upgrade to `useAIChat.ts`.
 
-**Tech Stack:** Next.js API Routes, MongoDB/Mongoose, Redis, Gemini AI, React, Vitest
+**Tech Stack:** Next.js App Router, MongoDB/Mongoose, Redis (ioredis), Gemini AI function declarations, Vitest, Tailwind CSS, Framer Motion.
 
 ---
 
-## Task 1: Upgrade Proactive Limiter — Raise Global Cap + Add New Types
+## Task 1: Upgrade AIMemory Schema
 
 **Files:**
-- Modify: `src/lib/chat/proactive-limiter.ts:6-15`
+- Modify: `src/lib/infra/db/models/ai-memory.ts`
+- Test: `src/lib/infra/db/models/__tests__/ai-memory.test.ts`
 
-**Step 1: Update constants and types**
+**Step 1: Write the failing test**
 
-In `src/lib/chat/proactive-limiter.ts`, change line 6:
+Create `src/lib/infra/db/models/__tests__/ai-memory.test.ts`:
+
 ```typescript
-const GLOBAL_CAP = 5; // raised from 3 for more trigger types
+import { describe, it, expect } from "vitest";
+import { MEMORY_CATEGORIES } from "../ai-memory";
+
+describe("AIMemory schema", () => {
+  it("includes project and workflow categories", () => {
+    expect(MEMORY_CATEGORIES).toContain("project");
+    expect(MEMORY_CATEGORIES).toContain("workflow");
+  });
+
+  it("still includes original categories", () => {
+    for (const cat of ["preference", "context", "task", "relationship", "habit"]) {
+      expect(MEMORY_CATEGORIES).toContain(cat);
+    }
+  });
+});
 ```
 
-Extend `ProactiveType` (line 9-15):
-```typescript
-export type ProactiveType =
-  | "deadline_reminder"
-  | "follow_up_nudge"
-  | "meeting_prep"
-  | "blocked_task_alert"
-  | "weekly_digest"
-  | "task_status"
-  | "stale_task_nudge"
-  | "unread_highlights"
-  | "weekly_pattern_summary";
+**Step 2: Run test to verify it fails**
+
+Run: `npx vitest run src/lib/infra/db/models/__tests__/ai-memory.test.ts`
+Expected: FAIL — "project" not in MEMORY_CATEGORIES
+
+**Step 3: Update the AIMemory model**
+
+In `src/lib/infra/db/models/ai-memory.ts`:
+
+1. Add `"project"` and `"workflow"` to `MEMORY_CATEGORIES` array (after `"habit"`)
+2. Add `"explicit"` to `MEMORY_SOURCES` array (for user-commanded memories)
+3. Add fields to `IAIMemory` interface:
+   ```typescript
+   decayRate?: number;       // 0-1, lower = slower decay. Default 0.5
+   userExplicit?: boolean;   // true if user said "remember this" — exempt from auto-eviction
+   ```
+4. Add to Mongoose schema:
+   ```typescript
+   decayRate: { type: Number, min: 0, max: 1, default: 0.5 },
+   userExplicit: { type: Boolean, default: false },
+   ```
+5. Add index for content text search: `aiMemorySchema.index({ userId: 1, content: "text" });`
+
+**Step 4: Run test to verify it passes**
+
+Run: `npx vitest run src/lib/infra/db/models/__tests__/ai-memory.test.ts`
+Expected: PASS
+
+**Step 5: Commit**
+
+```bash
+git add src/lib/infra/db/models/ai-memory.ts src/lib/infra/db/models/__tests__/ai-memory.test.ts
+git commit -m "feat(ai): add project/workflow memory categories and decay/explicit fields"
 ```
 
-**Step 2: Run existing rate-limit tests**
+---
 
-Run: `cd /Users/uditanshutomar/Desktop/Yoodle && export PATH="/usr/local/bin:/usr/bin:/bin:$PATH" && npx vitest run src/lib/chat --reporter=verbose 2>&1 | tail -20`
-Expected: All existing tests still pass
+## Task 2: Add Proactive Types to Rate Limiter + Raise Global Cap
+
+**Files:**
+- Modify: `src/lib/chat/proactive-limiter.ts`
+
+**Step 1: Update ProactiveType and cap**
+
+In `src/lib/chat/proactive-limiter.ts`:
+
+1. Change `GLOBAL_CAP = 3` to `GLOBAL_CAP = 5`
+2. Add new types to `ProactiveType`:
+   ```typescript
+   export type ProactiveType =
+     | "deadline_reminder"
+     | "follow_up_nudge"
+     | "meeting_prep"
+     | "blocked_task_alert"
+     | "weekly_digest"
+     | "task_status"
+     | "stale_task_nudge"
+     | "unread_highlights"
+     | "weekly_pattern_summary";
+   ```
+
+**Step 2: Verify build**
+
+Run: `npx tsc --noEmit --pretty 2>&1 | tail -5`
+Expected: No new errors
 
 **Step 3: Commit**
 
@@ -50,210 +113,70 @@ git commit -m "feat(ai): raise proactive global cap to 5 and add new trigger typ
 
 ---
 
-## Task 2: Create ProactiveInsight Model
+## Task 3: Create Stale Task Nudge Trigger
 
 **Files:**
-- Create: `src/lib/infra/db/models/proactive-insight.ts`
+- Modify: `src/lib/chat/proactive-triggers.ts`
+- Test: `src/lib/chat/__tests__/proactive-triggers-stale.test.ts`
 
-**Step 1: Create the model**
+**Step 1: Write the failing test**
 
-```typescript
-import mongoose, { Schema, Document, Model, Types } from "mongoose";
-
-export const INSIGHT_STATUSES = ["pending", "seen", "dismissed", "snoozed", "acted"] as const;
-export type InsightStatus = (typeof INSIGHT_STATUSES)[number];
-
-export interface IProactiveInsight {
-  userId: Types.ObjectId;
-  type: string;
-  title: string;
-  body: string;
-  actions: Array<{
-    label: string;
-    prompt?: string;
-    url?: string;
-  }>;
-  priority: number;
-  status: InsightStatus;
-  snoozedUntil?: Date;
-  relatedEntityId?: string;
-  relatedEntityType?: string;
-  expiresAt: Date;
-  createdAt: Date;
-  updatedAt: Date;
-}
-
-export interface IProactiveInsightDocument extends IProactiveInsight, Document {
-  _id: Types.ObjectId;
-}
-
-const proactiveInsightSchema = new Schema<IProactiveInsightDocument>(
-  {
-    userId: { type: Schema.Types.ObjectId, ref: "User", required: true },
-    type: { type: String, required: true },
-    title: { type: String, required: true, maxlength: 200 },
-    body: { type: String, required: true, maxlength: 1000 },
-    actions: [
-      {
-        label: { type: String, required: true },
-        prompt: { type: String },
-        url: { type: String },
-      },
-    ],
-    priority: { type: Number, default: 0 },
-    status: { type: String, enum: INSIGHT_STATUSES, default: "pending" },
-    snoozedUntil: { type: Date },
-    relatedEntityId: { type: String },
-    relatedEntityType: { type: String },
-    expiresAt: { type: Date, required: true },
-  },
-  { timestamps: true, collection: "proactive_insights" }
-);
-
-proactiveInsightSchema.index({ userId: 1, status: 1 });
-proactiveInsightSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 });
-
-const ProactiveInsight: Model<IProactiveInsightDocument> =
-  mongoose.models.ProactiveInsight ||
-  mongoose.model<IProactiveInsightDocument>("ProactiveInsight", proactiveInsightSchema);
-
-export default ProactiveInsight;
-```
-
-**Step 2: Run type check**
-
-Run: `cd /Users/uditanshutomar/Desktop/Yoodle && npx tsc --noEmit --pretty 2>&1 | head -10`
-Expected: No errors
-
-**Step 3: Commit**
-
-```bash
-git add src/lib/infra/db/models/proactive-insight.ts
-git commit -m "feat(ai): add ProactiveInsight model for queued proactive cards"
-```
-
----
-
-## Task 3: Create Insights Count API Endpoint
-
-**Files:**
-- Create: `src/app/api/ai/insights/count/route.ts`
-
-**Step 1: Create the endpoint**
+Create `src/lib/chat/__tests__/proactive-triggers-stale.test.ts`:
 
 ```typescript
-import { NextRequest } from "next/server";
-import { withHandler } from "@/lib/infra/api/with-handler";
-import { checkRateLimit } from "@/lib/infra/api/rate-limit";
-import { getUserIdFromRequest } from "@/lib/infra/auth/middleware";
-import { successResponse } from "@/lib/infra/api/response";
-import connectDB from "@/lib/infra/db/client";
-import ProactiveInsight from "@/lib/infra/db/models/proactive-insight";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 
-export const GET = withHandler(async (req: NextRequest) => {
-  await checkRateLimit(req, "general");
-  const userId = await getUserIdFromRequest(req);
+vi.mock("@/lib/infra/db/client", () => ({ default: vi.fn() }));
+vi.mock("@/lib/infra/redis/client", () => ({
+  getRedisClient: vi.fn(() => ({ publish: vi.fn() })),
+}));
 
-  await connectDB();
+const mockTaskFind = vi.fn();
+const mockConvFindOne = vi.fn();
+const mockDMCreate = vi.fn();
+const mockConvUpdateOne = vi.fn();
 
-  const count = await ProactiveInsight.countDocuments({
-    userId,
-    status: "pending",
-    $or: [
-      { snoozedUntil: { $exists: false } },
-      { snoozedUntil: { $lte: new Date() } },
-    ],
+vi.mock("@/lib/infra/db/models/task", () => ({
+  default: { find: mockTaskFind },
+}));
+vi.mock("@/lib/infra/db/models/conversation", () => ({
+  default: { findOne: mockConvFindOne, updateOne: mockConvUpdateOne },
+}));
+vi.mock("@/lib/infra/db/models/direct-message", () => ({
+  default: { create: mockDMCreate },
+}));
+vi.mock("@/lib/chat/proactive-limiter", () => ({
+  canSendProactive: vi.fn().mockResolvedValue(true),
+  isAgentMuted: vi.fn().mockResolvedValue(false),
+}));
+
+describe("triggerStaleTasks", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("is exported as a function", async () => {
+    const mod = await import("../proactive-triggers");
+    expect(typeof mod.triggerStaleTasks).toBe("function");
   });
-
-  return successResponse({ count });
 });
 ```
 
-**Step 2: Create dismiss/snooze endpoint**
+**Step 2: Run test to verify it fails**
 
-Create: `src/app/api/ai/insights/[id]/route.ts`
+Run: `npx vitest run src/lib/chat/__tests__/proactive-triggers-stale.test.ts`
+Expected: FAIL — triggerStaleTasks not exported
 
-```typescript
-import { NextRequest } from "next/server";
-import { z } from "zod";
-import { withHandler } from "@/lib/infra/api/with-handler";
-import { checkRateLimit } from "@/lib/infra/api/rate-limit";
-import { getUserIdFromRequest } from "@/lib/infra/auth/middleware";
-import { successResponse } from "@/lib/infra/api/response";
-import { BadRequestError } from "@/lib/infra/api/errors";
-import connectDB from "@/lib/infra/db/client";
-import ProactiveInsight from "@/lib/infra/db/models/proactive-insight";
+**Step 3: Implement triggerStaleTasks**
 
-const updateSchema = z.object({
-  action: z.enum(["dismiss", "snooze", "seen", "acted"]),
-});
-
-export const PATCH = withHandler(async (req: NextRequest, context: { params: Promise<{ id: string }> }) => {
-  await checkRateLimit(req, "general");
-  const userId = await getUserIdFromRequest(req);
-  const { id } = await context.params;
-
-  const body = updateSchema.parse(await req.json());
-
-  await connectDB();
-
-  const update: Record<string, unknown> = {};
-  if (body.action === "dismiss") {
-    update.status = "dismissed";
-  } else if (body.action === "snooze") {
-    update.status = "snoozed";
-    update.snoozedUntil = new Date(Date.now() + 2 * 60 * 60 * 1000); // 2 hours
-  } else if (body.action === "seen") {
-    update.status = "seen";
-  } else if (body.action === "acted") {
-    update.status = "acted";
-  }
-
-  const result = await ProactiveInsight.findOneAndUpdate(
-    { _id: id, userId },
-    { $set: update },
-    { new: true }
-  );
-
-  if (!result) throw new BadRequestError("Insight not found");
-
-  return successResponse({ ok: true });
-});
-```
-
-**Step 3: Run type check**
-
-Run: `cd /Users/uditanshutomar/Desktop/Yoodle && npx tsc --noEmit --pretty 2>&1 | head -10`
-Expected: No errors
-
-**Step 4: Commit**
-
-```bash
-git add src/app/api/ai/insights/count/route.ts src/app/api/ai/insights/\[id\]/route.ts
-git commit -m "feat(ai): add insights count and dismiss/snooze API endpoints"
-```
-
----
-
-## Task 4: Add New Proactive Triggers — Stale Task + Weekly Summary + Unread Highlights
-
-**Files:**
-- Modify: `src/lib/chat/proactive-triggers.ts` (add 3 new exports)
-- Modify: `src/app/api/cron/proactive/route.ts:19-32` (add new triggers to cron)
-
-**Step 1: Add the three new trigger functions to proactive-triggers.ts**
-
-Append to the end of `src/lib/chat/proactive-triggers.ts`:
+Add to `src/lib/chat/proactive-triggers.ts` after the blocked task alerts section:
 
 ```typescript
 /* ─── 5. Stale Task Nudge ─── */
 
-export async function triggerStaleTaskNudges(): Promise<void> {
+export async function triggerStaleTasks(): Promise<void> {
   try {
     await connectDB();
     const Task = (await import("@/lib/infra/db/models/task")).default;
     const Conversation = (await import("@/lib/infra/db/models/conversation")).default;
-    const ProactiveInsight = (await import("@/lib/infra/db/models/proactive-insight")).default;
 
     const fiveDaysAgo = new Date(Date.now() - 5 * 24 * 60 * 60 * 1000);
 
@@ -262,164 +185,207 @@ export async function triggerStaleTaskNudges(): Promise<void> {
       updatedAt: { $lte: fiveDaysAgo },
       assigneeId: { $exists: true },
     })
-      .limit(30)
+      .limit(15)
       .lean();
 
-    log.info({ count: tasks.length }, "Stale task nudges: tasks found");
+    log.info({ count: tasks.length }, "Stale task nudge: tasks found");
 
     for (const task of tasks) {
       try {
         const assigneeId = task.assigneeId!.toString();
+
+        const conv = await Conversation.findOne({
+          "participants.userId": new mongoose.Types.ObjectId(assigneeId),
+          "participants.agentEnabled": true,
+        }).lean();
+
+        if (!conv) continue;
+
+        const cid = conv._id.toString();
+        if (await isAgentMuted(cid, assigneeId)) continue;
+        if (!(await canSendProactive(cid, assigneeId, "stale_task_nudge"))) continue;
+
         const daysSinceUpdate = Math.floor(
           (Date.now() - new Date(task.updatedAt).getTime()) / (1000 * 60 * 60 * 24),
         );
+        const content = `"${task.title}" hasn't moved in ${daysSinceUpdate} days. Blocked, deprioritized, or need help?`;
 
-        // Create a proactive insight card instead of a DM
-        await ProactiveInsight.create({
-          userId: task.assigneeId,
-          type: "stale_task_nudge",
-          title: `Task stale for ${daysSinceUpdate} days`,
-          body: `"${task.title}" hasn't been updated in ${daysSinceUpdate} days. Blocked, deprioritized, or need help?`,
-          actions: [
-            { label: "Open task", url: `/boards?task=${task._id}` },
-            { label: "Mark done", prompt: `Mark the task "${task.title}" as done` },
-          ],
-          priority: daysSinceUpdate > 10 ? 2 : 1,
-          relatedEntityId: task._id.toString(),
-          relatedEntityType: "task",
-          expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days
-        });
-
-        log.info({ taskId: task._id, assigneeId }, "Stale task insight created");
+        await postAgentMessage(cid, assigneeId, content);
+        log.info({ taskId: task._id, assigneeId }, "Stale task nudge sent");
       } catch (err) {
-        log.error({ err, taskId: task._id }, "Stale task nudge: error");
+        log.error({ err, taskId: task._id }, "Stale task nudge: task error");
       }
     }
   } catch (err) {
-    log.error({ err }, "triggerStaleTaskNudges failed");
+    log.error({ err }, "triggerStaleTasks failed");
   }
 }
+```
 
+**Step 4: Run test to verify it passes**
+
+Run: `npx vitest run src/lib/chat/__tests__/proactive-triggers-stale.test.ts`
+Expected: PASS
+
+**Step 5: Commit**
+
+```bash
+git add src/lib/chat/proactive-triggers.ts src/lib/chat/__tests__/proactive-triggers-stale.test.ts
+git commit -m "feat(ai): add stale task nudge proactive trigger (5+ days inactive)"
+```
+
+---
+
+## Task 4: Create Weekly Pattern Summary Trigger
+
+**Files:**
+- Modify: `src/lib/chat/proactive-triggers.ts`
+- Test: `src/lib/chat/__tests__/proactive-triggers-weekly.test.ts`
+
+**Step 1: Write the failing test**
+
+Create `src/lib/chat/__tests__/proactive-triggers-weekly.test.ts` with same mock pattern as Task 3, testing that `triggerWeeklyPatternSummary` is exported and callable.
+
+**Step 2: Run test — expect FAIL**
+
+**Step 3: Implement triggerWeeklyPatternSummary**
+
+Add to `src/lib/chat/proactive-triggers.ts`:
+
+```typescript
 /* ─── 6. Weekly Pattern Summary ─── */
 
 export async function triggerWeeklyPatternSummary(): Promise<void> {
   try {
+    const now = new Date();
+    if (now.getDay() !== 1) {
+      log.info("Weekly pattern summary: not Monday, skipping");
+      return;
+    }
+
     await connectDB();
     const Task = (await import("@/lib/infra/db/models/task")).default;
     const Meeting = (await import("@/lib/infra/db/models/meeting")).default;
-    const User = (await import("@/lib/infra/db/models/user")).default;
-    const ProactiveInsight = (await import("@/lib/infra/db/models/proactive-insight")).default;
+    const Conversation = (await import("@/lib/infra/db/models/conversation")).default;
 
-    // Only on Mondays
-    const now = new Date();
-    if (now.getDay() !== 1) return;
+    const conversations = await Conversation.find({
+      "participants.agentEnabled": true,
+    })
+      .limit(50)
+      .lean();
 
-    const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-    const weekAhead = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+    for (const conv of conversations) {
+      for (const p of conv.participants) {
+        if (!p.agentEnabled) continue;
 
-    const users = await User.find({}, { _id: 1, displayName: 1 }).lean();
+        try {
+          const uid = p.userId.toString();
+          const cid = conv._id.toString();
 
-    for (const user of users) {
-      try {
-        const userId = user._id;
+          if (await isAgentMuted(cid, uid)) continue;
+          if (!(await canSendProactive(cid, uid, "weekly_pattern_summary"))) continue;
 
-        const completedLastWeek = await Task.countDocuments({
-          assigneeId: userId,
-          completedAt: { $gte: weekAgo },
-        });
+          const lastWeekStart = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+          const thisWeekEnd = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
 
-        const meetingsLastWeek = await Meeting.countDocuments({
-          participants: userId,
-          scheduledAt: { $gte: weekAgo, $lte: now },
-        });
+          const [completedCount, overdueCount, upcomingMeetings] = await Promise.all([
+            Task.countDocuments({
+              assigneeId: new mongoose.Types.ObjectId(uid),
+              completedAt: { $gte: lastWeekStart, $lte: now },
+            }),
+            Task.countDocuments({
+              assigneeId: new mongoose.Types.ObjectId(uid),
+              completedAt: null,
+              dueDate: { $lt: now },
+            }),
+            Meeting.countDocuments({
+              "participants.userId": new mongoose.Types.ObjectId(uid),
+              status: "scheduled",
+              scheduledAt: { $gte: now, $lte: thisWeekEnd },
+            }),
+          ]);
 
-        const dueThisWeek = await Task.countDocuments({
-          assigneeId: userId,
-          completedAt: null,
-          dueDate: { $gte: now, $lte: weekAhead },
-        });
+          const content = `**Weekly Summary**\nLast week: ${completedCount} tasks completed${overdueCount > 0 ? `, ${overdueCount} overdue` : ""}.\nThis week: ${upcomingMeetings} meetings scheduled.`;
 
-        const meetingsThisWeek = await Meeting.countDocuments({
-          participants: userId,
-          scheduledAt: { $gte: now, $lte: weekAhead },
-        });
-
-        const body = `Last week: ${completedLastWeek} tasks completed, ${meetingsLastWeek} meetings. This week: ${dueThisWeek} tasks due, ${meetingsThisWeek} meetings.`;
-
-        await ProactiveInsight.create({
-          userId,
-          type: "weekly_pattern_summary",
-          title: "Weekly Summary",
-          body,
-          actions: [
-            { label: "Plan my week", prompt: "Help me plan my week based on my tasks and meetings" },
-          ],
-          priority: 0,
-          expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000), // 1 day
-        });
-
-        log.info({ userId: userId.toString() }, "Weekly summary insight created");
-      } catch (err) {
-        log.error({ err, userId: user._id }, "Weekly summary: user error");
+          await postAgentMessage(cid, uid, content);
+          log.info({ userId: uid }, "Weekly pattern summary sent");
+        } catch (err) {
+          log.error({ err, convId: conv._id }, "Weekly pattern: participant error");
+        }
       }
     }
   } catch (err) {
     log.error({ err }, "triggerWeeklyPatternSummary failed");
   }
 }
+```
 
+**Step 4: Run test — expect PASS**
+
+**Step 5: Commit**
+
+```bash
+git add src/lib/chat/proactive-triggers.ts src/lib/chat/__tests__/proactive-triggers-weekly.test.ts
+git commit -m "feat(ai): add weekly pattern summary trigger (Monday only)"
+```
+
+---
+
+## Task 5: Create Unread Highlights Trigger
+
+**Files:**
+- Modify: `src/lib/chat/proactive-triggers.ts`
+- Test: `src/lib/chat/__tests__/proactive-triggers-unread.test.ts`
+
+**Step 1: Write failing test** — test that `triggerUnreadHighlights` is exported
+
+**Step 2: Run test — expect FAIL**
+
+**Step 3: Implement triggerUnreadHighlights**
+
+Add to `src/lib/chat/proactive-triggers.ts`:
+
+```typescript
 /* ─── 7. Unread Conversation Highlights ─── */
 
 export async function triggerUnreadHighlights(): Promise<void> {
   try {
     await connectDB();
     const Conversation = (await import("@/lib/infra/db/models/conversation")).default;
-    const ProactiveInsight = (await import("@/lib/infra/db/models/proactive-insight")).default;
+    const DirectMessage = (await import("@/lib/infra/db/models/direct-message")).default;
 
-    // Find conversations with significant unread activity
     const conversations = await Conversation.find({
-      type: { $in: ["group", "dm"] },
-      lastMessageAt: { $gte: new Date(Date.now() - 4 * 60 * 60 * 1000) }, // active in last 4h
-    }).lean();
-
-    const userUnreads = new Map<string, Array<{ name: string; count: number }>>();
+      "participants.agentEnabled": true,
+    })
+      .limit(50)
+      .lean();
 
     for (const conv of conversations) {
       for (const p of conv.participants) {
-        if (p.senderType === "agent") continue;
-        const unread = p.unreadCount || 0;
-        if (unread < 5) continue;
+        if (!p.agentEnabled) continue;
 
-        const uid = p.userId.toString();
-        if (!userUnreads.has(uid)) userUnreads.set(uid, []);
-        userUnreads.get(uid)!.push({
-          name: conv.name || "Direct Message",
-          count: unread,
-        });
-      }
-    }
+        try {
+          const uid = p.userId.toString();
+          const cid = conv._id.toString();
 
-    for (const [userId, unreads] of userUnreads) {
-      try {
-        const totalUnread = unreads.reduce((sum, u) => sum + u.count, 0);
-        const convNames = unreads.slice(0, 3).map((u) => u.name).join(", ");
+          if (await isAgentMuted(cid, uid)) continue;
+          if (!(await canSendProactive(cid, uid, "unread_highlights"))) continue;
 
-        await ProactiveInsight.create({
-          userId: new mongoose.Types.ObjectId(userId),
-          type: "unread_highlights",
-          title: `${unreads.length} conversations need attention`,
-          body: `${totalUnread} unread messages across ${convNames}${unreads.length > 3 ? ` and ${unreads.length - 3} more` : ""}`,
-          actions: [
-            { label: "Catch up", prompt: "Summarize my unread conversations" },
-            { label: "View messages", url: "/messages" },
-          ],
-          priority: 1,
-          expiresAt: new Date(Date.now() + 12 * 60 * 60 * 1000), // 12 hours
-        });
+          const fourHoursAgo = new Date(Date.now() - 4 * 60 * 60 * 1000);
+          const unreadCount = await DirectMessage.countDocuments({
+            conversationId: conv._id,
+            senderId: { $ne: new mongoose.Types.ObjectId(uid) },
+            createdAt: { $gte: fourHoursAgo },
+          });
 
-        log.info({ userId }, "Unread highlights insight created");
-      } catch (err) {
-        log.error({ err, userId }, "Unread highlights: user error");
+          if (unreadCount < 5) continue;
+
+          const content = `You have ${unreadCount} new messages in this conversation. Want a quick summary?`;
+          await postAgentMessage(cid, uid, content);
+          log.info({ userId: uid, unreadCount }, "Unread highlights sent");
+        } catch (err) {
+          log.error({ err, convId: conv._id }, "Unread highlights: participant error");
+        }
       }
     }
   } catch (err) {
@@ -428,267 +394,378 @@ export async function triggerUnreadHighlights(): Promise<void> {
 }
 ```
 
-**Step 2: Update the cron route to include new triggers**
+**Step 4: Run test — expect PASS**
 
-In `src/app/api/cron/proactive/route.ts`, update the import and Promise.allSettled block (lines 19-39):
-
-```typescript
-    const {
-      triggerMeetingPrep,
-      triggerDeadlineReminders,
-      triggerFollowUpNudges,
-      triggerBlockedTaskAlerts,
-      triggerStaleTaskNudges,
-      triggerWeeklyPatternSummary,
-      triggerUnreadHighlights,
-    } = await import("@/lib/chat/proactive-triggers");
-
-    const results = await Promise.allSettled([
-      triggerMeetingPrep(),
-      triggerDeadlineReminders(),
-      triggerFollowUpNudges(),
-      triggerBlockedTaskAlerts(),
-      triggerStaleTaskNudges(),
-      triggerWeeklyPatternSummary(),
-      triggerUnreadHighlights(),
-    ]);
-
-    const names = [
-      "meetingPrep",
-      "deadlineReminders",
-      "followUpNudges",
-      "blockedTaskAlerts",
-      "staleTaskNudges",
-      "weeklyPatternSummary",
-      "unreadHighlights",
-    ] as const;
-```
-
-**Step 3: Run type check**
-
-Run: `cd /Users/uditanshutomar/Desktop/Yoodle && npx tsc --noEmit --pretty 2>&1 | head -15`
-Expected: No errors
-
-**Step 4: Commit**
+**Step 5: Commit**
 
 ```bash
-git add src/lib/chat/proactive-triggers.ts src/app/api/cron/proactive/route.ts
-git commit -m "feat(ai): add stale task, weekly summary, and unread highlights proactive triggers"
+git add src/lib/chat/proactive-triggers.ts src/lib/chat/__tests__/proactive-triggers-unread.test.ts
+git commit -m "feat(ai): add unread conversation highlights trigger"
 ```
 
 ---
 
-## Task 5: Add FAB Notification Badge
+## Task 6: Wire New Triggers into Cron Endpoint
 
 **Files:**
-- Modify: `src/components/ai/AIDrawer.tsx:58-90` (AIDrawerFAB)
-- Create: `src/hooks/useInsightCount.ts`
+- Modify: `src/app/api/cron/proactive/route.ts`
 
-**Step 1: Create useInsightCount hook**
+**Step 1: Update the cron route**
+
+In `src/app/api/cron/proactive/route.ts`, update the import and `Promise.allSettled` call:
+
+```typescript
+const {
+  triggerMeetingPrep,
+  triggerDeadlineReminders,
+  triggerFollowUpNudges,
+  triggerBlockedTaskAlerts,
+  triggerStaleTasks,
+  triggerWeeklyPatternSummary,
+  triggerUnreadHighlights,
+} = await import("@/lib/chat/proactive-triggers");
+
+const results = await Promise.allSettled([
+  triggerMeetingPrep(),
+  triggerDeadlineReminders(),
+  triggerFollowUpNudges(),
+  triggerBlockedTaskAlerts(),
+  triggerStaleTasks(),
+  triggerWeeklyPatternSummary(),
+  triggerUnreadHighlights(),
+]);
+
+const names = [
+  "meetingPrep",
+  "deadlineReminders",
+  "followUpNudges",
+  "blockedTaskAlerts",
+  "staleTasks",
+  "weeklyPatternSummary",
+  "unreadHighlights",
+] as const;
+```
+
+**Step 2: Verify build**
+
+Run: `npx tsc --noEmit --pretty 2>&1 | tail -5`
+Expected: No new errors
+
+**Step 3: Commit**
+
+```bash
+git add src/app/api/cron/proactive/route.ts
+git commit -m "feat(ai): wire stale/weekly/unread triggers into proactive cron"
+```
+
+---
+
+## Task 7: Proactive Insight Count API + Redis Storage
+
+**Files:**
+- Create: `src/lib/chat/proactive-insights.ts`
+- Create: `src/app/api/ai/insights/count/route.ts`
+- Modify: `src/lib/chat/proactive-triggers.ts` (wire incrementUnseen into postAgentMessage)
+- Test: `src/lib/chat/__tests__/proactive-insights.test.ts`
+
+**Step 1: Write the failing test**
+
+Create `src/lib/chat/__tests__/proactive-insights.test.ts`:
+
+```typescript
+import { describe, it, expect, vi, beforeEach } from "vitest";
+
+const mockRedis = {
+  get: vi.fn(),
+  incr: vi.fn(),
+  expire: vi.fn(),
+  set: vi.fn(),
+  del: vi.fn(),
+};
+
+vi.mock("@/lib/infra/redis/client", () => ({
+  getRedisClient: vi.fn(() => mockRedis),
+}));
+
+import { getUnseenCount, incrementUnseen, clearUnseen } from "../proactive-insights";
+
+describe("proactive-insights", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("getUnseenCount returns 0 when no key", async () => {
+    mockRedis.get.mockResolvedValue(null);
+    const count = await getUnseenCount("user123");
+    expect(count).toBe(0);
+    expect(mockRedis.get).toHaveBeenCalledWith("proactive:unseen:user123");
+  });
+
+  it("getUnseenCount returns parsed number", async () => {
+    mockRedis.get.mockResolvedValue("3");
+    const count = await getUnseenCount("user123");
+    expect(count).toBe(3);
+  });
+
+  it("incrementUnseen calls incr and sets TTL", async () => {
+    mockRedis.incr.mockResolvedValue(1);
+    await incrementUnseen("user123");
+    expect(mockRedis.incr).toHaveBeenCalledWith("proactive:unseen:user123");
+    expect(mockRedis.expire).toHaveBeenCalledWith("proactive:unseen:user123", 86400);
+  });
+
+  it("clearUnseen deletes the key", async () => {
+    await clearUnseen("user123");
+    expect(mockRedis.del).toHaveBeenCalledWith("proactive:unseen:user123");
+  });
+});
+```
+
+**Step 2: Run test — expect FAIL**
+
+Run: `npx vitest run src/lib/chat/__tests__/proactive-insights.test.ts`
+
+**Step 3: Implement proactive-insights.ts**
+
+Create `src/lib/chat/proactive-insights.ts`:
+
+```typescript
+import { getRedisClient } from "@/lib/infra/redis/client";
+
+const KEY_PREFIX = "proactive:unseen:";
+const TTL_SECONDS = 86400;
+
+export async function getUnseenCount(userId: string): Promise<number> {
+  const redis = getRedisClient();
+  const val = await redis.get(`${KEY_PREFIX}${userId}`);
+  return val ? parseInt(val, 10) : 0;
+}
+
+export async function incrementUnseen(userId: string): Promise<void> {
+  const redis = getRedisClient();
+  const key = `${KEY_PREFIX}${userId}`;
+  await redis.incr(key);
+  await redis.expire(key, TTL_SECONDS);
+}
+
+export async function clearUnseen(userId: string): Promise<void> {
+  const redis = getRedisClient();
+  await redis.del(`${KEY_PREFIX}${userId}`);
+}
+```
+
+**Step 4: Run test — expect PASS**
+
+**Step 5: Create the API route**
+
+Create `src/app/api/ai/insights/count/route.ts`:
+
+```typescript
+import { withHandler, successResponse } from "@/lib/infra/api/with-handler";
+import { getUnseenCount, clearUnseen } from "@/lib/chat/proactive-insights";
+
+export const GET = withHandler(async (_req, { userId }) => {
+  const count = await getUnseenCount(userId);
+  return successResponse({ count });
+});
+
+export const DELETE = withHandler(async (_req, { userId }) => {
+  await clearUnseen(userId);
+  return successResponse({ ok: true });
+});
+```
+
+**Step 6: Wire incrementUnseen into postAgentMessage**
+
+In `src/lib/chat/proactive-triggers.ts`, inside `postAgentMessage`, after the Redis publish try/catch block, add:
+
+```typescript
+try {
+  const { incrementUnseen } = await import("./proactive-insights");
+  await incrementUnseen(agentUserId);
+} catch {
+  /* best-effort */
+}
+```
+
+**Step 7: Verify build + run tests**
+
+Run: `npx tsc --noEmit && npx vitest run src/lib/chat/__tests__/proactive-insights.test.ts`
+
+**Step 8: Commit**
+
+```bash
+git add src/lib/chat/proactive-insights.ts src/lib/chat/__tests__/proactive-insights.test.ts src/app/api/ai/insights/count/route.ts src/lib/chat/proactive-triggers.ts
+git commit -m "feat(ai): add proactive insight counter (Redis) with API endpoint"
+```
+
+---
+
+## Task 8: Notification Badge on FAB
+
+**Files:**
+- Create: `src/hooks/useInsightCount.ts`
+- Modify: `src/components/ai/AIDrawer.tsx`
+
+**Step 1: Create the polling hook**
+
+Create `src/hooks/useInsightCount.ts`:
 
 ```typescript
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
 
-export function useInsightCount() {
+export function useInsightCount(enabled: boolean) {
   const [count, setCount] = useState(0);
 
-  const refresh = useCallback(async () => {
+  const fetchCount = useCallback(async () => {
     try {
-      const res = await fetch("/api/ai/insights/count", { credentials: "include" });
-      if (!res.ok) return;
-      const data = await res.json();
-      if (data.success) setCount(data.data.count);
+      const res = await fetch("/api/ai/insights/count");
+      if (res.ok) {
+        const data = await res.json();
+        setCount(data.count ?? 0);
+      }
     } catch {
-      // Silent fail
+      /* ignore */
+    }
+  }, []);
+
+  const clearCount = useCallback(async () => {
+    try {
+      await fetch("/api/ai/insights/count", { method: "DELETE" });
+      setCount(0);
+    } catch {
+      /* ignore */
     }
   }, []);
 
   useEffect(() => {
-    refresh();
-    const interval = setInterval(refresh, 60_000); // poll every 60s
+    if (!enabled) return;
+    fetchCount();
+    const interval = setInterval(fetchCount, 60_000);
     return () => clearInterval(interval);
-  }, [refresh]);
+  }, [enabled, fetchCount]);
 
-  const clear = useCallback(() => setCount(0), []);
-
-  return { count, refresh, clear };
+  return { count, clearCount };
 }
 ```
 
-**Step 2: Add badge to AIDrawerFAB**
+**Step 2: Update AIDrawer.tsx**
 
-In `src/components/ai/AIDrawer.tsx`, add import:
-```typescript
-import { useInsightCount } from "@/hooks/useInsightCount";
-```
+In `src/components/ai/AIDrawer.tsx`:
 
-In `AIDrawerFAB` function (line 58), add:
-```typescript
-  const { count: insightCount } = useInsightCount();
-```
+1. Add import: `import { useInsightCount } from "@/hooks/useInsightCount";`
+2. In `AIDrawerProvider`, add the hook:
+   ```typescript
+   const { count: insightCount, clearCount } = useInsightCount(!isOpen);
+   ```
+3. Pass `insightCount` to FAB: `<AIDrawerFAB onClick={toggle} isOpen={isOpen} insightCount={insightCount} />`
+4. Call `clearCount()` in the `open` callback:
+   ```typescript
+   const open = useCallback(() => { setIsOpen(true); clearCount(); }, [clearCount]);
+   ```
+5. Update `AIDrawerFAB` signature to accept `insightCount` prop and render badge inside `motion.button`, after the Image:
+   ```tsx
+   {insightCount > 0 && (
+     <span className="absolute -top-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white border-2 border-[var(--background)] animate-pulse">
+       {insightCount > 9 ? "9+" : insightCount}
+     </span>
+   )}
+   ```
 
-After the `<Image>` tag inside the button (after line 86), add:
-```typescript
-        {insightCount > 0 && (
-          <motion.span
-            initial={{ scale: 0 }}
-            animate={{ scale: 1 }}
-            className="absolute -top-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white border-2 border-[var(--background)]"
-          >
-            {insightCount > 9 ? "9+" : insightCount}
-          </motion.span>
-        )}
-```
+**Step 3: Verify build**
 
-Add `relative` to the button's className so the badge positions correctly (change `className="pointer-events-auto flex h-16...` to include `relative`).
-
-**Step 3: Run type check**
-
-Run: `cd /Users/uditanshutomar/Desktop/Yoodle && npx tsc --noEmit --pretty 2>&1 | head -10`
-Expected: No errors
+Run: `npx tsc --noEmit && npm run build 2>&1 | tail -10`
 
 **Step 4: Commit**
 
 ```bash
 git add src/hooks/useInsightCount.ts src/components/ai/AIDrawer.tsx
-git commit -m "feat(ai): add notification badge to FAB with insight count polling"
+git commit -m "feat(ai): add notification badge on FAB with insight count polling"
 ```
 
 ---
 
-## Task 6: Add Insight Queue to ChatWindow
+## Task 9: Insight Queue Component
 
 **Files:**
 - Create: `src/components/ai/InsightQueue.tsx`
-- Modify: `src/components/ai/ChatWindow.tsx` (add InsightQueue above messages)
+- Modify: `src/components/ai/ChatWindow.tsx`
 
 **Step 1: Create InsightQueue component**
+
+Create `src/components/ai/InsightQueue.tsx`:
 
 ```typescript
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
-import { X, Clock, ChevronRight } from "lucide-react";
-import { motion, AnimatePresence } from "framer-motion";
+import { X, Clock } from "lucide-react";
+import { AnimatePresence, motion } from "framer-motion";
 
-interface Insight {
-  _id: string;
-  type: string;
-  title: string;
-  body: string;
-  actions: Array<{ label: string; prompt?: string; url?: string }>;
-  priority: number;
+export interface InsightItem {
+  id: string;
+  emoji: string;
+  text: string;
+  prompt: string;
+  snoozable?: boolean;
 }
 
 interface InsightQueueProps {
+  insights: InsightItem[];
   onAction: (prompt: string) => void;
+  onDismiss: (id: string) => void;
+  onSnooze?: (id: string) => void;
 }
 
-export default function InsightQueue({ onAction }: InsightQueueProps) {
-  const [insights, setInsights] = useState<Insight[]>([]);
-
-  const fetchInsights = useCallback(async () => {
-    try {
-      const res = await fetch("/api/ai/insights?status=pending", { credentials: "include" });
-      if (!res.ok) return;
-      const data = await res.json();
-      if (data.success) setInsights(data.data.insights || []);
-    } catch {
-      // Silent fail
-    }
-  }, []);
-
-  useEffect(() => {
-    fetchInsights();
-  }, [fetchInsights]);
-
-  const handleDismiss = async (id: string) => {
-    setInsights((prev) => prev.filter((i) => i._id !== id));
-    try {
-      await fetch(`/api/ai/insights/${id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({ action: "dismiss" }),
-      });
-    } catch {
-      // Silent fail
-    }
-  };
-
-  const handleSnooze = async (id: string) => {
-    setInsights((prev) => prev.filter((i) => i._id !== id));
-    try {
-      await fetch(`/api/ai/insights/${id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({ action: "snooze" }),
-      });
-    } catch {
-      // Silent fail
-    }
-  };
-
-  const handleActionClick = async (insightId: string, action: { prompt?: string; url?: string }) => {
-    if (action.prompt) {
-      onAction(action.prompt);
-      await handleDismiss(insightId);
-    } else if (action.url) {
-      window.location.href = action.url;
-    }
-  };
-
+export default function InsightQueue({ insights, onAction, onDismiss, onSnooze }: InsightQueueProps) {
   if (insights.length === 0) return null;
 
   return (
-    <div className="px-4 py-2 space-y-2 border-b border-[var(--border)]">
-      <p className="text-[10px] font-bold uppercase tracking-wide text-[var(--text-muted)]" style={{ fontFamily: "var(--font-heading)" }}>
+    <div className="px-5 pt-3 space-y-2">
+      <p
+        className="text-[10px] font-bold uppercase tracking-wide text-[var(--text-muted)]"
+        style={{ fontFamily: "var(--font-heading)" }}
+      >
         Insights ({insights.length})
       </p>
       <AnimatePresence>
-        {insights.slice(0, 3).map((insight) => (
+        {insights.map((item) => (
           <motion.div
-            key={insight._id}
+            key={item.id}
             initial={{ opacity: 0, height: 0 }}
             animate={{ opacity: 1, height: "auto" }}
             exit={{ opacity: 0, height: 0 }}
-            className="rounded-lg border border-[var(--border)] bg-[var(--surface-elevated)] px-3 py-2"
+            className="flex items-start gap-2 p-2.5 rounded-lg border border-[var(--border)] bg-[var(--surface-elevated)]"
           >
-            <div className="flex items-start justify-between gap-2">
-              <div className="flex-1 min-w-0">
-                <p className="text-[11px] font-semibold text-[var(--text-primary)]" style={{ fontFamily: "var(--font-heading)" }}>
-                  {insight.title}
-                </p>
-                <p className="text-[10px] text-[var(--text-secondary)] mt-0.5 line-clamp-2" style={{ fontFamily: "var(--font-body)" }}>
-                  {insight.body}
-                </p>
-              </div>
-              <div className="flex items-center gap-0.5 shrink-0">
-                <button onClick={() => handleSnooze(insight._id)} className="p-1 text-[var(--text-muted)] hover:text-[var(--text-secondary)] transition-colors" title="Snooze 2h">
-                  <Clock size={11} />
-                </button>
-                <button onClick={() => handleDismiss(insight._id)} className="p-1 text-[var(--text-muted)] hover:text-red-500 transition-colors" title="Dismiss">
-                  <X size={11} />
-                </button>
-              </div>
+            <span className="text-sm mt-0.5">{item.emoji}</span>
+            <div className="flex-1 min-w-0">
+              <p className="text-[11px] text-[var(--text-primary)] leading-snug" style={{ fontFamily: "var(--font-body)" }}>
+                {item.text}
+              </p>
+              <button
+                onClick={() => onAction(item.prompt)}
+                className="mt-1 text-[10px] font-semibold text-[#B8A200] hover:text-[#FFE600] transition-colors"
+              >
+                Tell me more &rarr;
+              </button>
             </div>
-            {insight.actions.length > 0 && (
-              <div className="flex items-center gap-1.5 mt-1.5">
-                {insight.actions.map((action) => (
-                  <button
-                    key={action.label}
-                    onClick={() => handleActionClick(insight._id, action)}
-                    className="flex items-center gap-0.5 text-[10px] font-medium text-[#B8A200] hover:text-[#FFE600] transition-colors"
-                    style={{ fontFamily: "var(--font-heading)" }}
-                  >
-                    {action.label} <ChevronRight size={10} />
-                  </button>
-                ))}
-              </div>
-            )}
+            <div className="flex items-center gap-1 shrink-0">
+              {item.snoozable && onSnooze && (
+                <button
+                  onClick={() => onSnooze(item.id)}
+                  className="p-1 text-[var(--text-muted)] hover:text-[var(--text-secondary)] transition-colors"
+                  title="Snooze 2h"
+                >
+                  <Clock size={12} />
+                </button>
+              )}
+              <button
+                onClick={() => onDismiss(item.id)}
+                className="p-1 text-[var(--text-muted)] hover:text-red-400 transition-colors"
+                title="Dismiss"
+              >
+                <X size={12} />
+              </button>
+            </div>
           </motion.div>
         ))}
       </AnimatePresence>
@@ -697,511 +774,597 @@ export default function InsightQueue({ onAction }: InsightQueueProps) {
 }
 ```
 
-**Step 2: Add a list endpoint for insights**
+**Step 2: Integrate into ChatWindow**
 
-Create: `src/app/api/ai/insights/route.ts`
+In `src/components/ai/ChatWindow.tsx`:
 
-```typescript
-import { NextRequest } from "next/server";
-import { withHandler } from "@/lib/infra/api/with-handler";
-import { checkRateLimit } from "@/lib/infra/api/rate-limit";
-import { getUserIdFromRequest } from "@/lib/infra/auth/middleware";
-import { successResponse } from "@/lib/infra/api/response";
-import connectDB from "@/lib/infra/db/client";
-import ProactiveInsight from "@/lib/infra/db/models/proactive-insight";
+1. Add import: `import InsightQueue, { type InsightItem } from "./InsightQueue";`
+2. Add state inside component: `const [insights, setInsights] = useState<InsightItem[]>([]);`
+3. Add handlers:
+   ```typescript
+   const handleInsightDismiss = (id: string) => setInsights((prev) => prev.filter((i) => i.id !== id));
+   const handleInsightAction = (prompt: string) => onSend(prompt);
+   ```
+4. Render between the header `</div>` and `{/* Messages */}` comment:
+   ```tsx
+   <InsightQueue
+     insights={insights}
+     onAction={handleInsightAction}
+     onDismiss={handleInsightDismiss}
+   />
+   ```
 
-export const GET = withHandler(async (req: NextRequest) => {
-  await checkRateLimit(req, "general");
-  const userId = await getUserIdFromRequest(req);
+**Step 3: Verify build**
 
-  await connectDB();
+Run: `npx tsc --noEmit && npm run build 2>&1 | tail -10`
 
-  const insights = await ProactiveInsight.find({
-    userId,
-    status: "pending",
-    $or: [
-      { snoozedUntil: { $exists: false } },
-      { snoozedUntil: { $lte: new Date() } },
-    ],
-  })
-    .sort({ priority: -1, createdAt: -1 })
-    .limit(10)
-    .lean();
-
-  return successResponse({ insights });
-});
-```
-
-**Step 3: Wire InsightQueue into ChatWindow**
-
-In `src/components/ai/ChatWindow.tsx`, add import:
-```typescript
-import InsightQueue from "./InsightQueue";
-```
-
-Insert BEFORE the messages area `<div className="flex-1 overflow-y-auto...">` (line 100), inside the main container:
-```typescript
-      {/* Proactive insight queue */}
-      <InsightQueue onAction={onSend} />
-```
-
-**Step 4: Run type check**
-
-Run: `cd /Users/uditanshutomar/Desktop/Yoodle && npx tsc --noEmit --pretty 2>&1 | head -15`
-Expected: No errors
-
-**Step 5: Commit**
+**Step 4: Commit**
 
 ```bash
-git add src/components/ai/InsightQueue.tsx src/app/api/ai/insights/route.ts src/components/ai/ChatWindow.tsx
-git commit -m "feat(ai): add InsightQueue component with list endpoint and wire into ChatWindow"
+git add src/components/ai/InsightQueue.tsx src/components/ai/ChatWindow.tsx
+git commit -m "feat(ai): add InsightQueue component with dismiss/snooze/action"
 ```
 
 ---
 
-## Task 7: Upgrade AIMemory Schema — New Categories + Fields
-
-**Files:**
-- Modify: `src/lib/infra/db/models/ai-memory.ts`
-
-**Step 1: Update the schema**
-
-In `src/lib/infra/db/models/ai-memory.ts`:
-
-Update `MEMORY_CATEGORIES` (line 3-9):
-```typescript
-export const MEMORY_CATEGORIES = [
-  "preference",
-  "context",
-  "task",
-  "relationship",
-  "habit",
-  "project",
-  "workflow",
-] as const;
-```
-
-Update `IAIMemory` interface (line 20-30) to add new fields:
-```typescript
-export interface IAIMemory {
-  userId: Types.ObjectId;
-  category: MemoryCategory;
-  content: string;
-  source: MemorySource;
-  confidence: number;
-  decayRate: number;
-  userExplicit: boolean;
-  relatedMeetingId?: Types.ObjectId;
-  expiresAt?: Date;
-  createdAt: Date;
-  updatedAt: Date;
-}
-```
-
-Add new fields to the schema (inside the Schema definition, after `confidence`):
-```typescript
-    decayRate: {
-      type: Number,
-      default: 0.5,
-      min: 0,
-      max: 1,
-    },
-    userExplicit: {
-      type: Boolean,
-      default: false,
-    },
-```
-
-**Step 2: Run type check**
-
-Run: `cd /Users/uditanshutomar/Desktop/Yoodle && npx tsc --noEmit --pretty 2>&1 | head -15`
-Expected: No errors
-
-**Step 3: Commit**
-
-```bash
-git add src/lib/infra/db/models/ai-memory.ts
-git commit -m "feat(ai): upgrade AIMemory with project/workflow categories, decayRate, userExplicit fields"
-```
-
----
-
-## Task 8: Add remember_this and recall_memory Tools
-
-**Files:**
-- Modify: `src/lib/ai/tools.ts` (add 2 new function declarations + executor cases)
-
-**Step 1: Add function declarations**
-
-In `src/lib/ai/tools.ts`, add these to the `WORKSPACE_TOOLS` function declarations array (find the end of the existing declarations, before the closing of the tools array):
-
-```typescript
-    {
-      name: "remember_this",
-      description: "Store an explicit memory from the user. Use when the user says 'remember this', 'keep in mind', or shares important project/workflow context they want you to retain.",
-      parameters: {
-        type: SchemaType.OBJECT,
-        properties: {
-          content: { type: SchemaType.STRING, description: "The memory content to store" },
-          category: {
-            type: SchemaType.STRING,
-            description: "Memory category: preference, context, task, relationship, habit, project, or workflow",
-          },
-        },
-        required: ["content", "category"],
-      },
-    },
-    {
-      name: "recall_memory",
-      description: "Search the user's stored memories by topic or category. Use when the user asks 'what do you remember about X' or when you need context about a project or preference.",
-      parameters: {
-        type: SchemaType.OBJECT,
-        properties: {
-          query: { type: SchemaType.STRING, description: "Topic or keyword to search for" },
-          category: {
-            type: SchemaType.STRING,
-            description: "Optional: filter by category (preference, context, task, relationship, habit, project, workflow)",
-          },
-        },
-        required: ["query"],
-      },
-    },
-```
-
-**Step 2: Add executor cases**
-
-In the `executeWorkspaceTool` switch statement, add:
-
-```typescript
-    case "remember_this": {
-      const AIMemory = (await import("@/lib/infra/db/models/ai-memory")).default;
-      const connectDB = (await import("@/lib/infra/db/client")).default;
-      await connectDB();
-
-      const validCategories = ["preference", "context", "task", "relationship", "habit", "project", "workflow"];
-      const category = validCategories.includes(args.category as string) ? args.category as string : "context";
-      const decayRate = ["project", "workflow"].includes(category) ? 0.2 : 0.5;
-
-      await AIMemory.create({
-        userId,
-        category,
-        content: (args.content as string).slice(0, 4000),
-        source: "manual",
-        confidence: 0.9,
-        decayRate,
-        userExplicit: true,
-      });
-
-      return {
-        success: true,
-        summary: `Remembered: "${(args.content as string).slice(0, 50)}..."`,
-        data: { stored: true, category },
-      };
-    }
-
-    case "recall_memory": {
-      const AIMemory = (await import("@/lib/infra/db/models/ai-memory")).default;
-      const connectDB = (await import("@/lib/infra/db/client")).default;
-      await connectDB();
-
-      const filter: Record<string, unknown> = { userId };
-      if (args.category) filter.category = args.category;
-
-      const memories = await AIMemory.find(filter)
-        .sort({ confidence: -1, updatedAt: -1 })
-        .limit(20)
-        .lean();
-
-      // Simple keyword search
-      const query = (args.query as string).toLowerCase();
-      const matched = memories.filter((m) =>
-        m.content.toLowerCase().includes(query)
-      ).slice(0, 10);
-
-      return {
-        success: true,
-        summary: `Found ${matched.length} memories matching "${args.query}"`,
-        data: {
-          memories: matched.map((m) => ({
-            category: m.category,
-            content: m.content,
-            confidence: m.confidence,
-            userExplicit: m.userExplicit || false,
-            createdAt: m.createdAt,
-          })),
-        },
-      };
-    }
-```
-
-**Step 3: Add to ALLOWED_ACTION_TYPES in confirm route**
-
-In `src/app/api/ai/action/confirm/route.ts`, add `"remember_this"` and `"recall_memory"` to the `ALLOWED_ACTION_TYPES` Set.
-
-**Step 4: Add tool display entries in ChatBubble.tsx**
-
-In `src/components/ai/ChatBubble.tsx`, add to `TOOL_DISPLAY`:
-```typescript
-  remember_this: { label: "Saving memory", icon: FileText },
-  recall_memory: { label: "Searching memories", icon: Search },
-```
-
-**Step 5: Run type check**
-
-Run: `cd /Users/uditanshutomar/Desktop/Yoodle && npx tsc --noEmit --pretty 2>&1 | head -15`
-Expected: No errors
-
-**Step 6: Commit**
-
-```bash
-git add src/lib/ai/tools.ts src/app/api/ai/action/confirm/route.ts src/components/ai/ChatBubble.tsx
-git commit -m "feat(ai): add remember_this and recall_memory tools with Memory v2 support"
-```
-
----
-
-## Task 9: Create Context Enricher
+## Task 10: Context Enricher Utility
 
 **Files:**
 - Create: `src/lib/ai/context-enricher.ts`
+- Test: `src/lib/ai/__tests__/context-enricher.test.ts`
 
-**Step 1: Create the enricher**
+**Step 1: Write the failing test**
+
+Create `src/lib/ai/__tests__/context-enricher.test.ts`:
+
+```typescript
+import { describe, it, expect, vi, beforeEach } from "vitest";
+
+vi.mock("@/lib/infra/db/client", () => ({ default: vi.fn() }));
+
+const mockMeetingFindById = vi.fn();
+const mockDMFind = vi.fn();
+const mockTaskFind = vi.fn();
+
+vi.mock("@/lib/infra/db/models/meeting", () => ({ default: { findById: mockMeetingFindById } }));
+vi.mock("@/lib/infra/db/models/direct-message", () => ({ default: { find: mockDMFind } }));
+vi.mock("@/lib/infra/db/models/task", () => ({ default: { find: mockTaskFind } }));
+
+import { enrichTask, enrichMeeting } from "../context-enricher";
+
+describe("context-enricher", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("enrichTask returns relatedMessages and sourceMeeting", async () => {
+    mockMeetingFindById.mockReturnValue({ lean: vi.fn().mockResolvedValue(null) });
+    mockDMFind.mockReturnValue({
+      sort: vi.fn().mockReturnValue({
+        limit: vi.fn().mockReturnValue({
+          lean: vi.fn().mockResolvedValue([]),
+        }),
+      }),
+    });
+
+    const result = await enrichTask({ _id: "task1", title: "Test" });
+    expect(result).toHaveProperty("relatedMessages");
+    expect(result).toHaveProperty("sourceMeeting");
+  });
+
+  it("enrichMeeting returns relatedTasks", async () => {
+    mockTaskFind.mockReturnValue({
+      limit: vi.fn().mockReturnValue({
+        lean: vi.fn().mockResolvedValue([]),
+      }),
+    });
+
+    const result = await enrichMeeting({ _id: "meet1", title: "Standup" });
+    expect(result).toHaveProperty("relatedTasks");
+    expect(result.relatedTasks).toEqual([]);
+  });
+});
+```
+
+**Step 2: Run test — expect FAIL**
+
+Run: `npx vitest run src/lib/ai/__tests__/context-enricher.test.ts`
+
+**Step 3: Implement context-enricher.ts**
+
+Create `src/lib/ai/context-enricher.ts`:
 
 ```typescript
 import { createLogger } from "@/lib/infra/logger";
 
 const log = createLogger("context-enricher");
-
 const MAX_RELATED = 3;
 
-interface RelatedEntity {
-  type: string;
-  id: string;
-  title: string;
-  summary?: string;
+interface EnrichedTaskContext {
+  sourceMeeting: { id: string; title: string; scheduledAt?: string } | null;
+  relatedMessages: Array<{ content: string; sender: string; createdAt: string }>;
 }
 
-export interface EnrichedContext {
-  relatedEntities: RelatedEntity[];
+interface EnrichedMeetingContext {
+  relatedTasks: Array<{ id: string; title: string; status: string }>;
 }
 
-/**
- * Enrich a task with related meetings and messages.
- * Depth limit: 1 hop only.
- */
-export async function enrichTask(taskId: string): Promise<EnrichedContext> {
-  const related: RelatedEntity[] = [];
+export async function enrichTask(
+  task: { _id: unknown; title: string; meetingId?: unknown },
+): Promise<EnrichedTaskContext> {
+  const result: EnrichedTaskContext = { sourceMeeting: null, relatedMessages: [] };
+
   try {
-    const Task = (await import("@/lib/infra/db/models/task")).default;
-    const Meeting = (await import("@/lib/infra/db/models/meeting")).default;
-    const connectDB = (await import("@/lib/infra/db/client")).default;
-    await connectDB();
+    const [Meeting, DirectMessage] = await Promise.all([
+      import("@/lib/infra/db/models/meeting").then((m) => m.default),
+      import("@/lib/infra/db/models/direct-message").then((m) => m.default),
+    ]);
 
-    const task = await Task.findById(taskId).lean();
-    if (!task) return { relatedEntities: [] };
-
-    // Related meeting (if task came from a meeting)
     if (task.meetingId) {
-      const meeting = await Meeting.findById(task.meetingId, { title: 1, scheduledAt: 1 }).lean();
+      const meeting = await Meeting.findById(task.meetingId).lean();
       if (meeting) {
-        related.push({
-          type: "meeting",
+        result.sourceMeeting = {
           id: meeting._id.toString(),
           title: meeting.title,
-          summary: `Meeting on ${meeting.scheduledAt?.toLocaleDateString() || "unknown date"}`,
-        });
+          scheduledAt: meeting.scheduledAt?.toISOString(),
+        };
       }
     }
-  } catch (err) {
-    log.warn({ err, taskId }, "Failed to enrich task context");
-  }
-  return { relatedEntities: related.slice(0, MAX_RELATED) };
-}
 
-/**
- * Enrich a meeting with related tasks.
- */
-export async function enrichMeeting(meetingId: string): Promise<EnrichedContext> {
-  const related: RelatedEntity[] = [];
-  try {
-    const Task = (await import("@/lib/infra/db/models/task")).default;
-    const connectDB = (await import("@/lib/infra/db/client")).default;
-    await connectDB();
-
-    const tasks = await Task.find({ meetingId, completedAt: null }, { title: 1, status: 1 })
+    const escapedTitle = task.title.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const messages = await DirectMessage.find({
+      content: { $regex: escapedTitle, $options: "i" },
+    })
+      .sort({ createdAt: -1 })
       .limit(MAX_RELATED)
       .lean();
 
-    for (const task of tasks) {
-      related.push({
-        type: "task",
-        id: task._id.toString(),
-        title: task.title,
-        summary: `Status: ${task.status || "unknown"}`,
-      });
-    }
+    result.relatedMessages = messages.map((m: Record<string, unknown>) => ({
+      content: String(m.content ?? "").slice(0, 200),
+      sender: String(m.senderId ?? "unknown"),
+      createdAt: (m.createdAt as Date)?.toISOString?.() ?? "",
+    }));
   } catch (err) {
-    log.warn({ err, meetingId }, "Failed to enrich meeting context");
+    log.warn({ err, taskId: task._id }, "Task enrichment failed (non-fatal)");
   }
-  return { relatedEntities: related };
+
+  return result;
 }
 
-/**
- * Format enriched context as a readable string for the LLM.
- */
-export function formatEnrichedContext(enriched: EnrichedContext): string {
-  if (enriched.relatedEntities.length === 0) return "";
-  const lines = enriched.relatedEntities.map(
-    (e) => `- [${e.type}] ${e.title}${e.summary ? ` (${e.summary})` : ""}`
-  );
-  return `\nRelated context:\n${lines.join("\n")}`;
+export async function enrichMeeting(
+  meeting: { _id: unknown; title: string },
+): Promise<EnrichedMeetingContext> {
+  const result: EnrichedMeetingContext = { relatedTasks: [] };
+
+  try {
+    const Task = (await import("@/lib/infra/db/models/task")).default;
+
+    const tasks = await Task.find({ meetingId: meeting._id })
+      .limit(MAX_RELATED)
+      .lean();
+
+    result.relatedTasks = tasks.map((t: Record<string, unknown>) => ({
+      id: String(t._id),
+      title: String(t.title),
+      status: t.completedAt ? "done" : "open",
+    }));
+  } catch (err) {
+    log.warn({ err, meetingId: meeting._id }, "Meeting enrichment failed (non-fatal)");
+  }
+
+  return result;
 }
 ```
 
-**Step 2: Run type check**
+**Step 4: Run test — expect PASS**
 
-Run: `cd /Users/uditanshutomar/Desktop/Yoodle && npx tsc --noEmit --pretty 2>&1 | head -10`
-Expected: No errors
-
-**Step 3: Commit**
+**Step 5: Commit**
 
 ```bash
-git add src/lib/ai/context-enricher.ts
-git commit -m "feat(ai): add context enricher for cross-entity linking (tasks <-> meetings)"
+git add src/lib/ai/context-enricher.ts src/lib/ai/__tests__/context-enricher.test.ts
+git commit -m "feat(ai): add context-enricher for cross-entity linking (1-hop, max 3)"
 ```
 
 ---
 
-## Task 10: Session Persistence — Multiple Sessions in useAIChat
+## Task 11: Add remember_this and recall_memory Tools
 
 **Files:**
-- Modify: `src/hooks/useAIChat.ts:29-52` (storage functions)
+- Modify: `src/lib/ai/tools.ts` (add function declarations + executor cases)
 
-**Step 1: Upgrade storage to support 3 sessions**
+**Step 1: Add Gemini function declarations**
 
-Replace the storage functions (lines 29-52) with:
+In `src/lib/ai/tools.ts`, add to the `WORKSPACE_TOOLS` function declarations array:
 
 ```typescript
-const STORAGE_KEY = "yoodle-ai-chat-sessions";
+{
+  name: "remember_this",
+  description: "Store an explicit memory the user asked you to remember. Use when user says 'remember that...' or 'note that...'",
+  parameters: {
+    type: SchemaType.OBJECT,
+    properties: {
+      content: { type: SchemaType.STRING, description: "The fact or preference to remember" },
+      category: {
+        type: SchemaType.STRING,
+        enum: ["preference", "context", "task", "relationship", "habit", "project", "workflow"],
+        description: "Category of memory",
+      },
+    },
+    required: ["content", "category"],
+  },
+},
+{
+  name: "recall_memory",
+  description: "Search the user's stored memories by topic. Use when user asks 'what do you remember about...' or when you need context about a project or preference.",
+  parameters: {
+    type: SchemaType.OBJECT,
+    properties: {
+      query: { type: SchemaType.STRING, description: "Search query to find relevant memories" },
+      category: {
+        type: SchemaType.STRING,
+        enum: ["preference", "context", "task", "relationship", "habit", "project", "workflow"],
+        description: "Optional category filter",
+      },
+    },
+    required: ["query"],
+  },
+},
+```
+
+**Step 2: Add executor cases in the tool executor switch/if-else chain**
+
+```typescript
+case "remember_this": {
+  const AIMemory = (await import("@/lib/infra/db/models/ai-memory")).default;
+  const content = args.content as string;
+  const category = args.category as string;
+
+  if (!content || content.length > 2000) {
+    return { success: false, error: "Content required, max 2000 chars" };
+  }
+
+  // Capacity: 100 per user
+  const count = await AIMemory.countDocuments({ userId: new mongoose.Types.ObjectId(userId) });
+  if (count >= 100) {
+    const toEvict = await AIMemory.findOne({
+      userId: new mongoose.Types.ObjectId(userId),
+      userExplicit: { $ne: true },
+    })
+      .sort({ confidence: 1, updatedAt: 1 })
+      .lean();
+    if (toEvict) await AIMemory.deleteOne({ _id: toEvict._id });
+  }
+
+  const DECAY_RATES: Record<string, number> = {
+    project: 0.2, workflow: 0.2, preference: 0.3,
+    relationship: 0.3, habit: 0.4, context: 0.5, task: 0.6,
+  };
+
+  await AIMemory.create({
+    userId: new mongoose.Types.ObjectId(userId),
+    category,
+    content,
+    source: "explicit",
+    confidence: 0.9,
+    decayRate: DECAY_RATES[category] ?? 0.5,
+    userExplicit: true,
+  });
+
+  return { success: true, message: `Remembered: "${content.slice(0, 100)}..."` };
+}
+
+case "recall_memory": {
+  const AIMemory = (await import("@/lib/infra/db/models/ai-memory")).default;
+  const query = args.query as string;
+  const category = args.category as string | undefined;
+
+  const filter: Record<string, unknown> = {
+    userId: new mongoose.Types.ObjectId(userId),
+    $or: [{ expiresAt: { $exists: false } }, { expiresAt: { $gt: new Date() } }],
+  };
+  if (category) filter.category = category;
+
+  const escapedQuery = query.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const memories = await AIMemory.find({
+    ...filter,
+    content: { $regex: escapedQuery, $options: "i" },
+  })
+    .sort({ confidence: -1 })
+    .limit(10)
+    .lean();
+
+  if (memories.length === 0) {
+    return { success: true, memories: [], message: "No memories found matching that query." };
+  }
+
+  return {
+    success: true,
+    memories: memories.map((m) => ({
+      id: m._id.toString(),
+      category: m.category,
+      content: m.content,
+      confidence: m.confidence,
+      userExplicit: m.userExplicit ?? false,
+      createdAt: m.createdAt.toISOString(),
+    })),
+  };
+}
+```
+
+**Step 3: Verify build**
+
+Run: `npx tsc --noEmit --pretty 2>&1 | tail -5`
+
+**Step 4: Commit**
+
+```bash
+git add src/lib/ai/tools.ts
+git commit -m "feat(ai): add remember_this and recall_memory Gemini tool declarations + executors"
+```
+
+---
+
+## Task 12: Upgrade loadUserMemories with Priority Ordering
+
+**Files:**
+- Modify: `src/lib/chat/agent-processor.ts`
+
+**Step 1: Enhance loadUserMemories**
+
+In `src/lib/chat/agent-processor.ts`, update `loadUserMemories` (around line 466):
+
+```typescript
+async function loadUserMemories(userId: string): Promise<string> {
+  try {
+    const memories = await AIMemory.find({
+      userId: new mongoose.Types.ObjectId(userId),
+      $or: [{ expiresAt: { $exists: false } }, { expiresAt: { $gt: new Date() } }],
+    })
+      .sort({ confidence: -1, updatedAt: -1 })
+      .limit(30)
+      .lean();
+
+    if (memories.length === 0) return "";
+
+    const categoryOrder = ["project", "workflow", "preference", "relationship", "habit", "context", "task"];
+    const grouped: Record<string, string[]> = {};
+    for (const m of memories) {
+      const cat = m.category;
+      if (!grouped[cat]) grouped[cat] = [];
+      grouped[cat].push(m.content);
+    }
+
+    const parts: string[] = [];
+    for (const cat of categoryOrder) {
+      if (grouped[cat]) {
+        parts.push(`${cat}: ${grouped[cat].join("; ")}`);
+      }
+    }
+    return parts.join("\n");
+  } catch (error) {
+    log.warn({ error, userId }, "Failed to load user memories (non-fatal)");
+    return "";
+  }
+}
+```
+
+**Step 2: Verify build + existing tests**
+
+Run: `npx tsc --noEmit && npx vitest run src/lib/chat/__tests__/agent-processor.test.ts`
+
+**Step 3: Commit**
+
+```bash
+git add src/lib/chat/agent-processor.ts
+git commit -m "feat(ai): upgrade loadUserMemories with priority ordering and increased limit"
+```
+
+---
+
+## Task 13: Session Persistence Upgrade
+
+**Files:**
+- Modify: `src/hooks/useAIChat.ts`
+
+**Step 1: Add session types and storage logic**
+
+In `src/hooks/useAIChat.ts`, add after the existing imports and interfaces:
+
+```typescript
+const SESSIONS_KEY = "ai-chat-sessions";
 const MAX_SESSIONS = 3;
 
-interface StoredSession {
+interface ChatSession {
   id: string;
-  label: string;
   messages: ChatMessage[];
+  label?: string;
   createdAt: number;
 }
+```
 
-function loadPersistedSessions(): StoredSession[] {
+Add state inside the hook:
+```typescript
+const [sessions, setSessions] = useState<ChatSession[]>(() => {
   if (typeof window === "undefined") return [];
   try {
-    const raw = sessionStorage.getItem(STORAGE_KEY);
-    if (!raw) return [];
-    const parsed = JSON.parse(raw) as StoredSession[];
-    // Only keep sessions from the last 48 hours
-    const cutoff = Date.now() - 48 * 60 * 60 * 1000;
-    return parsed.filter((s) => s.createdAt > cutoff).slice(0, MAX_SESSIONS);
-  } catch {
-    return [];
-  }
-}
-
-function loadPersistedMessages(): ChatMessage[] {
-  const sessions = loadPersistedSessions();
-  if (sessions.length === 0) return [];
-  // Return the most recent session's messages
-  const cutoff = Date.now() - 24 * 60 * 60 * 1000;
-  return sessions[0].messages.filter((m) => m.timestamp > cutoff);
-}
-
-function persistMessages(messages: ChatMessage[]) {
-  if (typeof window === "undefined") return;
-  try {
-    const sessions = loadPersistedSessions();
-    const currentSession: StoredSession = {
-      id: sessions[0]?.id || `session-${Date.now()}`,
-      label: "Current",
-      messages,
-      createdAt: sessions[0]?.createdAt || Date.now(),
-    };
-    const updated = [currentSession, ...sessions.filter((s) => s.id !== currentSession.id)].slice(0, MAX_SESSIONS);
-    sessionStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
-  } catch {
-    // Storage full or unavailable
-  }
-}
+    const stored = sessionStorage.getItem(SESSIONS_KEY);
+    return stored ? JSON.parse(stored) : [];
+  } catch { return []; }
+});
+const [activeSessionId, setActiveSessionId] = useState<string>(() => crypto.randomUUID());
 ```
 
-Update `clearMessages` (around line 301) to start a new session:
+Save sessions when clearing:
 ```typescript
-  const clearMessages = useCallback(() => {
-    // Archive current session before clearing
-    if (typeof window !== "undefined" && messages.length > 0) {
-      try {
-        const sessions = loadPersistedSessions();
-        if (sessions.length > 0 && sessions[0].messages.length > 0) {
-          const firstMsg = sessions[0].messages[0];
-          sessions[0].label = firstMsg.content.slice(0, 40) || "Past session";
-          sessions[0].id = `session-archived-${Date.now()}`;
-          sessionStorage.setItem(STORAGE_KEY, JSON.stringify(sessions.slice(0, MAX_SESSIONS)));
-        }
-      } catch { /* ignore */ }
-    }
-    setMessages([]);
-  }, [messages]);
+const clearMessages = useCallback(() => {
+  if (messages.length > 0) {
+    setSessions((prev) => {
+      const newSession: ChatSession = {
+        id: activeSessionId,
+        messages,
+        createdAt: messages[0]?.timestamp ?? Date.now(),
+      };
+      const updated = [newSession, ...prev].slice(0, MAX_SESSIONS);
+      try { sessionStorage.setItem(SESSIONS_KEY, JSON.stringify(updated)); } catch {}
+      return updated;
+    });
+  }
+  setMessages([]);
+  setActiveSessionId(crypto.randomUUID());
+}, [messages, activeSessionId]);
 ```
 
-**Step 2: Run type check**
+Add session switcher:
+```typescript
+const switchSession = useCallback((sessionId: string) => {
+  const session = sessions.find((s) => s.id === sessionId);
+  if (session) {
+    setMessages(session.messages);
+    setActiveSessionId(session.id);
+  }
+}, [sessions]);
+```
 
-Run: `cd /Users/uditanshutomar/Desktop/Yoodle && npx tsc --noEmit --pretty 2>&1 | head -10`
-Expected: No errors
+Return `sessions`, `activeSessionId`, `switchSession` from the hook.
+
+**Step 2: Verify build**
+
+Run: `npx tsc --noEmit --pretty 2>&1 | tail -5`
 
 **Step 3: Commit**
 
 ```bash
 git add src/hooks/useAIChat.ts
-git commit -m "feat(ai): upgrade session persistence to support 3 archived sessions"
+git commit -m "feat(ai): add session persistence with 3-session history and switcher"
 ```
 
 ---
 
-## Task 11: Full Build Verification
+## Task 14: Session Switcher UI
 
-**Step 1: Run type check**
+**Files:**
+- Create: `src/components/ai/SessionSwitcher.tsx`
+- Modify: `src/components/ai/ChatWindow.tsx`
+- Modify: `src/components/ai/AIDrawer.tsx`
 
-Run: `cd /Users/uditanshutomar/Desktop/Yoodle && export PATH="/usr/local/bin:/usr/bin:/bin:$PATH" && npx tsc --noEmit --pretty 2>&1 | tail -5`
-Expected: No errors
+**Step 1: Create SessionSwitcher component**
 
-**Step 2: Run build**
+Create `src/components/ai/SessionSwitcher.tsx`:
 
-Run: `cd /Users/uditanshutomar/Desktop/Yoodle && export PATH="/usr/local/bin:/usr/bin:/bin:$PATH" && npm run build 2>&1 | tail -20`
-Expected: Build succeeds
+```typescript
+"use client";
 
-**Step 3: Run all tests**
+interface Session {
+  id: string;
+  label?: string;
+  createdAt: number;
+}
 
-Run: `cd /Users/uditanshutomar/Desktop/Yoodle && export PATH="/usr/local/bin:/usr/bin:/bin:$PATH" && npx vitest run 2>&1 | tail -20`
-Expected: All tests pass
+interface SessionSwitcherProps {
+  sessions: Session[];
+  activeSessionId?: string;
+  onSwitch: (id: string) => void;
+}
+
+export default function SessionSwitcher({ sessions, activeSessionId, onSwitch }: SessionSwitcherProps) {
+  if (sessions.length <= 1) return null;
+
+  return (
+    <div className="flex items-center gap-1 px-5 py-1.5 border-b border-[var(--border)] overflow-x-auto">
+      {sessions.map((session) => {
+        const isActive = session.id === activeSessionId;
+        const label = session.label || formatDate(session.createdAt);
+        return (
+          <button
+            key={session.id}
+            onClick={() => onSwitch(session.id)}
+            className={`shrink-0 px-2.5 py-1 text-[10px] font-medium rounded-md transition-colors ${
+              isActive
+                ? "bg-[#FFE600]/20 text-[#B8A200] border border-[#FFE600]/30"
+                : "text-[var(--text-muted)] hover:text-[var(--text-secondary)] hover:bg-[var(--surface-hover)]"
+            }`}
+            style={{ fontFamily: "var(--font-body)" }}
+          >
+            {label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+function formatDate(ts: number): string {
+  const d = new Date(ts);
+  const now = new Date();
+  const diffDays = Math.floor((now.getTime() - d.getTime()) / (1000 * 60 * 60 * 24));
+
+  if (diffDays === 0) return "Today";
+  if (diffDays === 1) return "Yesterday";
+  return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+}
+```
+
+**Step 2: Wire into ChatWindow and AIDrawer**
+
+In `ChatWindow.tsx`:
+1. Add `sessions`, `activeSessionId`, `onSwitchSession` to `ChatWindowProps`
+2. Add import: `import SessionSwitcher from "./SessionSwitcher";`
+3. Render `<SessionSwitcher>` between header and messages
+
+In `AIDrawer.tsx`:
+1. Pass `sessions`, `activeSessionId`, `switchSession` from `useAIChat` through to `ChatWindow`
+
+**Step 3: Verify build**
+
+Run: `npm run build 2>&1 | tail -10`
+
+**Step 4: Commit**
+
+```bash
+git add src/components/ai/SessionSwitcher.tsx src/components/ai/ChatWindow.tsx src/components/ai/AIDrawer.tsx
+git commit -m "feat(ai): add session switcher tabs for chat history navigation"
+```
 
 ---
 
-## Files Summary
+## Task 15: Full Build + Test Verification
 
-| Action | File |
-|--------|------|
-| Modify | `src/lib/chat/proactive-limiter.ts` |
-| Create | `src/lib/infra/db/models/proactive-insight.ts` |
-| Create | `src/app/api/ai/insights/count/route.ts` |
-| Create | `src/app/api/ai/insights/[id]/route.ts` |
-| Create | `src/app/api/ai/insights/route.ts` |
-| Modify | `src/lib/chat/proactive-triggers.ts` |
-| Modify | `src/app/api/cron/proactive/route.ts` |
-| Create | `src/hooks/useInsightCount.ts` |
-| Modify | `src/components/ai/AIDrawer.tsx` |
-| Create | `src/components/ai/InsightQueue.tsx` |
-| Modify | `src/components/ai/ChatWindow.tsx` |
-| Modify | `src/lib/infra/db/models/ai-memory.ts` |
-| Modify | `src/lib/ai/tools.ts` |
-| Modify | `src/app/api/ai/action/confirm/route.ts` |
-| Modify | `src/components/ai/ChatBubble.tsx` |
-| Create | `src/lib/ai/context-enricher.ts` |
-| Modify | `src/hooks/useAIChat.ts` |
+**Step 1: Run full type check**
+
+Run: `npx tsc --noEmit --pretty`
+
+**Step 2: Run all tests**
+
+Run: `npx vitest run`
+
+**Step 3: Run production build**
+
+Run: `npm run build`
+
+**Step 4: Fix any errors found**
+
+**Step 5: Final commit if fixes needed**
+
+```bash
+git add -A && git commit -m "fix(ai): phase 2 build fixes"
+```
+
+---
+
+## Summary
+
+| Task | What | Files |
+|------|------|-------|
+| 1 | Upgrade AIMemory schema | `ai-memory.ts` |
+| 2 | New proactive types + cap | `proactive-limiter.ts` |
+| 3 | Stale task nudge trigger | `proactive-triggers.ts` |
+| 4 | Weekly pattern summary trigger | `proactive-triggers.ts` |
+| 5 | Unread highlights trigger | `proactive-triggers.ts` |
+| 6 | Wire new triggers into cron | `cron/proactive/route.ts` |
+| 7 | Insight count API + Redis | `proactive-insights.ts`, API route |
+| 8 | FAB notification badge | `AIDrawer.tsx`, `useInsightCount.ts` |
+| 9 | Insight queue component | `InsightQueue.tsx`, `ChatWindow.tsx` |
+| 10 | Context enricher | `context-enricher.ts` |
+| 11 | remember/recall tools | `tools.ts` |
+| 12 | Upgrade loadUserMemories | `agent-processor.ts` |
+| 13 | Session persistence | `useAIChat.ts` |
+| 14 | Session switcher UI | `SessionSwitcher.tsx` |
+| 15 | Full verification | All files |
