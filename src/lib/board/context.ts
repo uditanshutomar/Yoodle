@@ -1,6 +1,9 @@
 import connectDB from "@/lib/infra/db/client";
 import Board from "@/lib/infra/db/models/board";
 import Task from "@/lib/infra/db/models/task";
+import Meeting from "@/lib/infra/db/models/meeting";
+import Conversation from "@/lib/infra/db/models/conversation";
+import DirectMessage from "@/lib/infra/db/models/direct-message";
 import { createLogger } from "@/lib/infra/logger";
 
 const log = createLogger("board:context");
@@ -88,7 +91,7 @@ export async function buildBoardContext(
     const taskLines = topTasks.map(({ task: t, isOverdue }) => {
       const board = boardMap.get(t.boardId.toString());
       const col = board?.columns?.find((c: { id: string; title: string }) => c.id === t.columnId);
-      const assignee = t.assigneeId as { _id: string; displayName?: string; name?: string } | null;
+      const assignee = t.assigneeId as unknown as { _id: string; displayName?: string; name?: string } | null;
       const assigneeName = assignee?._id?.toString() === userId ? "You" : (assignee?.displayName || assignee?.name || "Unassigned");
       const subtasksDone = t.subtasks?.filter((s: { done: boolean }) => s.done).length || 0;
       const subtasksTotal = t.subtasks?.length || 0;
@@ -133,6 +136,198 @@ ${boardSummaries.join("\n")}
     };
   } catch (err) {
     log.error({ err }, "failed to build board context");
+    return empty;
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/*  Meeting context                                                    */
+/* ------------------------------------------------------------------ */
+
+export interface MeetingContextResult {
+  contextXml: string;
+  unresolvedActions: number;
+}
+
+export async function buildMeetingContext(
+  userId: string
+): Promise<MeetingContextResult> {
+  const empty: MeetingContextResult = { contextXml: "", unresolvedActions: 0 };
+
+  try {
+    await connectDB();
+
+    const now = new Date();
+    const threeDaysAgo = new Date(now.getTime() - 3 * 86400000);
+    const threeDaysFromNow = new Date(now.getTime() + 3 * 86400000);
+
+    // Upcoming meetings (next 3 days)
+    const upcoming = await Meeting.find({
+      "participants.userId": userId,
+      status: { $in: ["scheduled", "live"] },
+      scheduledAt: { $gte: now, $lte: threeDaysFromNow },
+    })
+      .sort({ scheduledAt: 1 })
+      .limit(5)
+      .populate("participants.userId", "displayName name")
+      .lean();
+
+    // Recent completed meetings (last 3 days) with MoM
+    const recent = await Meeting.find({
+      "participants.userId": userId,
+      status: "ended",
+      endedAt: { $gte: threeDaysAgo },
+    })
+      .sort({ endedAt: -1 })
+      .limit(3)
+      .lean();
+
+    if (upcoming.length === 0 && recent.length === 0) return empty;
+
+    let unresolvedActions = 0;
+    const meetingIds = recent
+      .filter((m) => m.mom?.actionItems?.length)
+      .map((m) => m._id);
+    const linkedTasks =
+      meetingIds.length > 0
+        ? await Task.find({ meetingId: { $in: meetingIds } }).lean()
+        : [];
+    const linkedMeetingIds = new Set(
+      linkedTasks.map((t) => t.meetingId?.toString())
+    );
+
+    const upcomingLines = upcoming.map((m) => {
+      const participants = (
+        m.participants as unknown as {
+          userId: { displayName?: string; name?: string } | null;
+        }[]
+      )
+        ?.map(
+          (p) =>
+            p.userId && typeof p.userId === "object"
+              ? p.userId.displayName || p.userId.name || ""
+              : ""
+        )
+        .filter(Boolean)
+        .slice(0, 5)
+        .join(", ");
+
+      const linkedTaskCount = linkedTasks.filter(
+        (t) => t.meetingId?.toString() === m._id.toString()
+      ).length;
+
+      let attrs = `id="${m._id}" title="${escapeXml(m.title)}"`;
+      attrs += ` at="${m.scheduledAt?.toISOString() || ""}"`;
+      if (participants)
+        attrs += ` participants="${escapeXml(participants)}"`;
+      if (linkedTaskCount > 0)
+        attrs += ` has-linked-tasks="true" linked-task-count="${linkedTaskCount}"`;
+      attrs += ` status="${m.status}"`;
+      return `      <meeting ${attrs} />`;
+    });
+
+    const recentLines = recent.map((m) => {
+      const hasMom = !!m.mom?.summary;
+      const actionCount = m.mom?.actionItems?.length || 0;
+      const hasLinkedTasks = linkedMeetingIds.has(m._id.toString());
+      const unresolved =
+        hasMom && actionCount > 0 && !hasLinkedTasks ? actionCount : 0;
+      unresolvedActions += unresolved;
+
+      let attrs = `id="${m._id}" title="${escapeXml(m.title)}"`;
+      attrs += ` ended="${m.endedAt?.toISOString() || ""}"`;
+      attrs += ` has-mom="${hasMom}"`;
+      if (unresolved > 0) attrs += ` unresolved-actions="${unresolved}"`;
+      return `      <meeting ${attrs} />`;
+    });
+
+    const parts: string[] = [];
+    if (upcomingLines.length > 0) {
+      parts.push(
+        `    <upcoming count="${upcomingLines.length}">\n${upcomingLines.join("\n")}\n    </upcoming>`
+      );
+    }
+    if (recentLines.length > 0) {
+      parts.push(
+        `    <recent-completed count="${recentLines.length}">\n${recentLines.join("\n")}\n    </recent-completed>`
+      );
+    }
+
+    return {
+      contextXml: `  <meetings>\n${parts.join("\n")}\n  </meetings>`,
+      unresolvedActions,
+    };
+  } catch (err) {
+    log.error({ err }, "failed to build meeting context");
+    return empty;
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/*  Conversation context                                               */
+/* ------------------------------------------------------------------ */
+
+export interface ConversationContextResult {
+  contextXml: string;
+  activeThreadCount: number;
+}
+
+export async function buildConversationContextSummary(
+  userId: string
+): Promise<ConversationContextResult> {
+  const empty: ConversationContextResult = {
+    contextXml: "",
+    activeThreadCount: 0,
+  };
+
+  try {
+    await connectDB();
+
+    const oneDayAgo = new Date(Date.now() - 86400000);
+
+    const conversations = await Conversation.find({
+      "participants.userId": userId,
+      lastMessageAt: { $gte: oneDayAgo },
+    })
+      .sort({ lastMessageAt: -1 })
+      .limit(5)
+      .lean();
+
+    if (conversations.length === 0) return empty;
+
+    const threadLines = await Promise.all(
+      conversations.map(async (c) => {
+        const participant = c.participants?.find(
+          (p: { userId: string | { toString(): string } }) =>
+            p.userId?.toString() === userId
+        );
+        const lastReadAt = participant?.lastReadAt || new Date(0);
+
+        const unreadCount = await DirectMessage.countDocuments({
+          conversationId: c._id,
+          createdAt: { $gt: lastReadAt },
+          senderId: { $ne: userId },
+        });
+
+        const name =
+          c.name || (c.type === "dm" ? "Direct message" : "Group chat");
+        let attrs = `id="${c._id}" name="${escapeXml(name)}"`;
+        if (unreadCount > 0) attrs += ` unread="${unreadCount}"`;
+        attrs += ` last-activity="${c.lastMessageAt?.toISOString() || ""}"`;
+        return `      <thread ${attrs} />`;
+      })
+    );
+
+    const activeCount = conversations.length;
+    const xml = `  <conversations>
+    <active-threads count="${activeCount}">
+${threadLines.join("\n")}
+    </active-threads>
+  </conversations>`;
+
+    return { contextXml: xml, activeThreadCount: activeCount };
+  } catch (err) {
+    log.error({ err }, "failed to build conversation context summary");
     return empty;
   }
 }
