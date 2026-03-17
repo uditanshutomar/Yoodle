@@ -5,7 +5,15 @@ import {
 } from "@google/generative-ai";
 import { sendEmail, searchEmails, modifyEmailLabels, listEmails, getUnreadCount, getEmail, replyToEmail } from "@/lib/google/gmail";
 import { createEvent, listEvents, updateEvent, deleteEvent } from "@/lib/google/calendar";
-import { createTask, completeTask, listTasks, listTaskLists, updateTask, deleteTask } from "@/lib/google/tasks";
+import {
+  createBoardTask, updateBoardTask, moveBoardTask,
+  assignBoardTask, deleteBoardTask, listBoardTasks, searchBoardTasks,
+} from "@/lib/board/tools";
+import {
+  createTaskFromMeeting, createTaskFromEmail, createTaskFromChat,
+  scheduleMeetingForTask, linkDocToTask, linkMeetingToTask,
+  generateSubtasks, getTaskContext,
+} from "@/lib/board/cross-domain";
 import { searchFiles, listFiles, createGoogleDoc } from "@/lib/google/drive";
 import { searchContacts } from "@/lib/google/contacts";
 import { getDocContent, appendToDoc, findAndReplaceInDoc } from "@/lib/google/docs";
@@ -403,6 +411,110 @@ export const WORKSPACE_TOOLS: FunctionDeclarationsTool = {
       },
     },
 
+    // ── Cross-Domain Tools ───────────────────────────────────────
+    {
+      name: "create_task_from_meeting",
+      description: "Convert MoM action items from a meeting into board tasks. Creates tasks linked back to the meeting with attendees as collaborators.",
+      parameters: {
+        type: SchemaType.OBJECT,
+        properties: {
+          meetingId: { type: SchemaType.STRING, description: "The meeting ID to create tasks from." },
+          actionItemIndex: { type: SchemaType.NUMBER, description: "Specific action item index (0-based). Omit to create tasks for ALL action items." },
+          boardId: { type: SchemaType.STRING, description: "Target board ID (defaults to personal board)." },
+        },
+        required: ["meetingId"],
+      },
+    },
+    {
+      name: "create_task_from_email",
+      description: "Create a board task from an email, linking the email to the task for reference.",
+      parameters: {
+        type: SchemaType.OBJECT,
+        properties: {
+          emailId: { type: SchemaType.STRING, description: "Gmail message ID to create task from." },
+          title: { type: SchemaType.STRING, description: "Task title (extracted from email subject if omitted)." },
+          boardId: { type: SchemaType.STRING, description: "Target board ID (defaults to personal board)." },
+          priority: { type: SchemaType.STRING, description: "Priority level (optional)." },
+        },
+        required: ["emailId"],
+      },
+    },
+    {
+      name: "create_task_from_chat",
+      description: "Create a board task from a chat conversation message, linking back to the conversation.",
+      parameters: {
+        type: SchemaType.OBJECT,
+        properties: {
+          conversationId: { type: SchemaType.STRING, description: "Conversation ID." },
+          messageId: { type: SchemaType.STRING, description: "Specific message ID to extract task from (optional)." },
+          title: { type: SchemaType.STRING, description: "Task title." },
+          boardId: { type: SchemaType.STRING, description: "Target board ID (defaults to conversation board if exists, else personal)." },
+        },
+        required: ["conversationId", "title"],
+      },
+    },
+    {
+      name: "schedule_meeting_for_task",
+      description: "Schedule a Yoodle meeting related to a board task. Pre-fills with task title, assignee and collaborators as participants.",
+      parameters: {
+        type: SchemaType.OBJECT,
+        properties: {
+          taskId: { type: SchemaType.STRING, description: "The board task ID." },
+          duration: { type: SchemaType.NUMBER, description: "Meeting duration in minutes (default: 30)." },
+          scheduledAt: { type: SchemaType.STRING, description: "When to schedule in ISO 8601 (optional)." },
+        },
+        required: ["taskId"],
+      },
+    },
+    {
+      name: "link_doc_to_task",
+      description: "Attach a Google Drive document to a board task. Search Drive by query or provide a direct document ID.",
+      parameters: {
+        type: SchemaType.OBJECT,
+        properties: {
+          taskId: { type: SchemaType.STRING, description: "The board task ID." },
+          query: { type: SchemaType.STRING, description: "Search query to find the document in Drive (optional if googleDocId provided)." },
+          googleDocId: { type: SchemaType.STRING, description: "Direct Google Doc/Drive file ID (optional if query provided)." },
+        },
+        required: ["taskId"],
+      },
+    },
+    {
+      name: "link_meeting_to_task",
+      description: "Link an existing Yoodle meeting to a board task for tracking.",
+      parameters: {
+        type: SchemaType.OBJECT,
+        properties: {
+          taskId: { type: SchemaType.STRING, description: "The board task ID." },
+          meetingId: { type: SchemaType.STRING, description: "The meeting ID to link." },
+        },
+        required: ["taskId", "meetingId"],
+      },
+    },
+    {
+      name: "generate_subtasks",
+      description: "AI-generate a subtask breakdown for a board task based on its title and description.",
+      parameters: {
+        type: SchemaType.OBJECT,
+        properties: {
+          taskId: { type: SchemaType.STRING, description: "The board task ID to generate subtasks for." },
+          count: { type: SchemaType.NUMBER, description: "Suggested number of subtasks (3-10, default: 5)." },
+        },
+        required: ["taskId"],
+      },
+    },
+    {
+      name: "get_task_context",
+      description: "Get deep context about a board task including linked meeting status, documents, emails, and activity log. Use before answering questions about a specific task.",
+      parameters: {
+        type: SchemaType.OBJECT,
+        properties: {
+          taskId: { type: SchemaType.STRING, description: "The board task ID." },
+        },
+        required: ["taskId"],
+      },
+    },
+
     // ── Google Drive ───────────────────────────────────────────────
     {
       name: "search_drive_files",
@@ -727,7 +839,7 @@ export const WORKSPACE_TOOLS: FunctionDeclarationsTool = {
           actionType: {
             type: SchemaType.STRING,
             description:
-              "The tool that would be called: 'send_email', 'reply_to_email', 'create_yoodle_meeting', 'create_calendar_event', 'update_calendar_event', 'delete_calendar_event', 'create_task', 'complete_task', 'update_task', 'delete_task', 'append_to_doc', 'find_replace_in_doc', 'write_sheet', 'append_to_sheet', 'clear_sheet_range'.",
+              "The tool that would be called: 'send_email', 'reply_to_email', 'create_yoodle_meeting', 'create_calendar_event', 'update_calendar_event', 'delete_calendar_event', 'create_board_task', 'update_board_task', 'move_board_task', 'assign_board_task', 'delete_board_task', 'create_task_from_meeting', 'create_task_from_email', 'create_task_from_chat', 'schedule_meeting_for_task', 'link_doc_to_task', 'link_meeting_to_task', 'generate_subtasks', 'append_to_doc', 'find_replace_in_doc', 'write_sheet', 'append_to_sheet', 'clear_sheet_range'.",
           },
           args: {
             type: SchemaType.OBJECT,
@@ -980,91 +1092,39 @@ export async function executeWorkspaceTool(
         };
       }
 
-      // ── Tasks ────────────────────────────────────────────────
-      case "create_task": {
-        const taskListId = (args.taskListId as string) || "@default";
-        const task = await createTask(userId, taskListId, {
-          title: args.title as string,
-          notes: args.notes as string | undefined,
-          due: args.due as string | undefined,
-        });
-        return {
-          success: true,
-          summary: `Created task "${task.title}"${task.due ? ` (due: ${task.due})` : ""}`,
-          data: { id: task.id, title: task.title, due: task.due },
-        };
-      }
+      // ── Board Tasks ─────────────────────────────────────────────
+      case "create_board_task":
+        return createBoardTask(userId, args);
+      case "update_board_task":
+        return updateBoardTask(userId, args);
+      case "move_board_task":
+        return moveBoardTask(userId, args);
+      case "assign_board_task":
+        return assignBoardTask(userId, args);
+      case "delete_board_task":
+        return deleteBoardTask(userId, args);
+      case "list_board_tasks":
+        return listBoardTasks(userId, args);
+      case "search_board_tasks":
+        return searchBoardTasks(userId, args);
 
-      case "complete_task": {
-        const completed = await completeTask(
-          userId,
-          (args.taskListId as string) || "@default",
-          args.taskId as string
-        );
-        return {
-          success: true,
-          summary: `Completed task "${completed.title}"`,
-          data: { id: completed.id, title: completed.title },
-        };
-      }
-
-      case "update_task": {
-        const updatedTask = await updateTask(
-          userId,
-          (args.taskListId as string) || "@default",
-          args.taskId as string,
-          {
-            title: args.title as string | undefined,
-            notes: args.notes as string | undefined,
-            due: args.due as string | undefined,
-          }
-        );
-        return {
-          success: true,
-          summary: `Updated task "${updatedTask.title}"`,
-          data: { id: updatedTask.id, title: updatedTask.title, due: updatedTask.due },
-        };
-      }
-
-      case "delete_task": {
-        await deleteTask(
-          userId,
-          (args.taskListId as string) || "@default",
-          args.taskId as string
-        );
-        return {
-          success: true,
-          summary: `Deleted task ${args.taskId}`,
-        };
-      }
-
-      case "list_tasks": {
-        const taskListId = (args.taskListId as string) || "@default";
-        const tasks = await listTasks(userId, taskListId, {
-          showCompleted: args.showCompleted as boolean | undefined,
-          maxResults: (args.maxResults as number) || 20,
-        });
-        return {
-          success: true,
-          summary: `Found ${tasks.length} task(s)`,
-          data: tasks.map((t) => ({
-            id: t.id,
-            title: t.title,
-            status: t.status,
-            due: t.due,
-            notes: t.notes,
-          })),
-        };
-      }
-
-      case "list_task_lists": {
-        const taskLists = await listTaskLists(userId);
-        return {
-          success: true,
-          summary: `Found ${taskLists.length} task list(s)`,
-          data: taskLists.map((tl) => ({ id: tl.id, title: tl.title })),
-        };
-      }
+      // ── Cross-Domain Tools ──────────────────────────────────────
+      case "create_task_from_meeting":
+        return createTaskFromMeeting(userId, args);
+      case "create_task_from_email":
+        return createTaskFromEmail(userId, args);
+      case "create_task_from_chat":
+        return createTaskFromChat(userId, args);
+      case "schedule_meeting_for_task":
+        return scheduleMeetingForTask(userId, args);
+      case "link_doc_to_task":
+        return linkDocToTask(userId, args);
+      case "link_meeting_to_task":
+        return linkMeetingToTask(userId, args);
+      case "generate_subtasks":
+        return generateSubtasks(userId, args);
+      case "get_task_context":
+        return getTaskContext(userId, args);
 
       // ── Drive ────────────────────────────────────────────────
       case "search_drive_files": {
