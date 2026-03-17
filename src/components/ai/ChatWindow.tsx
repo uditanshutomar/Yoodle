@@ -5,6 +5,8 @@ import { motion } from "framer-motion";
 import { Send, Square, Trash2, X } from "lucide-react";
 import Image from "next/image";
 import ChatBubble from "./ChatBubble";
+import SuggestionChips from "./SuggestionChips";
+import SmartEmptyState from "./SmartEmptyState";
 import VoiceInputButton from "@/components/chat/VoiceInputButton";
 import { useAuth } from "@/hooks/useAuth";
 import type { ChatMessage } from "@/hooks/useAIChat";
@@ -99,32 +101,7 @@ export default function ChatWindow({
       {/* Messages */}
       <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4 min-h-0">
         {messages.length === 0 && (
-          <div className="flex flex-col items-center justify-center h-full px-4">
-            <p className="text-xs text-[var(--text-muted)] mb-4" style={{ fontFamily: "var(--font-body)" }}>
-              Try one of these to get started:
-            </p>
-            <div className="grid grid-cols-2 gap-2 w-full max-w-xs">
-              {[
-                { label: "Summarize my day", icon: "M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" },
-                { label: "Prep for meeting", icon: "M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2M9 11a4 4 0 100-8 4 4 0 000 8M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75" },
-                { label: "Draft follow-up", icon: "M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2zM22 6l-10 7L2 6" },
-                { label: "What's pending?", icon: "M12 2a10 10 0 100 20 10 10 0 000-20zM12 6v6l4 2" },
-              ].map((item) => (
-                <button
-                  key={item.label}
-                  onClick={() => onSend(item.label)}
-                  className="flex items-center gap-2 px-3 py-2.5 rounded-xl bg-[var(--surface-hover)] border border-[var(--border)] hover:border-[#FFE600] hover:bg-[#FFE600]/10 transition-colors group text-left"
-                >
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="text-[var(--text-muted)] group-hover:text-[#B8860B] transition-colors flex-shrink-0">
-                    <path d={item.icon} />
-                  </svg>
-                  <span className="text-[11px] font-medium text-[var(--text-secondary)] group-hover:text-[var(--text-primary)] transition-colors" style={{ fontFamily: "var(--font-body)" }}>
-                    {item.label}
-                  </span>
-                </button>
-              ))}
-            </div>
-          </div>
+          <SmartEmptyState onSend={onSend} />
         )}
 
         {messages.map((msg) => (
@@ -144,6 +121,11 @@ export default function ChatWindow({
 
       {/* Input */}
       <div className="px-4 py-3 border-t-2 border-[var(--border)]">
+        {!isStreaming && messages.length > 0 && (
+          <div className="mb-2">
+            <SuggestionChips onSelect={onSend} />
+          </div>
+        )}
         <div className="flex items-center gap-2">
           <input
             type="text"
