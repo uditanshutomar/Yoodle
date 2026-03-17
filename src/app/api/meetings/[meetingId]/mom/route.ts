@@ -9,8 +9,8 @@ import { NotFoundError, BadRequestError, ForbiddenError } from "@/lib/infra/api/
 import connectDB from "@/lib/infra/db/client";
 import Meeting from "@/lib/infra/db/models/meeting";
 import "@/lib/infra/db/models/user";
-import { hasGoogleAccess } from "@/lib/google/client";
-import { createTask } from "@/lib/google/tasks";
+import Conversation from "@/lib/infra/db/models/conversation";
+import DirectMessage from "@/lib/infra/db/models/direct-message";
 import { createLogger } from "@/lib/infra/logger";
 
 const log = createLogger("api:mom");
@@ -232,43 +232,59 @@ export const POST = withHandler(
       }
     );
 
-    // ── Auto-create Google Tasks from action items (fire-and-forget) ──
-    const actionItems: { task: string; owner: string; due: string }[] =
-      mom.actionItems || [];
-    if (actionItems.length > 0) {
-      (async () => {
-        try {
-          const hasAccess = await hasGoogleAccess(userId);
-          if (!hasAccess) return;
+    // Post task creation suggestions to meeting chat (fire-and-forget)
+    (async () => {
+      try {
+        const conversation = await Conversation.findOne({ meetingId: meeting._id });
+        const actionItems: { task: string; owner: string; due: string }[] = mom.actionItems || [];
+        if (!conversation || !actionItems.length) return;
 
-          const meetingTitle = meeting.title || "Yoodle Meeting";
-          await Promise.allSettled(
-            actionItems.map((item) => {
-              // Validate the due date before passing to Google Tasks —
-              // the LLM may return "next week" or other non-parseable strings.
-              let due: string | undefined;
-              if (item.due && item.due !== "TBD") {
-                const parsed = new Date(item.due);
-                if (!isNaN(parsed.getTime())) {
-                  due = parsed.toISOString();
-                }
-              }
-              return createTask(userId, "@default", {
-                title: item.task,
-                notes: `From meeting: ${meetingTitle}\nOwner: ${item.owner}`,
-                due,
-              });
-            })
-          );
-          log.info(
-            { meetingId: meeting._id, count: actionItems.length },
-            "auto-created tasks from MoM action items"
-          );
-        } catch (err) {
-          log.warn({ err }, "failed to auto-create tasks from MoM");
+        const actionCount = actionItems.length;
+        const itemList = actionItems
+          .map((item: { task: string; owner: string; due: string }, i: number) =>
+            `${i + 1}. **${item.task}** → ${item.owner}${item.due !== "TBD" ? ` (due: ${item.due})` : ""}`)
+          .join("\n");
+
+        const content = `📋 **${actionCount} action item(s) from this meeting:**\n\n${itemList}\n\nSay "add these to the board" to create tasks, or ask me about any of them.`;
+
+        const msg = await DirectMessage.create({
+          conversationId: conversation._id,
+          senderId: meeting.hostId,
+          senderType: "agent",
+          content,
+          type: "agent",
+          agentMeta: { forUserId: meeting.hostId },
+        });
+
+        await Conversation.updateOne(
+          { _id: conversation._id },
+          {
+            $set: {
+              lastMessageAt: msg.createdAt,
+              lastMessagePreview: `📋 ${actionCount} action items from meeting`,
+              lastMessageSenderId: meeting.hostId,
+            },
+          },
+        );
+
+        // Publish to Redis for real-time delivery
+        const { getRedisClient } = await import("@/lib/infra/redis/client");
+        const redis = getRedisClient();
+        if (redis) {
+          await redis.publish(
+            `chat:${conversation._id}`,
+            JSON.stringify({ type: "message", data: msg }),
+          ).catch(() => {});
         }
-      })();
-    }
+
+        log.info(
+          { meetingId: meeting._id, count: actionCount },
+          "posted MoM task suggestions to chat"
+        );
+      } catch (err) {
+        log.warn({ err }, "failed to post MoM task suggestions to chat");
+      }
+    })();
 
     return successResponse({ mom });
   }
