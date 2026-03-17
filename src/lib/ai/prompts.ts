@@ -281,7 +281,7 @@ ${newMessages}
 Extract and return ONLY valid JSON, no markdown fences.
 
 Example output:
-{"summaryUpdate":"Team planning Q2 launch, John owns design","newActionItems":[{"assignee":"John","description":"Send API docs by Friday"}],"resolvedActionItemIds":["a1b2c3d4"],"newDecisions":[{"description":"Using PostgreSQL for the new service","participants":["John","Sarah"]}],"newFacts":[{"content":"Launch date is March 30","mentionedBy":"Sarah"}],"resolvedQuestionIds":["e5f6g7h8"],"newQuestions":[{"question":"Who handles the deployment?","askedBy":"John"}]}
+{"summaryUpdate":"Team planning Q2 launch, John owns design","newActionItems":[{"assignee":"John","description":"Send API docs by Friday"}],"resolvedActionItemIds":["a1b2c3d4"],"newDecisions":[{"description":"Using PostgreSQL for the new service","participants":["John","Sarah"]}],"newFacts":[{"content":"Launch date is March 30","mentionedBy":"Sarah"}],"resolvedQuestionIds":["e5f6g7h8"],"newQuestions":[{"question":"Who handles the deployment?","askedBy":"John"}],"taskWorthy":[{"title":"Send API docs","assignee":"John","dueHint":"Friday","reason":"Explicit commitment with deadline"}]}
 
 IMPORTANT for resolvedActionItemIds and resolvedQuestionIds:
 - Use the EXACT "id" values from the CURRENT MEMORY above (e.g. "a1b2c3d4")
@@ -294,5 +294,12 @@ Rules:
 - Facts should be things worth remembering later (dates, preferences, decisions)
 - If nothing meaningful to extract, return empty arrays for those fields
 - summaryUpdate: max 200 chars, focused on what's ACTIVE, not history
-- If nothing changed, return: {"summaryUpdate":"","newActionItems":[],"resolvedActionItemIds":[],"newDecisions":[],"newFacts":[],"resolvedQuestionIds":[],"newQuestions":[]}`;
+
+taskWorthy — items that should become board tasks:
+- Look for explicit commitments: "I'll do X by Y", "Can you handle Z", "Let's make sure W happens"
+- Must have a clear deliverable and ideally an owner
+- Include dueHint if a time reference is found ("by Friday", "next week", "end of month")
+- Do NOT include vague items or general discussion topics
+
+- If nothing changed, return: {"summaryUpdate":"","newActionItems":[],"resolvedActionItemIds":[],"newDecisions":[],"newFacts":[],"resolvedQuestionIds":[],"newQuestions":[],"taskWorthy":[]}`;
 }

@@ -435,6 +435,21 @@ async function runReflect(
       );
     }
 
+    // Store task-worthy items as facts for the next agent response cycle
+    const taskWorthy = reflectData.taskWorthy || [];
+    if (taskWorthy.length > 0) {
+      log.info({ conversationId, taskWorthy: taskWorthy.length }, "Task-worthy items detected");
+      const taskFacts = taskWorthy.map((tw: { title: string; assignee: string; reason: string }) => ({
+        content: `[TASK-WORTHY] ${tw.title} assigned to ${tw.assignee}. ${tw.reason}`,
+        mentionedBy: "system",
+        mentionedAt: new Date(),
+      }));
+      await ConversationContext.updateOne(
+        { conversationId },
+        { $push: { facts: { $each: taskFacts, $slice: -15 } } }
+      );
+    }
+
     log.info({ conversationId }, "Stage 5 REFLECT complete");
   } catch (error) {
     // Reflect failure is non-fatal — don't break the pipeline

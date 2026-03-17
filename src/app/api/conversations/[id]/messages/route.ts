@@ -11,6 +11,12 @@ import DirectMessage from "@/lib/infra/db/models/direct-message";
 import { getRedisClient } from "@/lib/infra/redis/client";
 import { toClientMessage } from "@/lib/chat/message-transform";
 
+const URGENCY_PATTERNS = /\b(asap|urgent|blocking|blocked|critical|deadline today|deadline tomorrow|p0|p1|emergency|immediately)\b/i;
+
+function detectPriority(content: string): "high" | "normal" {
+  return URGENCY_PATTERNS.test(content) ? "high" : "normal";
+}
+
 // -- GET /api/conversations/[id]/messages ------------------------------------
 
 export const GET = withHandler(async (req: NextRequest, context) => {
@@ -121,6 +127,16 @@ export const POST = withHandler(async (req: NextRequest, context) => {
     }
   }
 
+  // Check if this conversation has an active meeting
+    let isActiveMeeting = false;
+    if (conversation.meetingId) {
+      const MeetingModel = (await import("@/lib/infra/db/models/meeting")).default;
+      const meeting = await MeetingModel.findById(conversation.meetingId).select("status").lean();
+      isActiveMeeting = meeting?.status === "live";
+    }
+
+    const priority = detectPriority(content);
+
   // Create message
   const message = await DirectMessage.create({
     conversationId: new mongoose.Types.ObjectId(id),
@@ -128,7 +144,9 @@ export const POST = withHandler(async (req: NextRequest, context) => {
     senderType: "user",
     type: "text",
     content: content.trim(),
+    priority,
     ...(replyTo ? { replyTo: new mongoose.Types.ObjectId(replyTo) } : {}),
+    ...(isActiveMeeting ? { meetingContext: true } : {}),
   });
 
   // Update conversation metadata
