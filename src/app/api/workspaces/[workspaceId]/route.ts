@@ -4,9 +4,15 @@ import { withHandler } from "@/lib/infra/api/with-handler";
 import { successResponse } from "@/lib/infra/api/response";
 import { checkRateLimit } from "@/lib/infra/api/rate-limit";
 import { getUserIdFromRequest } from "@/lib/infra/auth/middleware";
-import { BadRequestError, NotFoundError, ForbiddenError } from "@/lib/infra/api/errors";
+import { NotFoundError, ForbiddenError } from "@/lib/infra/api/errors";
 import connectDB from "@/lib/infra/db/client";
 import Workspace from "@/lib/infra/db/models/workspace";
+import {
+  findWorkspaceOrThrow,
+  verifyWorkspaceMembership,
+  verifyWorkspaceAdminAccess,
+  validateWorkspaceId,
+} from "@/lib/workspace/helpers";
 
 const updateWorkspaceSchema = z.object({
   name: z.string().min(1).max(200).optional(),
@@ -21,23 +27,11 @@ const updateWorkspaceSchema = z.object({
 export const GET = withHandler(async (req: NextRequest, context) => {
   await checkRateLimit(req, "general");
   const userId = await getUserIdFromRequest(req);
-
   const { workspaceId } = await context!.params;
-  if (!workspaceId?.match(/^[0-9a-fA-F]{24}$/)) {
-    throw new BadRequestError("Invalid workspace ID");
-  }
-
   await connectDB();
 
-  const workspace = await Workspace.findById(workspaceId).lean();
-  if (!workspace) throw new NotFoundError("Workspace not found.");
-
-  const isMember = workspace.members.some(
-    (m) => m.userId.toString() === userId
-  );
-  if (!isMember && workspace.ownerId.toString() !== userId) {
-    throw new ForbiddenError("You are not a member of this workspace.");
-  }
+  const workspace = await findWorkspaceOrThrow(workspaceId);
+  verifyWorkspaceMembership(workspace, userId);
 
   return successResponse(workspace);
 });
@@ -46,26 +40,17 @@ export const GET = withHandler(async (req: NextRequest, context) => {
 export const PATCH = withHandler(async (req: NextRequest, context) => {
   await checkRateLimit(req, "general");
   const userId = await getUserIdFromRequest(req);
-
   const { workspaceId } = await context!.params;
-  if (!workspaceId?.match(/^[0-9a-fA-F]{24}$/)) {
-    throw new BadRequestError("Invalid workspace ID");
-  }
-
   const body = updateWorkspaceSchema.parse(await req.json());
-
   await connectDB();
 
+  validateWorkspaceId(workspaceId);
+
+  // Need a Mongoose document (not .lean()) for .save() which runs validators
   const workspace = await Workspace.findById(workspaceId);
   if (!workspace) throw new NotFoundError("Workspace not found.");
 
-  // Only owner or admin can update
-  const member = workspace.members.find(
-    (m: { userId: { toString: () => string }; role: string }) => m.userId.toString() === userId
-  );
-  if (!member || (member.role !== "owner" && member.role !== "admin")) {
-    throw new ForbiddenError("Only owners and admins can update the workspace.");
-  }
+  verifyWorkspaceAdminAccess(workspace, userId, "update the workspace");
 
   if (body.name && typeof body.name === "string") workspace.name = body.name.trim();
   if (body.description !== undefined) {
@@ -86,17 +71,10 @@ export const PATCH = withHandler(async (req: NextRequest, context) => {
 export const DELETE = withHandler(async (req: NextRequest, context) => {
   await checkRateLimit(req, "general");
   const userId = await getUserIdFromRequest(req);
-
   const { workspaceId } = await context!.params;
-  if (!workspaceId?.match(/^[0-9a-fA-F]{24}$/)) {
-    throw new BadRequestError("Invalid workspace ID");
-  }
-
   await connectDB();
 
-  const workspace = await Workspace.findById(workspaceId).select("ownerId").lean();
-  if (!workspace) throw new NotFoundError("Workspace not found.");
-
+  const workspace = await findWorkspaceOrThrow(workspaceId, "ownerId");
   if (workspace.ownerId.toString() !== userId) {
     throw new ForbiddenError("Only the owner can delete the workspace.");
   }

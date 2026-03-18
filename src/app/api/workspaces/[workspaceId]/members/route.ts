@@ -1,15 +1,21 @@
 import { NextRequest } from "next/server";
+import mongoose from "mongoose";
 import { z } from "zod";
 import { withHandler } from "@/lib/infra/api/with-handler";
 import { successResponse } from "@/lib/infra/api/response";
 import { checkRateLimit } from "@/lib/infra/api/rate-limit";
 import { getUserIdFromRequest } from "@/lib/infra/auth/middleware";
-import { BadRequestError, NotFoundError, ForbiddenError } from "@/lib/infra/api/errors";
+import { BadRequestError, NotFoundError } from "@/lib/infra/api/errors";
 import connectDB from "@/lib/infra/db/client";
 import Workspace from "@/lib/infra/db/models/workspace";
 import User from "@/lib/infra/db/models/user";
 import AuditLog from "@/lib/infra/db/models/audit-log";
 import { createLogger } from "@/lib/infra/logger";
+import {
+  findWorkspaceOrThrow,
+  verifyWorkspaceAdminAccess,
+  validateWorkspaceId,
+} from "@/lib/workspace/helpers";
 
 const log = createLogger("workspaces:members");
 
@@ -22,12 +28,8 @@ const addMemberSchema = z.object({
 export const GET = withHandler(async (req: NextRequest, context) => {
   await checkRateLimit(req, "general");
   const userId = await getUserIdFromRequest(req);
-
   const { workspaceId } = await context!.params;
-  if (!workspaceId?.match(/^[0-9a-fA-F]{24}$/)) {
-    throw new BadRequestError("Invalid workspace ID");
-  }
-
+  validateWorkspaceId(workspaceId);
   await connectDB();
 
   const workspace = await Workspace.findById(workspaceId)
@@ -36,10 +38,15 @@ export const GET = withHandler(async (req: NextRequest, context) => {
 
   if (!workspace) throw new NotFoundError("Workspace not found.");
 
-  const isMember = workspace.members.some(
-    (m) => m.userId?.toString() === userId || (m.userId as unknown as { _id: string })?._id?.toString() === userId
-  );
-  if (!isMember) throw new ForbiddenError("Not a member.");
+  // Check membership — handle both populated (object with _id) and unpopulated (ObjectId) userId
+  const isMember = workspace.members.some((m) => {
+    const uid = m.userId as unknown;
+    const mUserId = typeof uid === "object" && uid !== null && "_id" in uid
+      ? (uid as { _id: { toString(): string } })._id.toString()
+      : String(uid);
+    return mUserId === userId;
+  });
+  if (!isMember) throw new NotFoundError("Workspace not found.");
 
   return successResponse(workspace.members);
 });
@@ -48,26 +55,13 @@ export const GET = withHandler(async (req: NextRequest, context) => {
 export const POST = withHandler(async (req: NextRequest, context) => {
   await checkRateLimit(req, "general");
   const userId = await getUserIdFromRequest(req);
-
   const { workspaceId } = await context!.params;
-  if (!workspaceId?.match(/^[0-9a-fA-F]{24}$/)) {
-    throw new BadRequestError("Invalid workspace ID");
-  }
-
   const body = addMemberSchema.parse(await req.json());
   const { email, role } = body;
-
   await connectDB();
 
-  const workspace = await Workspace.findById(workspaceId).select("members").lean();
-  if (!workspace) throw new NotFoundError("Workspace not found.");
-
-  const member = workspace.members.find(
-    (m) => m.userId.toString() === userId
-  );
-  if (!member || (member.role !== "owner" && member.role !== "admin")) {
-    throw new ForbiddenError("Only owners and admins can add members.");
-  }
+  const workspace = await findWorkspaceOrThrow(workspaceId, "ownerId members");
+  verifyWorkspaceAdminAccess(workspace, userId, "add members");
 
   const userToAdd = await User.findOne({ email: email.toLowerCase() }).select("_id").lean();
   if (!userToAdd) throw new NotFoundError("User not found with that email.");
@@ -116,31 +110,19 @@ export const POST = withHandler(async (req: NextRequest, context) => {
 export const DELETE = withHandler(async (req: NextRequest, context) => {
   await checkRateLimit(req, "general");
   const userId = await getUserIdFromRequest(req);
-
   const { workspaceId } = await context!.params;
-  if (!workspaceId?.match(/^[0-9a-fA-F]{24}$/)) {
-    throw new BadRequestError("Invalid workspace ID");
-  }
+  await connectDB();
 
   const { searchParams } = new URL(req.url);
   const memberId = searchParams.get("memberId");
 
   if (!memberId) throw new BadRequestError("memberId is required.");
-  if (!memberId.match(/^[0-9a-fA-F]{24}$/)) {
+  if (!mongoose.Types.ObjectId.isValid(memberId)) {
     throw new BadRequestError("Invalid member ID");
   }
 
-  await connectDB();
-
-  const workspace = await Workspace.findById(workspaceId).select("ownerId members").lean();
-  if (!workspace) throw new NotFoundError("Workspace not found.");
-
-  const requester = workspace.members.find(
-    (m) => m.userId.toString() === userId
-  );
-  if (!requester || (requester.role !== "owner" && requester.role !== "admin")) {
-    throw new ForbiddenError("Only owners and admins can remove members.");
-  }
+  const workspace = await findWorkspaceOrThrow(workspaceId, "ownerId members");
+  verifyWorkspaceAdminAccess(workspace, userId, "remove members");
 
   if (workspace.ownerId.toString() === memberId) {
     throw new BadRequestError("Cannot remove the workspace owner.");

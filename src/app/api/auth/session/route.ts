@@ -3,8 +3,7 @@ import { withHandler } from "@/lib/infra/api/with-handler";
 import { successResponse } from "@/lib/infra/api/response";
 import { checkRateLimit } from "@/lib/infra/api/rate-limit";
 import { getUserIdFromRequest } from "@/lib/infra/auth/middleware";
-import { verifyAccessToken, verifyRefreshToken } from "@/lib/infra/auth/jwt";
-import { tokenBlacklist } from "@/lib/infra/redis/cache";
+import { performLogout } from "@/lib/infra/auth/logout";
 import { NotFoundError } from "@/lib/infra/api/errors";
 import connectDB from "@/lib/infra/db/client";
 import User from "@/lib/infra/db/models/user";
@@ -50,54 +49,5 @@ export const GET = withHandler(async (req: NextRequest) => {
  */
 export const DELETE = withHandler(async (req: NextRequest) => {
   await checkRateLimit(req, "auth");
-
-  const accessToken = req.cookies.get("yoodle-access-token")?.value;
-  const refreshToken = req.cookies.get("yoodle-refresh-token")?.value;
-
-  let userId: string | null = null;
-
-  // Blacklist the access token (remaining TTL ~15min max)
-  if (accessToken) {
-    try {
-      const payload = await verifyAccessToken(accessToken);
-      userId = payload.userId;
-      await tokenBlacklist(accessToken, 15 * 60);
-    } catch {
-      // Token already expired or invalid — no need to blacklist
-    }
-  }
-
-  // Blacklist the refresh token (remaining TTL ~7 days max)
-  if (refreshToken) {
-    try {
-      const payload = await verifyRefreshToken(refreshToken);
-      if (!userId) userId = payload.userId;
-      await tokenBlacklist(refreshToken, 7 * 24 * 60 * 60);
-    } catch {
-      // Token already expired or invalid
-    }
-  }
-
-  // Clear refresh token hash and set user offline in DB
-  if (userId) {
-    try {
-      await connectDB();
-      await User.findByIdAndUpdate(userId, {
-        $unset: { refreshTokenHash: 1 },
-        $set: { status: "offline" },
-      });
-    } catch {
-      // DB update failure shouldn't prevent logout
-    }
-  }
-
-  const response = successResponse({
-    message: "Logged out successfully.",
-  });
-
-  // Clear both auth cookies
-  response.cookies.delete("yoodle-access-token");
-  response.cookies.delete("yoodle-refresh-token");
-
-  return response;
+  return performLogout(req);
 });
