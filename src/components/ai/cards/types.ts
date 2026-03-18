@@ -7,7 +7,10 @@ export type CardType =
   | "draft"
   | "workflow_progress"
   | "diff_preview"
-  | "batch_action";
+  | "batch_action"
+  | "meeting_brief"
+  | "meeting_analytics"
+  | "meeting_cascade";
 
 export interface BaseCard {
   type: CardType;
@@ -96,6 +99,31 @@ export interface BatchActionCardData extends BaseCard {
   }>;
 }
 
+export interface MeetingBriefCardData extends BaseCard {
+  type: "meeting_brief";
+  meetingId: string;
+  meetingTitle: string;
+  sources: Array<{ type: string; title: string; summary: string }>;
+  carryoverItems: Array<{ task: string; fromMeetingTitle: string }>;
+  agendaSuggestions: string[];
+  docUrl?: string;
+}
+
+export interface MeetingAnalyticsCardData extends BaseCard {
+  type: "meeting_analytics";
+  meetingTitle: string;
+  score: number;
+  scoreBreakdown: { agendaCoverage: number; decisionDensity: number; actionItemClarity: number; participationBalance: number };
+  speakerStats: Array<{ name: string; talkTimePercent: number; sentimentAvg: number }>;
+  highlights: Array<{ type: string; text: string }>;
+}
+
+export interface MeetingCascadeCardData extends BaseCard {
+  type: "meeting_cascade";
+  meetingTitle: string;
+  steps: Array<{ step: string; status: "done" | "skipped" | "error"; summary: string; undoToken?: string }>;
+}
+
 export type CardData =
   | TaskCardData
   | TaskListCardData
@@ -105,4 +133,7 @@ export type CardData =
   | DraftCardData
   | WorkflowProgressCardData
   | DiffPreviewCardData
-  | BatchActionCardData;
+  | BatchActionCardData
+  | MeetingBriefCardData
+  | MeetingAnalyticsCardData
+  | MeetingCascadeCardData;
