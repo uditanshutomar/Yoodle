@@ -52,6 +52,16 @@ export interface IMeetingMoM {
   generatedBy?: Types.ObjectId;
 }
 
+export interface IMeetingArtifacts {
+  momDocUrl?: string;
+  momDocId?: string;
+  presentationUrl?: string;
+  presentationId?: string;
+  folderUrl?: string;
+  folderId?: string;
+  analyticsSheetId?: string;
+}
+
 export interface IMeeting {
   code: string;
   title: string;
@@ -70,6 +80,9 @@ export interface IMeeting {
   mom?: IMeetingMoM;
   ghostMessages?: IGhostMessageRecord[];
   ghostNotes?: string;
+  artifacts?: IMeetingArtifacts;
+  cascadeExecutedAt?: Date;
+  templateId?: Types.ObjectId;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -238,6 +251,25 @@ const meetingSchema = new Schema<IMeetingDocument>(
     ghostNotes: {
       type: String,
       default: undefined, // Only set for ghost meetings
+    },
+    artifacts: {
+      type: {
+        momDocUrl: { type: String },
+        momDocId: { type: String },
+        presentationUrl: { type: String },
+        presentationId: { type: String },
+        folderUrl: { type: String },
+        folderId: { type: String },
+        analyticsSheetId: { type: String },
+      },
+      default: undefined,
+    },
+    cascadeExecutedAt: {
+      type: Date,
+    },
+    templateId: {
+      type: Schema.Types.ObjectId,
+      ref: "MeetingTemplate",
     },
   },
   {
