@@ -75,5 +75,6 @@ export async function getGoogleServices(userId: string) {
     people: google.people({ version: "v1", auth }),
     docs: google.docs({ version: "v1", auth }),
     sheets: google.sheets({ version: "v4", auth }),
+    slides: google.slides({ version: "v1", auth }),
   };
 }
