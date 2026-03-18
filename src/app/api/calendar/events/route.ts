@@ -14,7 +14,12 @@ import User from "@/lib/infra/db/models/user";
 // ── Helpers ──────────────────────────────────────────────────────────
 
 async function requireGoogleAccess(userId: string): Promise<void> {
-  await requireGoogleAccess(userId);
+  const hasAccess = await hasGoogleAccess(userId);
+  if (!hasAccess) {
+    throw new ForbiddenError(
+      "Google Calendar not connected. Connect your Google account in Settings.",
+    );
+  }
 }
 
 // ── Validation ──────────────────────────────────────────────────────
