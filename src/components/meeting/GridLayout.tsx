@@ -35,6 +35,7 @@ export default function GridLayout({
   const [page, setPage] = useState(0);
 
   const totalPages = Math.max(1, Math.ceil(participants.length / MAX_PER_PAGE));
+  // clampedPage derives a safe page index without needing an effect to reset state
   const clampedPage = Math.min(page, totalPages - 1);
 
   const pageParticipants = useMemo(() => {

@@ -10,8 +10,8 @@ const components = {
       href &&
       (href.startsWith("https://") ||
         href.startsWith("http://") ||
-        href.startsWith("/") ||
-        href.startsWith("mailto:"));
+        href.startsWith("mailto:") ||
+        /^\/(?!\/)/.test(href)); // single-slash relative paths only, blocks //evil.com
     return safe ? (
       <a href={href} target="_blank" rel="noopener noreferrer">
         {children}

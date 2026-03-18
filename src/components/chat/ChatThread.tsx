@@ -111,12 +111,15 @@ export default function ChatThread({
         const res = await fetch(`/api/conversations/${conversationId}`, {
           credentials: "include",
         });
-        if (!res.ok) return;
+        if (!res.ok) {
+          console.warn("[ChatThread] conversation fetch failed:", res.status);
+          return;
+        }
         const json = await res.json();
         if (!json.success || !json.data) return;
         if (!cancelled) setConvoInfo(json.data as ConversationInfo);
-      } catch {
-        // Silent fail
+      } catch (err) {
+        console.warn("[ChatThread] failed to load conversation info:", err);
       }
     }
 
@@ -140,7 +143,7 @@ export default function ChatThread({
     ? dmPartner?.displayName ?? dmPartner?.name ?? "Chat"
     : convoInfo?.name ?? "Group Chat";
 
-  const headerSubtitle = isDM ? "Online" : `${(convoInfo?.participants.length ?? 0)} members`;
+  const headerSubtitle = isDM ? "Direct message" : `${(convoInfo?.participants.length ?? 0)} members`;
 
   // ── Scroll handling ────────────────────────────────────────────────────
 
@@ -155,6 +158,9 @@ export default function ChatThread({
     el.scrollTop = el.scrollHeight;
   }, []);
 
+  const loadingRef = useRef(loading);
+  useEffect(() => { loadingRef.current = loading; }, [loading]);
+
   const handleScroll = useCallback(() => {
     const el = scrollContainerRef.current;
     if (!el) return;
@@ -164,11 +170,11 @@ export default function ChatThread({
     isNearBottomRef.current = nearBottom;
     setShowJumpToBottom(!nearBottom);
 
-    // Load more when scrolled to top
-    if (el.scrollTop < 50 && hasMore && !loading) {
+    // Load more when scrolled to top (use ref to avoid stale closure race)
+    if (el.scrollTop < 50 && hasMore && !loadingRef.current) {
       loadMore();
     }
-  }, [hasMore, loading, loadMore]);
+  }, [hasMore, loadMore]);
 
   // Auto-scroll on new messages
   useEffect(() => {
@@ -187,9 +193,10 @@ export default function ChatThread({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loading]);
 
-  // Mark as read on mount and new messages
+  // Mark as read on mount and new messages (debounced to avoid request storm)
   useEffect(() => {
-    markAsRead();
+    const t = setTimeout(() => markAsRead(), 500);
+    return () => clearTimeout(t);
   }, [messages.length, markAsRead]);
 
   // ── Input handling ─────────────────────────────────────────────────────
@@ -269,12 +276,15 @@ export default function ChatThread({
     setAgentEnabled(next);
 
     try {
-      await fetch(`/api/conversations/${conversationId}/agent-toggle`, {
+      const res = await fetch(`/api/conversations/${conversationId}/agent-toggle`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
         body: JSON.stringify({ enabled: next }),
       });
+      if (!res.ok) {
+        setAgentEnabled(!next);
+      }
     } catch {
       // Revert on failure
       setAgentEnabled(!next);

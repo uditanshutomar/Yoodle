@@ -20,6 +20,16 @@ interface ReactionOverlayProps {
 export default function ReactionOverlay({ onReactionRef }: ReactionOverlayProps) {
   const [reactions, setReactions] = useState<Reaction[]>([]);
   const counterRef = useRef(0);
+  const timersRef = useRef<Set<ReturnType<typeof setTimeout>>>(new Set());
+
+  // Clear all pending timers on unmount
+  useEffect(() => {
+    const timers = timersRef.current;
+    return () => {
+      for (const t of timers) clearTimeout(t);
+      timers.clear();
+    };
+  }, []);
 
   const addReaction = useCallback((emoji: string, userName: string) => {
     const id = `reaction-${Date.now()}-${counterRef.current++}`;
@@ -28,9 +38,11 @@ export default function ReactionOverlay({ onReactionRef }: ReactionOverlayProps)
     setReactions((prev) => [...prev, { id, emoji, userName, x }]);
 
     // Remove after animation completes
-    setTimeout(() => {
+    const timer = setTimeout(() => {
+      timersRef.current.delete(timer);
       setReactions((prev) => prev.filter((r) => r.id !== id));
     }, 2500);
+    timersRef.current.add(timer);
   }, []);
 
   // Expose addReaction to parent

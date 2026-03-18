@@ -187,16 +187,22 @@ export default function TasksBoardPanel({
   const [showBoard, setShowBoard] = useState(false);
   const [selectedTask, setSelectedTask] = useState<BoardTask | null>(null);
 
+  const [boardError, setBoardError] = useState<string | null>(null);
+
   // Fetch or auto-create personal board
   useEffect(() => {
+    let cancelled = false;
     (async () => {
       try {
         const res = await fetch("/api/boards", { credentials: "include" });
-        if (!res.ok) return;
+        if (!res.ok) {
+          if (!cancelled) setBoardError("Failed to load tasks board");
+          return;
+        }
         const json = await res.json();
         const personal = json.data?.find((b: Board & { scope?: string }) => b.scope === "personal");
         if (personal) {
-          setPersonalBoardId(personal._id);
+          if (!cancelled) setPersonalBoardId(personal._id);
         } else {
           // Auto-create personal board
           const createRes = await fetch("/api/boards", {
@@ -207,11 +213,16 @@ export default function TasksBoardPanel({
           });
           if (createRes.ok) {
             const createJson = await createRes.json();
-            setPersonalBoardId(createJson.data._id);
+            if (!cancelled) setPersonalBoardId(createJson.data._id);
+          } else {
+            if (!cancelled) setBoardError("Failed to create tasks board");
           }
         }
-      } catch {}
+      } catch {
+        if (!cancelled) setBoardError("Failed to load tasks board");
+      }
     })();
+    return () => { cancelled = true; };
   }, []);
 
   const { board, tasks, loading, updateTask, deleteTask } = useBoard(personalBoardId || undefined);
@@ -293,6 +304,13 @@ export default function TasksBoardPanel({
                 />
               ))}
             </AnimatePresence>
+          </div>
+        )}
+
+        {/* Board error */}
+        {boardError && (
+          <div className="text-xs text-[#EF4444] bg-[#EF4444]/5 rounded-lg px-3 py-2 mb-2">
+            {boardError}
           </div>
         )}
 

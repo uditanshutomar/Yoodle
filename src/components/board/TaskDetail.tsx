@@ -178,9 +178,12 @@ function TaskDetailInner({
     if (editingDesc && descRef.current) descRef.current.focus();
   }, [editingDesc]);
 
+  const [commentsError, setCommentsError] = useState<string | null>(null);
+
   /* ── Fetch comments & activity ── */
   const fetchComments = useCallback(async () => {
     if (!task.boardId) return;
+    setCommentsError(null);
     try {
       const res = await fetch(
         `/api/boards/${task.boardId}/tasks/${task._id}/comments`,
@@ -189,9 +192,11 @@ function TaskDetailInner({
       if (res.ok) {
         const json = await res.json();
         setComments(json.data || []);
+      } else {
+        setCommentsError("Failed to load comments");
       }
     } catch {
-      // silently fail
+      setCommentsError("Failed to load comments");
     } finally {
       setCommentsLoading(false);
     }
@@ -205,6 +210,7 @@ function TaskDetailInner({
     const trimmed = commentText.trim();
     if (!trimmed || !task.boardId) return;
     setCommentText("");
+    setCommentsError(null);
     try {
       const res = await fetch(
         `/api/boards/${task.boardId}/tasks/${task._id}/comments`,
@@ -217,10 +223,14 @@ function TaskDetailInner({
       );
       if (res.ok) {
         fetchComments();
+      } else {
+        setCommentText(trimmed);
+        setCommentsError("Failed to post comment");
       }
     } catch {
       // restore text on failure
       setCommentText(trimmed);
+      setCommentsError("Failed to post comment");
     }
   }, [commentText, task.boardId, task._id, fetchComments]);
 
@@ -792,11 +802,18 @@ function TaskDetailInner({
                 );
                 return (
                   <div>
+                    {commentsError && (
+                      <div className="flex items-center gap-2 text-xs text-[#EF4444] bg-[#EF4444]/5 rounded-lg px-3 py-2 mb-2">
+                        <AlertTriangle size={12} className="flex-shrink-0" />
+                        <span>{commentsError}</span>
+                        <button onClick={fetchComments} className="ml-auto font-bold hover:underline" style={{ fontFamily: "var(--font-heading)" }}>Retry</button>
+                      </div>
+                    )}
                     {commentsLoading ? (
                       <div className="flex items-center justify-center py-6">
                         <div className="w-5 h-5 border-2 border-[var(--border-strong)] border-t-transparent rounded-full animate-spin" />
                       </div>
-                    ) : filtered.length === 0 ? (
+                    ) : filtered.length === 0 && !commentsError ? (
                       <div className="flex flex-col items-center justify-center py-6 text-center">
                         {tab === "comments" ? (
                           <>

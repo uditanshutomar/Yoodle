@@ -13,6 +13,7 @@ export interface PendingAction {
 
 export function usePendingActions() {
   const [actions, setActions] = useState<PendingAction[]>([]);
+  const [error, setError] = useState<string | null>(null);
   const cleanupTimersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
 
   // Clear all pending timers on unmount
@@ -64,7 +65,9 @@ export function usePendingActions() {
             : a
         )
       );
-    } catch {
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Action failed";
+      setError(msg);
       setActions((prev) =>
         prev.map((a) => (a.actionId === actionId ? { ...a, status: "pending" as const } : a))
       );
@@ -122,7 +125,9 @@ export function usePendingActions() {
             prev.map((a) => (a.actionId === actionId ? { ...a, status: "pending" as const } : a))
           );
         }
-      } catch {
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : "Revision failed";
+        setError(msg);
         setActions((prev) =>
           prev.map((a) => (a.actionId === actionId ? { ...a, status: "pending" as const } : a))
         );
@@ -155,5 +160,7 @@ export function usePendingActions() {
     });
   }, [confirmAction]);
 
-  return { actions, pendingActions, addAction, confirmAction: confirmAndClear, denyAction, reviseAction };
+  const clearError = useCallback(() => setError(null), []);
+
+  return { actions, pendingActions, error, clearError, addAction, confirmAction: confirmAndClear, denyAction, reviseAction };
 }

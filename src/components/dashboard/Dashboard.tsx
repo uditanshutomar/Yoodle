@@ -60,13 +60,15 @@ export default function Dashboard() {
     // Sync mode from server when user data loads
     const userMode = user?.mode as "lockin" | "invisible" | "social" | undefined;
     const prevUserModeRef = useRef(userMode);
+    const defaultModeSentRef = useRef(false);
     useEffect(() => {
         if (userMode && userMode !== prevUserModeRef.current) {
             prevUserModeRef.current = userMode;
             queueMicrotask(() => setMode(userMode));
         }
-        // Persist default mode for new users who have no mode set yet
-        if (user && !userMode) {
+        // Persist default mode for new users who have no mode set yet (once only)
+        if (user && !userMode && !defaultModeSentRef.current) {
+            defaultModeSentRef.current = true;
             fetch("/api/users/me", {
                 method: "PATCH",
                 headers: { "Content-Type": "application/json" },
@@ -77,6 +79,7 @@ export default function Dashboard() {
     }, [userMode, user]);
 
     const handleModeChange = useCallback((newMode: "lockin" | "invisible" | "social") => {
+        const prevMode = mode;
         setMode(newMode);
         fetch("/api/users/me", {
             method: "PATCH",
@@ -85,8 +88,11 @@ export default function Dashboard() {
             body: JSON.stringify({ mode: newMode }),
         })
             .then(() => refreshSession())
-            .catch(() => {});
-    }, [refreshSession]);
+            .catch(() => {
+                // Rollback on failure
+                setMode(prevMode);
+            });
+    }, [refreshSession, mode]);
 
     const [joinCode, setJoinCode] = useState("");
     const [greeting, setGreeting] = useState("");
@@ -110,7 +116,7 @@ export default function Dashboard() {
     const handleJoin = () => {
         const code = joinCode.trim();
         if (!code) return;
-        router.push(`/meetings/join?code=${code}`);
+        router.push(`/meetings/join?code=${encodeURIComponent(code)}`);
     };
 
     return (

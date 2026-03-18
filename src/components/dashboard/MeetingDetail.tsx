@@ -81,31 +81,35 @@ export default function MeetingDetail({
 
     // Fetch transcript and recordings from real APIs
     useEffect(() => {
+        let cancelled = false;
+
         async function fetchTranscript() {
             try {
                 const res = await fetch(`/api/transcription?meetingId=${meeting.id}`, { credentials: "include" });
+                if (cancelled) return;
                 if (res.ok) {
                     const data = await res.json();
                     setTranscriptSegments(data.data?.segments || []);
                 }
             } catch {
-                // silent — UI will show empty state
+                // UI will show empty state
             } finally {
-                setLoadingTranscript(false);
+                if (!cancelled) setLoadingTranscript(false);
             }
         }
 
         async function fetchRecordings() {
             try {
                 const res = await fetch(`/api/recordings/${meeting.id}`, { credentials: "include" });
+                if (cancelled) return;
                 if (res.ok) {
                     const data = await res.json();
                     setRecordings(data.data?.recordings || []);
                 }
             } catch {
-                // silent
+                // UI will show empty state
             } finally {
-                setLoadingRecordings(false);
+                if (!cancelled) setLoadingRecordings(false);
             }
         }
 
@@ -114,6 +118,7 @@ export default function MeetingDetail({
             if (meeting.mom) return;
             try {
                 const res = await fetch(`/api/meetings/${meeting.id}/mom`, { credentials: "include" });
+                if (cancelled) return;
                 if (res.ok) {
                     const data = await res.json();
                     if (data.data?.mom) setMomData(data.data.mom);
@@ -126,6 +131,8 @@ export default function MeetingDetail({
         fetchTranscript();
         fetchRecordings();
         fetchMom();
+
+        return () => { cancelled = true; };
     }, [meeting.id, meeting.mom]);
 
     const hasRealTranscript = transcriptSegments.length > 0;
@@ -133,10 +140,14 @@ export default function MeetingDetail({
 
     // ── Quick Action Handlers ─────────────────────────────────────────
 
-    const handleCopyLink = useCallback(() => {
+    const handleCopyLink = useCallback(async () => {
         const url = `${window.location.origin}/meetings/${meeting.id}/recording`;
-        navigator.clipboard.writeText(url);
-        showToast("Link copied!");
+        try {
+            await navigator.clipboard.writeText(url);
+            showToast("Link copied!");
+        } catch {
+            showToast("Failed to copy link");
+        }
     }, [meeting.id, showToast]);
 
     const handleShare = useCallback(async () => {
@@ -145,8 +156,12 @@ export default function MeetingDetail({
         if (navigator.share) {
             try { await navigator.share(shareData); } catch { /* cancelled */ }
         } else {
-            navigator.clipboard.writeText(url);
-            showToast("Share link copied!");
+            try {
+                await navigator.clipboard.writeText(url);
+                showToast("Share link copied!");
+            } catch {
+                showToast("Failed to copy link");
+            }
         }
     }, [meeting.id, meeting.title, showToast]);
 
@@ -174,7 +189,7 @@ export default function MeetingDetail({
         }
     }, [meeting.id, generatingMom, showToast]);
 
-    const handleCopySummary = useCallback(() => {
+    const handleCopySummary = useCallback(async () => {
         const parts: string[] = [`Meeting: ${meeting.title}`, `Date: ${meeting.date} ${meeting.time}`, `Duration: ${meeting.duration}`];
         if (meeting.overview) {
             parts.push("", `Purpose: ${meeting.overview.purpose}`, `Outcome: ${meeting.overview.outcome}`);
@@ -183,8 +198,12 @@ export default function MeetingDetail({
             if (momData.keyDecisions?.length) parts.push("", "Key Decisions:", ...momData.keyDecisions.map((d) => `  • ${d}`));
             if (momData.actionItems?.length) parts.push("", "Action Items:", ...momData.actionItems.map((a) => `  • ${a.task} (${a.owner}, ${a.due})`));
         }
-        navigator.clipboard.writeText(parts.join("\n"));
-        showToast("Summary copied!");
+        try {
+            await navigator.clipboard.writeText(parts.join("\n"));
+            showToast("Summary copied!");
+        } catch {
+            showToast("Failed to copy summary");
+        }
     }, [meeting, momData, showToast]);
 
     const handleDownloadTranscript = useCallback(() => {
@@ -207,7 +226,7 @@ export default function MeetingDetail({
         setTab("recording");
     }, []);
 
-    const handleShareNotes = useCallback(() => {
+    const handleShareNotes = useCallback(async () => {
         const parts: string[] = [
             `📝 Meeting Notes: ${meeting.title}`,
             `📅 ${meeting.date} · ${meeting.time} · ${meeting.duration}`,
@@ -225,8 +244,12 @@ export default function MeetingDetail({
         if (hasRealTranscript) {
             parts.push("", `📄 Full transcript available at: ${window.location.origin}/meetings/${meeting.id}/recording`);
         }
-        navigator.clipboard.writeText(parts.join("\n"));
-        showToast("Notes copied to clipboard!");
+        try {
+            await navigator.clipboard.writeText(parts.join("\n"));
+            showToast("Notes copied to clipboard!");
+        } catch {
+            showToast("Failed to copy notes");
+        }
     }, [meeting, momData, hasRealTranscript, showToast]);
 
     const handleCreateFollowUp = useCallback(() => {

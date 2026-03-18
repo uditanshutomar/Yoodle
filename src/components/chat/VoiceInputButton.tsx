@@ -42,8 +42,13 @@ export default function VoiceInputButton({
       }
     } else {
       // Start recording
-      onRecordingStart?.();
-      await startRecording();
+      try {
+        onRecordingStart?.();
+        await startRecording();
+      } catch {
+        // Mic permission denied or unavailable — revert recording state
+        onRecordingEnd?.();
+      }
     }
   }, [isRecording, startRecording, stopRecording, onTranscript, onRecordingStart, onRecordingEnd]);
 
