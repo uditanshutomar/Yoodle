@@ -1,4 +1,7 @@
 import { StreamEvent } from "./gemini";
+import { createLogger } from "@/lib/infra/logger";
+
+const log = createLogger("ai:streaming");
 
 /**
  * Create an SSE (Server-Sent Events) streaming response from an async generator.
@@ -40,7 +43,7 @@ export function createStreamingResponse(
       } catch (error) {
         // Log the real error server-side; send a generic message to the client
         // to avoid leaking internal details (API keys, paths, connection strings).
-        console.error("SSE stream error:", error);
+        log.error({ err: error }, "SSE stream error");
         try {
           const errorData = `data: ${JSON.stringify({ error: "An error occurred while processing your request." })}\n\n`;
           controller.enqueue(encoder.encode(errorData));
@@ -54,7 +57,7 @@ export function createStreamingResponse(
     cancel() {
       // Client disconnected — clean up the generator to stop Gemini calls
       generator.return(undefined).catch((err) => {
-        console.warn("streaming generator cleanup error on client disconnect", err);
+        log.warn({ err }, "Streaming generator cleanup error on client disconnect");
       });
     },
   });

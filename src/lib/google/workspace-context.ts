@@ -4,6 +4,9 @@ import { listEvents } from "./calendar";
 import { listFiles } from "./drive";
 import { buildBoardContext, buildMeetingContext, buildConversationContextSummary } from "@/lib/board/context";
 import { escapeXml } from "@/lib/utils/xml";
+import { createLogger } from "@/lib/infra/logger";
+
+const log = createLogger("google:workspace-context");
 
 /**
  * Structured snapshot for diff detection — used by briefing endpoint.
@@ -70,6 +73,15 @@ export async function buildWorkspaceContext(
       buildMeetingContext(userId),
       buildConversationContextSummary(userId),
     ]);
+
+  // Log any allSettled rejections for observability
+  const allResults = [emailResult, calendarResult, boardResult, driveResult, unreadResult, meetingResult, conversationResult];
+  const sourceNames = ["email", "calendar", "board", "drive", "unread", "meeting", "conversation"];
+  for (let i = 0; i < allResults.length; i++) {
+    if (allResults[i].status === "rejected") {
+      log.warn({ err: (allResults[i] as PromiseRejectedResult).reason, source: sourceNames[i], userId }, "Workspace context fetch failed");
+    }
+  }
 
   const snapshot: WorkspaceSnapshot = {
     unreadCount: unreadResult.status === "fulfilled" ? unreadResult.value : 0,
@@ -160,7 +172,7 @@ export async function buildWorkspaceContext(
               }
             }
           }
-        } catch { /* best effort — don't break briefing if this fails */ }
+        } catch (err) { log.warn({ err, userId }, "Meeting prep enrichment failed (non-fatal)"); }
       }
     }
   }

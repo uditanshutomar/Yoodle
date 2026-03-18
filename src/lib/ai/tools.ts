@@ -1514,7 +1514,7 @@ export async function executeWorkspaceTool(
             await connectDB();
             const user = await User.findById(userId).select("timezone").lean();
             tz = (user as { timezone?: string } | null)?.timezone || undefined;
-          } catch { /* fallback to UTC */ }
+          } catch (err) { log.warn({ err, userId }, "Failed to resolve user timezone, falling back to UTC"); }
         }
         // Check for scheduling conflicts
         let conflictWarning = "";
@@ -1530,7 +1530,7 @@ export async function executeWorkspaceTool(
               .join(", ");
             conflictWarning = ` ⚠️ Overlaps with: ${conflictList}`;
           }
-        } catch { /* conflict check is best-effort */ }
+        } catch (err) { log.warn({ err, userId }, "Conflict check failed (best-effort)"); }
 
         const event = await createEvent(userId, {
           title: args.title as string,
@@ -1591,7 +1591,7 @@ export async function executeWorkspaceTool(
             await connectDB();
             const user = await User.findById(userId).select("timezone").lean();
             updateTz = (user as { timezone?: string } | null)?.timezone || undefined;
-          } catch { /* fallback to UTC */ }
+          } catch (err) { log.warn({ err, userId }, "Failed to resolve user timezone, falling back to UTC"); }
         }
         const updated = await updateEvent(
           userId,
@@ -1702,7 +1702,7 @@ export async function executeWorkspaceTool(
           try {
             const fbUser = await User.findById(userId).select("timezone").lean();
             fbTz = (fbUser as { timezone?: string } | null)?.timezone || undefined;
-          } catch { /* fallback */ }
+          } catch (err) { log.warn({ err, userId }, "Failed to resolve user timezone, falling back to UTC"); }
         }
 
         const baseUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000";
@@ -1738,7 +1738,7 @@ export async function executeWorkspaceTool(
         try {
           const fmfUser = await User.findById(userId).select("timezone").lean();
           fmfTz = (fmfUser as { timezone?: string } | null)?.timezone || undefined;
-        } catch { /* fallback to UTC */ }
+        } catch (err) { log.warn({ err, userId }, "Failed to resolve user timezone, falling back to UTC"); }
 
         // Build time window in user's timezone (fall back to UTC)
         const tzSuffix = fmfTz
@@ -1780,7 +1780,10 @@ export async function executeWorkspaceTool(
               }
               checkedEmails.push("you");
             })
-            .catch(() => { /* requesting user's calendar failed */ })
+            .catch((err) => {
+              log.warn({ err, userId }, "Failed to fetch requesting user's calendar for free slot detection");
+              failedEmails.push("you (calendar unavailable)");
+            })
         );
 
         for (const email of emails) {

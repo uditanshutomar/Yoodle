@@ -42,7 +42,12 @@ export function getLiveKitApiSecret(): string {
  * at call-time rather than module-load time — important in serverless.
  */
 export function getLiveKitPublicUrl(): string {
-  return process.env.NEXT_PUBLIC_LIVEKIT_URL || process.env.LIVEKIT_URL || "";
+  const url = process.env.NEXT_PUBLIC_LIVEKIT_URL || process.env.LIVEKIT_URL;
+  if (!url) {
+    console.warn("[livekit:config] Neither NEXT_PUBLIC_LIVEKIT_URL nor LIVEKIT_URL is set — client connections will fail");
+    return "";
+  }
+  return url;
 }
 
 /** Returns true when all three LiveKit env vars are configured. */

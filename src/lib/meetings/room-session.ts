@@ -38,7 +38,8 @@ export function loadRoomJoinSession(
 
   try {
     return JSON.parse(raw) as RoomJoinSession;
-  } catch {
+  } catch (err) {
+    console.warn("[room-session] Corrupted session data, clearing:", err);
     sessionStorage.removeItem(getStorageKey(meetingId));
     return null;
   }
