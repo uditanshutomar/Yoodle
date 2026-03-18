@@ -3,6 +3,7 @@ import { createLogger } from "@/lib/infra/logger";
 import { getRedisClient } from "@/lib/infra/redis/client";
 import connectDB from "@/lib/infra/db/client";
 import { canSendProactive, isAgentMuted } from "./proactive-limiter";
+import { toClientMessage } from "@/lib/chat/message-transform";
 
 const log = createLogger("proactive-triggers");
 
@@ -29,7 +30,12 @@ async function postAgentMessage(
     },
   });
 
-  const preview = content.length > 80 ? content.slice(0, 80) + "..." : content;
+  // Populate sender for consistent client message shape
+  const populated = await DirectMessage.findById(msg._id)
+    .populate("senderId", "name displayName avatarUrl status")
+    .lean();
+
+  const preview = content.slice(0, 100);
   await Conversation.updateOne(
     { _id: convId },
     {
@@ -43,19 +49,20 @@ async function postAgentMessage(
 
   try {
     const redis = getRedisClient();
+    // Use toClientMessage + "data" key to match agent-processor protocol
     await redis.publish(
       `chat:${convId}`,
-      JSON.stringify({ type: "message", message: msg }),
+      JSON.stringify({ type: "message", data: toClientMessage(populated || msg) }),
     );
-  } catch {
-    /* Redis pub/sub is best-effort */
+  } catch (err) {
+    log.warn({ err, convId, agentUserId }, "Redis publish failed in postAgentMessage (message saved to DB)");
   }
 
   try {
     const { incrementUnseen } = await import("./proactive-insights");
     await incrementUnseen(agentUserId);
-  } catch {
-    /* best-effort */
+  } catch (err) {
+    log.debug({ err, agentUserId }, "Failed to increment unseen count");
   }
 
   return msg;
@@ -313,8 +320,7 @@ export async function triggerBlockedTaskAlerts(): Promise<void> {
         const assigneeId = task.assigneeId!.toString();
 
         const conv = await Conversation.findOne({
-          "participants.userId": new mongoose.Types.ObjectId(assigneeId),
-          "participants.agentEnabled": true,
+          participants: { $elemMatch: { userId: new mongoose.Types.ObjectId(assigneeId), agentEnabled: true } },
         })
           .select("participants")
           .lean();
@@ -367,8 +373,7 @@ export async function triggerStaleTasks(): Promise<void> {
         const assigneeId = task.assigneeId!.toString();
 
         const conv = await Conversation.findOne({
-          "participants.userId": new mongoose.Types.ObjectId(assigneeId),
-          "participants.agentEnabled": true,
+          participants: { $elemMatch: { userId: new mongoose.Types.ObjectId(assigneeId), agentEnabled: true } },
         })
           .select("participants")
           .lean();
@@ -535,12 +540,15 @@ export async function triggerPostMeetingCascade(): Promise<void> {
 
     for (const meeting of meetings) {
       try {
-        // Mark cascade as executed BEFORE running it to prevent duplicate runs
-        // even if a concurrent cron fires
-        await Meeting.updateOne(
+        // Atomically claim this meeting — only proceed if we set the flag
+        const claimResult = await Meeting.updateOne(
           { _id: meeting._id, cascadeExecutedAt: { $exists: false } },
           { $set: { cascadeExecutedAt: new Date() } },
         );
+        if (claimResult.modifiedCount === 0) {
+          log.info({ meetingId: meeting._id }, "Post-meeting cascade already claimed by another process");
+          continue;
+        }
 
         const conv = await Conversation.findOne({ meetingId: meeting._id })
           .select("participants")
@@ -624,6 +632,16 @@ export async function triggerScheduledActions(): Promise<void> {
 
     for (const action of dueActions) {
       try {
+        // Atomically claim this action to prevent duplicate fires
+        const claimResult = await ScheduledAction.updateOne(
+          { _id: action._id, status: "pending" },
+          { $set: { status: "fired", firedAt: new Date() } },
+        );
+        if (claimResult.modifiedCount === 0) {
+          log.info({ actionId: action._id }, "Scheduled action already claimed by another process");
+          continue;
+        }
+
         const uid = action.userId.toString();
 
         const conv = await Conversation.findOne({
@@ -636,11 +654,6 @@ export async function triggerScheduledActions(): Promise<void> {
           const content = `⏰ **Scheduled reminder:** ${action.summary}\n\n${action.action}`;
           await postAgentMessage(conv._id.toString(), uid, content);
         }
-
-        await ScheduledAction.updateOne(
-          { _id: action._id },
-          { $set: { status: "fired", firedAt: new Date() } },
-        );
 
         log.info({ actionId: action._id, userId: uid }, "Scheduled action fired");
       } catch (err) {

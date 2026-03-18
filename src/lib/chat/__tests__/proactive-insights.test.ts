@@ -1,14 +1,28 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
+const mockMulti = {
+  incr: vi.fn().mockReturnThis(),
+  expire: vi.fn().mockReturnThis(),
+  exec: vi.fn().mockResolvedValue([]),
+};
+
 const mockRedis = {
   get: vi.fn(),
-  incr: vi.fn(),
-  expire: vi.fn(),
+  multi: vi.fn(() => mockMulti),
   del: vi.fn(),
 };
 
 vi.mock("@/lib/infra/redis/client", () => ({
   getRedisClient: vi.fn(() => mockRedis),
+}));
+
+vi.mock("@/lib/infra/logger", () => ({
+  createLogger: vi.fn(() => ({
+    info: vi.fn(),
+    warn: vi.fn(),
+    error: vi.fn(),
+    debug: vi.fn(),
+  })),
 }));
 
 import { getUnseenCount, incrementUnseen, clearUnseen } from "../proactive-insights";
@@ -29,11 +43,12 @@ describe("proactive-insights", () => {
     expect(count).toBe(3);
   });
 
-  it("incrementUnseen calls incr and sets TTL", async () => {
-    mockRedis.incr.mockResolvedValue(1);
+  it("incrementUnseen pipelines incr and expire atomically", async () => {
     await incrementUnseen("user123");
-    expect(mockRedis.incr).toHaveBeenCalledWith("proactive:unseen:user123");
-    expect(mockRedis.expire).toHaveBeenCalledWith("proactive:unseen:user123", 86400);
+    expect(mockRedis.multi).toHaveBeenCalled();
+    expect(mockMulti.incr).toHaveBeenCalledWith("proactive:unseen:user123");
+    expect(mockMulti.expire).toHaveBeenCalledWith("proactive:unseen:user123", 86400);
+    expect(mockMulti.exec).toHaveBeenCalled();
   });
 
   it("clearUnseen deletes the key", async () => {

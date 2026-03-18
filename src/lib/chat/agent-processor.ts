@@ -42,18 +42,25 @@ export async function processAgentResponses(
   triggerMessage: { senderId: string; content: string; senderType?: string }
 ) {
   try {
-    const conv = await Conversation.findById(conversationId);
+    const conv = await Conversation.findById(conversationId).select("participants type meetingId").lean();
     if (!conv) return;
 
     const agentParticipants = conv.participants.filter((p) => p.agentEnabled);
     if (agentParticipants.length === 0) return;
 
-    // Process each agent in parallel
-    await Promise.allSettled(
+    // Process each agent in parallel — pass pre-fetched conversation to avoid redundant DB fetch
+    const results = await Promise.allSettled(
       agentParticipants.map((p) =>
-        processOneAgent(conversationId, triggerMessage, p.userId.toString())
+        processOneAgent(conversationId, triggerMessage, p.userId.toString(), conv)
       )
     );
+
+    // Log any rejected pipelines for observability
+    for (const result of results) {
+      if (result.status === "rejected") {
+        log.error({ error: result.reason, conversationId }, "Agent pipeline rejected unexpectedly");
+      }
+    }
   } catch (error) {
     log.error({ error, conversationId }, "Failed to process agent responses");
   }
@@ -64,7 +71,8 @@ export async function processAgentResponses(
 async function processOneAgent(
   conversationId: string,
   triggerMessage: { senderId: string; content: string; senderType?: string },
-  agentUserId: string
+  agentUserId: string,
+  conv: { type?: string; participants?: { userId: unknown }[]; meetingId?: unknown }
 ) {
   // Guard: don't let an agent respond to its own messages (infinite loop)
   if (triggerMessage.senderId === agentUserId) return;
@@ -130,11 +138,10 @@ async function processOneAgent(
 
   try {
     // ── Load context ────────────────────────────────────────────
-    const [recentMessages, conversationCtx, triggerSender, conv, userMemories] = await Promise.all([
+    const [recentMessages, conversationCtx, triggerSender, userMemories] = await Promise.all([
       loadRecentMessages(conversationId, 30),
       loadOrCreateContext(conversationId),
-      User.findById(triggerMessage.senderId).lean().then((u) => u?.displayName || u?.name || "Someone"),
-      Conversation.findById(conversationId).lean(),
+      User.findById(triggerMessage.senderId).select("displayName name").lean().then((u) => u?.displayName || u?.name || "Someone"),
       loadUserMemories(agentUserId),
     ]);
 
@@ -162,8 +169,8 @@ async function processOneAgent(
         });
         boardContextStr = `\n\nConversation Board: "${linkedBoard.title}" (${boardTasks.length} tasks)\n${taskLines.join("\n")}`;
       }
-    } catch {
-      // Ignore errors — board context is supplementary
+    } catch (boardErr) {
+      log.warn({ err: boardErr, conversationId }, "Failed to load board context (supplementary — continuing)");
     }
 
     // ── Stage 1+2: ANALYZE & DECIDE (merged) ─────────────────────
@@ -198,15 +205,9 @@ async function processOneAgent(
 
     log.info({ agentUserId, decision: decision.decision, reason: decision.reason }, "Stage 1+2 ANALYZE+DECIDE complete");
 
-    if (decision.decision === "SILENT") {
+    if (decision.decision === "SILENT" || decision.decision === "UPDATE_MEMORY_ONLY") {
       await publishThinkingDone(redis, conversationId, agentUserId);
-      // Still run REFLECT to update memory even when silent
-      await runReflect(conversationId, conversationCtx, recentMessages);
-      return;
-    }
-
-    if (decision.decision === "UPDATE_MEMORY_ONLY") {
-      await publishThinkingDone(redis, conversationId, agentUserId);
+      // Still run REFLECT to update memory even when not responding
       await runReflect(conversationId, conversationCtx, recentMessages);
       return;
     }
@@ -275,7 +276,9 @@ async function processOneAgent(
       // This is ioredis's standard API for server-side Lua — not JS eval().
       const script = 'if redis.call("get",KEYS[1])==ARGV[1] then return redis.call("del",KEYS[1]) else return 0 end';
       await redis.eval(script, 1, debounceKey, runId);
-    } catch { /* non-fatal */ }
+    } catch (lockErr) {
+      log.warn({ err: lockErr, debounceKey, runId }, "Failed to release pipeline lock (will auto-expire)");
+    }
   }
 }
 
@@ -522,12 +525,13 @@ function formatAnalysisForRespond(analysis: any, decision: any): string {
 
 async function callGemini(prompt: string): Promise<string> {
   const model = getModel();
-  return new Promise<string>((resolve, reject) => {
-    const timer = setTimeout(() => reject(new Error("Gemini call timed out")), GEMINI_TIMEOUT_MS);
-    model.generateContent(prompt)
-      .then((result) => { clearTimeout(timer); resolve(result.response.text().trim()); })
-      .catch((err) => { clearTimeout(timer); reject(err); });
-  });
+  const result = await Promise.race([
+    model.generateContent(prompt),
+    new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error("Gemini call timed out")), GEMINI_TIMEOUT_MS)
+    ),
+  ]);
+  return result.response.text().trim();
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -573,8 +577,9 @@ function safeParseJson(text: string): any | null {
           }
         }
       }
-    } catch {
-      // Both attempts failed
+    } catch (innerErr) {
+      // Include inner error in the outer log for debugging
+      log.debug({ innerErr, text: text.slice(0, 100) }, "JSON brace-depth parse attempt also failed");
     }
 
     log.warn({ text: text.slice(0, 200) }, "Failed to parse Gemini JSON response");
@@ -586,6 +591,7 @@ async function loadRecentMessages(conversationId: string, limit: number) {
   const messages = await DirectMessage.find({
     conversationId: new mongoose.Types.ObjectId(conversationId),
   })
+    .select("senderId senderType content createdAt")
     .sort({ createdAt: -1 })
     .limit(limit)
     .populate("senderId", "name displayName")
@@ -654,10 +660,14 @@ async function publishThinkingDone(
   conversationId: string,
   agentUserId: string
 ) {
-  await redis.publish(
-    `chat:${conversationId}`,
-    JSON.stringify({ type: "agent_thinking_done", agentId: agentUserId })
-  );
+  try {
+    await redis.publish(
+      `chat:${conversationId}`,
+      JSON.stringify({ type: "agent_thinking_done", agentId: agentUserId })
+    );
+  } catch (err) {
+    log.warn({ err, conversationId, agentUserId }, "Failed to publish thinking_done (Redis error)");
+  }
 }
 
 async function saveAndPublishAgentMessage(
@@ -750,8 +760,8 @@ function extractActionProposal(content: string): {
         },
       };
     }
-  } catch {
-    // Invalid JSON in action block — ignore it
+  } catch (parseErr) {
+    log.warn({ err: parseErr, actionBlock: actionMatch[1].slice(0, 100) }, "Invalid JSON in agent action block");
   }
 
   return { cleanContent: content, pendingAction: null };

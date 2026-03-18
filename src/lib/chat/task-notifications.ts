@@ -3,6 +3,7 @@ import connectDB from "@/lib/infra/db/client";
 import { getRedisClient } from "@/lib/infra/redis/client";
 import { createLogger } from "@/lib/infra/logger";
 import { canSendProactive, isAgentMuted } from "@/lib/chat/proactive-limiter";
+import { toClientMessage } from "@/lib/chat/message-transform";
 
 const log = createLogger("task-notifications");
 
@@ -51,6 +52,11 @@ export async function notifyTaskStatusChange(
           agentMeta: { forUserId: new mongoose.Types.ObjectId(actorUserId) },
         });
 
+        // Populate for consistent client message shape
+        const populated = await DirectMessage.findById(msg._id)
+          .populate("senderId", "name displayName avatarUrl status")
+          .lean();
+
         await Conversation.updateOne(
           { _id: ctx.conversationId },
           {
@@ -64,8 +70,10 @@ export async function notifyTaskStatusChange(
 
         try {
           const redis = getRedisClient();
-          await redis.publish(`chat:${convId}`, JSON.stringify({ type: "message", message: msg }));
-        } catch { /* Redis optional */ }
+          await redis.publish(`chat:${convId}`, JSON.stringify({ type: "message", data: toClientMessage(populated || msg) }));
+        } catch (err) {
+          log.warn({ err, convId, taskId }, "Redis publish failed for task notification (message saved to DB)");
+        }
       } catch (err) {
         log.warn({ err, convId, taskId }, "failed to post task status notification");
       }

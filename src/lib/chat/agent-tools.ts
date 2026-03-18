@@ -170,8 +170,8 @@ export async function executeToolPlan(
           }
         }
       }
-    } catch {
-      // Non-fatal enrichment
+    } catch (enrichErr) {
+      log.warn({ err: enrichErr, conversationId }, "Conversation context enrichment failed (non-fatal)");
     }
   }
 
@@ -239,7 +239,9 @@ async function fetchCalendar(userId: string, timezone?: string): Promise<string>
       if (timezone) {
         try {
           return d.toLocaleString("en-US", { timeZone: timezone, hour: "numeric", minute: "2-digit", hour12: true });
-        } catch { /* fall through to default */ }
+        } catch (tzErr) {
+          log.debug({ err: tzErr, timezone }, "Invalid timezone for time formatting — using server default");
+        }
       }
       return formatTime(d);
     };
@@ -248,7 +250,9 @@ async function fetchCalendar(userId: string, timezone?: string): Promise<string>
       if (timezone) {
         try {
           return d.toLocaleDateString("en-US", { timeZone: timezone, weekday: "short", month: "short", day: "numeric" });
-        } catch { /* fall through to default */ }
+        } catch (tzErr) {
+          log.debug({ err: tzErr, timezone }, "Invalid timezone for day formatting — using server default");
+        }
       }
       return formatDay(d);
     };
@@ -395,7 +399,9 @@ async function fetchCalendar(userId: string, timezone?: string): Promise<string>
               }
             }
           }
-        } catch { /* best effort */ }
+        } catch (meetingErr) {
+          log.debug({ err: meetingErr }, "Failed to fetch Yoodle meeting prep data (best effort)");
+        }
 
         meetingPrepNote += `\n  Join: ${upcomingMeeting.location}`;
       }
@@ -418,7 +424,7 @@ async function fetchTasks(userId: string): Promise<string> {
         { ownerId: userId },
         { "members.userId": userId },
       ],
-    }).lean();
+    }).select("_id title columns ownerId members").lean();
 
     if (boards.length === 0) {
       return "Tasks: No boards found.";
@@ -432,6 +438,7 @@ async function fetchTasks(userId: string): Promise<string> {
       boardId: { $in: boardIds },
       completedAt: null,
     })
+      .select("title dueDate priority columnId boardId assigneeId completedAt tags")
       .sort({ dueDate: 1, priority: 1 })
       .limit(50)
       .populate("assigneeId", "displayName name")

@@ -6,6 +6,21 @@ const log = createLogger("proactive-limiter");
 const GLOBAL_CAP = 5;
 const TTL_SECONDS = 86400; // 24 hours
 
+/** Atomic Lua script: check type cap + global cap, only increment if both pass.
+ *  Returns 1 if allowed (and incremented), 0 if rate-limited.
+ *  Sets TTL only on first creation (TTL === -1) to use a fixed 24h window. */
+const RATE_LIMIT_LUA = `
+  if redis.call("EXISTS", KEYS[2]) == 1 then return 0 end
+  local g = tonumber(redis.call("GET", KEYS[1]) or "0")
+  if g >= tonumber(ARGV[1]) then return 0 end
+  redis.call("INCR", KEYS[1])
+  if redis.call("TTL", KEYS[1]) == -1 then
+    redis.call("EXPIRE", KEYS[1], tonumber(ARGV[2]))
+  end
+  redis.call("SET", KEYS[2], "1", "EX", tonumber(ARGV[2]))
+  return 1
+`;
+
 export type ProactiveType =
   | "deadline_reminder"
   | "follow_up_nudge"
@@ -38,21 +53,8 @@ export async function canSendProactive(
     const globalKey = `proactive:${conversationId}:${agentUserId}:global`;
     const typeKey = `proactive:${conversationId}:${agentUserId}:${type}`;
 
-    // Atomic Lua: check type cap + global cap, only increment if both pass.
-    // Returns 1 if allowed (and incremented), 0 if rate-limited.
-    // Note: redis.eval() here is ioredis's API for server-side Lua — not JS eval().
-    const luaScript = `
-      if redis.call("EXISTS", KEYS[2]) == 1 then return 0 end
-      local g = tonumber(redis.call("GET", KEYS[1]) or "0")
-      if g >= tonumber(ARGV[1]) then return 0 end
-      redis.call("INCR", KEYS[1])
-      redis.call("EXPIRE", KEYS[1], tonumber(ARGV[2]))
-      redis.call("SET", KEYS[2], "1", "EX", tonumber(ARGV[2]))
-      return 1
-    `;
-
     // ioredis eval(): runs Lua on Redis server (not JS eval)
-    const result = await redis.eval(luaScript, 2, globalKey, typeKey, GLOBAL_CAP, TTL_SECONDS);
+    const result = await redis.eval(RATE_LIMIT_LUA, 2, globalKey, typeKey, GLOBAL_CAP, TTL_SECONDS);
     const allowed = result === 1;
 
     if (!allowed) {
@@ -88,7 +90,8 @@ export async function isAgentMuted(
     const participant = conv.participants[0];
     if (!participant.agentMutedUntil) return false;
     return new Date(participant.agentMutedUntil) > new Date();
-  } catch {
+  } catch (err) {
+    log.warn({ err, conversationId, agentUserId }, "isAgentMuted check failed — defaulting to not muted");
     return false; // Fail open
   }
 }
