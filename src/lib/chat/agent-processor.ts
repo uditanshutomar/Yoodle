@@ -18,6 +18,7 @@ import { toClientMessage } from "@/lib/chat/message-transform";
 import mongoose from "mongoose";
 import type Redis from "ioredis";
 import { randomUUID } from "crypto";
+import type { TriggerMessage, DecisionVerdict, ConversationContextSnapshot } from "@/lib/chat/types";
 
 const log = createLogger("agent-processor");
 
@@ -39,7 +40,7 @@ const PIPELINE_LOCK_TTL_MS = 60_000;
  */
 export async function processAgentResponses(
   conversationId: string,
-  triggerMessage: { senderId: string; content: string; senderType?: string }
+  triggerMessage: TriggerMessage
 ) {
   try {
     const conv = await Conversation.findById(conversationId).select("participants type meetingId").lean();
@@ -70,7 +71,7 @@ export async function processAgentResponses(
 
 async function processOneAgent(
   conversationId: string,
-  triggerMessage: { senderId: string; content: string; senderType?: string },
+  triggerMessage: TriggerMessage,
   agentUserId: string,
   conv: { type?: string; participants?: { userId: unknown }[]; meetingId?: unknown }
 ) {
@@ -197,8 +198,8 @@ async function processOneAgent(
     // Extract analysis and decision parts from the merged response
     const analysis = adResult.analysis || adResult;
     const rawDecision = adResult.decision;
-    const decision = {
-      decision: typeof rawDecision === "string" ? rawDecision : "SILENT",
+    const decision: { decision: DecisionVerdict; reason: string; toolPlan: string[] } = {
+      decision: (typeof rawDecision === "string" ? rawDecision : "SILENT") as DecisionVerdict,
       reason: adResult.reason || "",
       toolPlan: adResult.toolPlan || [],
     };
@@ -286,17 +287,7 @@ async function processOneAgent(
 
 async function runReflect(
   conversationId: string,
-  currentCtx: {
-    summary: string;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    actionItems: any[];
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    decisions: any[];
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    openQuestions: any[];
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    facts: any[];
-  },
+  currentCtx: ConversationContextSnapshot,
   recentMessages?: unknown[] | null,
   formattedMessages?: string[]
 ) {

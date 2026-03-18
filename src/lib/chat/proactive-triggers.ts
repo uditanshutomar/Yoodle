@@ -163,6 +163,15 @@ export async function triggerDeadlineReminders(): Promise<void> {
         const taskId = task._id.toString();
         const assigneeId = task.assigneeId!.toString();
 
+        // Compute formatted date once (used in both linked-conv and DM paths)
+        const dueDateStr = task.dueDate!.toLocaleDateString("en-US", {
+          month: "short",
+          day: "numeric",
+          hour: "numeric",
+          minute: "2-digit",
+        });
+        const content = `**Reminder:** "${task.title}" is due ${dueDateStr}. Need more time?`;
+
         // Find conversations linked to this task via ConversationContext
         const contexts = await ConversationContext.find({
           linkedTaskIds: task._id,
@@ -190,13 +199,6 @@ export async function triggerDeadlineReminders(): Promise<void> {
             if (await isAgentMuted(cid, assigneeId)) continue;
             if (!(await canSendProactive(cid, assigneeId, "deadline_reminder"))) continue;
 
-            const dueDateStr = task.dueDate!.toLocaleDateString("en-US", {
-              month: "short",
-              day: "numeric",
-              hour: "numeric",
-              minute: "2-digit",
-            });
-            const content = `**Reminder:** "${task.title}" is due ${dueDateStr}. Need more time?`;
             await postAgentMessage(cid, assigneeId, content);
             log.info({ taskId, assigneeId }, "Deadline reminder sent (linked conv)");
             sent = true;
@@ -207,28 +209,19 @@ export async function triggerDeadlineReminders(): Promise<void> {
         if (!sent) {
           const dmConv = await Conversation.findOne({
             type: "dm",
-            "participants.userId": new mongoose.Types.ObjectId(assigneeId),
-            "participants.agentEnabled": true,
+            participants: { $elemMatch: { userId: new mongoose.Types.ObjectId(assigneeId), agentEnabled: true } },
           })
             .select("participants")
             .lean();
 
-          if (dmConv) {
-            const cid = dmConv._id.toString();
-            if (!(await isAgentMuted(cid, assigneeId))) {
-              if (await canSendProactive(cid, assigneeId, "deadline_reminder")) {
-                const dueDateStr = task.dueDate!.toLocaleDateString("en-US", {
-                  month: "short",
-                  day: "numeric",
-                  hour: "numeric",
-                  minute: "2-digit",
-                });
-                const content = `**Reminder:** "${task.title}" is due ${dueDateStr}. Need more time?`;
-                await postAgentMessage(cid, assigneeId, content);
-                log.info({ taskId, assigneeId }, "Deadline reminder sent (DM fallback)");
-              }
-            }
-          }
+          if (!dmConv) continue;
+
+          const cid = dmConv._id.toString();
+          if (await isAgentMuted(cid, assigneeId)) continue;
+          if (!(await canSendProactive(cid, assigneeId, "deadline_reminder"))) continue;
+
+          await postAgentMessage(cid, assigneeId, content);
+          log.info({ taskId, assigneeId }, "Deadline reminder sent (DM fallback)");
         }
       } catch (err) {
         log.error({ err, taskId: task._id }, "Deadline reminder: task error");
