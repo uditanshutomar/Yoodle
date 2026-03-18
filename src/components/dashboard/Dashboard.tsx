@@ -7,6 +7,8 @@ import TasksBoardPanel from "./TasksBoardPanel";
 import MeetingHistory from "./MeetingHistory";
 import MeetingDetail from "./MeetingDetail";
 import TeamMap from "./TeamMap";
+import MeetingPulse from "./MeetingPulse";
+import ActionItemTracker from "./ActionItemTracker";
 import { MeetingRecord } from "./meetingsData";
 import { useAuth } from "@/hooks/useAuth";
 import { usePendingActions } from "@/hooks/usePendingActions";
@@ -214,6 +216,24 @@ export default function Dashboard() {
                                     onReviseAction={reviseAction}
                                 />
                             </div>
+                        </motion.div>
+
+                        {/* Meeting Pulse */}
+                        <motion.div
+                            initial={{ y: 20, opacity: 0 }}
+                            animate={{ y: 0, opacity: 1 }}
+                            transition={{ delay: 0.27, type: "spring", stiffness: 200, damping: 25 }}
+                        >
+                            <MeetingPulse />
+                        </motion.div>
+
+                        {/* Action Item Tracker */}
+                        <motion.div
+                            initial={{ y: 20, opacity: 0 }}
+                            animate={{ y: 0, opacity: 1 }}
+                            transition={{ delay: 0.28, type: "spring", stiffness: 200, damping: 25 }}
+                        >
+                            <ActionItemTracker />
                         </motion.div>
 
                         {/* AI Briefing Card */}
