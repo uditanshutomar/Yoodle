@@ -337,20 +337,26 @@ export default function KanbanBoard({
             <circle cx="11" cy="11" r="8" />
             <line x1="21" y1="21" x2="16.65" y2="16.65" />
           </svg>
+          <label htmlFor="kanban-search" className="sr-only">Search tasks</label>
           <input
-            type="text"
+            id="kanban-search"
+            type="search"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Search tasks..."
+            aria-label="Search tasks"
             className="w-full pl-8 pr-3 py-1.5 text-xs text-[var(--text-primary)] bg-[var(--surface)] border-[1.5px] border-[var(--border)] rounded-lg outline-none placeholder:text-[var(--text-muted)] focus:border-[var(--border-strong)] transition-colors"
             style={{ fontFamily: "var(--font-body)" }}
           />
         </div>
 
         {/* Priority filter */}
+        <label htmlFor="kanban-priority-filter" className="sr-only">Filter by priority</label>
         <select
+          id="kanban-priority-filter"
           value={priorityFilter}
           onChange={(e) => setPriorityFilter(e.target.value)}
+          aria-label="Filter by priority"
           className="text-xs text-[var(--text-primary)] bg-[var(--surface)] border-[1.5px] border-[var(--border)] rounded-lg px-2.5 py-1.5 outline-none focus:border-[var(--border-strong)] transition-colors cursor-pointer appearance-none pr-7"
           style={{
             fontFamily: "var(--font-heading)",
@@ -503,6 +509,7 @@ function BoardShell({
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
             onClick={onClose}
+            aria-label="Close fullscreen board"
             className="flex items-center gap-1.5 text-xs font-bold text-[var(--text-secondary)] hover:text-[var(--text-primary)] bg-[var(--surface)] border-[1.5px] border-[var(--border)] hover:border-[var(--border-strong)] rounded-lg px-3 py-1.5 hover:shadow-[2px_2px_0_var(--border-strong)] transition-all"
             style={{ fontFamily: "var(--font-heading)" }}
           >

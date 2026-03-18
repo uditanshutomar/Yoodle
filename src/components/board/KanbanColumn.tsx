@@ -95,6 +95,8 @@ export default function KanbanColumn({ column, tasks, onCreateTask, onTaskClick 
           onClick={() => setShowAddInput(!showAddInput)}
           className="flex h-6 w-6 items-center justify-center rounded-full border border-[var(--border)] text-[var(--text-muted)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)] hover:border-[var(--border-strong)] transition-colors"
           title="Add task"
+          aria-label={`Add task to ${column.title}`}
+          aria-expanded={showAddInput}
         >
           <svg
             width="12"
@@ -176,6 +178,7 @@ export default function KanbanColumn({ column, tasks, onCreateTask, onTaskClick 
                 onChange={(e) => setNewTaskTitle(e.target.value)}
                 onKeyDown={handleKeyDown}
                 placeholder="Task title..."
+                aria-label={`New task title for ${column.title}`}
                 autoFocus
                 className="w-full bg-transparent text-xs text-[var(--text-primary)] outline-none placeholder:text-[var(--text-muted)] mb-2"
                 style={{ fontFamily: "var(--font-body)" }}

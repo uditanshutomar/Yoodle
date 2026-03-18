@@ -77,19 +77,25 @@ export async function triggerMeetingPrep(): Promise<void> {
     const meetings = await Meeting.find({
       status: "scheduled",
       scheduledAt: { $gte: from, $lte: to },
-    }).lean();
+    })
+      .select("title participants")
+      .lean();
 
     log.info({ count: meetings.length }, "Meeting prep: meetings found");
 
     for (const meeting of meetings) {
       try {
-        const conv = await Conversation.findOne({ meetingId: meeting._id }).lean();
+        const conv = await Conversation.findOne({ meetingId: meeting._id })
+          .select("participants")
+          .lean();
         if (!conv) continue;
 
         const tasks = await Task.find({
           meetingId: meeting._id,
           completedAt: null,
-        }).lean();
+        })
+          .select("title")
+          .lean();
 
         const taskList =
           tasks.length > 0
@@ -139,7 +145,9 @@ export async function triggerDeadlineReminders(): Promise<void> {
       completedAt: null,
       dueDate: { $gte: now, $lte: in24h },
       assigneeId: { $exists: true },
-    }).lean();
+    })
+      .select("title dueDate assigneeId")
+      .lean();
 
     log.info({ count: tasks.length }, "Deadline reminders: tasks found");
 
@@ -151,7 +159,9 @@ export async function triggerDeadlineReminders(): Promise<void> {
         // Find conversations linked to this task via ConversationContext
         const contexts = await ConversationContext.find({
           linkedTaskIds: task._id,
-        }).lean();
+        })
+          .select("conversationId")
+          .lean();
 
         let sent = false;
 
@@ -159,7 +169,9 @@ export async function triggerDeadlineReminders(): Promise<void> {
           for (const ctx of contexts) {
             if (sent) break;
 
-            const conv = await Conversation.findById(ctx.conversationId).lean();
+            const conv = await Conversation.findById(ctx.conversationId)
+              .select("participants")
+              .lean();
             if (!conv) continue;
 
             const participant = conv.participants.find(
@@ -190,7 +202,9 @@ export async function triggerDeadlineReminders(): Promise<void> {
             type: "dm",
             "participants.userId": new mongoose.Types.ObjectId(assigneeId),
             "participants.agentEnabled": true,
-          }).lean();
+          })
+            .select("participants")
+            .lean();
 
           if (dmConv) {
             const cid = dmConv._id.toString();
@@ -233,7 +247,9 @@ export async function triggerFollowUpNudges(): Promise<void> {
       meetingId: { $exists: true },
       completedAt: null,
       createdAt: { $lte: cutoff },
-    }).lean();
+    })
+      .select("title assigneeId meetingId")
+      .lean();
 
     log.info({ count: tasks.length }, "Follow-up nudges: tasks found");
 
@@ -241,7 +257,9 @@ export async function triggerFollowUpNudges(): Promise<void> {
       try {
         if (!task.assigneeId) continue;
 
-        const conv = await Conversation.findOne({ meetingId: task.meetingId }).lean();
+        const conv = await Conversation.findOne({ meetingId: task.meetingId })
+          .select("participants")
+          .lean();
         if (!conv) continue;
 
         const assigneeId = task.assigneeId.toString();
@@ -254,7 +272,7 @@ export async function triggerFollowUpNudges(): Promise<void> {
         if (await isAgentMuted(cid, assigneeId)) continue;
         if (!(await canSendProactive(cid, assigneeId, "follow_up_nudge"))) continue;
 
-        const user = await User.findById(task.assigneeId, { displayName: 1 }).lean();
+        const user = await User.findById(task.assigneeId).select("displayName").lean();
         const name = user?.displayName || "there";
 
         const content = `Hey ${name}, just checking — "${task.title}" from the meeting hasn't been started yet. Still on track?`;
@@ -284,6 +302,7 @@ export async function triggerBlockedTaskAlerts(): Promise<void> {
       updatedAt: { $lte: threeDaysAgo },
       assigneeId: { $exists: true },
     })
+      .select("title assigneeId updatedAt")
       .limit(20)
       .lean();
 
@@ -296,7 +315,9 @@ export async function triggerBlockedTaskAlerts(): Promise<void> {
         const conv = await Conversation.findOne({
           "participants.userId": new mongoose.Types.ObjectId(assigneeId),
           "participants.agentEnabled": true,
-        }).lean();
+        })
+          .select("participants")
+          .lean();
 
         if (!conv) continue;
 
@@ -335,6 +356,7 @@ export async function triggerStaleTasks(): Promise<void> {
       updatedAt: { $lte: fiveDaysAgo },
       assigneeId: { $exists: true },
     })
+      .select("title assigneeId updatedAt")
       .limit(15)
       .lean();
 
@@ -347,7 +369,9 @@ export async function triggerStaleTasks(): Promise<void> {
         const conv = await Conversation.findOne({
           "participants.userId": new mongoose.Types.ObjectId(assigneeId),
           "participants.agentEnabled": true,
-        }).lean();
+        })
+          .select("participants")
+          .lean();
 
         if (!conv) continue;
 
@@ -389,8 +413,12 @@ export async function triggerWeeklyPatternSummary(): Promise<void> {
     const conversations = await Conversation.find({
       "participants.agentEnabled": true,
     })
+      .select("participants")
       .limit(50)
       .lean();
+
+    const lastWeekStart = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+    const thisWeekEnd = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
 
     for (const conv of conversations) {
       for (const p of conv.participants) {
@@ -402,9 +430,6 @@ export async function triggerWeeklyPatternSummary(): Promise<void> {
 
           if (await isAgentMuted(cid, uid)) continue;
           if (!(await canSendProactive(cid, uid, "weekly_pattern_summary"))) continue;
-
-          const lastWeekStart = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-          const thisWeekEnd = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
 
           const [completedCount, overdueCount, upcomingMeetings] = await Promise.all([
             Task.countDocuments({
@@ -448,6 +473,7 @@ export async function triggerUnreadHighlights(): Promise<void> {
     const conversations = await Conversation.find({
       "participants.agentEnabled": true,
     })
+      .select("participants")
       .limit(50)
       .lean();
 
@@ -501,7 +527,9 @@ export async function triggerPostMeetingCascade(): Promise<void> {
       endedAt: { $gte: fifteenMinAgo },
       mom: { $exists: true },
       cascadeExecutedAt: { $exists: false },
-    }).lean();
+    })
+      .select("title mom")
+      .lean();
 
     log.info({ count: meetings.length }, "Post-meeting cascade: meetings found");
 
@@ -514,7 +542,9 @@ export async function triggerPostMeetingCascade(): Promise<void> {
           { $set: { cascadeExecutedAt: new Date() } },
         );
 
-        const conv = await Conversation.findOne({ meetingId: meeting._id }).lean();
+        const conv = await Conversation.findOne({ meetingId: meeting._id })
+          .select("participants")
+          .lean();
         if (!conv) continue;
 
         // Find the first eligible participant to execute the cascade ONCE per meeting
@@ -598,7 +628,9 @@ export async function triggerScheduledActions(): Promise<void> {
 
         const conv = await Conversation.findOne({
           participants: { $elemMatch: { userId: action.userId, agentEnabled: true } },
-        }).lean();
+        })
+          .select("participants")
+          .lean();
 
         if (conv) {
           const content = `⏰ **Scheduled reminder:** ${action.summary}\n\n${action.action}`;

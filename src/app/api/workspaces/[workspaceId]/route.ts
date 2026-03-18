@@ -61,7 +61,7 @@ export const PATCH = withHandler(async (req: NextRequest, context) => {
 
   // Only owner or admin can update
   const member = workspace.members.find(
-    (m) => m.userId.toString() === userId
+    (m: { userId: { toString: () => string }; role: string }) => m.userId.toString() === userId
   );
   if (!member || (member.role !== "owner" && member.role !== "admin")) {
     throw new ForbiddenError("Only owners and admins can update the workspace.");
@@ -94,7 +94,7 @@ export const DELETE = withHandler(async (req: NextRequest, context) => {
 
   await connectDB();
 
-  const workspace = await Workspace.findById(workspaceId);
+  const workspace = await Workspace.findById(workspaceId).select("ownerId").lean();
   if (!workspace) throw new NotFoundError("Workspace not found.");
 
   if (workspace.ownerId.toString() !== userId) {

@@ -20,7 +20,7 @@ const chatLog = createLogger("meetings:chat-link");
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function ensureMeetingConversation(meetingId: string, meeting: any) {
   try {
-    let conv = await Conversation.findOne({ meetingId: new mongoose.Types.ObjectId(meetingId) });
+    let conv = await Conversation.findOne({ meetingId: new mongoose.Types.ObjectId(meetingId) }).lean();
     if (!conv) {
       const participants = meeting.participants
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -191,7 +191,8 @@ export const POST = withHandler(async (req: NextRequest, context) => {
     participants: { $elemMatch: { userId: userObjectId, status: "joined" } },
   })
     .populate("hostId", "name email displayName avatarUrl")
-    .populate("participants.userId", "name email displayName avatarUrl");
+    .populate("participants.userId", "name email displayName avatarUrl")
+    .lean();
 
   if (alreadyJoined) {
     // Fire-and-forget: ensure meeting conversation exists

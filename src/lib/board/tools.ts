@@ -144,7 +144,7 @@ export async function listBoardTasks(userId: string, args: Record<string, unknow
     if (!board) return { success: false, summary: "Board not found or access denied." };
     filter.boardId = board._id;
   } else {
-    const boards = await Board.find({ $or: [{ ownerId: userId }, { "members.userId": userId }] }).lean();
+    const boards = await Board.find({ $or: [{ ownerId: userId }, { "members.userId": userId }] }).select("_id").lean();
     filter.boardId = { $in: boards.map((b) => b._id) };
   }
   if (args.assigneeId) filter.assigneeId = args.assigneeId;
@@ -152,7 +152,7 @@ export async function listBoardTasks(userId: string, args: Record<string, unknow
   if (args.columnId) filter.columnId = args.columnId;
   if (args.overdueOnly) filter.dueDate = { $lt: new Date() };
   const limit = Math.min((args.limit as number) || 20, 50);
-  const tasks = await Task.find(filter).sort({ dueDate: 1, priority: -1 }).limit(limit).populate("assigneeId", "displayName name").lean();
+  const tasks = await Task.find(filter).select("title priority columnId dueDate assigneeId").sort({ dueDate: 1, priority: -1 }).limit(limit).populate("assigneeId", "displayName name").lean();
   return {
     success: true,
     summary: `Found ${tasks.length} task(s)`,
@@ -176,7 +176,7 @@ export async function searchBoardTasks(userId: string, args: Record<string, unkn
     if (!board) return { success: false, summary: "Board not found or access denied." };
     boardFilter = board._id;
   } else {
-    const boards = await Board.find({ $or: [{ ownerId: userId }, { "members.userId": userId }] }).lean();
+    const boards = await Board.find({ $or: [{ ownerId: userId }, { "members.userId": userId }] }).select("_id").lean();
     boardFilter = { $in: boards.map((b) => b._id) };
   }
 
@@ -187,7 +187,7 @@ export async function searchBoardTasks(userId: string, args: Record<string, unkn
       { description: { $regex: escaped, $options: "i" } },
     ],
   };
-  const tasks = await Task.find(filter).limit(15).populate("assigneeId", "displayName name").lean();
+  const tasks = await Task.find(filter).select("title priority dueDate assigneeId").limit(15).populate("assigneeId", "displayName name").lean();
   return {
     success: true,
     summary: `Found ${tasks.length} task(s) matching "${rawQuery}"`,

@@ -22,7 +22,7 @@ export const POST = withHandler(async (req: NextRequest, context) => {
   await connectDB();
 
   // Verify user is a participant
-  const conversation = await Conversation.findById(id).lean();
+  const conversation = await Conversation.findById(id).select("participants").lean();
   if (!conversation) {
     throw new NotFoundError("Conversation not found.");
   }

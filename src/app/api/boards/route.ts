@@ -52,7 +52,7 @@ export const POST = withHandler(async (req: NextRequest) => {
 
   // Personal boards: limit 1 per user
   if (body.scope === "personal") {
-    const existing = await Board.findOne({ ownerId: userOid, scope: "personal" });
+    const existing = await Board.findOne({ ownerId: userOid, scope: "personal" }).select("_id").lean();
     if (existing) return badRequest("You already have a personal board");
   }
 

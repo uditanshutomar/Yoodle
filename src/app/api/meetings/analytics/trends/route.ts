@@ -41,6 +41,7 @@ export const GET = withHandler(async (req: NextRequest) => {
     userId,
     createdAt: { $gte: since },
   })
+    .select("meetingScore decisionCount actionItemCount duration createdAt")
     .sort({ createdAt: -1 })
     .limit(20)
     .lean();

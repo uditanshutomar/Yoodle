@@ -161,23 +161,25 @@ export async function buildMeetingContext(
     const threeDaysAgo = new Date(now.getTime() - 3 * 86400000);
     const threeDaysFromNow = new Date(now.getTime() + 3 * 86400000);
 
-    // Upcoming meetings (next 3 days)
+    // Upcoming meetings (next 3 days) — exclude large fields like ghostMessages
     const upcoming = await Meeting.find({
       "participants.userId": userId,
       status: { $in: ["scheduled", "live"] },
       scheduledAt: { $gte: now, $lte: threeDaysFromNow },
     })
+      .select("title status scheduledAt participants")
       .sort({ scheduledAt: 1 })
       .limit(5)
       .populate("participants.userId", "displayName name")
       .lean();
 
-    // Recent completed meetings (last 3 days) with MoM
+    // Recent completed meetings (last 3 days) with MoM — exclude large fields
     const recent = await Meeting.find({
       "participants.userId": userId,
       status: "ended",
       endedAt: { $gte: threeDaysAgo },
     })
+      .select("title status endedAt mom")
       .sort({ endedAt: -1 })
       .limit(3)
       .lean();
@@ -189,7 +191,7 @@ export async function buildMeetingContext(
     const allMeetingIds = [...upcoming, ...recent].map((m) => m._id);
     const linkedTasks =
       allMeetingIds.length > 0
-        ? await Task.find({ meetingId: { $in: allMeetingIds } }).lean()
+        ? await Task.find({ meetingId: { $in: allMeetingIds } }).select("meetingId").lean()
         : [];
 
     const upcomingLines = upcoming.map((m) => {
@@ -287,6 +289,7 @@ export async function buildConversationContextSummary(
       "participants.userId": userId,
       lastMessageAt: { $gte: oneDayAgo },
     })
+      .select("name type participants lastMessageAt")
       .sort({ lastMessageAt: -1 })
       .limit(5)
       .lean();

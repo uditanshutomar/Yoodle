@@ -96,8 +96,9 @@ export default function ChatWindow({
               onClick={onClear}
               className="p-1.5 text-[var(--text-muted)] hover:text-red-500 transition-colors"
               title="Clear chat"
+              aria-label="Clear chat history"
             >
-              <Trash2 size={14} />
+              <Trash2 size={14} aria-hidden="true" />
             </button>
           )}
           {onClose && (
@@ -105,8 +106,9 @@ export default function ChatWindow({
               onClick={onClose}
               className="rounded-lg p-1.5 text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-hover)] transition-colors"
               title="Close (⌘J)"
+              aria-label="Close AI assistant"
             >
-              <X size={18} />
+              <X size={18} aria-hidden="true" />
             </button>
           )}
         </div>
@@ -127,7 +129,7 @@ export default function ChatWindow({
       )}
 
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4 min-h-0">
+      <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4 min-h-0" role="log" aria-label="Chat messages" aria-live="polite">
         {messages.length === 0 && (
           <SmartEmptyState onSend={onSend} />
         )}
@@ -156,7 +158,9 @@ export default function ChatWindow({
           </div>
         )}
         <div className="flex items-center gap-2">
+          <label htmlFor="ai-chat-input" className="sr-only">Message to AI assistant</label>
           <input
+            id="ai-chat-input"
             type="text"
             value={input}
             onChange={(e) => setInput(e.target.value)}
@@ -165,6 +169,7 @@ export default function ChatWindow({
             disabled={isStreaming}
             className="flex-1 px-4 py-2.5 text-sm border-2 border-[var(--border)] rounded-xl bg-[var(--surface)] focus:border-[#FFE600] focus:outline-none transition-colors disabled:opacity-50"
             style={{ fontFamily: "var(--font-body)" }}
+            aria-label="Message to AI assistant"
           />
           <VoiceInputButton
             onTranscript={handleVoiceTranscript}
@@ -174,17 +179,19 @@ export default function ChatWindow({
           {isStreaming ? (
             <button
               onClick={onStop}
+              aria-label="Stop AI response"
               className="flex items-center justify-center w-10 h-10 rounded-xl bg-red-500 text-white border-2 border-[var(--border-strong)] shadow-[2px_2px_0_var(--border-strong)] hover:shadow-none hover:translate-x-[2px] hover:translate-y-[2px] transition-all"
             >
-              <Square size={14} />
+              <Square size={14} aria-hidden="true" />
             </button>
           ) : (
             <button
               onClick={handleSend}
               disabled={!input.trim()}
+              aria-label="Send message"
               className="flex items-center justify-center w-10 h-10 rounded-xl bg-[#FFE600] text-[#0A0A0A] border-2 border-[var(--border-strong)] shadow-[2px_2px_0_var(--border-strong)] hover:shadow-none hover:translate-x-[2px] hover:translate-y-[2px] transition-all disabled:opacity-40 disabled:shadow-none disabled:translate-x-0 disabled:translate-y-0"
             >
-              <Send size={14} />
+              <Send size={14} aria-hidden="true" />
             </button>
           )}
         </div>

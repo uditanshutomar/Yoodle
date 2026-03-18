@@ -66,6 +66,7 @@ const TEST_MEETING_ID = "507f1f77bcf86cd799439013";
 function createPopulatedQuery<T>(value: T) {
   const query = {
     populate: vi.fn(() => query),
+    lean: vi.fn(() => query),
     then: (resolve: (result: T) => unknown) => Promise.resolve(resolve(value)),
     catch: (reject: (error: unknown) => unknown) =>
       Promise.resolve(value).catch(reject),

@@ -65,6 +65,7 @@ const mockAnalyticsFind = vi.fn();
 vi.mock("@/lib/infra/db/models/meeting-analytics", () => ({
   default: {
     find: vi.fn(() => ({
+      select: vi.fn().mockReturnThis(),
       sort: vi.fn().mockReturnThis(),
       limit: vi.fn().mockReturnThis(),
       lean: () => mockAnalyticsFind(),

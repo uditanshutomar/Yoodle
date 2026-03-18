@@ -115,8 +115,9 @@ export default function AppSidebar() {
             onClick={logout}
             className="rounded-lg p-1.5 text-[var(--text-muted)] hover:text-[#FF6B6B] hover:bg-[#FF6B6B]/10 transition-colors cursor-pointer"
             title="Log out"
+            aria-label="Log out"
           >
-            <LogOut size={16} />
+            <LogOut size={16} aria-hidden="true" />
           </button>
         </div>
       </div>

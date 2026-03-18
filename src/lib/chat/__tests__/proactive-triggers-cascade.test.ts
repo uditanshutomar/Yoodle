@@ -22,7 +22,7 @@ const mockMeetingFind = vi.fn();
 const mockMeetingUpdateOne = vi.fn();
 vi.mock("@/lib/infra/db/models/meeting", () => ({
   default: {
-    find: vi.fn(() => ({ lean: () => mockMeetingFind() })),
+    find: vi.fn(() => ({ select: vi.fn(() => ({ lean: () => mockMeetingFind() })) })),
     updateOne: vi.fn((...args: unknown[]) => mockMeetingUpdateOne(...args)),
   },
 }));
@@ -30,7 +30,7 @@ vi.mock("@/lib/infra/db/models/meeting", () => ({
 const mockConvFindOne = vi.fn();
 vi.mock("@/lib/infra/db/models/conversation", () => ({
   default: {
-    findOne: vi.fn(() => ({ lean: () => mockConvFindOne() })),
+    findOne: vi.fn(() => ({ select: vi.fn(() => ({ lean: () => mockConvFindOne() })) })),
     updateOne: vi.fn().mockResolvedValue(undefined),
   },
 }));

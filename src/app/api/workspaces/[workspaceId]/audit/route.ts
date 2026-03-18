@@ -25,7 +25,7 @@ export const GET = withHandler(async (req: NextRequest, context) => {
 
   await connectDB();
 
-  const workspace = await Workspace.findById(workspaceId).lean();
+  const workspace = await Workspace.findById(workspaceId).select("ownerId members").lean();
   if (!workspace) throw new NotFoundError("Workspace not found.");
 
   const member = workspace.members.find(

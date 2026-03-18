@@ -68,8 +68,12 @@ export async function createTaskFromMeeting(userId: string, args: Record<string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const participantUsers = (meeting.participants?.map((p: any) => p.userId).filter(Boolean) || []) as { _id: string; displayName?: string; name?: string }[];
 
+  // Fetch the last task position once instead of per-item (N+1 fix)
+  const lastTask = await Task.findOne({ boardId: board._id, columnId: firstColumnId }).sort({ position: -1 }).select("position").lean();
+  let nextPosition = lastTask ? lastTask.position + 1024 : 1024;
+
   const createdTasks: string[] = [];
-  for (const item of items) {
+  const taskDocs = items.map((item) => {
     const ownerUser = participantUsers.find(
       (u) => u.displayName?.toLowerCase().includes(item.owner?.toLowerCase() || "") ||
              u.name?.toLowerCase().includes(item.owner?.toLowerCase() || "")
@@ -79,18 +83,20 @@ export async function createTaskFromMeeting(userId: string, args: Record<string,
       const parsed = new Date(item.due);
       if (!isNaN(parsed.getTime())) dueDate = parsed;
     }
-    const lastTask = await Task.findOne({ boardId: board._id, columnId: firstColumnId }).sort({ position: -1 }).lean();
-    const task = await Task.create({
-      boardId: board._id, columnId: firstColumnId, position: lastTask ? lastTask.position + 1024 : 1024,
+    const position = nextPosition;
+    nextPosition += 1024;
+    createdTasks.push(item.task);
+    return {
+      boardId: board._id, columnId: firstColumnId, position,
       title: item.task, priority: "medium", creatorId: userId,
       assigneeId: ownerUser?._id || undefined, dueDate,
       meetingId: meeting._id,
       collaborators: participantUsers.map((u) => u._id),
       source: { type: "meeting-mom", sourceId: meeting._id.toString() },
       subtasks: [], linkedDocs: [], linkedEmails: [], labels: [],
-    });
-    createdTasks.push(task.title);
-  }
+    };
+  });
+  await Task.insertMany(taskDocs);
 
   return {
     success: true,
@@ -146,13 +152,17 @@ export async function createTaskFromChat(userId: string, args: Record<string, un
 export async function scheduleMeetingForTask(userId: string, args: Record<string, unknown>): Promise<ToolResult> {
   await connectDB();
   if (!isValidObjectId(args.taskId)) return { success: false, summary: "Invalid task ID." };
-  const access = await verifyTaskAccess(userId, args.taskId as string);
-  if (!access) return { success: false, summary: "Task not found or access denied." };
-  const task = await Task.findById(args.taskId as string)
+  // Verify access and fetch task with populated fields in one query (avoids re-fetch)
+  const taskDoc = await Task.findById(args.taskId as string)
     .populate("assigneeId", "email displayName")
-    .populate("collaborators", "email displayName")
-    .lean();
-  if (!task) return { success: false, summary: "Task not found." };
+    .populate("collaborators", "email displayName");
+  if (!taskDoc) return { success: false, summary: "Task not found." };
+  const board = await Board.findOne({
+    _id: taskDoc.boardId,
+    $or: [{ ownerId: userId }, { "members.userId": userId }],
+  }).select("_id").lean();
+  if (!board) return { success: false, summary: "Task not found or access denied." };
+  const task = taskDoc.toObject();
   const attendeeEmails: string[] = [];
   const assignee = task.assigneeId as { email?: string } | null;
   if (assignee?.email) attendeeEmails.push(assignee.email);
@@ -263,7 +273,7 @@ export async function linkMeetingToTask(userId: string, args: Record<string, unk
   if (!linkAccess) return { success: false, summary: "Task not found or access denied." };
   const task = linkAccess.task;
   if (!isValidObjectId(args.meetingId)) return { success: false, summary: "Invalid meeting ID." };
-  const meeting = await Meeting.findById(args.meetingId as string);
+  const meeting = await Meeting.findById(args.meetingId as string).select("title").lean();
   if (!meeting) return { success: false, summary: "Meeting not found." };
   task.meetingId = meeting._id;
   await task.save();
@@ -272,10 +282,15 @@ export async function linkMeetingToTask(userId: string, args: Record<string, unk
 
 export async function generateSubtasks(userId: string, args: Record<string, unknown>): Promise<ToolResult> {
   await connectDB();
-  const subAccess = await verifyTaskAccess(userId, args.taskId as string);
-  if (!subAccess) return { success: false, summary: "Task not found or access denied." };
-  const task = await Task.findById(args.taskId as string).lean();
+  if (!isValidObjectId(args.taskId)) return { success: false, summary: "Invalid task ID." };
+  // Fetch task and verify board access without re-fetching
+  const task = await Task.findById(args.taskId as string).select("title description boardId").lean();
   if (!task) return { success: false, summary: "Task not found." };
+  const boardAccess = await Board.findOne({
+    _id: task.boardId,
+    $or: [{ ownerId: userId }, { "members.userId": userId }],
+  }).select("_id").lean();
+  if (!boardAccess) return { success: false, summary: "Task not found or access denied." };
   const count = Math.min(Math.max((args.count as number) || 5, 3), 10);
   const { GoogleGenerativeAI } = await import("@google/generative-ai");
   const apiKey = process.env.GEMINI_API_KEY;
@@ -301,14 +316,23 @@ export async function generateSubtasks(userId: string, args: Record<string, unkn
 
 export async function getTaskContext(userId: string, args: Record<string, unknown>): Promise<ToolResult> {
   await connectDB();
-  const ctxAccess = await verifyTaskAccess(userId, args.taskId as string);
-  if (!ctxAccess) return { success: false, summary: "Task not found or access denied." };
+  if (!isValidObjectId(args.taskId)) return { success: false, summary: "Invalid task ID." };
+  // Fetch task with populated fields in one query (avoids verifyTaskAccess + re-fetch)
   const task = await Task.findById(args.taskId as string)
     .populate("assigneeId", "displayName name email")
     .populate("collaborators", "displayName name")
     .populate("boardId", "title")
     .lean();
   if (!task) return { success: false, summary: "Task not found." };
+  // Verify board access — boardId may be populated (object with _id) or a raw ObjectId
+  const rawBoardId = typeof task.boardId === "object" && task.boardId && "_id" in (task.boardId as unknown as Record<string, unknown>)
+    ? (task.boardId as unknown as { _id: mongoose.Types.ObjectId })._id
+    : (task.boardId as mongoose.Types.ObjectId);
+  const hasAccess = await Board.findOne({
+    _id: rawBoardId,
+    $or: [{ ownerId: userId }, { "members.userId": userId }],
+  }).select("_id").lean();
+  if (!hasAccess) return { success: false, summary: "Task not found or access denied." };
   let meetingInfo = null;
   if (task.meetingId) {
     const meeting = await Meeting.findById(task.meetingId).lean();

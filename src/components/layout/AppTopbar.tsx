@@ -21,13 +21,16 @@ export default function AppTopbar() {
             size={16}
             className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)]"
           />
+          <label htmlFor="topbar-search" className="sr-only">Search meetings, people, notes</label>
           <input
-            type="text"
+            id="topbar-search"
+            type="search"
             placeholder="Search meetings, people, notes..."
             value={searchValue}
             onChange={(e) => setSearchValue(e.target.value)}
             className="w-full rounded-xl border-2 border-[var(--border)] bg-[var(--surface)] py-2 pl-9 pr-4 text-sm text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:border-[var(--border-strong)] focus:outline-none focus:ring-2 focus:ring-[#FFE600] transition-all"
             style={{ fontFamily: "var(--font-body)" }}
+            aria-label="Search meetings, people, notes"
           />
         </div>
       </div>
@@ -45,7 +48,7 @@ export default function AppTopbar() {
         {/* User dropdown */}
         <DropdownMenu.Root>
           <DropdownMenu.Trigger asChild>
-            <button className="flex items-center gap-2 rounded-xl py-1 px-2 hover:bg-[var(--surface-hover)] transition-colors cursor-pointer">
+            <button className="flex items-center gap-2 rounded-xl py-1 px-2 hover:bg-[var(--surface-hover)] transition-colors cursor-pointer" aria-label="User menu">
               <Avatar
                 src={user?.avatar}
                 name={user?.name || "User"}

@@ -88,6 +88,8 @@ export default function KanbanCard({ task, onClick, isDragOverlay }: KanbanCardP
           className="mt-1 flex-shrink-0 h-2.5 w-2.5 rounded-full border border-black/10"
           style={{ backgroundColor: priorityColor }}
           title={PRIORITY_LABELS[task.priority]}
+          aria-label={`Priority: ${PRIORITY_LABELS[task.priority]}`}
+          role="img"
         />
         <p
           className="flex-1 text-[12px] font-semibold text-[var(--text-primary)] leading-snug line-clamp-2"
@@ -230,6 +232,7 @@ export default function KanbanCard({ task, onClick, isDragOverlay }: KanbanCardP
       whileTap={{ scale: 0.98 }}
       transition={{ type: "spring", stiffness: 300, damping: 30 }}
       onClick={() => onClick?.(task)}
+      aria-label={`Task: ${task.title}, priority: ${PRIORITY_LABELS[task.priority]}${task.dueDate ? `, due: ${formatDueDate(task.dueDate)}` : ""}`}
       className={`rounded-lg border-[1.5px] bg-[var(--surface)] p-2.5 cursor-grab active:cursor-grabbing transition-shadow ${
         isDragging
           ? "border-[var(--border)] shadow-none"

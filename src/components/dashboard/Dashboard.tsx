@@ -109,9 +109,14 @@ export default function Dashboard() {
                     {/* Mode toggle -- keep the existing compact inline version */}
                     <div className="mb-2">
                         <motion.div
+                            role="radiogroup"
+                            aria-label="Status mode"
                             className="inline-flex items-center gap-1 rounded-full border-2 border-[var(--border-strong)] bg-[var(--surface)] px-1 py-1 shadow-[3px_3px_0_var(--border-strong)]"
                         >
                             <motion.button
+                                role="radio"
+                                aria-checked={mode === "lockin"}
+                                aria-label="Lock in mode"
                                 whileTap={{ scale: 0.9 }}
                                 onClick={() => handleModeChange("lockin")}
                                 className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-bold transition-all ${mode === "lockin"
@@ -123,6 +128,9 @@ export default function Dashboard() {
                                 🔒 Lock in
                             </motion.button>
                             <motion.button
+                                role="radio"
+                                aria-checked={mode === "invisible"}
+                                aria-label="Invisible mode"
                                 whileTap={{ scale: 0.9 }}
                                 onClick={() => handleModeChange("invisible")}
                                 className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-bold transition-all ${mode === "invisible"
@@ -134,6 +142,9 @@ export default function Dashboard() {
                                 👻 Invisible
                             </motion.button>
                             <motion.button
+                                role="radio"
+                                aria-checked={mode === "social"}
+                                aria-label="Social mode"
                                 whileTap={{ scale: 0.9 }}
                                 onClick={() => handleModeChange("social")}
                                 className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-bold transition-all ${mode === "social"
@@ -157,8 +168,9 @@ export default function Dashboard() {
                         whileTap={{ scale: 0.98 }}
                         className="flex items-center gap-4 rounded-2xl bg-[#FFE600] border-2 border-[var(--border-strong)] px-6 py-5 shadow-[4px_4px_0_var(--border-strong)] hover:shadow-[2px_2px_0_var(--border-strong)] hover:translate-x-[2px] hover:translate-y-[2px] transition-all"
                         style={{ fontFamily: "var(--font-heading)" }}
+                        aria-label="Start a new meeting"
                     >
-                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                             <polygon points="23 7 16 12 23 17 23 7" /><rect x="1" y="5" width="15" height="14" rx="2" ry="2" />
                         </svg>
                         <div>
@@ -170,15 +182,18 @@ export default function Dashboard() {
                     {/* Join Meeting */}
                     <div className="flex items-center rounded-2xl border-2 border-[var(--border-strong)] bg-[var(--surface)] shadow-[4px_4px_0_var(--border-strong)] overflow-hidden">
                         <div className="flex-1 flex items-center gap-3 px-5 py-5">
-                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="text-[var(--text-secondary)] flex-shrink-0">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="text-[var(--text-secondary)] flex-shrink-0" aria-hidden="true">
                                 <rect x="3" y="11" width="18" height="11" rx="2" ry="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" />
                             </svg>
+                            <label htmlFor="join-room-code" className="sr-only">Room code</label>
                             <input
+                                id="join-room-code"
                                 type="text"
                                 value={joinCode}
                                 onChange={(e) => setJoinCode(e.target.value)}
                                 onKeyDown={(e) => e.key === "Enter" && handleJoin()}
                                 placeholder="Enter room code"
+                                aria-label="Enter room code to join a meeting"
                                 className="bg-transparent text-sm text-[var(--text-primary)] outline-none placeholder:text-[var(--text-muted)] w-full"
                                 style={{ fontFamily: "var(--font-body)" }}
                             />
@@ -187,6 +202,7 @@ export default function Dashboard() {
                             whileHover={{ scale: 1.02 }}
                             whileTap={{ scale: 0.98 }}
                             onClick={handleJoin}
+                            aria-label="Join meeting with room code"
                             className="h-full bg-[var(--foreground)] px-6 py-5 text-sm font-bold text-[var(--background)] border-l-2 border-[var(--border-strong)]"
                             style={{ fontFamily: "var(--font-heading)" }}
                         >
@@ -241,8 +257,12 @@ export default function Dashboard() {
                             initial={{ y: 20, opacity: 0 }}
                             animate={{ y: 0, opacity: 1 }}
                             transition={{ delay: 0.3, type: "spring", stiffness: 200, damping: 25 }}
+                            role="button"
+                            tabIndex={0}
+                            aria-label="Open AI assistant - Doodle Poodle"
                             className="flex-1 rounded-2xl border-2 border-[var(--border-strong)] bg-[var(--surface)] shadow-[4px_4px_0_var(--border-strong)] overflow-hidden cursor-pointer hover:shadow-[2px_2px_0_var(--border-strong)] hover:translate-x-[2px] hover:translate-y-[2px] transition-all"
                             onClick={() => aiDrawer.open()}
+                            onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); aiDrawer.open(); } }}
                         >
                             <div className="h-full p-4 flex flex-col">
                                 <div className="flex items-center gap-2 mb-4">

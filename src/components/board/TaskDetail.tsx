@@ -349,6 +349,7 @@ function TaskDetailInner({
       <div
         className="absolute inset-0 bg-[var(--foreground)]/30 backdrop-blur-sm"
         onClick={onClose}
+        aria-hidden="true"
       />
 
       {/* Drawer */}
@@ -357,6 +358,9 @@ function TaskDetailInner({
         animate={{ x: 0 }}
         exit={{ x: "100%" }}
         transition={{ type: "spring", stiffness: 300, damping: 30 }}
+        role="dialog"
+        aria-label={`Task details: ${task.title}`}
+        aria-modal="true"
         className="relative ml-auto flex h-full w-full max-w-[540px] flex-col bg-[var(--background)] border-l-2 border-[var(--border-strong)] shadow-2xl"
       >
         {/* ────────── HEADER ────────── */}
@@ -382,10 +386,14 @@ function TaskDetailInner({
                 />
               ) : (
                 <h1
+                  role="button"
+                  tabIndex={0}
                   onClick={() => setEditingTitle(true)}
+                  onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setEditingTitle(true); } }}
                   className="text-xl font-black text-[var(--text-primary)] cursor-text hover:bg-[var(--surface-hover)] rounded px-1 -mx-1 py-0.5 transition-colors truncate"
                   style={{ fontFamily: "var(--font-heading)" }}
                   title="Click to edit"
+                  aria-label={`Task title: ${title}. Press Enter to edit.`}
                 >
                   {title}
                 </h1>
@@ -401,6 +409,9 @@ function TaskDetailInner({
                       setShowColumnMenu(false);
                       setShowLabelMenu(false);
                     }}
+                    aria-label={`Priority: ${pCfg.label}. Click to change.`}
+                    aria-expanded={showPriorityMenu}
+                    aria-haspopup="menu"
                     className="flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-bold border transition-colors hover:opacity-80"
                     style={{
                       backgroundColor: pCfg.bg,
@@ -451,6 +462,9 @@ function TaskDetailInner({
                         setShowPriorityMenu(false);
                         setShowLabelMenu(false);
                       }}
+                      aria-label={`Status: ${col?.title || "Status"}. Click to change.`}
+                      aria-expanded={showColumnMenu}
+                      aria-haspopup="menu"
                       className="flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-bold border border-[var(--border)] bg-[var(--surface-hover)] text-[var(--text-secondary)] hover:border-[var(--border-strong)] transition-colors"
                       style={{ fontFamily: "var(--font-heading)" }}
                     >
@@ -500,9 +514,10 @@ function TaskDetailInner({
               whileHover={{ scale: 1.1, rotate: 90 }}
               whileTap={{ scale: 0.9 }}
               onClick={onClose}
+              aria-label="Close task details"
               className="flex h-8 w-8 items-center justify-center rounded-full border-[1.5px] border-[var(--border)] text-[var(--text-secondary)] hover:bg-[#FFE600]/20 hover:border-[var(--border-strong)] transition-colors flex-shrink-0"
             >
-              <X size={14} />
+              <X size={14} aria-hidden="true" />
             </motion.button>
           </div>
         </div>
@@ -633,7 +648,11 @@ function TaskDetailInner({
                 />
               ) : (
                 <div
+                  role="button"
+                  tabIndex={0}
                   onClick={() => setEditingDesc(true)}
+                  onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setEditingDesc(true); } }}
+                  aria-label={description ? "Edit description" : "Add a description"}
                   className="w-full rounded-lg border-2 border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-sm min-h-[60px] cursor-text hover:border-[var(--border-strong)] transition-colors"
                 >
                   {description ? (
@@ -690,12 +709,13 @@ function TaskDetailInner({
                     >
                       <button
                         onClick={() => toggleSubtask(st.id)}
+                        aria-label={`Mark subtask "${st.title}" as ${st.done ? "incomplete" : "complete"}`}
                         className="flex-shrink-0 text-[var(--text-secondary)] hover:text-[#7C3AED] transition-colors"
                       >
                         {st.done ? (
-                          <CheckCircle2 size={16} className="text-[#22C55E]" />
+                          <CheckCircle2 size={16} className="text-[#22C55E]" aria-hidden="true" />
                         ) : (
-                          <Circle size={16} />
+                          <Circle size={16} aria-hidden="true" />
                         )}
                       </button>
                       <span
@@ -709,9 +729,10 @@ function TaskDetailInner({
                       </span>
                       <button
                         onClick={() => removeSubtask(st.id)}
+                        aria-label={`Remove subtask "${st.title}"`}
                         className="opacity-0 group-hover:opacity-100 text-[var(--text-secondary)] hover:text-[#EF4444] transition-all flex-shrink-0"
                       >
-                        <X size={12} />
+                        <X size={12} aria-hidden="true" />
                       </button>
                     </motion.div>
                   ))}
@@ -736,9 +757,10 @@ function TaskDetailInner({
                     initial={{ scale: 0 }}
                     animate={{ scale: 1 }}
                     onClick={addSubtask}
+                    aria-label="Add subtask"
                     className="flex h-6 w-6 items-center justify-center rounded-full bg-[#7C3AED] text-white"
                   >
-                    <Plus size={12} />
+                    <Plus size={12} aria-hidden="true" />
                   </motion.button>
                 )}
               </div>
@@ -820,6 +842,7 @@ function TaskDetailInner({
                             value={commentText}
                             onChange={(e) => setCommentText(e.target.value)}
                             placeholder="Write a comment..."
+                            aria-label="Write a comment"
                             className="flex-1 rounded-lg border-2 border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-xs outline-none focus:border-[var(--border-strong)] transition-colors placeholder:text-[var(--text-secondary)]/40"
                             onKeyDown={(e) => {
                               if (e.key === "Enter" && commentText.trim()) {
@@ -925,13 +948,21 @@ function DropdownMenu({
         onClose();
       }
     };
+    const keyHandler = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
     document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
+    document.addEventListener("keydown", keyHandler);
+    return () => {
+      document.removeEventListener("mousedown", handler);
+      document.removeEventListener("keydown", keyHandler);
+    };
   }, [onClose]);
 
   return (
     <motion.div
       ref={ref}
+      role="menu"
       initial={{ opacity: 0, y: -4, scale: 0.95 }}
       animate={{ opacity: 1, y: 0, scale: 1 }}
       exit={{ opacity: 0, y: -4, scale: 0.95 }}

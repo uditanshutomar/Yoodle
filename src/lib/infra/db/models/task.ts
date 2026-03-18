@@ -127,6 +127,7 @@ const taskSchema = new Schema<ITaskDocument>(
 
 taskSchema.index({ boardId: 1, columnId: 1, position: 1 });
 taskSchema.index({ assigneeId: 1, dueDate: 1 });
+taskSchema.index({ creatorId: 1, completedAt: 1 });
 taskSchema.index({ boardId: 1, updatedAt: -1 });
 taskSchema.index({ meetingId: 1 }, { sparse: true });
 taskSchema.index({ parentTaskId: 1 }, { sparse: true });

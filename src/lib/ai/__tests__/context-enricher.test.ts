@@ -17,9 +17,11 @@ describe("context-enricher", () => {
 
   it("enrichTask returns relatedMessages and sourceMeeting when no meetingId", async () => {
     mockDMFind.mockReturnValue({
-      sort: vi.fn().mockReturnValue({
-        limit: vi.fn().mockReturnValue({
-          lean: vi.fn().mockResolvedValue([]),
+      select: vi.fn().mockReturnValue({
+        sort: vi.fn().mockReturnValue({
+          limit: vi.fn().mockReturnValue({
+            lean: vi.fn().mockResolvedValue([]),
+          }),
         }),
       }),
     });
@@ -33,16 +35,20 @@ describe("context-enricher", () => {
 
   it("enrichTask returns source meeting when meetingId present", async () => {
     mockMeetingFindById.mockReturnValue({
-      lean: vi.fn().mockResolvedValue({
-        _id: "meet1",
-        title: "Sprint Planning",
-        scheduledAt: new Date("2026-03-17T10:00:00Z"),
+      select: vi.fn().mockReturnValue({
+        lean: vi.fn().mockResolvedValue({
+          _id: "meet1",
+          title: "Sprint Planning",
+          scheduledAt: new Date("2026-03-17T10:00:00Z"),
+        }),
       }),
     });
     mockDMFind.mockReturnValue({
-      sort: vi.fn().mockReturnValue({
-        limit: vi.fn().mockReturnValue({
-          lean: vi.fn().mockResolvedValue([]),
+      select: vi.fn().mockReturnValue({
+        sort: vi.fn().mockReturnValue({
+          limit: vi.fn().mockReturnValue({
+            lean: vi.fn().mockResolvedValue([]),
+          }),
         }),
       }),
     });
@@ -54,11 +60,13 @@ describe("context-enricher", () => {
 
   it("enrichMeeting returns relatedTasks", async () => {
     mockTaskFind.mockReturnValue({
-      limit: vi.fn().mockReturnValue({
-        lean: vi.fn().mockResolvedValue([
-          { _id: "t1", title: "Task 1", completedAt: null },
-          { _id: "t2", title: "Task 2", completedAt: new Date() },
-        ]),
+      select: vi.fn().mockReturnValue({
+        limit: vi.fn().mockReturnValue({
+          lean: vi.fn().mockResolvedValue([
+            { _id: "t1", title: "Task 1", completedAt: null },
+            { _id: "t2", title: "Task 2", completedAt: new Date() },
+          ]),
+        }),
       }),
     });
 

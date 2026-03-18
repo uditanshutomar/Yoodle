@@ -24,7 +24,9 @@ export async function enrichTask(
     ]);
 
     if (task.meetingId) {
-      const meeting = await Meeting.findById(task.meetingId).lean();
+      const meeting = await Meeting.findById(task.meetingId)
+        .select("title scheduledAt")
+        .lean();
       if (meeting) {
         result.sourceMeeting = {
           id: meeting._id.toString(),
@@ -38,6 +40,7 @@ export async function enrichTask(
     const messages = await DirectMessage.find({
       content: { $regex: escapedTitle, $options: "i" },
     })
+      .select("content senderId createdAt")
       .sort({ createdAt: -1 })
       .limit(MAX_RELATED)
       .lean();
@@ -64,6 +67,7 @@ export async function enrichMeeting(
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const tasks = await Task.find({ meetingId: meeting._id as any })
+      .select("title completedAt")
       .limit(MAX_RELATED)
       .lean();
 

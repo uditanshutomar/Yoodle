@@ -91,15 +91,19 @@ export default function MeetingHistory({
             ) : meetings.length === 0 ? (
                 <p className="text-xs text-[var(--text-muted)] text-center py-6">No past meetings yet. Create your first room!</p>
             ) : (
-                <div className="space-y-1.5">
+                <div className="space-y-1.5" role="list" aria-label="Past meetings">
                     {meetings.map((m, i) => (
                         <motion.div
                             key={m.id}
+                            role="button"
+                            tabIndex={0}
+                            aria-label={`View meeting: ${m.title}`}
                             initial={{ opacity: 0, y: 6 }}
                             animate={{ opacity: 1, y: 0 }}
                             transition={{ delay: i * 0.03 }}
                             whileHover={{ x: 2 }}
                             onClick={() => onSelectMeeting(m)}
+                            onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onSelectMeeting(m); } }}
                             className="rounded-xl border-[1.5px] border-[var(--border)] p-2.5 cursor-pointer hover:border-[var(--border-strong)] transition-all bg-[var(--surface)]"
                         >
                             <div className="flex items-center justify-between mb-1">

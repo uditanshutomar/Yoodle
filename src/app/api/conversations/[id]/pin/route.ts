@@ -52,7 +52,7 @@ export const POST = withHandler(async (req: NextRequest, context) => {
   }
 
   // Verify the message belongs to this conversation
-  const message = await DirectMessage.findById(messageId).lean();
+  const message = await DirectMessage.findById(messageId).select("conversationId").lean();
   if (!message) {
     throw new NotFoundError("Message not found.");
   }

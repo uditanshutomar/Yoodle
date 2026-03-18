@@ -59,7 +59,7 @@ export const POST = withHandler(async (req: NextRequest, context) => {
 
   await connectDB();
 
-  const workspace = await Workspace.findById(workspaceId);
+  const workspace = await Workspace.findById(workspaceId).select("members").lean();
   if (!workspace) throw new NotFoundError("Workspace not found.");
 
   const member = workspace.members.find(
@@ -69,7 +69,7 @@ export const POST = withHandler(async (req: NextRequest, context) => {
     throw new ForbiddenError("Only owners and admins can add members.");
   }
 
-  const userToAdd = await User.findOne({ email: email.toLowerCase() }).select("_id");
+  const userToAdd = await User.findOne({ email: email.toLowerCase() }).select("_id").lean();
   if (!userToAdd) throw new NotFoundError("User not found with that email.");
 
   const alreadyMember = workspace.members.some(
@@ -132,7 +132,7 @@ export const DELETE = withHandler(async (req: NextRequest, context) => {
 
   await connectDB();
 
-  const workspace = await Workspace.findById(workspaceId);
+  const workspace = await Workspace.findById(workspaceId).select("ownerId members").lean();
   if (!workspace) throw new NotFoundError("Workspace not found.");
 
   const requester = workspace.members.find(

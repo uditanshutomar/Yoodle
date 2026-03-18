@@ -26,7 +26,7 @@ export const GET = withHandler(async (req: NextRequest, context) => {
       { hostId: userId },
       { "participants.userId": userId },
     ],
-  }).lean();
+  }).select("_id").lean();
 
   if (!meeting) {
     return errorResponse("FORBIDDEN", "Not a participant in this meeting", 403);

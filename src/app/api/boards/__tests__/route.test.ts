@@ -27,7 +27,7 @@ const mockBoardChain = {
 vi.mock("@/lib/infra/db/models/board", () => ({
   default: {
     find: vi.fn(() => mockBoardChain),
-    findOne: vi.fn().mockResolvedValue(null),
+    findOne: vi.fn(() => ({ select: vi.fn(() => ({ lean: vi.fn().mockResolvedValue(null) })) })),
     create: vi.fn().mockResolvedValue({
       _id: "board1",
       title: "My Tasks",
