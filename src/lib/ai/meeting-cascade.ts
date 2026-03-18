@@ -17,13 +17,24 @@ export interface CascadeResult {
   undoTokens: string[];
 }
 
+/* eslint-disable @typescript-eslint/no-explicit-any */
+interface CascadeMeeting {
+  _id: unknown;
+  title: string;
+  mom?: Record<string, unknown>;
+  scheduledAt?: Date;
+  createdAt?: Date;
+  participants?: { userId: unknown }[];
+}
+
 /* ─── Helpers ─── */
 
 function formatMomAsMarkdown(mom: {
   summary?: string;
-  keyPoints?: string[];
+  keyDecisions?: string[];
+  discussionPoints?: string[];
   actionItems?: { task: string; owner?: string; due?: string }[];
-  decisions?: string[];
+  nextSteps?: string[];
 }): string {
   const lines: string[] = [];
 
@@ -31,15 +42,15 @@ function formatMomAsMarkdown(mom: {
     lines.push("## Summary", "", mom.summary, "");
   }
 
-  if (mom.keyPoints?.length) {
-    lines.push("## Key Points", "");
-    for (const kp of mom.keyPoints) lines.push(`- ${kp}`);
+  if (mom.keyDecisions?.length) {
+    lines.push("## Key Decisions", "");
+    for (const kd of mom.keyDecisions) lines.push(`- ${kd}`);
     lines.push("");
   }
 
-  if (mom.decisions?.length) {
-    lines.push("## Decisions", "");
-    for (const d of mom.decisions) lines.push(`- ${d}`);
+  if (mom.discussionPoints?.length) {
+    lines.push("## Discussion Points", "");
+    for (const dp of mom.discussionPoints) lines.push(`- ${dp}`);
     lines.push("");
   }
 
@@ -60,7 +71,7 @@ function formatMomAsMarkdown(mom: {
 
 async function stepCreateMomDoc(
   userId: string,
-  meeting: { _id: unknown; title: string; mom: Record<string, unknown>; scheduledAt?: Date; createdAt?: Date },
+  meeting: CascadeMeeting,
 ): Promise<CascadeStepResult> {
   const { createGoogleDoc, getOrCreateMeetingFolder } = await import("@/lib/google/drive");
   const { appendToDoc } = await import("@/lib/google/docs");
@@ -73,9 +84,11 @@ async function stepCreateMomDoc(
   await appendToDoc(userId, doc.id, markdown);
 
   const token = await storeUndoToken(userId, {
-    type: "delete_file",
-    fileId: doc.id,
-    meetingId: String(meeting._id),
+    action: "create_mom_doc",
+    resourceId: doc.id,
+    reverseAction: "delete_file",
+    reverseArgs: { fileId: doc.id, meetingId: String(meeting._id) },
+    description: `Delete MoM document "${doc.name}"`,
   });
 
   return {
@@ -88,7 +101,7 @@ async function stepCreateMomDoc(
 
 async function stepCreateTasks(
   userId: string,
-  meeting: { _id: unknown },
+  meeting: CascadeMeeting,
 ): Promise<CascadeStepResult> {
   const { createTaskFromMeeting } = await import("@/lib/board/cross-domain");
   const { storeUndoToken } = await import("@/lib/ai/meeting-undo");
@@ -100,9 +113,11 @@ async function stepCreateTasks(
   }
 
   const token = await storeUndoToken(userId, {
-    type: "delete_tasks",
-    meetingId: String(meeting._id),
-    taskCount: (result.data as { count: number })?.count ?? 0,
+    action: "create_tasks",
+    resourceId: String(meeting._id),
+    reverseAction: "delete_tasks",
+    reverseArgs: { meetingId: String(meeting._id), taskCount: (result.data as { count: number })?.count ?? 0 },
+    description: `Delete tasks created from meeting`,
   });
 
   return {
@@ -115,13 +130,13 @@ async function stepCreateTasks(
 
 async function stepSendFollowup(
   userId: string,
-  meeting: { _id: unknown; title: string; mom: Record<string, unknown>; participants?: { userId: unknown }[] },
+  meeting: CascadeMeeting,
 ): Promise<CascadeStepResult> {
   const User = (await import("@/lib/infra/db/models/user")).default;
   const { sendEmail } = await import("@/lib/google/gmail");
   const { storeUndoToken } = await import("@/lib/ai/meeting-undo");
 
-  const participantIds = (meeting.participants || []).map((p) => p.userId);
+  const participantIds = (meeting.participants || []).map((p) => String(p.userId));
   if (participantIds.length === 0) {
     return { step: "send_followup", status: "skipped", summary: "No participants to email" };
   }
@@ -143,9 +158,11 @@ async function stepSendFollowup(
   });
 
   const token = await storeUndoToken(userId, {
-    type: "noop",
-    note: "Email already sent — cannot unsend",
-    meetingId: String(meeting._id),
+    action: "send_followup",
+    resourceId: String(meeting._id),
+    reverseAction: "noop",
+    reverseArgs: { note: "Email already sent — cannot unsend", meetingId: String(meeting._id) },
+    description: `Follow-up email sent — cannot unsend`,
   });
 
   return {
@@ -158,12 +175,12 @@ async function stepSendFollowup(
 
 async function stepAppendSheet(
   userId: string,
-  meeting: { _id: unknown; title: string; mom: Record<string, unknown>; participants?: unknown[]; scheduledAt?: Date; createdAt?: Date },
+  meeting: CascadeMeeting,
   analyticsSheetId: string,
 ): Promise<CascadeStepResult> {
   const { appendToSheet } = await import("@/lib/google/sheets");
 
-  const momData = meeting.mom as { actionItems?: unknown[]; keyPoints?: unknown[]; decisions?: unknown[] };
+  const momData = meeting.mom as { actionItems?: unknown[]; keyDecisions?: unknown[]; discussionPoints?: unknown[]; nextSteps?: unknown[] };
   const meetingDate = meeting.scheduledAt || meeting.createdAt || new Date();
 
   const row = [
@@ -172,8 +189,8 @@ async function stepAppendSheet(
     new Date(meetingDate as string | number | Date).toISOString(),
     String(meeting.participants?.length ?? 0),
     String(momData.actionItems?.length ?? 0),
-    String(momData.keyPoints?.length ?? 0),
-    String(momData.decisions?.length ?? 0),
+    String(momData.keyDecisions?.length ?? 0),
+    String(momData.discussionPoints?.length ?? 0),
   ];
 
   await appendToSheet(userId, analyticsSheetId, "Sheet1!A:G", [row]);
@@ -239,13 +256,15 @@ export async function executeMeetingCascade(
     return { meetingId, steps, undoTokens };
   }
 
-  log.info({ meetingId, title: meeting.title }, "Starting meeting cascade");
+  const mtg = meeting as CascadeMeeting;
+
+  log.info({ meetingId, title: mtg.title }, "Starting meeting cascade");
 
   // Step 1: create_mom_doc
   if (!skipSet.has("create_mom_doc")) {
-    if (meeting.mom) {
+    if (mtg.mom) {
       try {
-        pushStep(await stepCreateMomDoc(userId, meeting));
+        pushStep(await stepCreateMomDoc(userId, mtg));
       } catch (err) {
         pushStep({
           step: "create_mom_doc",
@@ -260,11 +279,22 @@ export async function executeMeetingCascade(
     pushStep({ step: "create_mom_doc", status: "skipped", summary: "Skipped by user" });
   }
 
+  // Step 1b: update knowledge graph (non-blocking enrichment)
+  if (mtg.mom) {
+    try {
+      const { updateKnowledgeGraph } = await import("@/lib/ai/knowledge-builder");
+      await updateKnowledgeGraph(userId, String(mtg._id));
+      log.info({ meetingId: String(mtg._id) }, "Knowledge graph updated");
+    } catch (err) {
+      log.warn({ err, meetingId: String(mtg._id) }, "Knowledge graph update failed (non-blocking)");
+    }
+  }
+
   // Step 2: create_tasks
   if (!skipSet.has("create_tasks")) {
-    if (meeting.mom?.actionItems?.length) {
+    if ((mtg.mom as any)?.actionItems?.length) {
       try {
-        pushStep(await stepCreateTasks(userId, meeting));
+        pushStep(await stepCreateTasks(userId, mtg));
       } catch (err) {
         pushStep({
           step: "create_tasks",
@@ -282,7 +312,7 @@ export async function executeMeetingCascade(
   // Step 3: send_followup
   if (!skipSet.has("send_followup")) {
     try {
-      pushStep(await stepSendFollowup(userId, meeting));
+      pushStep(await stepSendFollowup(userId, mtg));
     } catch (err) {
       pushStep({
         step: "send_followup",
@@ -298,7 +328,7 @@ export async function executeMeetingCascade(
   if (!skipSet.has("append_sheet")) {
     if (options?.analyticsSheetId) {
       try {
-        pushStep(await stepAppendSheet(userId, meeting, options.analyticsSheetId));
+        pushStep(await stepAppendSheet(userId, mtg, options.analyticsSheetId));
       } catch (err) {
         pushStep({
           step: "append_sheet",
