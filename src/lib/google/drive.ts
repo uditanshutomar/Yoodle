@@ -219,8 +219,20 @@ export async function getOrCreateMeetingFolder(
     monthFolder = formatFile(createdMonth.data);
   }
 
-  // Create meeting folder under month folder
+  // Search for existing meeting folder before creating (prevents duplicates on retries)
   const safeName = sanitizeFolderName(meetingTitle);
+  const escapedName = safeName.replace(/\\/g, "\\\\").replace(/'/g, "\\'");
+  const escapedMonthId = monthFolder.id.replace(/\\/g, "\\\\").replace(/'/g, "\\'");
+  const existingMeeting = await drive.files.list({
+    q: `name = '${escapedName}' and mimeType = '${FOLDER_MIME}' and '${escapedMonthId}' in parents and trashed = false`,
+    fields: "files(id, name, mimeType, webViewLink, createdTime, modifiedTime, size, owners, shared)",
+    pageSize: 1,
+  });
+
+  if (existingMeeting.data.files?.[0]) {
+    return formatFile(existingMeeting.data.files[0]);
+  }
+
   const createdMeeting = await drive.files.create({
     requestBody: {
       name: safeName,

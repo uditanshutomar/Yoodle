@@ -85,7 +85,9 @@ export async function executeWorkflow(
     onProgress?.(structuredClone(state));
   }
 
-  state.status = "completed";
+  const hasAnySuccess = state.steps.some((s) => s.status === "done");
+  const hasAnyError = state.steps.some((s) => s.status === "error");
+  state.status = hasAnyError && !hasAnySuccess ? "cancelled" : "completed";
   onProgress?.(structuredClone(state));
 
   log.info(

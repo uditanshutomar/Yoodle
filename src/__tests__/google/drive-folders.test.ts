@@ -86,6 +86,8 @@ describe("Drive auto-folder structure", () => {
           mimeType: "application/vnd.google-apps.folder",
         },
       });
+      // Meeting folder dedup search -> not found
+      mockFilesList.mockResolvedValueOnce({ data: { files: [] } });
       // Meeting folder create
       mockFilesCreate.mockResolvedValueOnce({
         data: {
@@ -133,6 +135,8 @@ describe("Drive auto-folder structure", () => {
           ],
         },
       });
+      // Meeting folder dedup search -> not found
+      mockFilesList.mockResolvedValueOnce({ data: { files: [] } });
       // Meeting folder create
       mockFilesCreate.mockResolvedValueOnce({
         data: {
@@ -180,6 +184,8 @@ describe("Drive auto-folder structure", () => {
           ],
         },
       });
+      // Meeting folder dedup search -> not found
+      mockFilesList.mockResolvedValueOnce({ data: { files: [] } });
       // Meeting folder create
       mockFilesCreate.mockResolvedValueOnce({
         data: {
@@ -229,6 +235,8 @@ describe("Drive auto-folder structure", () => {
         },
       });
       const longTitle = "A".repeat(150);
+      // Meeting folder dedup search -> not found
+      mockFilesList.mockResolvedValueOnce({ data: { files: [] } });
       // Meeting folder create
       mockFilesCreate.mockResolvedValueOnce({
         data: {

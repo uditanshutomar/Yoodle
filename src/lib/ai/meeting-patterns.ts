@@ -83,18 +83,19 @@ export async function analyzeMeetingPatterns(
     }
   }
 
-  // 2. Score trend: last 3 meetings avg score < overall average
+  // 2. Score trend: last 3 meetings avg score < historical baseline
   if (analytics.length >= 4) {
-    const overallAvg =
-      analytics.reduce((sum, a) => sum + a.meetingScore, 0) / analytics.length;
     const lastThree = analytics.slice(0, 3);
+    const historical = analytics.slice(3);
+    const historicalAvg =
+      historical.reduce((sum, a) => sum + a.meetingScore, 0) / historical.length;
     const recentAvg =
       lastThree.reduce((sum, a) => sum + a.meetingScore, 0) / lastThree.length;
 
-    if (recentAvg < overallAvg) {
+    if (recentAvg < historicalAvg) {
       insights.push({
         type: "score_trend",
-        message: `Recent meeting scores (avg ${Math.round(recentAvg)}) are below your 30-day average (${Math.round(overallAvg)}).`,
+        message: `Recent meeting scores (avg ${Math.round(recentAvg)}) are below your historical average (${Math.round(historicalAvg)}).`,
         severity: "warning",
       });
     }

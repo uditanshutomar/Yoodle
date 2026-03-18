@@ -9,6 +9,14 @@ vi.mock("nanoid", () => ({
   nanoid: vi.fn(() => "ABCDEFGHIJKLMNOP"),
 }));
 
+vi.mock("@/lib/infra/logger", () => ({
+  createLogger: () => ({
+    info: vi.fn(),
+    warn: vi.fn(),
+    error: vi.fn(),
+  }),
+}));
+
 import { getRedisClient } from "@/lib/infra/redis/client";
 import {
   storeUndoToken,
@@ -92,9 +100,38 @@ describe("meeting-undo", () => {
         userId: "user-1",
         createdAt: "2026-03-17T00:00:00.000Z",
       };
+      const mockGetdel = vi.fn().mockResolvedValue(JSON.stringify(stored));
+      mockedGetRedisClient.mockReturnValue({
+        getdel: mockGetdel,
+      } as any);
+
+      const result = await consumeUndoToken("undo:ABCDEFGHIJKLMNOP");
+
+      expect(result).toEqual(stored);
+      expect(mockGetdel).toHaveBeenCalledWith("undo:ABCDEFGHIJKLMNOP");
+    });
+
+    it("returns null and does not delete when token does not exist", async () => {
+      const mockGetdel = vi.fn().mockResolvedValue(null);
+      mockedGetRedisClient.mockReturnValue({
+        getdel: mockGetdel,
+      } as any);
+
+      const result = await consumeUndoToken("undo:nonexistent");
+
+      expect(result).toBeNull();
+    });
+
+    it("falls back to GET+DEL when GETDEL is not supported", async () => {
+      const stored = {
+        ...samplePayload,
+        userId: "user-1",
+        createdAt: "2026-03-17T00:00:00.000Z",
+      };
       const mockGet = vi.fn().mockResolvedValue(JSON.stringify(stored));
       const mockDel = vi.fn().mockResolvedValue(1);
       mockedGetRedisClient.mockReturnValue({
+        getdel: vi.fn().mockRejectedValue(new Error("ERR unknown command 'GETDEL'")),
         get: mockGet,
         del: mockDel,
       } as any);
@@ -102,21 +139,8 @@ describe("meeting-undo", () => {
       const result = await consumeUndoToken("undo:ABCDEFGHIJKLMNOP");
 
       expect(result).toEqual(stored);
+      expect(mockGet).toHaveBeenCalledWith("undo:ABCDEFGHIJKLMNOP");
       expect(mockDel).toHaveBeenCalledWith("undo:ABCDEFGHIJKLMNOP");
-    });
-
-    it("returns null and does not delete when token does not exist", async () => {
-      const mockGet = vi.fn().mockResolvedValue(null);
-      const mockDel = vi.fn();
-      mockedGetRedisClient.mockReturnValue({
-        get: mockGet,
-        del: mockDel,
-      } as any);
-
-      const result = await consumeUndoToken("undo:nonexistent");
-
-      expect(result).toBeNull();
-      expect(mockDel).not.toHaveBeenCalled();
     });
   });
 });

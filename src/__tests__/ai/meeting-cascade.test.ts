@@ -91,10 +91,11 @@ const USER_ID = "user-xyz-789";
 const baseMeeting = {
   _id: MEETING_ID,
   title: "Sprint Retro",
+  hostId: USER_ID,
   scheduledAt: new Date("2026-03-15T10:00:00Z"),
   participants: [
-    { userId: "u1", role: "host" },
-    { userId: "u2", role: "participant" },
+    { userId: { _id: USER_ID, email: "host@test.com", displayName: "Host" }, role: "host" },
+    { userId: { _id: "u2", email: "bob@test.com", displayName: "Bob" }, role: "participant" },
   ],
   mom: {
     summary: "We discussed sprint results.",

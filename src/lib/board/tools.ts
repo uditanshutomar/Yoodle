@@ -80,8 +80,15 @@ export async function moveBoardTask(userId: string, args: Record<string, unknown
 
 export async function assignBoardTask(userId: string, args: Record<string, unknown>): Promise<ToolResult> {
   await connectDB();
+  if (!isValidObjectId(args.assigneeId)) return { success: false, summary: "Invalid assignee ID." };
   const access = await verifyTaskAccess(userId, args.taskId as string);
   if (!access) return { success: false, summary: "Task not found or access denied." };
+
+  // Verify the assignee is a member of the task's board
+  const isMember = access.board.ownerId.toString() === (args.assigneeId as string) ||
+    access.board.members?.some((m: { userId: { toString(): string } }) => m.userId.toString() === (args.assigneeId as string));
+  if (!isMember) return { success: false, summary: "Assignee is not a member of this board." };
+
   await Task.findByIdAndUpdate(access.task._id, { $set: { assigneeId: args.assigneeId as string } });
   return { success: true, summary: `Assigned "${access.task.title}" to user ${args.assigneeId}`, data: { taskId: access.task._id.toString() } };
 }

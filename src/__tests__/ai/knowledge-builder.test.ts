@@ -11,7 +11,9 @@ const mockFindById = vi.fn();
 vi.mock("@/lib/infra/db/models/meeting", () => ({
   default: {
     findById: (...args: unknown[]) => ({
-      lean: () => mockFindById(...args),
+      populate: () => ({
+        lean: () => mockFindById(...args),
+      }),
     }),
   },
 }));

@@ -73,18 +73,22 @@ export async function getOrCreatePersonalBoard(
 ): Promise<IBoardDocument> {
   const userOid = new mongoose.Types.ObjectId(userId);
 
-  let board = await Board.findOne({ ownerId: userOid, scope: "personal" }).lean() as IBoardDocument | null;
-
-  if (!board) {
-    board = await Board.create({
-      title: "My Tasks",
-      ownerId: userOid,
-      scope: "personal",
-      members: [{ userId: userOid, role: "owner", joinedAt: new Date() }],
-      columns: generateDefaultColumns(),
-      labels: generateDefaultLabels(),
-    });
-  }
+  // Use findOneAndUpdate with upsert for atomic get-or-create,
+  // preventing duplicate personal boards from concurrent requests.
+  const board = await Board.findOneAndUpdate(
+    { ownerId: userOid, scope: "personal" },
+    {
+      $setOnInsert: {
+        title: "My Tasks",
+        ownerId: userOid,
+        scope: "personal",
+        members: [{ userId: userOid, role: "owner", joinedAt: new Date() }],
+        columns: generateDefaultColumns(),
+        labels: generateDefaultLabels(),
+      },
+    },
+    { upsert: true, new: true },
+  );
 
   return board;
 }

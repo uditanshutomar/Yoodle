@@ -81,10 +81,17 @@ export async function consumeUndoToken(
   let raw: string | null;
   try {
     raw = await (redis as unknown as { getdel(key: string): Promise<string | null> }).getdel(token);
-  } catch {
-    // GETDEL not supported — fall back to GET + DEL (best-effort atomicity)
-    raw = await redis.get(token);
-    if (raw) await redis.del(token);
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : "";
+    if (msg.includes("ERR unknown command") || msg.includes("ERR unknown subcommand")) {
+      // GETDEL not supported (Redis < 6.2) — fall back to GET + DEL (best-effort atomicity)
+      log.warn("GETDEL not available, falling back to GET+DEL");
+      raw = await redis.get(token);
+      if (raw) await redis.del(token);
+    } else {
+      // Unexpected Redis error — rethrow
+      throw err;
+    }
   }
 
   if (!raw) return null;

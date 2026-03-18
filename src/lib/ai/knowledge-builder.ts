@@ -16,7 +16,9 @@ export async function updateKnowledgeGraph(
   const Meeting = (await import("@/lib/infra/db/models/meeting")).default;
   const MeetingKnowledge = (await import("@/lib/infra/db/models/meeting-knowledge")).default;
 
-  const meeting = await Meeting.findById(meetingId).lean();
+  const meeting = await Meeting.findById(meetingId)
+    .populate("participants.userId", "displayName name")
+    .lean();
   if (!meeting) {
     log.warn({ meetingId }, "Meeting not found");
     return;
@@ -30,9 +32,14 @@ export async function updateKnowledgeGraph(
   const mom = meeting.mom;
   const meetingDate = meeting.scheduledAt || meeting.createdAt || new Date();
   const meetingTitle = meeting.title;
-  const participantNames = (meeting.participants || []).map((p) =>
-    p.userId?.toString() ?? "unknown",
-  );
+  const participantNames = (meeting.participants || []).map((p) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const user = p.userId as any;
+    if (user && typeof user === "object") {
+      return user.displayName || user.name || user._id?.toString() || "unknown";
+    }
+    return user?.toString() ?? "unknown";
+  });
 
   const baseEntry = {
     meetingId: String(meeting._id),

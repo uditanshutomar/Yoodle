@@ -266,6 +266,28 @@ export async function executeMeetingCascade(
 
   const mtg = meeting as CascadeMeeting;
 
+  // Verify the user is the host or a participant of the meeting
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const meetingRaw = meeting as any;
+  const isHost = String(meetingRaw.hostId) === userId;
+  const isParticipant = mtg.participants?.some((p) => {
+    // userId may be populated (object with _id) or a raw ObjectId
+    const pid = typeof p.userId === "object" && p.userId && "_id" in (p.userId as Record<string, unknown>)
+      ? String((p.userId as unknown as { _id: unknown })._id)
+      : String(p.userId);
+    return pid === userId;
+  });
+  if (!isHost && !isParticipant) {
+    const errorStep: CascadeStepResult = {
+      step: "authorize",
+      status: "error",
+      summary: "Access denied — you are not a host or participant of this meeting",
+    };
+    pushStep(errorStep);
+    pushStep(buildNotifyStep(steps));
+    return { meetingId, steps, undoTokens };
+  }
+
   log.info({ meetingId, title: mtg.title }, "Starting meeting cascade");
 
   // Step 1b: update knowledge graph (non-blocking enrichment)
