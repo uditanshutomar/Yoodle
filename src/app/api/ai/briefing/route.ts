@@ -7,7 +7,8 @@ import { hasGoogleAccess } from "@/lib/google/client";
 import { createLogger } from "@/lib/infra/logger";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { SYSTEM_PROMPTS } from "@/lib/ai/prompts";
-import { successResponse, errorResponse } from "@/lib/infra/api/response";
+import { successResponse } from "@/lib/infra/api/response";
+import { AppError } from "@/lib/infra/api/errors";
 
 const log = createLogger("api:ai-briefing");
 
@@ -96,7 +97,7 @@ export const POST = withHandler(async (req: NextRequest) => {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) {
     log.error("GEMINI_API_KEY not configured");
-    return errorResponse("CONFIGURATION_ERROR", "AI not configured", 500);
+    throw new AppError("AI not configured", "CONFIGURATION_ERROR", 500);
   }
 
   const genAI = new GoogleGenerativeAI(apiKey);

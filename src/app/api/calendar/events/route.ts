@@ -1,10 +1,10 @@
 import { NextRequest } from "next/server";
 import { z } from "zod";
 import { withHandler } from "@/lib/infra/api/with-handler";
-import { successResponse, errorResponse } from "@/lib/infra/api/response";
+import { successResponse } from "@/lib/infra/api/response";
 import { checkRateLimit } from "@/lib/infra/api/rate-limit";
 import { getUserIdFromRequest } from "@/lib/infra/auth/middleware";
-import { BadRequestError } from "@/lib/infra/api/errors";
+import { BadRequestError, ForbiddenError } from "@/lib/infra/api/errors";
 import mongoose from "mongoose";
 import { listEvents, createEvent, updateEvent, deleteEvent } from "@/lib/google/calendar";
 import { hasGoogleAccess } from "@/lib/google/client";
@@ -64,10 +64,8 @@ export const GET = withHandler(async (req: NextRequest) => {
   // Check if user has Google access
   const hasAccess = await hasGoogleAccess(userId);
   if (!hasAccess) {
-    return errorResponse(
-      "NO_GOOGLE_ACCESS",
+    throw new ForbiddenError(
       "Google Calendar not connected. Connect your Google account in Settings.",
-      403
     );
   }
 
@@ -109,10 +107,8 @@ export const POST = withHandler(async (req: NextRequest) => {
 
   const hasAccess = await hasGoogleAccess(userId);
   if (!hasAccess) {
-    return errorResponse(
-      "NO_GOOGLE_ACCESS",
+    throw new ForbiddenError(
       "Google Calendar not connected. Connect your Google account in Settings.",
-      403
     );
   }
 
@@ -156,10 +152,8 @@ export const PATCH = withHandler(async (req: NextRequest) => {
 
   const hasAccess = await hasGoogleAccess(userId);
   if (!hasAccess) {
-    return errorResponse(
-      "NO_GOOGLE_ACCESS",
+    throw new ForbiddenError(
       "Google Calendar not connected. Connect your Google account in Settings.",
-      403
     );
   }
 
@@ -182,10 +176,8 @@ export const DELETE = withHandler(async (req: NextRequest) => {
 
   const hasAccess = await hasGoogleAccess(userId);
   if (!hasAccess) {
-    return errorResponse(
-      "NO_GOOGLE_ACCESS",
+    throw new ForbiddenError(
       "Google Calendar not connected. Connect your Google account in Settings.",
-      403
     );
   }
 

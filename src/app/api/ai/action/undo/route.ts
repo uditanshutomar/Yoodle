@@ -5,7 +5,8 @@ import { checkRateLimit } from "@/lib/infra/api/rate-limit";
 import { getUserIdFromRequest } from "@/lib/infra/auth/middleware";
 import { consumeUndoToken } from "@/lib/ai/meeting-undo";
 import { executeWorkspaceTool } from "@/lib/ai/tools";
-import { errorResponse, successResponse } from "@/lib/infra/api/response";
+import { successResponse } from "@/lib/infra/api/response";
+import { NotFoundError, ForbiddenError } from "@/lib/infra/api/errors";
 
 const undoSchema = z.object({
   undoToken: z.string().min(1),
@@ -19,11 +20,11 @@ export const POST = withHandler(async (req: NextRequest) => {
   const stored = await consumeUndoToken(body.undoToken);
 
   if (!stored) {
-    return errorResponse("NOT_FOUND", "Undo token not found or expired", 404);
+    throw new NotFoundError("Undo token not found or expired");
   }
 
   if (stored.userId !== userId) {
-    return errorResponse("FORBIDDEN", "Undo token does not belong to this user", 403);
+    throw new ForbiddenError("Undo token does not belong to this user");
   }
 
   // "noop" reverse actions cannot be undone (e.g., can't unsend an email)

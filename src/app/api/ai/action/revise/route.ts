@@ -5,7 +5,8 @@ import { checkRateLimit } from "@/lib/infra/api/rate-limit";
 import { getUserIdFromRequest } from "@/lib/infra/auth/middleware";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { SYSTEM_PROMPTS } from "@/lib/ai/prompts";
-import { successResponse, errorResponse } from "@/lib/infra/api/response";
+import { successResponse } from "@/lib/infra/api/response";
+import { AppError } from "@/lib/infra/api/errors";
 import { createLogger } from "@/lib/infra/logger";
 
 const log = createLogger("api:ai-action-revise");
@@ -26,7 +27,7 @@ export const POST = withHandler(async (req: NextRequest) => {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) {
     log.error("GEMINI_API_KEY not configured");
-    return errorResponse("CONFIGURATION_ERROR", "AI not configured", 500);
+    throw new AppError("AI not configured", "CONFIGURATION_ERROR", 500);
   }
 
   const genAI = new GoogleGenerativeAI(apiKey);
@@ -82,7 +83,7 @@ Return the revised action as JSON with these fields:
     parsed = JSON.parse(responseText.slice(firstBrace, end + 1));
   } catch (err) {
     log.error({ responseText, err }, "failed to parse revised action");
-    return errorResponse("AI_ERROR", "Could not revise action. Try again.", 500);
+    throw new AppError("Could not revise action. Try again.", "AI_ERROR", 500);
   }
 
   return successResponse({

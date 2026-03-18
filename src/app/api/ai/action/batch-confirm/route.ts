@@ -4,7 +4,8 @@ import { withHandler } from "@/lib/infra/api/with-handler";
 import { checkRateLimit } from "@/lib/infra/api/rate-limit";
 import { getUserIdFromRequest } from "@/lib/infra/auth/middleware";
 import { executeWorkspaceTool } from "@/lib/ai/tools";
-import { successResponse, errorResponse } from "@/lib/infra/api/response";
+import { successResponse } from "@/lib/infra/api/response";
+import { BadRequestError } from "@/lib/infra/api/errors";
 import { createLogger } from "@/lib/infra/logger";
 
 const log = createLogger("ai:batch-confirm");
@@ -39,10 +40,8 @@ export const POST = withHandler(async (req: NextRequest) => {
   const body = batchSchema.parse(await req.json());
 
   if (!ALLOWED_BATCH_ACTIONS.has(body.actionType)) {
-    return errorResponse(
-      "INVALID_ACTION",
+    throw new BadRequestError(
       `Action "${body.actionType}" is not allowed in batch mode.`,
-      400,
     );
   }
 
