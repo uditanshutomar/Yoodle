@@ -41,6 +41,8 @@ export default function WaitingRoomPanel({
       {isOpen && (
         <motion.div
           className="w-80 h-full flex flex-col bg-white/95 backdrop-blur-sm border-l-2 border-[var(--border-strong)]"
+          role="complementary"
+          aria-label="Waiting room"
           initial={{ x: 320, opacity: 0 }}
           animate={{ x: 0, opacity: 1 }}
           exit={{ x: 320, opacity: 0 }}
@@ -70,6 +72,7 @@ export default function WaitingRoomPanel({
               whileHover={{ scale: 1.1 }}
               whileTap={{ scale: 0.9 }}
               onClick={onClose}
+              aria-label="Close waiting room panel"
             >
               <X size={16} />
             </motion.button>
@@ -135,6 +138,7 @@ export default function WaitingRoomPanel({
                       whileTap={{ scale: 0.9 }}
                       onClick={() => onAdmit(user.id)}
                       title="Admit"
+                      aria-label={`Admit ${user.displayName || user.name || "user"}`}
                     >
                       <Check size={14} />
                     </motion.button>
@@ -144,6 +148,7 @@ export default function WaitingRoomPanel({
                       whileTap={{ scale: 0.9 }}
                       onClick={() => onDeny(user.id)}
                       title="Deny"
+                      aria-label={`Deny ${user.displayName || user.name || "user"}`}
                     >
                       <Ban size={14} />
                     </motion.button>

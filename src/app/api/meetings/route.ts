@@ -117,6 +117,8 @@ export const POST = withHandler(async (req: NextRequest) => {
   const { title, description, type, scheduledAt, settings } = body;
   const { templateId } = body;
 
+  await connectDB();
+
   // Load template if provided — apply its settings as defaults
   let templateDuration: number | undefined;
   let templateSettings: Record<string, unknown> | undefined;
@@ -155,8 +157,6 @@ export const POST = withHandler(async (req: NextRequest) => {
       400,
     );
   }
-
-  await connectDB();
 
   const code = generateMeetingCode();
 

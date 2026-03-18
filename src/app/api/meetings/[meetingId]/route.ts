@@ -10,20 +10,7 @@ import connectDB from "@/lib/infra/db/client";
 import Meeting from "@/lib/infra/db/models/meeting";
 import { deleteEvent } from "@/lib/google/calendar";
 import "@/lib/infra/db/models/user"; // register User schema for .populate("hostId")
-
-// ── Helpers ─────────────────────────────────────────────────────────
-
-const MEETING_CODE_REGEX = /^yoo-[a-z0-9]{3}-[a-z0-9]{3}$/;
-
-/**
- * Build a Mongoose filter that matches either an ObjectId or a meeting code.
- */
-function buildMeetingFilter(meetingId: string): Record<string, unknown> {
-  if (mongoose.Types.ObjectId.isValid(meetingId) && !MEETING_CODE_REGEX.test(meetingId)) {
-    return { _id: new mongoose.Types.ObjectId(meetingId) };
-  }
-  return { code: meetingId.toLowerCase() };
-}
+import { buildMeetingFilter } from "@/lib/meetings/helpers";
 
 // ── Validation ──────────────────────────────────────────────────────
 

@@ -1,5 +1,4 @@
 import { NextRequest } from "next/server";
-import mongoose from "mongoose";
 import { withHandler } from "@/lib/infra/api/with-handler";
 import { successResponse } from "@/lib/infra/api/response";
 import { getUserIdFromRequest } from "@/lib/infra/auth/middleware";
@@ -11,6 +10,7 @@ import {
   waitingCheckStatus,
   waitingGetQueue,
 } from "@/lib/infra/redis/cache";
+import { buildMeetingFilter } from "@/lib/meetings/helpers";
 
 /**
  * GET /api/meetings/[meetingId]/waiting-status
@@ -32,10 +32,7 @@ export const GET = withHandler(async (req: NextRequest, context) => {
   await connectDB();
 
   // Resolve meeting to get the canonical _id
-  const MEETING_CODE_REGEX = /^yoo-[a-z0-9]{3}-[a-z0-9]{3}$/;
-  const filter = mongoose.Types.ObjectId.isValid(meetingId) && !MEETING_CODE_REGEX.test(meetingId)
-    ? { _id: new mongoose.Types.ObjectId(meetingId) }
-    : { code: meetingId.toLowerCase() };
+  const filter = buildMeetingFilter(meetingId);
 
   const meeting = await Meeting.findOne(filter).select("_id hostId").lean();
   if (!meeting) throw new NotFoundError("Meeting not found.");

@@ -54,6 +54,8 @@ export default function ParticipantList({
       {isOpen && (
         <motion.div
           className="w-80 h-full flex flex-col bg-white/95 backdrop-blur-sm border-l-2 border-[var(--border-strong)]"
+          role="complementary"
+          aria-label="Participant list"
           initial={{ x: 320, opacity: 0 }}
           animate={{ x: 0, opacity: 1 }}
           exit={{ x: 320, opacity: 0 }}
@@ -80,6 +82,7 @@ export default function ParticipantList({
               whileHover={{ scale: 1.1 }}
               whileTap={{ scale: 0.9 }}
               onClick={onClose}
+              aria-label="Close participants panel"
             >
               <X size={16} />
             </motion.button>
@@ -138,10 +141,14 @@ export default function ParticipantList({
                         )}
                       </span>
                       {p.isHost && (
-                        <Crown
-                          size={12}
-                          className="text-[#FFE600] fill-[#FFE600] shrink-0"
-                        />
+                        <>
+                          <Crown
+                            size={12}
+                            className="text-[#FFE600] fill-[#FFE600] shrink-0"
+                            aria-hidden="true"
+                          />
+                          <span className="sr-only">Host</span>
+                        </>
                       )}
                       {p.isHandRaised && (
                         <motion.span
@@ -149,7 +156,8 @@ export default function ParticipantList({
                           animate={{ y: [-2, 0, -2] }}
                           transition={{ duration: 1, repeat: Infinity }}
                         >
-                          <Hand size={12} className="text-[#FFE600] fill-[#FFE600] shrink-0" />
+                          <Hand size={12} className="text-[#FFE600] fill-[#FFE600] shrink-0" aria-hidden="true" />
+                          <span className="sr-only">Hand raised</span>
                         </motion.span>
                       )}
                     </div>
@@ -164,22 +172,37 @@ export default function ParticipantList({
                   {/* Status icons + host actions */}
                   <div className="flex items-center gap-1.5 shrink-0">
                     {p.isScreenSharing && (
-                      <Monitor size={14} className="text-[#06B6D4]" />
+                      <>
+                        <Monitor size={14} className="text-[#06B6D4]" aria-hidden="true" />
+                        <span className="sr-only">{p.name} is sharing screen</span>
+                      </>
                     )}
                     {p.isAudioEnabled ? (
-                      <Mic size={14} className="text-[#0A0A0A]/40" />
+                      <>
+                        <Mic size={14} className="text-[#0A0A0A]/40" aria-hidden="true" />
+                        <span className="sr-only">{p.name} microphone on</span>
+                      </>
                     ) : (
-                      <MicOff size={14} className="text-[#FF6B6B]" />
+                      <>
+                        <MicOff size={14} className="text-[#FF6B6B]" aria-hidden="true" />
+                        <span className="sr-only">{p.name} microphone off</span>
+                      </>
                     )}
                     {p.isVideoEnabled ? (
-                      <Video size={14} className="text-[#0A0A0A]/40" />
+                      <>
+                        <Video size={14} className="text-[#0A0A0A]/40" aria-hidden="true" />
+                        <span className="sr-only">{p.name} camera on</span>
+                      </>
                     ) : (
-                      <VideoOff size={14} className="text-[#FF6B6B]" />
+                      <>
+                        <VideoOff size={14} className="text-[#FF6B6B]" aria-hidden="true" />
+                        <span className="sr-only">{p.name} camera off</span>
+                      </>
                     )}
 
                     {/* Host controls — only show for non-local participants when local is host */}
                     {isLocalHost && !isLocal && (
-                      <div className="hidden group-hover:flex items-center gap-1 ml-1">
+                      <div className="hidden group-hover:flex group-focus-within:flex items-center gap-1 ml-1">
                         {onTransferHost && (
                           <motion.button
                             className="h-6 w-6 rounded-md border border-[var(--border-strong)]/20 bg-[#0A0A0A]/5 flex items-center justify-center cursor-pointer"
@@ -187,6 +210,7 @@ export default function ParticipantList({
                             whileTap={{ scale: 0.9 }}
                             onClick={() => onTransferHost(p.id)}
                             title="Make host"
+                            aria-label={`Make ${p.name} host`}
                           >
                             <ShieldCheck size={10} className="text-[#FFB800]" />
                           </motion.button>
@@ -198,6 +222,7 @@ export default function ParticipantList({
                             whileTap={{ scale: 0.9 }}
                             onClick={() => onMuteParticipant(p.id)}
                             title="Mute participant"
+                            aria-label={`Mute ${p.name}`}
                           >
                             <MicOff size={10} className="text-[#FF6B6B]" />
                           </motion.button>
@@ -209,6 +234,7 @@ export default function ParticipantList({
                             whileTap={{ scale: 0.9 }}
                             onClick={() => onKickParticipant(p.id)}
                             title="Remove participant"
+                            aria-label={`Remove ${p.name} from meeting`}
                           >
                             <UserX size={10} className="text-[#FF6B6B]" />
                           </motion.button>

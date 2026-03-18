@@ -26,11 +26,14 @@ export default function ConnectionIndicator({
   return (
     <motion.div
       className="group relative flex items-center gap-1.5 rounded-full border border-[var(--border-strong)]/15 px-2.5 py-1 cursor-default"
+      role="status"
+      aria-label={`Connection: ${config.label}${rtt !== null ? `, latency ${rtt}ms` : ""}${packetLoss !== null ? `, packet loss ${packetLoss}%` : ""}`}
+      tabIndex={0}
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
     >
       {/* Signal bars */}
-      <div className="flex items-end gap-[2px] h-3">
+      <div className="flex items-end gap-[2px] h-3" aria-hidden="true">
         {[1, 2, 3].map((bar) => (
           <div
             key={bar}
@@ -45,7 +48,7 @@ export default function ConnectionIndicator({
       </div>
 
       {/* Tooltip on hover */}
-      <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:block z-50">
+      <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:block group-focus-within:block z-50">
         <div className="rounded-lg border-2 border-[var(--border-strong)] bg-[var(--surface)] px-3 py-2 shadow-[2px_2px_0_var(--border-strong)] whitespace-nowrap">
           <p
             className="text-xs font-bold mb-1"

@@ -93,6 +93,8 @@ function JoinMeetingContent() {
       <motion.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
+        role="status"
+        aria-label="Joining meeting"
         className="flex flex-col items-center justify-center min-h-[60vh] gap-4"
       >
         <div className="h-10 w-10 rounded-full border-4 border-[#FFE600] border-t-transparent animate-spin" />
@@ -137,6 +139,9 @@ function JoinMeetingContent() {
               <input
                 type="text"
                 placeholder="Enter meeting code (e.g. yoo-abc-123)"
+                aria-label="Meeting code"
+                aria-invalid={!!error}
+                aria-describedby={error ? "join-error" : undefined}
                 value={code}
                 onChange={(e) => {
                   setCode(e.target.value.toLowerCase());
@@ -148,6 +153,8 @@ function JoinMeetingContent() {
               />
               {error && (
                 <p
+                  id="join-error"
+                  role="alert"
                   className="mt-2 text-sm text-[#FF6B6B] font-medium"
                   style={{ fontFamily: "var(--font-body)" }}
                 >

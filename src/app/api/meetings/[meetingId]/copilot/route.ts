@@ -5,6 +5,10 @@ import { checkRateLimit } from "@/lib/infra/api/rate-limit";
 import { getUserIdFromRequest } from "@/lib/infra/auth/middleware";
 import { getRedisClient } from "@/lib/infra/redis/client";
 import connectDB from "@/lib/infra/db/client";
+import { buildMeetingFilter } from "@/lib/meetings/helpers";
+import { createLogger } from "@/lib/infra/logger";
+
+const log = createLogger("meetings:copilot");
 
 export const GET = withHandler(async (req: NextRequest, context) => {
   await checkRateLimit(req, "meetings");
@@ -13,8 +17,9 @@ export const GET = withHandler(async (req: NextRequest, context) => {
 
   await connectDB();
   const Meeting = (await import("@/lib/infra/db/models/meeting")).default;
+  const filter = buildMeetingFilter(meetingId);
   const meeting = await Meeting.findOne({
-    _id: meetingId,
+    ...filter,
     $or: [
       { hostId: userId },
       { "participants.userId": userId },
@@ -33,12 +38,42 @@ export const GET = withHandler(async (req: NextRequest, context) => {
 
   const stream = new ReadableStream({
     async start(controller) {
-      const redis = getRedisClient();
-      const sub = redis.duplicate();
-      await sub.subscribe(`copilot:${meetingId}`);
+      let sub: ReturnType<ReturnType<typeof getRedisClient>["duplicate"]>;
+      try {
+        const redis = getRedisClient();
+        sub = redis.duplicate();
+        await sub.subscribe(`copilot:${meetingId}`);
+      } catch (err) {
+        log.error({ err, meetingId }, "Failed to set up Redis subscription for copilot SSE");
+        try {
+          controller.enqueue(
+            encoder.encode(
+              `data: ${JSON.stringify({ type: "error", message: "Failed to connect to event stream" })}\n\n`,
+            ),
+          );
+          controller.close();
+        } catch { /* controller may already be closed */ }
+        return;
+      }
+
+      sub.on("error", (err) => {
+        log.error({ err, meetingId }, "Redis subscription error in copilot SSE");
+        try {
+          controller.enqueue(
+            encoder.encode(
+              `data: ${JSON.stringify({ type: "error", message: "Event stream connection lost" })}\n\n`,
+            ),
+          );
+          controller.close();
+        } catch { /* controller may already be closed */ }
+      });
 
       sub.on("message", (_channel: string, message: string) => {
-        controller.enqueue(encoder.encode(`data: ${message}\n\n`));
+        try {
+          controller.enqueue(encoder.encode(`data: ${message}\n\n`));
+        } catch (err) {
+          log.warn({ err, meetingId }, "Failed to enqueue SSE message");
+        }
       });
 
       // Send initial connected event
@@ -50,9 +85,19 @@ export const GET = withHandler(async (req: NextRequest, context) => {
 
       // Cleanup on client disconnect
       req.signal.addEventListener("abort", () => {
-        sub.unsubscribe(`copilot:${meetingId}`);
-        sub.quit();
-        controller.close();
+        try {
+          sub.unsubscribe(`copilot:${meetingId}`);
+        } catch (err) {
+          log.warn({ err, meetingId }, "Failed to unsubscribe from copilot channel");
+        }
+        try {
+          sub.quit();
+        } catch (err) {
+          log.warn({ err, meetingId }, "Failed to quit Redis subscriber");
+        }
+        try {
+          controller.close();
+        } catch { /* controller may already be closed */ }
       });
     },
   });

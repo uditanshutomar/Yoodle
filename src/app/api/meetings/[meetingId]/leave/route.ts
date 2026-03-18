@@ -13,6 +13,7 @@ import DirectMessage from "@/lib/infra/db/models/direct-message";
 import { getRedisClient } from "@/lib/infra/redis/client";
 import { updateEvent } from "@/lib/google/calendar";
 import { createLogger } from "@/lib/infra/logger";
+import { buildMeetingFilter } from "@/lib/meetings/helpers";
 
 const log = createLogger("meetings:leave");
 
@@ -29,17 +30,6 @@ interface MeetingMom {
 interface MeetingWithMom {
   title?: string;
   mom?: MeetingMom;
-}
-
-// ── Helpers ─────────────────────────────────────────────────────────
-
-const MEETING_CODE_REGEX = /^yoo-[a-z0-9]{3}-[a-z0-9]{3}$/;
-
-function buildMeetingFilter(meetingId: string): Record<string, unknown> {
-  if (mongoose.Types.ObjectId.isValid(meetingId) && !MEETING_CODE_REGEX.test(meetingId)) {
-    return { _id: new mongoose.Types.ObjectId(meetingId) };
-  }
-  return { code: meetingId.toLowerCase() };
 }
 
 // ── Validation ──────────────────────────────────────────────────────
@@ -114,7 +104,7 @@ export const POST = withHandler(async (req: NextRequest, context) => {
 
     // End the meeting and mark any remaining non-"left" participants
     // (e.g. participants who crashed and never called /leave) as "left"
-    await Meeting.updateOne(
+    const endResult = await Meeting.updateOne(
       { _id: result._id, status: { $nin: ["ended", "cancelled"] } },
       {
         $set: {
@@ -129,9 +119,15 @@ export const POST = withHandler(async (req: NextRequest, context) => {
       },
     );
 
+    // Only run post-meeting cascade if we actually ended the meeting
+    // (another request may have ended it concurrently)
+    const hostIdStr = result.hostId.toString();
+    if (endResult.modifiedCount === 0) {
+      log.info({ meetingId: result._id.toString() }, "meeting already ended by another request, skipping cascade");
+    } else {
+
     // Sync calendar event to actual meeting duration (rounded to 15-min slots)
     // Use host's OAuth token since they own the calendar event
-    const hostIdStr = result.hostId.toString();
     if (result.calendarEventId) {
       try {
         const startTime = result.startedAt || result.scheduledAt || result.createdAt;
@@ -185,7 +181,7 @@ export const POST = withHandler(async (req: NextRequest, context) => {
         try {
           const redis = getRedisClient();
           await redis.publish(`chat:${convId}`, JSON.stringify({ type: "message", message: endMsg }));
-        } catch { /* Redis optional */ }
+        } catch (err) { log.warn({ err }, "Redis publish failed"); }
       } catch (err) {
         log.warn({ err, meetingId: result._id }, "failed to post meeting-ended message");
       }
@@ -235,7 +231,7 @@ export const POST = withHandler(async (req: NextRequest, context) => {
           try {
             const redis = getRedisClient();
             await redis.publish(`chat:${convId}`, JSON.stringify({ type: "message", message: momMsg }));
-          } catch { /* Redis optional */ }
+          } catch (err) { log.warn({ err }, "Redis publish failed"); }
         }
       } catch (err) {
         log.warn({ err, meetingId: result._id }, "failed to post MoM to conversation");
@@ -295,7 +291,7 @@ export const POST = withHandler(async (req: NextRequest, context) => {
           try {
             const redis = getRedisClient();
             await redis.publish(`chat:${convId}`, JSON.stringify({ type: "message", message: proposalMsg }));
-          } catch { /* Redis optional */ }
+          } catch (err) { log.warn({ err }, "Redis publish failed"); }
         }
       } catch (err) {
         log.warn({ err, meetingId: result._id }, "failed to extract action items from meeting");
@@ -323,7 +319,9 @@ export const POST = withHandler(async (req: NextRequest, context) => {
       } catch (err) {
         log.warn({ err, meetingId: result._id }, "failed to update calendar event with MoM");
       }
-    })();
+    })().catch((err) => log.error({ err, meetingId: result._id?.toString() }, "Unhandled error in post-meeting cascade"));
+
+    } // end if (endResult.modifiedCount > 0)
   } else if (isHost && remainingParticipants.length > 0) {
     // Host left but others remain — transfer host to the earliest-joined participant
     const newHost = remainingParticipants.sort(
@@ -333,7 +331,15 @@ export const POST = withHandler(async (req: NextRequest, context) => {
     if (newHost) {
       await Meeting.updateOne(
         { _id: result._id },
-        { $set: { hostId: newHost.userId } },
+        {
+          $set: {
+            hostId: newHost.userId,
+            "participants.$[newHostFilter].role": "host",
+          },
+        },
+        {
+          arrayFilters: [{ "newHostFilter.userId": newHost.userId }],
+        },
       );
 
       log.info(
@@ -346,7 +352,8 @@ export const POST = withHandler(async (req: NextRequest, context) => {
   // Fetch final state with populated fields
   const populated = await Meeting.findById(result._id)
     .populate("hostId", "name email displayName avatarUrl")
-    .populate("participants.userId", "name email displayName avatarUrl");
+    .populate("participants.userId", "name email displayName avatarUrl")
+    .lean();
 
   return successResponse({ meeting: populated });
 });

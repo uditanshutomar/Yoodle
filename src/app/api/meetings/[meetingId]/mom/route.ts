@@ -12,31 +12,9 @@ import "@/lib/infra/db/models/user";
 import Conversation from "@/lib/infra/db/models/conversation";
 import DirectMessage from "@/lib/infra/db/models/direct-message";
 import { createLogger } from "@/lib/infra/logger";
+import { buildMeetingFilter, isHostOrParticipant } from "@/lib/meetings/helpers";
 
 const log = createLogger("api:mom");
-
-// ── Helpers ─────────────────────────────────────────────────────────
-
-const MEETING_CODE_REGEX = /^yoo-[a-z0-9]{3}-[a-z0-9]{3}$/;
-
-function buildMeetingFilter(meetingId: string): Record<string, unknown> {
-  if (
-    mongoose.Types.ObjectId.isValid(meetingId) &&
-    !MEETING_CODE_REGEX.test(meetingId)
-  ) {
-    return { _id: new mongoose.Types.ObjectId(meetingId) };
-  }
-  return { code: meetingId.toLowerCase() };
-}
-
-/** Check if a user is the host or a participant of a meeting */
-function isHostOrParticipant(
-  meeting: { hostId: mongoose.Types.ObjectId; participants: { userId: mongoose.Types.ObjectId }[] },
-  userId: string,
-): boolean {
-  if (meeting.hostId.toString() === userId) return true;
-  return meeting.participants.some((p) => p.userId?.toString() === userId);
-}
 
 // ── MoM generation prompt ───────────────────────────────────────────
 
@@ -117,9 +95,12 @@ export const POST = withHandler(
     }
 
     // Fetch transcript for this meeting
-    const { default: TranscriptModel } = await import(
-      "@/lib/infra/db/models/transcript"
-    ).catch(() => ({ default: null }));
+    let TranscriptModel = null;
+    try {
+      TranscriptModel = (await import("@/lib/infra/db/models/transcript")).default;
+    } catch (importErr) {
+      log.warn({ err: importErr }, "Failed to import transcript model");
+    }
 
     let transcriptText = "";
 
@@ -204,7 +185,8 @@ export const POST = withHandler(
         .replace(/```\s*/g, "")
         .trim();
       mom = JSON.parse(cleaned);
-    } catch {
+    } catch (parseErr) {
+      log.error({ err: parseErr, responseText: responseText.slice(0, 500) }, "Failed to parse Gemini MoM response");
       throw new Error("Failed to parse AI-generated MoM. Please try again.");
     }
 
@@ -274,7 +256,7 @@ export const POST = withHandler(
           await redis.publish(
             `chat:${conversation._id}`,
             JSON.stringify({ type: "message", data: msg }),
-          ).catch(() => {});
+          ).catch((err) => log.warn({ err }, "Redis publish failed"));
         }
 
         log.info(
@@ -284,7 +266,7 @@ export const POST = withHandler(
       } catch (err) {
         log.warn({ err }, "failed to post MoM task suggestions to chat");
       }
-    })();
+    })().catch((err) => log.error({ err, meetingId: meeting._id?.toString() }, "Unhandled error in post-MoM cascade"));
 
     return successResponse({ mom });
   }

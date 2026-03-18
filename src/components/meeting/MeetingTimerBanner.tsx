@@ -59,6 +59,8 @@ export default function MeetingTimerBanner({
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
         exit={{ opacity: 0, y: -20 }}
+        role="alert"
+        aria-live="assertive"
         className={`
           relative z-30 mx-4 mt-2 flex items-center gap-3 rounded-xl border-2 px-4 py-2.5
           ${isOvertime
@@ -104,6 +106,7 @@ export default function MeetingTimerBanner({
                     key={min}
                     onClick={() => handleExtend(min)}
                     disabled={extending}
+                    aria-label={`Extend meeting by ${min} minutes`}
                     className={`
                       rounded-full border-2 border-[var(--border-strong)] px-2.5 py-0.5 text-xs font-bold
                       shadow-[1px_1px_0_var(--border-strong)] transition-all
@@ -117,6 +120,7 @@ export default function MeetingTimerBanner({
                 ))}
                 <button
                   onClick={() => setShowExtendOptions(false)}
+                  aria-label="Close extend options"
                   className="ml-1 rounded-full p-1 hover:bg-[var(--surface-hover)]"
                 >
                   <X size={12} className="text-[#0A0A0A]/40" />
@@ -139,6 +143,7 @@ export default function MeetingTimerBanner({
         {!showExtendOptions && !extended && (
           <button
             onClick={onDismiss}
+            aria-label="Dismiss timer warning"
             className="rounded-full p-1 hover:bg-black/5"
           >
             <X size={14} className="text-[#0A0A0A]/30" />

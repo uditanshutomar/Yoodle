@@ -9,22 +9,9 @@ import { NotFoundError, BadRequestError } from "@/lib/infra/api/errors";
 import connectDB from "@/lib/infra/db/client";
 import Meeting from "@/lib/infra/db/models/meeting";
 import { createLogger } from "@/lib/infra/logger";
+import { buildMeetingFilter } from "@/lib/meetings/helpers";
 
 const log = createLogger("meetings:transfer-host");
-
-// ── Helpers ─────────────────────────────────────────────────────────
-
-const MEETING_CODE_REGEX = /^yoo-[a-z0-9]{3}-[a-z0-9]{3}$/;
-
-function buildMeetingFilter(meetingId: string): Record<string, unknown> {
-  if (
-    mongoose.Types.ObjectId.isValid(meetingId) &&
-    !MEETING_CODE_REGEX.test(meetingId)
-  ) {
-    return { _id: new mongoose.Types.ObjectId(meetingId) };
-  }
-  return { code: meetingId.toLowerCase() };
-}
 
 // ── Validation ──────────────────────────────────────────────────────
 

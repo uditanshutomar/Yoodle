@@ -111,6 +111,7 @@ export default function PreJoinLobby({
           onClick={handleCopyCode}
           className="inline-flex items-center gap-2 mt-1 px-3 py-1 rounded-lg bg-[#0A0A0A]/5 hover:bg-[#0A0A0A]/10 transition-all cursor-pointer border border-[var(--border-strong)]/10"
           title="Click to copy meeting link"
+          aria-label={codeCopied ? "Meeting link copied" : "Copy meeting link"}
         >
           <span
             className="text-sm text-[#0A0A0A]/60 font-mono tracking-wider"
@@ -125,7 +126,7 @@ export default function PreJoinLobby({
           )}
         </button>
         {codeCopied && (
-          <p className="text-xs text-[#10B981] mt-1" style={{ fontFamily: "var(--font-body)" }}>
+          <p className="text-xs text-[#10B981] mt-1" role="status" aria-live="polite" style={{ fontFamily: "var(--font-body)" }}>
             Link copied! Share it with others
           </p>
         )}
@@ -149,6 +150,7 @@ export default function PreJoinLobby({
             autoPlay
             playsInline
             muted
+            aria-label="Camera preview"
             className="w-full h-full object-cover scale-x-[-1]"
           />
         ) : (
@@ -180,6 +182,8 @@ export default function PreJoinLobby({
       <div className="flex items-center gap-4">
         <button
           onClick={toggleVideo}
+          aria-label={isVideoEnabled ? "Turn off camera" : "Turn on camera"}
+          aria-pressed={isVideoEnabled}
           className={`flex items-center justify-center w-14 h-14 rounded-full border-2 border-[var(--border-strong)] shadow-[3px_3px_0_var(--border-strong)] transition-all cursor-pointer ${
             isVideoEnabled ? "bg-[var(--surface)]" : "bg-[#FF6B6B] text-white"
           }`}
@@ -189,6 +193,8 @@ export default function PreJoinLobby({
 
         <button
           onClick={toggleAudio}
+          aria-label={isAudioEnabled ? "Mute microphone" : "Unmute microphone"}
+          aria-pressed={isAudioEnabled}
           className={`flex items-center justify-center w-14 h-14 rounded-full border-2 border-[var(--border-strong)] shadow-[3px_3px_0_var(--border-strong)] transition-all cursor-pointer ${
             isAudioEnabled ? "bg-[var(--surface)]" : "bg-[#FF6B6B] text-white"
           }`}
@@ -201,10 +207,11 @@ export default function PreJoinLobby({
       <div className="w-full max-w-sm space-y-3">
         {videoDevices.length > 0 && (
           <div>
-            <label className="text-xs font-bold text-[#0A0A0A]/60 mb-1 block" style={{ fontFamily: "var(--font-heading)" }}>
+            <label htmlFor="camera-select" className="text-xs font-bold text-[#0A0A0A]/60 mb-1 block" style={{ fontFamily: "var(--font-heading)" }}>
               Camera
             </label>
             <select
+              id="camera-select"
               value={selectedVideoDevice}
               onChange={(e) => setSelectedVideoDevice(e.target.value)}
               className="w-full rounded-xl border-2 border-[var(--border-strong)]/15 bg-[var(--surface)] py-2 px-3 text-sm focus:border-[var(--border-strong)] focus:outline-none"
@@ -221,10 +228,11 @@ export default function PreJoinLobby({
 
         {audioDevices.length > 0 && (
           <div>
-            <label className="text-xs font-bold text-[#0A0A0A]/60 mb-1 block" style={{ fontFamily: "var(--font-heading)" }}>
+            <label htmlFor="mic-select" className="text-xs font-bold text-[#0A0A0A]/60 mb-1 block" style={{ fontFamily: "var(--font-heading)" }}>
               Microphone
             </label>
             <select
+              id="mic-select"
               value={selectedAudioDevice}
               onChange={(e) => setSelectedAudioDevice(e.target.value)}
               className="w-full rounded-xl border-2 border-[var(--border-strong)]/15 bg-[var(--surface)] py-2 px-3 text-sm focus:border-[var(--border-strong)] focus:outline-none"

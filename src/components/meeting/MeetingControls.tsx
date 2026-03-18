@@ -127,6 +127,9 @@ export default function MeetingControls({
         {showReactions && (
           <motion.div
             className="absolute bottom-full mb-3 z-50 flex gap-2 rounded-2xl bg-[var(--surface)] border-2 border-[var(--border-strong)] shadow-[4px_4px_0_var(--border-strong)] px-3 py-2"
+            role="menu"
+            aria-label="Reactions"
+            onKeyDown={(e) => { if (e.key === "Escape") setShowReactions(false); }}
             initial={{ opacity: 0, y: 10, scale: 0.9 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 10, scale: 0.9 }}
@@ -136,6 +139,8 @@ export default function MeetingControls({
               <motion.button
                 key={emoji}
                 className="text-xl cursor-pointer hover:scale-125 transition-transform p-1"
+                role="menuitem"
+                aria-label={`React with ${emoji}`}
                 whileHover={{ scale: 1.3 }}
                 whileTap={{ scale: 0.8 }}
                 onClick={() => {

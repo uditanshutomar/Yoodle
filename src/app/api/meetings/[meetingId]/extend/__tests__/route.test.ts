@@ -38,12 +38,12 @@ const mockFindOneChain = {
 };
 
 const mockFindOne = vi.fn(() => mockFindOneChain);
-const mockUpdateOne = vi.fn().mockResolvedValue({});
+const mockFindOneAndUpdate = vi.fn().mockResolvedValue(null);
 
 vi.mock("@/lib/infra/db/models/meeting", () => ({
   default: {
     findOne: (...args: unknown[]) => mockFindOne(...args),
-    updateOne: (...args: unknown[]) => mockUpdateOne(...args),
+    findOneAndUpdate: (...args: unknown[]) => mockFindOneAndUpdate(...args),
   },
 }));
 
@@ -86,19 +86,16 @@ describe("POST /api/meetings/[meetingId]/extend", () => {
   });
 
   it("extends meeting duration", async () => {
-    const fakeMeeting = {
+    // findOneAndUpdate succeeds — returns the updated meeting
+    mockFindOneAndUpdate.mockResolvedValueOnce({
       _id: { toString: () => TEST_MEETING_ID },
       hostId: { toString: () => TEST_USER_ID },
       status: "live",
-      scheduledDuration: 30,
+      scheduledDuration: 45,
       calendarEventId: null,
       scheduledAt: new Date(),
       startedAt: new Date(),
       createdAt: new Date(),
-    };
-    // findOne returns a non-lean chain (no .lean() call in this route for the first query)
-    mockFindOne.mockReturnValueOnce({
-      select: vi.fn().mockResolvedValue(fakeMeeting),
     });
 
     const req = createRequest({ additionalMinutes: 15 });
@@ -109,19 +106,19 @@ describe("POST /api/meetings/[meetingId]/extend", () => {
     expect(body.success).toBe(true);
     expect(body.data.meetingId).toBe(TEST_MEETING_ID);
     expect(body.data.scheduledDuration).toBe(45);
-    expect(mockUpdateOne).toHaveBeenCalled();
+    expect(mockFindOneAndUpdate).toHaveBeenCalled();
   });
 
   it("returns 403 for non-host", async () => {
     const otherUserId = "507f1f77bcf86cd799439099";
-    const fakeMeeting = {
+    // findOneAndUpdate returns null (host check failed in filter)
+    mockFindOneAndUpdate.mockResolvedValueOnce(null);
+    // Fallback findOne to diagnose reason
+    mockFindOneChain.lean.mockResolvedValueOnce({
       _id: { toString: () => TEST_MEETING_ID },
       hostId: { toString: () => otherUserId },
       status: "live",
       scheduledDuration: 30,
-    };
-    mockFindOne.mockReturnValueOnce({
-      select: vi.fn().mockResolvedValue(fakeMeeting),
     });
 
     const req = createRequest({ additionalMinutes: 15 });

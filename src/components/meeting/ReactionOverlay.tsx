@@ -46,7 +46,7 @@ export default function ReactionOverlay({ onReactionRef }: ReactionOverlayProps)
   }, [addReaction, onReactionRef]);
 
   return (
-    <div className="fixed inset-0 pointer-events-none z-40 overflow-hidden">
+    <div className="fixed inset-0 pointer-events-none z-40 overflow-hidden" aria-live="polite" role="log" aria-label="Reactions">
       <AnimatePresence>
         {reactions.map((reaction) => (
           <motion.div

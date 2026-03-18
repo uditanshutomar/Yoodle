@@ -10,6 +10,7 @@ import connectDB from "@/lib/infra/db/client";
 import Meeting from "@/lib/infra/db/models/meeting";
 import "@/lib/infra/db/models/user";
 import { waitingSetDenied } from "@/lib/infra/redis/cache";
+import { buildMeetingFilter } from "@/lib/meetings/helpers";
 
 const bodySchema = z.object({
   userId: z.string().min(1).refine(
@@ -32,12 +33,7 @@ export const POST = withHandler(async (req: NextRequest, context) => {
 
   await connectDB();
 
-  const MEETING_CODE_REGEX = /^yoo-[a-z0-9]{3}-[a-z0-9]{3}$/;
-  const filter =
-    mongoose.Types.ObjectId.isValid(meetingId) &&
-    !MEETING_CODE_REGEX.test(meetingId)
-      ? { _id: new mongoose.Types.ObjectId(meetingId) }
-      : { code: meetingId.toLowerCase() };
+  const filter = buildMeetingFilter(meetingId);
 
   const meeting = await Meeting.findOne(filter).select("_id hostId status").lean();
   if (!meeting) throw new NotFoundError("Meeting not found.");

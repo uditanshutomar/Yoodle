@@ -822,8 +822,8 @@ export default function MeetingRoomPage() {
           <div className="hidden sm:block">
             <ConnectionIndicator quality={connectionQuality} rtt={rtt} packetLoss={packetLoss} />
           </div>
-          <div className="flex items-center gap-1.5 rounded-full border border-[var(--border)] px-3 py-1">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-[var(--text-muted)]">
+          <div className="flex items-center gap-1.5 rounded-full border border-[var(--border)] px-3 py-1" aria-label={`${participants.length} participants`}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-[var(--text-muted)]" aria-hidden="true">
               <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M23 21v-2a4 4 0 0 0-3-3.87" /><path d="M16 3.13a4 4 0 0 1 0 7.75" />
             </svg>
             <span className="text-xs font-bold text-[var(--text-secondary)]" style={{ fontFamily: "var(--font-heading)" }}>
@@ -973,6 +973,8 @@ export default function MeetingRoomPage() {
       <AnimatePresence>
         {showMutedWarning && (
           <motion.div
+            role="alert"
+            aria-live="polite"
             className="fixed bottom-28 left-1/2 z-[90] -translate-x-1/2 rounded-xl border-2 border-[var(--border-strong)] bg-[#FFE600] px-4 py-2.5 shadow-[3px_3px_0_var(--border-strong)]"
             initial={{ opacity: 0, y: 20, scale: 0.9 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
@@ -992,6 +994,8 @@ export default function MeetingRoomPage() {
       <AnimatePresence>
         {ghostConverted && (
           <motion.div
+            role="status"
+            aria-live="polite"
             className="fixed top-20 left-1/2 z-[90] -translate-x-1/2 rounded-xl border-2 border-[var(--border-strong)] bg-[#7C3AED] px-5 py-3 shadow-[3px_3px_0_var(--border-strong)]"
             initial={{ opacity: 0, y: -20, scale: 0.9 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}

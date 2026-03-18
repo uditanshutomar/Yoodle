@@ -82,7 +82,7 @@ export default function ReconnectionOverlay({
                 <p className="text-sm text-[#0A0A0A]/60 mb-4">
                   Attempting to restore your connection
                 </p>
-                <div className="flex items-center justify-center gap-1 mb-6">
+                <div className="flex items-center justify-center gap-1 mb-6" aria-hidden="true">
                   {Array.from({ length: maxAttempts }).map((_, i) => (
                     <div
                       key={i}

@@ -10,22 +10,9 @@ import connectDB from "@/lib/infra/db/client";
 import Meeting from "@/lib/infra/db/models/meeting";
 import { updateEvent } from "@/lib/google/calendar";
 import { createLogger } from "@/lib/infra/logger";
+import { buildMeetingFilter } from "@/lib/meetings/helpers";
 
 const log = createLogger("meetings:extend");
-
-// ── Helpers ─────────────────────────────────────────────────────────
-
-const MEETING_CODE_REGEX = /^yoo-[a-z0-9]{3}-[a-z0-9]{3}$/;
-
-function buildMeetingFilter(meetingId: string): Record<string, unknown> {
-  if (
-    mongoose.Types.ObjectId.isValid(meetingId) &&
-    !MEETING_CODE_REGEX.test(meetingId)
-  ) {
-    return { _id: new mongoose.Types.ObjectId(meetingId) };
-  }
-  return { code: meetingId.toLowerCase() };
-}
 
 /** Round minutes to nearest 15-min slot (minimum 15) */
 function roundTo15(minutes: number): number {
@@ -54,33 +41,40 @@ export const POST = withHandler(async (req: NextRequest, context) => {
   await connectDB();
 
   const filter = buildMeetingFilter(meetingId);
+  const roundedMinutes = roundTo15(body.additionalMinutes);
 
-  // Validate access and status before attempting the atomic update
-  const meeting = await Meeting.findOne(filter)
-    .select("hostId status scheduledDuration calendarEventId scheduledAt startedAt createdAt");
+  // Atomic extend: merge authorization (host check) into the update filter,
+  // use $inc to avoid read-then-write race, and $expr to enforce 480-min cap.
+  const meeting = await Meeting.findOneAndUpdate(
+    {
+      ...filter,
+      hostId: new mongoose.Types.ObjectId(userId),
+      status: "live",
+      $expr: {
+        $lte: [
+          { $add: [{ $ifNull: ["$scheduledDuration", 15] }, roundedMinutes] },
+          480,
+        ],
+      },
+    },
+    { $inc: { scheduledDuration: roundedMinutes } },
+    { new: true, projection: { _id: 1, scheduledDuration: 1, calendarEventId: 1, scheduledAt: 1, startedAt: 1, createdAt: 1, hostId: 1, status: 1 } },
+  );
 
-  if (!meeting) throw new NotFoundError("Meeting not found.");
-  if (meeting.hostId.toString() !== userId) {
-    throw new ForbiddenError("Only the meeting host can extend the meeting.");
-  }
-  if (meeting.status !== "live") {
-    throw new BadRequestError("Can only extend a live meeting.");
-  }
-
-  // Calculate new duration (cap at 8 hours / 480 min)
-  const oldDuration = meeting.scheduledDuration || 15;
-  const newDuration = Math.min(480, roundTo15(oldDuration + body.additionalMinutes));
-
-  if (newDuration <= oldDuration) {
+  if (!meeting) {
+    // Determine the reason for failure
+    const existing = await Meeting.findOne(filter).select("hostId status scheduledDuration").lean();
+    if (!existing) throw new NotFoundError("Meeting not found.");
+    if (existing.hostId.toString() !== userId) {
+      throw new ForbiddenError("Only the meeting host can extend the meeting.");
+    }
+    if (existing.status !== "live") {
+      throw new BadRequestError("Can only extend a live meeting.");
+    }
     throw new BadRequestError("Meeting is already at maximum duration (8 hours).");
   }
 
-  // Atomic update — prevents concurrent extend requests from overwriting
-  // each other's duration changes
-  await Meeting.updateOne(
-    { _id: meeting._id, status: "live" },
-    { $set: { scheduledDuration: newDuration } },
-  );
+  const newDuration = meeting.scheduledDuration ?? roundedMinutes;
 
   // Update Google Calendar event if linked
   let calendarUpdated = false;

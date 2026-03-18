@@ -25,12 +25,21 @@ export default function ChatPanel({ isOpen, onClose, messages, onSendMessage, cu
     const [message, setMessage] = useState("");
     const [voiceInterim, setVoiceInterim] = useState("");
     const scrollRef = useRef<HTMLDivElement>(null);
+    const inputRef = useRef<HTMLInputElement>(null);
 
     useEffect(() => {
         if (scrollRef.current) {
             scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
         }
     }, [messages, isOpen]);
+
+    useEffect(() => {
+        if (isOpen) {
+            // Small delay to allow the panel animation to start
+            const t = setTimeout(() => inputRef.current?.focus(), 100);
+            return () => clearTimeout(t);
+        }
+    }, [isOpen]);
 
     const handleSend = () => {
         if (!message.trim()) return;
@@ -127,11 +136,13 @@ export default function ChatPanel({ isOpen, onClose, messages, onSendMessage, cu
                     <div className="border-t-2 border-[var(--border-strong)] px-4 py-3">
                         <div className="flex items-center gap-2 rounded-full border-2 border-[var(--border-strong)] bg-[var(--surface)] px-3 py-1.5 shadow-[3px_3px_0_var(--border-strong)]">
                             <input
+                                ref={inputRef}
                                 type="text"
                                 value={message}
                                 onChange={(e) => setMessage(e.target.value)}
                                 onKeyDown={(e) => e.key === "Enter" && handleSend()}
                                 placeholder="Type a message..."
+                                aria-label="Type a chat message"
                                 className="flex-1 bg-transparent text-sm text-[#0A0A0A] outline-none placeholder:text-[#0A0A0A]/30"
                                 style={{ fontFamily: "var(--font-body)" }}
                             />

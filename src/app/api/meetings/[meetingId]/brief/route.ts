@@ -37,6 +37,8 @@ export const POST = withHandler(async (req: NextRequest, context) => {
   const userId = await getUserIdFromRequest(req);
   const { meetingId } = await context!.params;
 
+  await connectDB();
+
   const { executeWorkspaceTool } = await import("@/lib/ai/tools");
   const result = await executeWorkspaceTool(userId, "prepare_meeting_brief", {
     meetingId,

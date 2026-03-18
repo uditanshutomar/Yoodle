@@ -83,6 +83,7 @@ export default function ScreenShareView({
                             whileHover={{ scale: 1.05 }}
                             whileTap={{ scale: 0.95 }}
                             onClick={onStopSharing}
+                            aria-label="Stop screen sharing"
                             className="ml-1 rounded-full border-2 border-[var(--border-strong)] bg-[#FF6B6B] px-3 py-0.5 text-[11px] font-bold text-white shadow-[2px_2px_0_var(--border-strong)] hover:shadow-[1px_1px_0_var(--border-strong)] hover:translate-x-[1px] hover:translate-y-[1px] transition-all"
                             style={{ fontFamily: "var(--font-heading)" }}
                         >
@@ -97,6 +98,7 @@ export default function ScreenShareView({
                         ref={screenVideoRef}
                         autoPlay
                         playsInline
+                        aria-label={`Screen shared by ${presenter?.name || "someone"}`}
                         className="absolute inset-0 h-full w-full object-contain bg-black"
                     />
                 ) : (
@@ -219,6 +221,8 @@ export default function ScreenShareView({
                     }`}
                 style={{ fontFamily: "var(--font-heading)" }}
                 title={showParticipants ? "Hide participants" : "Show participants"}
+                aria-label={showParticipants ? "Hide participants" : "Show participants"}
+                aria-expanded={showParticipants}
             >
                 {showParticipants ? (
                     <>

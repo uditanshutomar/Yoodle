@@ -54,7 +54,9 @@ vi.mock("@/lib/google/calendar", () => ({
 const mockFindOneAndUpdate = vi.fn().mockResolvedValue(null);
 const mockFindById = vi.fn().mockReturnValue({
   populate: vi.fn().mockReturnValue({
-    populate: vi.fn().mockResolvedValue(null),
+    populate: vi.fn().mockReturnValue({
+      lean: vi.fn().mockResolvedValue(null),
+    }),
   }),
 });
 const mockUpdateOne = vi.fn().mockResolvedValue({});
@@ -133,7 +135,9 @@ describe("POST /api/meetings/[meetingId]/leave", () => {
     };
     mockFindById.mockReturnValueOnce({
       populate: vi.fn().mockReturnValue({
-        populate: vi.fn().mockResolvedValue(populatedMeeting),
+        populate: vi.fn().mockReturnValue({
+          lean: vi.fn().mockResolvedValue(populatedMeeting),
+        }),
       }),
     });
 

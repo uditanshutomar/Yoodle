@@ -14,6 +14,7 @@ import Conversation from "@/lib/infra/db/models/conversation";
 import DirectMessage from "@/lib/infra/db/models/direct-message";
 import { getRedisClient } from "@/lib/infra/redis/client";
 import { createLogger } from "@/lib/infra/logger";
+import { buildMeetingFilter } from "@/lib/meetings/helpers";
 
 const chatLog = createLogger("meetings:chat-link");
 
@@ -70,22 +71,11 @@ async function ensureMeetingConversation(meetingId: string, meeting: any) {
       try {
         const redis = getRedisClient();
         await redis.publish(`chat:${conv._id}`, JSON.stringify({ type: "message", message: msg }));
-      } catch { /* Redis optional */ }
+      } catch (err) { chatLog.warn({ err }, "Redis publish failed"); }
     }
   } catch (err) {
     chatLog.warn({ err, meetingId }, "failed to create meeting conversation");
   }
-}
-
-// ── Helpers ─────────────────────────────────────────────────────────
-
-const MEETING_CODE_REGEX = /^yoo-[a-z0-9]{3}-[a-z0-9]{3}$/;
-
-function buildMeetingFilter(meetingId: string): Record<string, unknown> {
-  if (mongoose.Types.ObjectId.isValid(meetingId) && !MEETING_CODE_REGEX.test(meetingId)) {
-    return { _id: new mongoose.Types.ObjectId(meetingId) };
-  }
-  return { code: meetingId.toLowerCase() };
 }
 
 function getHostUserId(meeting: { hostId: unknown }): string {
@@ -196,7 +186,7 @@ export const POST = withHandler(async (req: NextRequest, context) => {
 
   if (alreadyJoined) {
     // Fire-and-forget: ensure meeting conversation exists
-    ensureMeetingConversation(alreadyJoined._id.toString(), alreadyJoined).catch(() => {});
+    ensureMeetingConversation(alreadyJoined._id.toString(), alreadyJoined).catch((err) => chatLog.warn({ err }, "ensureMeetingConversation failed"));
 
     return successResponse({
       meeting: alreadyJoined,
@@ -284,14 +274,15 @@ export const POST = withHandler(async (req: NextRequest, context) => {
 
     const updated = await Meeting.findById(rejoined._id)
       .populate("hostId", "name email displayName avatarUrl")
-      .populate("participants.userId", "name email displayName avatarUrl");
+      .populate("participants.userId", "name email displayName avatarUrl")
+      .lean();
 
     if (!updated) {
       throw new NotFoundError("Meeting not found after rejoin.");
     }
 
     // Fire-and-forget: ensure meeting conversation exists
-    ensureMeetingConversation(updated._id.toString(), updated).catch(() => {});
+    ensureMeetingConversation(updated._id.toString(), updated).catch((err) => chatLog.warn({ err }, "ensureMeetingConversation failed"));
 
     return successResponse({
       meeting: updated,
@@ -367,14 +358,15 @@ export const POST = withHandler(async (req: NextRequest, context) => {
 
   const populated = await Meeting.findById(joined._id)
     .populate("hostId", "name email displayName avatarUrl")
-    .populate("participants.userId", "name email displayName avatarUrl");
+    .populate("participants.userId", "name email displayName avatarUrl")
+    .lean();
 
   if (!populated) {
     throw new NotFoundError("Meeting not found after join.");
   }
 
   // Fire-and-forget: ensure meeting conversation exists
-  ensureMeetingConversation(populated._id.toString(), populated).catch(() => {});
+  ensureMeetingConversation(populated._id.toString(), populated).catch((err) => chatLog.warn({ err }, "ensureMeetingConversation failed"));
 
   return successResponse({
     meeting: populated,

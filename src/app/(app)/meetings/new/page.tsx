@@ -258,6 +258,7 @@ export default function NewMeetingPage() {
                 onClick={copyMeetingCode}
                 className="p-2 rounded-lg bg-[var(--surface)] border-2 border-[var(--border)] hover:border-[var(--border-strong)] transition-all cursor-pointer"
                 title="Copy code"
+                aria-label="Copy meeting code"
               >
                 {copied ? <Check size={16} className="text-[#10B981]" /> : <Copy size={16} className="text-[var(--text-secondary)]" />}
               </button>
@@ -345,6 +346,8 @@ export default function NewMeetingPage() {
               <div className="relative">
                 <button
                   type="button"
+                  aria-haspopup="listbox"
+                  aria-expanded={templateDropdownOpen}
                   onClick={() => setTemplateDropdownOpen((o) => !o)}
                   className={`w-full flex items-center justify-between rounded-xl border-2 bg-[var(--surface)] py-2.5 px-4 text-sm transition-all cursor-pointer ${
                     selectedTemplate
@@ -365,6 +368,7 @@ export default function NewMeetingPage() {
                     {selectedTemplate && (
                       <button
                         type="button"
+                        aria-label="Clear template selection"
                         onClick={(e) => { e.stopPropagation(); applyTemplate(null); }}
                         className="p-0.5 rounded hover:bg-[var(--surface-hover)] transition-colors"
                       >
@@ -381,12 +385,16 @@ export default function NewMeetingPage() {
                       initial={{ opacity: 0, y: -4 }}
                       animate={{ opacity: 1, y: 0 }}
                       exit={{ opacity: 0, y: -4 }}
+                      role="listbox"
+                      aria-label="Meeting templates"
                       className="absolute z-20 mt-1 w-full rounded-xl border-2 border-[var(--border)] bg-[var(--surface)] shadow-lg overflow-hidden"
                     >
                       {templates.map((t) => (
                         <button
                           key={t._id}
                           type="button"
+                          role="option"
+                          aria-selected={selectedTemplate?._id === t._id}
                           onClick={() => applyTemplate(t)}
                           className={`w-full text-left px-4 py-3 hover:bg-[#FFE600]/10 transition-colors border-b border-[var(--border)] last:border-b-0 cursor-pointer ${
                             selectedTemplate?._id === t._id ? "bg-[#FFE600]/10" : ""
@@ -449,6 +457,7 @@ export default function NewMeetingPage() {
               <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} className="mt-3">
                 <input
                   type="datetime-local"
+                  aria-label="Schedule date and time"
                   value={scheduledAt}
                   onChange={(e) => setScheduledAt(e.target.value)}
                   className="w-full rounded-xl border-2 border-[var(--border)] bg-[var(--surface)] py-2.5 px-4 text-sm text-[var(--text-primary)] focus:border-[var(--border-strong)] focus:outline-none"
@@ -478,6 +487,8 @@ export default function NewMeetingPage() {
               </span>
               <button
                 type="button"
+                role="switch"
+                aria-checked={settings[key as keyof typeof settings]}
                 onClick={() => setSettings((s) => ({ ...s, [key]: !s[key as keyof typeof s] }))}
                 className={`w-11 h-6 rounded-full transition-all cursor-pointer ${
                   settings[key as keyof typeof settings] ? "bg-[#FFE600]" : "bg-[var(--border)]"

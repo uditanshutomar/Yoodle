@@ -4,6 +4,7 @@ import { successResponse, errorResponse } from "@/lib/infra/api/response";
 import { checkRateLimit } from "@/lib/infra/api/rate-limit";
 import { getUserIdFromRequest } from "@/lib/infra/auth/middleware";
 import connectDB from "@/lib/infra/db/client";
+import { buildMeetingFilter } from "@/lib/meetings/helpers";
 
 // ── GET /api/meetings/:meetingId/analytics ──────────────────────────
 
@@ -20,8 +21,9 @@ export const GET = withHandler(async (req: NextRequest, context) => {
 
   // Verify the user is a participant or host of the meeting
   const Meeting = (await import("@/lib/infra/db/models/meeting")).default;
+  const filter = buildMeetingFilter(meetingId);
   const meeting = await Meeting.findOne({
-    _id: meetingId,
+    ...filter,
     $or: [
       { hostId: userId },
       { "participants.userId": userId },

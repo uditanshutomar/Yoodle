@@ -93,6 +93,7 @@ export default function ParticipantBubble({
                         autoPlay
                         playsInline
                         muted={isSelf}
+                        aria-label={`${name}'s video`}
                         className="absolute inset-0 h-full w-full object-cover"
                         style={{ transform: isSelf ? "scaleX(-1)" : undefined }}
                     />
@@ -111,9 +112,12 @@ export default function ParticipantBubble({
                     <motion.div
                         initial={{ scale: 0 }}
                         animate={{ scale: 1 }}
+                        role="img"
+                        aria-label={`${name} is muted`}
                         className="absolute bottom-1 right-1 flex h-6 w-6 items-center justify-center rounded-full border-2 border-[#0A0A0A] bg-[#FF6B6B]"
                     >
                         <svg
+                            aria-hidden="true"
                             width="11"
                             height="11"
                             viewBox="0 0 24 24"
@@ -136,6 +140,8 @@ export default function ParticipantBubble({
                 {isHandRaised && (
                     <motion.div
                         className="absolute top-0 right-0 flex h-7 w-7 items-center justify-center rounded-full border-2 border-[#0A0A0A] bg-[#FFE600] shadow-[2px_2px_0_#0A0A0A] z-10"
+                        role="img"
+                        aria-label={`${name} has raised their hand`}
                         initial={{ scale: 0, y: 10 }}
                         animate={{ scale: 1, y: [0, -3, 0] }}
                         transition={{
@@ -143,7 +149,7 @@ export default function ParticipantBubble({
                             y: { duration: 1, repeat: Infinity, ease: "easeInOut" },
                         }}
                     >
-                        <span className="text-sm leading-none">✋</span>
+                        <span className="text-sm leading-none" aria-hidden="true">✋</span>
                     </motion.div>
                 )}
 
@@ -151,6 +157,8 @@ export default function ParticipantBubble({
                 {isSpeaking && (
                     <motion.div
                         className="absolute bottom-1.5 left-1.5 flex items-end gap-[2px] rounded-full border-2 border-[#0A0A0A] bg-[#FFE600] px-1.5 py-1"
+                        role="status"
+                        aria-label={`${name} is speaking`}
                         initial={{ opacity: 0, scale: 0 }}
                         animate={{ opacity: 1, scale: 1 }}
                     >
