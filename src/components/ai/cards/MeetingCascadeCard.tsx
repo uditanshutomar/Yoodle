@@ -6,7 +6,7 @@ import type { MeetingCascadeCardData } from "./types";
 
 interface Props {
   data: MeetingCascadeCardData;
-  onUndo?: (undoToken: string) => void;
+  onUndo?: (undoToken: string) => void | Promise<void>;
 }
 
 function StatusIcon({ status }: { status: "done" | "skipped" | "error" }) {
@@ -26,12 +26,17 @@ export default function MeetingCascadeCard({ data, onUndo }: Props) {
 
   const doneCount = data.steps.filter((s) => s.status === "done").length;
 
-  const handleUndo = (token: string) => {
+  const handleUndo = async (token: string) => {
+    if (undoing) return; // prevent concurrent undos
     setUndoing(token);
-    onUndo?.(token);
-    // Optimistically mark as undone
-    setUndone((prev) => new Set(prev).add(token));
-    setUndoing(null);
+    try {
+      await onUndo?.(token);
+      setUndone((prev) => new Set(prev).add(token));
+    } catch {
+      // Undo failed — don't mark as undone, revert to actionable state
+    } finally {
+      setUndoing(null);
+    }
   };
 
   return (

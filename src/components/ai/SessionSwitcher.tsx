@@ -25,6 +25,8 @@ export default function SessionSwitcher({ sessions, activeSessionId, onSwitch }:
           <button
             key={session.id}
             onClick={() => onSwitch(session.id)}
+            aria-current={isActive ? "true" : undefined}
+            aria-label={`Switch to session: ${label}`}
             className={`shrink-0 px-2.5 py-1 text-[10px] font-medium rounded-md transition-colors ${
               isActive
                 ? "bg-[#FFE600]/20 text-[#B8A200] border border-[#FFE600]/30"

@@ -5,6 +5,7 @@ import { Sun, Moon, CloudSun } from "lucide-react";
 import Image from "next/image";
 import SuggestionChips from "./SuggestionChips";
 import { useAuth } from "@/hooks/useAuth";
+import { MASCOT_BY_MODE } from "./constants";
 
 function getGreeting(): { text: string; Icon: React.ElementType } {
   const hour = new Date().getHours();
@@ -12,12 +13,6 @@ function getGreeting(): { text: string; Icon: React.ElementType } {
   if (hour < 17) return { text: "Good afternoon", Icon: CloudSun };
   return { text: "Good evening", Icon: Moon };
 }
-
-const MASCOT_BY_MODE: Record<string, string> = {
-  social: "/mascot-social.png",
-  lockin: "/mascot-lockin.png",
-  invisible: "/mascot-invisible.png",
-};
 
 interface SmartEmptyStateProps {
   onSend: (message: string) => void;

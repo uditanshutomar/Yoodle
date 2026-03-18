@@ -2,16 +2,17 @@
 
 import { CheckSquare, Calendar, AlertCircle, ArrowUpRight } from "lucide-react";
 import { motion } from "framer-motion";
-import type { TaskCardData } from "./types";
+import Link from "next/link";
+import type { TaskCardData, TaskPriority, TaskStatus } from "./types";
 
-const PRIORITY_COLORS: Record<string, string> = {
+const PRIORITY_COLORS: Record<TaskPriority, string> = {
   urgent: "bg-red-500/20 text-red-400 border-red-500/30",
   high: "bg-orange-500/20 text-orange-400 border-orange-500/30",
   medium: "bg-yellow-500/20 text-yellow-400 border-yellow-500/30",
   low: "bg-blue-500/20 text-blue-400 border-blue-500/30",
 };
 
-const STATUS_ICONS: Record<string, string> = {
+const STATUS_ICONS: Record<TaskStatus, string> = {
   done: "text-green-500",
   "in-progress": "text-blue-500",
   "in-review": "text-purple-500",
@@ -27,8 +28,8 @@ interface TaskCardProps {
 
 export default function TaskCard({ data, onToggle, compact }: TaskCardProps) {
   const isDone = data.status === "done";
-  const priorityClass = data.priority ? PRIORITY_COLORS[data.priority] || "" : "";
-  const statusClass = STATUS_ICONS[data.status] || "text-[var(--text-muted)]";
+  const priorityClass = data.priority ? PRIORITY_COLORS[data.priority] : "";
+  const statusClass = STATUS_ICONS[data.status];
 
   return (
     <motion.div
@@ -40,6 +41,9 @@ export default function TaskCard({ data, onToggle, compact }: TaskCardProps) {
     >
       <button
         onClick={() => onToggle?.(data.id)}
+        role="checkbox"
+        aria-checked={isDone}
+        aria-label={`Mark "${data.title}" as ${isDone ? "incomplete" : "complete"}`}
         className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-md border-2 transition-colors ${
           isDone
             ? "bg-green-500 border-green-600 text-white"
@@ -88,12 +92,13 @@ export default function TaskCard({ data, onToggle, compact }: TaskCardProps) {
       </div>
 
       {data.boardId && (
-        <button
+        <Link
+          href={`/boards/${data.boardId}?task=${data.id}`}
           className="mt-0.5 shrink-0 text-[var(--text-muted)] hover:text-[#FFE600] transition-colors"
           title="Open in board"
         >
           <ArrowUpRight size={12} />
-        </button>
+        </Link>
       )}
     </motion.div>
   );

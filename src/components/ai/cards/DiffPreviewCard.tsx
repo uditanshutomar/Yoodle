@@ -7,7 +7,7 @@ import type { DiffPreviewCardData } from "./types";
 
 interface DiffPreviewCardProps {
   data: DiffPreviewCardData;
-  onConfirm?: (actionType: string, args: Record<string, unknown>) => void;
+  onConfirm?: (actionType: string, args: Record<string, unknown>) => void | Promise<void>;
   onDeny?: () => void;
 }
 
@@ -17,9 +17,10 @@ export default function DiffPreviewCard({ data, onConfirm, onDeny }: DiffPreview
   const [state, setState] = useState<CardState>("preview");
 
   const handleConfirm = async () => {
+    if (state === "confirming") return; // prevent double-fire
     setState("confirming");
     try {
-      onConfirm?.(data.actionType, data.actionArgs);
+      await onConfirm?.(data.actionType, data.actionArgs);
       setState("confirmed");
     } catch {
       setState("preview");

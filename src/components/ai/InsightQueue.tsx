@@ -45,6 +45,7 @@ export default function InsightQueue({ insights, onAction, onDismiss, onSnooze }
               </p>
               <button
                 onClick={() => onAction(item.prompt)}
+                aria-label={`Ask about: ${item.text}`}
                 className="mt-1 text-[10px] font-semibold text-[#B8A200] hover:text-[#FFE600] transition-colors"
               >
                 Tell me more →
@@ -56,16 +57,18 @@ export default function InsightQueue({ insights, onAction, onDismiss, onSnooze }
                   onClick={() => onSnooze(item.id)}
                   className="p-1 text-[var(--text-muted)] hover:text-[var(--text-secondary)] transition-colors"
                   title="Snooze 2h"
+                  aria-label={`Snooze "${item.text}" for 2 hours`}
                 >
-                  <Clock size={12} />
+                  <Clock size={12} aria-hidden="true" />
                 </button>
               )}
               <button
                 onClick={() => onDismiss(item.id)}
                 className="p-1 text-[var(--text-muted)] hover:text-red-400 transition-colors"
                 title="Dismiss"
+                aria-label={`Dismiss "${item.text}"`}
               >
-                <X size={12} />
+                <X size={12} aria-hidden="true" />
               </button>
             </div>
           </motion.div>

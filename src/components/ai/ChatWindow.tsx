@@ -12,12 +12,7 @@ import SessionSwitcher from "./SessionSwitcher";
 import VoiceInputButton from "@/components/chat/VoiceInputButton";
 import { useAuth } from "@/hooks/useAuth";
 import type { ChatMessage } from "@/hooks/useAIChat";
-
-const MASCOT_BY_MODE: Record<string, string> = {
-  social: "/mascot-social.png",
-  lockin: "/mascot-lockin.png",
-  invisible: "/mascot-invisible.png",
-};
+import { MASCOT_BY_MODE } from "./constants";
 
 interface ChatWindowProps {
   messages: ChatMessage[];
@@ -27,9 +22,13 @@ interface ChatWindowProps {
   onClear: () => void;
   onClose?: () => void;
   onCardAction?: (actionType: string, args: Record<string, unknown>) => void;
+  onConfirmAction?: (actionId: string, actionType: string, args: Record<string, unknown>) => void;
+  onDenyAction?: (actionId: string) => void;
   sessions?: Array<{ id: string; label?: string; createdAt: number }>;
   activeSessionId?: string;
   onSwitchSession?: (id: string) => void;
+  insights?: InsightItem[];
+  onDismissInsight?: (id: string) => void;
 }
 
 export default function ChatWindow({
@@ -40,9 +39,13 @@ export default function ChatWindow({
   onClear,
   onClose,
   onCardAction,
+  onConfirmAction,
+  onDenyAction,
   sessions,
   activeSessionId,
   onSwitchSession,
+  insights = [],
+  onDismissInsight,
 }: ChatWindowProps) {
   const { user } = useAuth();
   const mascotSrc = MASCOT_BY_MODE[user?.mode || "social"] || MASCOT_BY_MODE.social;
@@ -65,8 +68,7 @@ export default function ChatWindow({
     setVoiceInterim("");
   };
 
-  const [insights, setInsights] = useState<InsightItem[]>([]);
-  const handleInsightDismiss = (id: string) => setInsights((prev) => prev.filter((i) => i.id !== id));
+  const handleInsightDismiss = (id: string) => onDismissInsight?.(id);
   const handleInsightAction = (prompt: string) => onSend(prompt);
 
   return (
@@ -145,6 +147,8 @@ export default function ChatWindow({
             toolCalls={msg.toolCalls}
             cards={msg.cards}
             onCardAction={onCardAction}
+            onConfirmAction={onConfirmAction}
+            onDenyAction={onDenyAction}
           />
         ))}
         <div ref={bottomRef} />

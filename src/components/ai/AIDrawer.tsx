@@ -7,12 +7,7 @@ import ChatWindow from "@/components/ai/ChatWindow";
 import { useAIChat } from "@/hooks/useAIChat";
 import { useAuth } from "@/hooks/useAuth";
 import { useInsightCount } from "@/hooks/useInsightCount";
-
-const MASCOT_BY_MODE: Record<string, string> = {
-  social: "/mascot-social.png",
-  lockin: "/mascot-lockin.png",
-  invisible: "/mascot-invisible.png",
-};
+import { MASCOT_BY_MODE } from "./constants";
 
 interface AIDrawerContextValue {
   isOpen: boolean;

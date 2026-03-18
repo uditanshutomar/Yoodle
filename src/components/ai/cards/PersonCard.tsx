@@ -11,15 +11,17 @@ interface PersonCardProps {
 }
 
 export default function PersonCard({ data, onMessage }: PersonCardProps) {
+  const isSafeAvatar = data.avatar && (data.avatar.startsWith("https://") || data.avatar.startsWith("/"));
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 4 }}
       animate={{ opacity: 1, y: 0 }}
       className="flex items-center gap-2.5 rounded-xl border border-[var(--border-default)] bg-[var(--surface-elevated)] px-3 py-2.5"
     >
-      {data.avatar ? (
+      {isSafeAvatar ? (
         <Image
-          src={data.avatar}
+          src={data.avatar!}
           alt={data.name}
           width={28}
           height={28}

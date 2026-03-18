@@ -1,7 +1,7 @@
 "use client";
 
 import { BarChart3, Star, MessageCircle, AlertTriangle } from "lucide-react";
-import type { MeetingAnalyticsCardData } from "./types";
+import type { MeetingAnalyticsCardData, HighlightType } from "./types";
 
 interface Props {
   data: MeetingAnalyticsCardData;
@@ -19,7 +19,7 @@ function barColor(score: number): string {
   return "bg-red-500";
 }
 
-const HIGHLIGHT_ICON: Record<string, React.ReactNode> = {
+const HIGHLIGHT_ICON: Record<HighlightType, React.ReactNode> = {
   decision: <Star size={12} className="text-yellow-500 shrink-0" />,
   key_point: <Star size={12} className="text-yellow-500 shrink-0" />,
   disagreement: <AlertTriangle size={12} className="text-red-400 shrink-0" />,

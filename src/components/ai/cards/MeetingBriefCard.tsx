@@ -8,6 +8,8 @@ interface Props {
 }
 
 export default function MeetingBriefCard({ data }: Props) {
+  const isSafeUrl = data.docUrl && (data.docUrl.startsWith("https://") || data.docUrl.startsWith("http://"));
+
   return (
     <div className="rounded-lg border border-border bg-card p-4 space-y-3">
       {/* Header */}
@@ -21,7 +23,7 @@ export default function MeetingBriefCard({ data }: Props) {
             {data.meetingTitle}
           </h4>
         </div>
-        {data.docUrl && (
+        {isSafeUrl && (
           <a
             href={data.docUrl}
             target="_blank"

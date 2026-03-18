@@ -7,7 +7,7 @@ import type { BatchActionCardData } from "./types";
 
 interface Props {
   data: BatchActionCardData;
-  onConfirm?: (selectedIds: string[], actionType: string, items: BatchActionCardData["items"]) => void;
+  onConfirm?: (selectedIds: string[], actionType: string, items: BatchActionCardData["items"]) => void | Promise<void>;
 }
 
 export default function BatchActionCard({ data, onConfirm }: Props) {
@@ -34,10 +34,14 @@ export default function BatchActionCard({ data, onConfirm }: Props) {
   };
 
   const handleConfirm = async () => {
-    if (selectedIds.size === 0) return;
+    if (selectedIds.size === 0 || isConfirming) return;
     setIsConfirming(true);
-    const selected = data.items.filter((i) => selectedIds.has(i.id));
-    onConfirm?.(Array.from(selectedIds), data.actionType, selected);
+    try {
+      const selected = data.items.filter((i) => selectedIds.has(i.id));
+      await onConfirm?.(Array.from(selectedIds), data.actionType, selected);
+    } catch {
+      setIsConfirming(false);
+    }
   };
 
   return (

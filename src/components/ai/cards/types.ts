@@ -12,6 +12,10 @@ export type CardType =
   | "meeting_analytics"
   | "meeting_cascade";
 
+export type TaskStatus = "todo" | "in-progress" | "in-review" | "done" | "blocked";
+export type TaskPriority = "urgent" | "high" | "medium" | "low";
+export type HighlightType = "decision" | "key_point" | "disagreement" | "commitment";
+
 export interface BaseCard {
   type: CardType;
 }
@@ -20,8 +24,8 @@ export interface TaskCardData extends BaseCard {
   type: "task";
   id: string;
   title: string;
-  status: string;
-  priority?: string;
+  status: TaskStatus;
+  priority?: TaskPriority;
   dueDate?: string;
   assignee?: { id: string; name: string; avatar?: string };
   boardId?: string;
@@ -115,7 +119,7 @@ export interface MeetingAnalyticsCardData extends BaseCard {
   score: number;
   scoreBreakdown: { agendaCoverage: number; decisionDensity: number; actionItemClarity: number; participationBalance: number };
   speakerStats: Array<{ name: string; talkTimePercent: number; sentimentAvg: number }>;
-  highlights: Array<{ type: string; text: string }>;
+  highlights: Array<{ type: HighlightType; text: string }>;
 }
 
 export interface MeetingCascadeCardData extends BaseCard {

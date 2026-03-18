@@ -7,7 +7,7 @@ import type { DraftCardData } from "./types";
 
 interface DraftCardProps {
   data: DraftCardData;
-  onSend?: (actionType: string, args: Record<string, unknown>) => void;
+  onSend?: (actionType: string, args: Record<string, unknown>) => void | Promise<void>;
   onPolish?: (content: string) => void;
 }
 
@@ -20,9 +20,10 @@ export default function DraftCard({ data, onSend, onPolish }: DraftCardProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const handleSend = async () => {
+    if (state === "sending") return; // prevent double-fire
     setState("sending");
     try {
-      onSend?.(data.actionType, { ...data.actionArgs, content });
+      await onSend?.(data.actionType, { ...data.actionArgs, content });
       setState("sent");
     } catch {
       setState("editing");
@@ -34,9 +35,13 @@ export default function DraftCard({ data, onSend, onPolish }: DraftCardProps) {
   };
 
   const handleCopy = async () => {
-    await navigator.clipboard.writeText(content);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 1500);
+    try {
+      await navigator.clipboard.writeText(content);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch {
+      // clipboard API may fail in insecure contexts — silent fallback
+    }
   };
 
   const handleDiscard = () => {

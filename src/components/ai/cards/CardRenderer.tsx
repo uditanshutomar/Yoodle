@@ -87,8 +87,11 @@ export default function CardRenderer({ cards, onAction }: CardRendererProps) {
                 onUndo={(token) => onAction?.("undo_cascade_action", { undoToken: token })}
               />
             );
-          default:
+          default: {
+            const _exhaustive: never = card;
+            console.warn("Unknown card type:", (_exhaustive as CardData).type);
             return null;
+          }
         }
       })}
     </div>
