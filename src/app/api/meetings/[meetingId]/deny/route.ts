@@ -5,7 +5,7 @@ import { withHandler } from "@/lib/infra/api/with-handler";
 import { successResponse } from "@/lib/infra/api/response";
 import { checkRateLimit } from "@/lib/infra/api/rate-limit";
 import { getUserIdFromRequest } from "@/lib/infra/auth/middleware";
-import { BadRequestError, ForbiddenError, NotFoundError } from "@/lib/infra/api/errors";
+import { AppError, BadRequestError, ForbiddenError, NotFoundError } from "@/lib/infra/api/errors";
 import connectDB from "@/lib/infra/db/client";
 import Meeting from "@/lib/infra/db/models/meeting";
 import "@/lib/infra/db/models/user";
@@ -52,7 +52,11 @@ export const POST = withHandler(async (req: NextRequest, context) => {
   }
 
   const roomId = meeting._id.toString();
-  await waitingSetDenied(roomId, targetUserId);
+  const denied = await waitingSetDenied(roomId, targetUserId);
+
+  if (!denied) {
+    throw new AppError("Failed to deny user — please try again.", "REDIS_ERROR", 503);
+  }
 
   return successResponse({ denied: true });
 });

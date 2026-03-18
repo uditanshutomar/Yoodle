@@ -27,7 +27,7 @@ vi.mock("@/lib/infra/api/rate-limit", () => ({
 
 vi.mock("@/lib/infra/redis/cache", () => ({
   waitingConsumeAdmission: vi.fn(),
-  waitingAddToQueue: vi.fn().mockResolvedValue(undefined),
+  waitingAddToQueue: vi.fn().mockResolvedValue(true),
 }));
 
 const userFindById = vi.fn();

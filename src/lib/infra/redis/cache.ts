@@ -22,18 +22,23 @@ const WAITING_TTL = 600;
 
 /**
  * Grant admission: SET the admission key so the join route can consume it.
+ * Uses a pipeline for atomicity — both the SET and queue removal happen together.
+ * Returns true if the operation succeeded, false on Redis failure.
  */
 export async function waitingGrantAdmission(
   roomId: string,
   userId: string,
-): Promise<void> {
+): Promise<boolean> {
   try {
     const client = getRedisClient();
-    await client.set(ADMISSION_KEY(roomId, userId), "1", "EX", WAITING_TTL);
-    // Also remove from queue
-    await client.hdel(QUEUE_KEY(roomId), userId);
+    const pipeline = client.pipeline();
+    pipeline.set(ADMISSION_KEY(roomId, userId), "1", "EX", WAITING_TTL);
+    pipeline.hdel(QUEUE_KEY(roomId), userId);
+    await pipeline.exec();
+    return true;
   } catch (err) {
-    logger.warn({ err, roomId, userId }, "waitingGrantAdmission failed");
+    logger.error({ err, roomId, userId }, "waitingGrantAdmission failed — host thinks user was admitted but Redis write failed");
+    return false;
   }
 }
 
@@ -60,28 +65,35 @@ export async function waitingConsumeAdmission(
 
 /**
  * Deny a user from the waiting room.
+ * Uses a pipeline for atomicity. Returns true on success, false on Redis failure.
  */
 export async function waitingSetDenied(
   roomId: string,
   userId: string,
-): Promise<void> {
+): Promise<boolean> {
   try {
     const client = getRedisClient();
-    await client.set(DENIAL_KEY(roomId, userId), "1", "EX", WAITING_TTL);
-    await client.hdel(QUEUE_KEY(roomId), userId);
+    const pipeline = client.pipeline();
+    pipeline.set(DENIAL_KEY(roomId, userId), "1", "EX", WAITING_TTL);
+    pipeline.hdel(QUEUE_KEY(roomId), userId);
+    await pipeline.exec();
+    return true;
   } catch (err) {
-    logger.warn({ err, roomId, userId }, "waitingSetDenied failed");
+    logger.error({ err, roomId, userId }, "waitingSetDenied failed — host thinks user was denied but Redis write failed");
+    return false;
   }
 }
 
 /**
  * Check a user's waiting room status.
- * Returns "admitted", "denied", or "waiting".
+ * Returns "admitted", "denied", "waiting", or "unknown" on Redis failure.
+ * Callers MUST handle "unknown" — returning "waiting" on error would hide
+ * a user who was actually admitted or denied.
  */
 export async function waitingCheckStatus(
   roomId: string,
   userId: string,
-): Promise<"admitted" | "denied" | "waiting"> {
+): Promise<"admitted" | "denied" | "waiting" | "unknown"> {
   try {
     const client = getRedisClient();
     const [admitted, denied] = await Promise.all([
@@ -92,19 +104,20 @@ export async function waitingCheckStatus(
     if (denied) return "denied";
     return "waiting";
   } catch (err) {
-    logger.warn({ err, roomId, userId }, "waitingCheckStatus failed");
-    return "waiting";
+    logger.error({ err, roomId, userId }, "waitingCheckStatus failed — cannot determine user status");
+    return "unknown";
   }
 }
 
 /**
  * Add a user to the waiting room queue.
+ * Uses a pipeline for atomicity. Returns true on success, false on Redis failure.
  */
 export async function waitingAddToQueue(
   roomId: string,
   userId: string,
   userInfo: { name: string; displayName: string; avatar?: string | null },
-): Promise<void> {
+): Promise<boolean> {
   try {
     const client = getRedisClient();
     const data = JSON.stringify({
@@ -113,16 +126,22 @@ export async function waitingAddToQueue(
       avatar: userInfo.avatar ?? null,
       joinedWaitingAt: Date.now(),
     });
-    await client.hset(QUEUE_KEY(roomId), userId, data);
+    const pipeline = client.pipeline();
+    pipeline.hset(QUEUE_KEY(roomId), userId, data);
     // Auto-expire the whole queue after 2 hours
-    await client.expire(QUEUE_KEY(roomId), 7200);
+    pipeline.expire(QUEUE_KEY(roomId), 7200);
+    await pipeline.exec();
+    return true;
   } catch (err) {
-    logger.warn({ err, roomId, userId }, "waitingAddToQueue failed");
+    logger.error({ err, roomId, userId }, "waitingAddToQueue failed — user not added to waiting room");
+    return false;
   }
 }
 
 /**
  * Get all users currently in the waiting room queue.
+ * Returns null on Redis failure — callers should distinguish "empty queue"
+ * from "couldn't read queue" to avoid hiding waiting users from the host.
  */
 export async function waitingGetQueue(
   roomId: string,
@@ -133,7 +152,7 @@ export async function waitingGetQueue(
     displayName: string;
     avatar: string | null;
     joinedWaitingAt: number;
-  }>
+  }> | null
 > {
   try {
     const client = getRedisClient();
@@ -149,8 +168,8 @@ export async function waitingGetQueue(
       return { id: uid, ...info };
     });
   } catch (err) {
-    logger.warn({ err, roomId }, "waitingGetQueue failed");
-    return [];
+    logger.error({ err, roomId }, "waitingGetQueue failed — cannot read waiting room");
+    return null;
   }
 }
 

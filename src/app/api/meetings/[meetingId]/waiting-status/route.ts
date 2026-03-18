@@ -3,7 +3,7 @@ import { withHandler } from "@/lib/infra/api/with-handler";
 import { successResponse } from "@/lib/infra/api/response";
 import { getUserIdFromRequest } from "@/lib/infra/auth/middleware";
 import { checkRateLimit } from "@/lib/infra/api/rate-limit";
-import { NotFoundError } from "@/lib/infra/api/errors";
+import { AppError, NotFoundError } from "@/lib/infra/api/errors";
 import connectDB from "@/lib/infra/db/client";
 import Meeting from "@/lib/infra/db/models/meeting";
 import {
@@ -46,6 +46,9 @@ export const GET = withHandler(async (req: NextRequest, context) => {
   const mode = req.nextUrl.searchParams.get("mode");
   if (mode === "check") {
     const status = await waitingCheckStatus(roomId, authenticatedUserId);
+    if (status === "unknown") {
+      throw new AppError("Unable to check waiting room status — please try again.", "REDIS_ERROR", 503);
+    }
     return successResponse({ status });
   }
 
@@ -56,6 +59,9 @@ export const GET = withHandler(async (req: NextRequest, context) => {
       throw new NotFoundError("Meeting not found."); // Don't reveal IDOR attempt
     }
     const status = await waitingCheckStatus(roomId, authenticatedUserId);
+    if (status === "unknown") {
+      throw new AppError("Unable to check waiting room status — please try again.", "REDIS_ERROR", 503);
+    }
     return successResponse({ status });
   }
 
@@ -65,5 +71,8 @@ export const GET = withHandler(async (req: NextRequest, context) => {
     throw new NotFoundError("Meeting not found."); // Only host can see the queue
   }
   const users = await waitingGetQueue(roomId);
+  if (users === null) {
+    throw new AppError("Unable to load waiting room — please try again.", "REDIS_ERROR", 503);
+  }
   return successResponse({ users });
 });

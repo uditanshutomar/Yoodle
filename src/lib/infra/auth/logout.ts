@@ -4,6 +4,9 @@ import { tokenBlacklist } from "@/lib/infra/redis/cache";
 import { successResponse } from "@/lib/infra/api/response";
 import connectDB from "@/lib/infra/db/client";
 import User from "@/lib/infra/db/models/user";
+import { createLogger } from "@/lib/infra/logger";
+
+const log = createLogger("auth:logout");
 
 /**
  * Perform the full logout flow:
@@ -25,8 +28,9 @@ export async function performLogout(req: NextRequest): Promise<NextResponse> {
       const payload = await verifyAccessToken(accessToken);
       userId = payload.userId;
       await tokenBlacklist(accessToken, 15 * 60);
-    } catch {
-      // Token already expired or invalid — no need to blacklist
+    } catch (err) {
+      // Token already expired or invalid — no need to blacklist, but log for audit trail
+      log.warn({ err }, "Could not blacklist access token during logout (expired or invalid)");
     }
   }
 
@@ -36,8 +40,10 @@ export async function performLogout(req: NextRequest): Promise<NextResponse> {
       const payload = await verifyRefreshToken(refreshToken);
       if (!userId) userId = payload.userId;
       await tokenBlacklist(refreshToken, 7 * 24 * 60 * 60);
-    } catch {
-      // Token already expired or invalid
+    } catch (err) {
+      // Token already expired or invalid — log because a failed refresh token
+      // blacklist means the 7-day token could theoretically be reused
+      log.warn({ err }, "Could not blacklist refresh token during logout — token may remain valid");
     }
   }
 
@@ -49,8 +55,9 @@ export async function performLogout(req: NextRequest): Promise<NextResponse> {
         $unset: { refreshTokenHash: 1 },
         $set: { status: "offline" },
       });
-    } catch {
-      // Best-effort — don't fail logout if DB update fails
+    } catch (err) {
+      // Best-effort — don't fail logout, but log the DB failure
+      log.error({ err, userId }, "Failed to clear refresh token hash and set user offline during logout");
     }
   }
 

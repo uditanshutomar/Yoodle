@@ -5,7 +5,7 @@ import { withHandler } from "@/lib/infra/api/with-handler";
 import { successResponse } from "@/lib/infra/api/response";
 import { checkRateLimit } from "@/lib/infra/api/rate-limit";
 import { getUserIdFromRequest } from "@/lib/infra/auth/middleware";
-import { BadRequestError, NotFoundError } from "@/lib/infra/api/errors";
+import { AppError, BadRequestError, NotFoundError } from "@/lib/infra/api/errors";
 import connectDB from "@/lib/infra/db/client";
 import Meeting from "@/lib/infra/db/models/meeting";
 import User from "@/lib/infra/db/models/user"; // also registers schema for .populate("hostId")
@@ -232,7 +232,7 @@ export const POST = withHandler(async (req: NextRequest, context) => {
     const userDoc = await User.findById(userId)
       .select("name displayName avatarUrl")
       .lean();
-    await waitingAddToQueue(
+    const queued = await waitingAddToQueue(
       meetingForAccess._id.toString(),
       userId,
       {
@@ -241,6 +241,10 @@ export const POST = withHandler(async (req: NextRequest, context) => {
         avatar: userDoc?.avatarUrl ?? null,
       },
     );
+
+    if (!queued) {
+      throw new AppError("Unable to join waiting room — please try again.", "REDIS_ERROR", 503);
+    }
 
     return successResponse({
       joinDisposition: "waiting" as const,

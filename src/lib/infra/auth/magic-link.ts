@@ -35,6 +35,22 @@ export async function generateMagicLink(email: string): Promise<string> {
 
   const appUrl =
     process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+
+  // In production, enforce NEXT_PUBLIC_APP_URL is set and uses https —
+  // magic links over HTTP would expose tokens to network eavesdroppers.
+  if (process.env.NODE_ENV === "production") {
+    if (!process.env.NEXT_PUBLIC_APP_URL) {
+      throw new Error(
+        "NEXT_PUBLIC_APP_URL must be set in production for magic link generation.",
+      );
+    }
+    if (!process.env.NEXT_PUBLIC_APP_URL.startsWith("https://")) {
+      throw new Error(
+        "NEXT_PUBLIC_APP_URL must use https:// in production — magic links over HTTP expose tokens.",
+      );
+    }
+  }
+
   const magicLink = `${appUrl}/api/auth/verify?token=${rawToken}&email=${encodeURIComponent(email.toLowerCase().trim())}`;
 
   return magicLink;

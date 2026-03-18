@@ -31,7 +31,7 @@ vi.mock("@/lib/infra/db/models/user", () => ({
   default: {},
 }));
 
-const mockWaitingGrantAdmission = vi.fn().mockResolvedValue(undefined);
+const mockWaitingGrantAdmission = vi.fn().mockResolvedValue(true);
 vi.mock("@/lib/infra/redis/cache", () => ({
   waitingGrantAdmission: (...args: unknown[]) => mockWaitingGrantAdmission(...args),
 }));

@@ -31,7 +31,7 @@ vi.mock("@/lib/infra/db/models/user", () => ({
   default: {},
 }));
 
-const mockWaitingSetDenied = vi.fn().mockResolvedValue(undefined);
+const mockWaitingSetDenied = vi.fn().mockResolvedValue(true);
 vi.mock("@/lib/infra/redis/cache", () => ({
   waitingSetDenied: (...args: unknown[]) => mockWaitingSetDenied(...args),
 }));

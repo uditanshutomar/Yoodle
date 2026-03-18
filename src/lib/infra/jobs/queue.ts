@@ -1,8 +1,12 @@
 import { Queue } from "bullmq";
-import { getRedisClient } from "@/lib/infra/redis/client";
 
 // -- Connection options -------------------------------------------------------
 
+/**
+ * Parse Redis connection config directly from REDIS_URL instead of
+ * reaching into ioredis client internals (which are not part of the
+ * public API and can change between versions).
+ */
 function getConnection(): {
   host: string;
   port: number;
@@ -11,15 +15,18 @@ function getConnection(): {
   maxRetriesPerRequest: null;
   tls?: Record<string, unknown>;
 } {
-  const client = getRedisClient();
-  const useTls = (process.env.REDIS_URL || "").startsWith("rediss://");
+  const redisUrl = process.env.REDIS_URL || "redis://localhost:6379";
+  const useTls = redisUrl.startsWith("rediss://");
+
+  const parsed = new URL(redisUrl);
+
   return {
-    host: client.options.host || "localhost",
-    port: client.options.port || 6379,
-    password: client.options.password,
-    db: client.options.db || 0,
+    host: parsed.hostname || "localhost",
+    port: parsed.port ? parseInt(parsed.port, 10) : 6379,
+    password: parsed.password || undefined,
+    db: parsed.pathname ? parseInt(parsed.pathname.slice(1), 10) || 0 : 0,
     maxRetriesPerRequest: null, // Required by BullMQ
-    ...(useTls ? { tls: {} } : {}), // Forward TLS for Upstash
+    ...(useTls ? { tls: {} } : {}),
   };
 }
 
