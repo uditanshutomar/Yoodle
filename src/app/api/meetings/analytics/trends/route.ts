@@ -24,7 +24,11 @@ export const GET = withHandler(async (req: NextRequest) => {
   const userId = await getUserIdFromRequest(req);
 
   const range = req.nextUrl.searchParams.get("range") || "month";
-  const days = RANGE_TO_DAYS[range] ?? RANGE_TO_DAYS.month;
+  const days = RANGE_TO_DAYS[range];
+  if (!days) {
+    const { BadRequestError } = await import("@/lib/infra/api/errors");
+    throw new BadRequestError(`Invalid range "${range}". Must be one of: week, month, quarter`);
+  }
 
   const since = new Date();
   since.setDate(since.getDate() - days);
@@ -54,6 +58,16 @@ export const GET = withHandler(async (req: NextRequest) => {
       ? Math.round(entries.reduce((sum, e) => sum + (e.duration ?? 0), 0) / totalMeetings)
       : 0;
 
+  // Analyze meeting patterns
+  let patterns: { type: string; message: string; severity: string }[] = [];
+  try {
+    const { analyzeMeetingPatterns } = await import("@/lib/ai/meeting-patterns");
+    patterns = await analyzeMeetingPatterns(userId);
+  } catch {
+    // Pattern analysis is non-critical — return empty array on failure
+    patterns = [];
+  }
+
   return successResponse({
     range,
     totalMeetings,
@@ -61,6 +75,7 @@ export const GET = withHandler(async (req: NextRequest) => {
     totalDecisions,
     totalActionItems,
     avgDuration,
+    patterns,
     entries,
   });
 });
