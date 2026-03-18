@@ -8,6 +8,6 @@ import { setUserOnline } from "@/lib/chat/presence";
 export const POST = withHandler(async (req: NextRequest) => {
   await checkRateLimit(req, "general");
   const userId = await getUserIdFromRequest(req);
-  await setUserOnline(userId);
-  return successResponse({ ok: true });
+  const ok = await setUserOnline(userId);
+  return successResponse({ ok });
 });

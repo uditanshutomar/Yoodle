@@ -5,7 +5,10 @@ import { successResponse } from "@/lib/infra/api/response";
 import { checkRateLimit } from "@/lib/infra/api/rate-limit";
 import { getUserIdFromRequest } from "@/lib/infra/auth/middleware";
 import { BadRequestError, ForbiddenError } from "@/lib/infra/api/errors";
+import { createLogger } from "@/lib/infra/logger";
 import mongoose from "mongoose";
+
+const log = createLogger("api:calendar-events");
 import { listEvents, createEvent, updateEvent, deleteEvent } from "@/lib/google/calendar";
 import { hasGoogleAccess } from "@/lib/google/client";
 import connectDB from "@/lib/infra/db/client";
@@ -121,6 +124,21 @@ export const POST = withHandler(async (req: NextRequest) => {
     const users = await User.find({ _id: { $in: body.attendeeUserIds } })
       .select("email")
       .lean();
+
+    // Log when some user IDs could not be resolved or lack emails
+    const resolvedIds = new Set(users.map((u) => u._id.toString()));
+    const unresolvedIds = body.attendeeUserIds.filter((id) => !resolvedIds.has(id));
+    if (unresolvedIds.length > 0) {
+      log.warn({ unresolvedIds }, "Some attendee user IDs not found in database");
+    }
+    const usersWithoutEmail = users.filter((u) => !u.email);
+    if (usersWithoutEmail.length > 0) {
+      log.warn(
+        { userIds: usersWithoutEmail.map((u) => u._id.toString()) },
+        "Some attendees have no email address — cannot send calendar invite",
+      );
+    }
+
     const userEmails = users
       .map((u) => u.email)
       .filter((e): e is string => Boolean(e));

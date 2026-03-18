@@ -24,7 +24,7 @@ vi.mock("@/lib/infra/auth/middleware", () => ({
   getUserIdFromRequest: (...args: unknown[]) => mockedGetUserId(...args),
 }));
 
-const mockSetUserOnline = vi.fn().mockResolvedValue(undefined);
+const mockSetUserOnline = vi.fn().mockResolvedValue(true);
 vi.mock("@/lib/chat/presence", () => ({
   setUserOnline: (...args: unknown[]) => mockSetUserOnline(...args),
 }));

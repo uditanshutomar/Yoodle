@@ -85,12 +85,15 @@ export const POST = withHandler(async (req: NextRequest) => {
   const maxParticipants = meeting.settings?.maxParticipants || 50;
   const livekitRoomId = meeting._id.toString();
 
+  // Build the client outside try/catch so config errors (missing env vars) propagate
+  // rather than being silently swallowed alongside network errors.
+  const roomService = new RoomServiceClient(
+    getLiveKitUrl(),
+    getLiveKitApiKey(),
+    getLiveKitApiSecret(),
+  );
+
   try {
-    const roomService = new RoomServiceClient(
-      getLiveKitUrl(),
-      getLiveKitApiKey(),
-      getLiveKitApiSecret(),
-    );
     const rooms = await roomService.listRooms([livekitRoomId]);
     if (rooms.length > 0 && rooms[0].numParticipants >= maxParticipants) {
       throw new ForbiddenError(
@@ -100,8 +103,11 @@ export const POST = withHandler(async (req: NextRequest) => {
   } catch (err) {
     // If it's our own ForbiddenError, re-throw
     if (err instanceof ForbiddenError) throw err;
-    // Otherwise LiveKit API is unreachable — allow join (fail open for availability)
-    log.warn({ err }, "LiveKit RoomService check failed, allowing join");
+    // Network error only — log at error level, allow join (fail open for availability)
+    log.error(
+      { err, livekitRoomId, maxParticipants },
+      "LiveKit RoomService unreachable; capacity check skipped",
+    );
   }
 
   // ── Issue token ────────────────────────────────────────────────

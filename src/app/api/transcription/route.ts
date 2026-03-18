@@ -11,6 +11,9 @@ import Meeting from "@/lib/infra/db/models/meeting";
 import User from "@/lib/infra/db/models/user";
 import mongoose from "mongoose";
 import { getSTTProvider } from "@/lib/stt";
+import { createLogger } from "@/lib/infra/logger";
+
+const log = createLogger("api:transcription");
 
 async function verifyMeetingParticipant(userId: string, meetingId: string): Promise<boolean> {
   const meeting = await Meeting.findById(meetingId).select("hostId participants status").lean();
@@ -75,8 +78,14 @@ export const POST = withHandler(async (req: NextRequest) => {
   const provider = await getSTTProvider();
   const audioBuffer = Buffer.from(await audioFile.arrayBuffer());
   const result = await provider.transcribe(audioBuffer);
-  const text = result.text?.trim() || "";
 
+  // Distinguish provider error (undefined/null) from genuine silence (empty string)
+  if (result.text === undefined || result.text === null) {
+    log.warn({ meetingId }, "STT provider returned no text field; possible provider error");
+    return successResponse({ text: "", stored: false });
+  }
+
+  const text = result.text.trim();
   if (!text) {
     return successResponse({ text: "", stored: false });
   }
