@@ -2894,7 +2894,7 @@ export async function executeWorkspaceTool(
         // Get meeting details for transcript matches
         const transcriptMeetingIds = recordings
           .map((r: { meetingId?: { toString(): string } }) => r.meetingId?.toString())
-          .filter(Boolean);
+          .filter((id): id is string => Boolean(id));
         const transcriptMeetings = transcriptMeetingIds.length > 0
           ? await Meeting.find({
               _id: { $in: transcriptMeetingIds },
@@ -2980,7 +2980,7 @@ export async function executeWorkspaceTool(
         }).lean();
 
         const scores = analyticsRecords
-          .map((a: { overallScore?: number }) => a.overallScore)
+          .map((a) => (a as unknown as { meetingScore?: number }).meetingScore)
           .filter((s): s is number => typeof s === "number");
         const avgScore = scores.length > 0 ? Math.round(scores.reduce((a, b) => a + b, 0) / scores.length) : null;
 
@@ -3095,10 +3095,14 @@ export async function executeWorkspaceTool(
         await MeetingBrief.findOneAndUpdate(
           { meetingId: new mongoose.Types.ObjectId(meetingId) },
           {
-            meetingId: new mongoose.Types.ObjectId(meetingId),
-            userId: new mongoose.Types.ObjectId(userId),
-            ...briefData,
-            generatedAt: new Date(),
+            $set: {
+              userId: new mongoose.Types.ObjectId(userId),
+              ...briefData,
+              generatedAt: new Date(),
+            },
+            $setOnInsert: {
+              meetingId: new mongoose.Types.ObjectId(meetingId),
+            },
           },
           { upsert: true, new: true }
         );
@@ -3135,7 +3139,35 @@ export async function executeWorkspaceTool(
         return {
           success: true,
           summary: `Prepared brief for "${meetingDoc.title}": ${relatedTasks.length} related tasks, ${pastMeetings.length} past meetings, ${carryoverItems.length} carryover items${docUrl ? " + doc created" : ""}`,
-          data: { ...briefData, docUrl },
+          data: {
+            card: {
+              type: "meeting_brief" as const,
+              meetingId,
+              meetingTitle: meetingDoc.title,
+              sources: [
+                ...relatedTasks.map((t) => ({
+                  type: "task",
+                  title: t.title,
+                  summary: `Priority: ${t.priority}${t.dueDate ? `, Due: ${t.dueDate}` : ""}`,
+                })),
+                ...pastMeetings.map((m) => ({
+                  type: "meeting",
+                  title: m.title,
+                  summary:
+                    (m as unknown as { mom?: { summary?: string } }).mom
+                      ?.summary || "No summary",
+                })),
+              ],
+              carryoverItems: carryoverItems.map((c) => ({
+                task: c.task,
+                fromMeetingTitle: c.from,
+              })),
+              agendaSuggestions: carryoverItems.map(
+                (c) => `Follow up: ${c.task}`
+              ),
+              ...(docUrl ? { docUrl } : {}),
+            },
+          },
         };
       }
 
@@ -3159,14 +3191,24 @@ export async function executeWorkspaceTool(
         const mom = (meetingDoc as unknown as { mom?: Record<string, unknown> }).mom;
         if (!mom) return { success: false, summary: "This meeting does not have a MoM yet." };
 
-        const presentation = await createMomPresentation(userId, meetingId);
+        const momActions = (mom.actionItems as { task: string; owner?: string; due?: string }[]) || [];
+        const slideData = {
+          title: meetingDoc.title,
+          date: meetingDoc.scheduledAt ? new Date(meetingDoc.scheduledAt).toLocaleDateString() : new Date().toLocaleDateString(),
+          summary: (mom.summary as string) || "No summary available.",
+          keyDecisions: (mom.keyDecisions as string[]) || [],
+          actionItems: momActions.map((a) => ({ task: a.task, owner: a.owner || "Unassigned", due: a.due || "TBD" })),
+          nextSteps: (mom.nextSteps as string[]) || [],
+        };
+
+        const presentation = await createMomPresentation(userId, slideData);
         return {
           success: true,
           summary: `Generated slides for "${meetingDoc.title}"`,
           data: {
             meetingId,
-            presentationUrl: presentation.url,
-            presentationId: presentation.id,
+            presentationUrl: presentation.webViewLink,
+            presentationId: presentation.presentationId,
           },
         };
       }
