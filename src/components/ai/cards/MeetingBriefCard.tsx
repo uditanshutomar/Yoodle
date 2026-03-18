@@ -35,7 +35,7 @@ export default function MeetingBriefCard({ data }: Props) {
       </div>
 
       {/* Sources */}
-      {data.sources.length > 0 && (
+      {(data.sources?.length ?? 0) > 0 && (
         <div className="space-y-1.5">
           <p
             className="text-[10px] font-bold uppercase tracking-wide text-[var(--text-secondary)]"
@@ -62,7 +62,7 @@ export default function MeetingBriefCard({ data }: Props) {
       )}
 
       {/* Carryover Items */}
-      {data.carryoverItems.length > 0 && (
+      {(data.carryoverItems?.length ?? 0) > 0 && (
         <div className="space-y-1">
           <div className="flex items-center gap-1.5">
             <CheckSquare size={12} className="text-[var(--text-muted)]" />
@@ -85,7 +85,7 @@ export default function MeetingBriefCard({ data }: Props) {
       )}
 
       {/* Agenda Suggestions */}
-      {data.agendaSuggestions.length > 0 && (
+      {(data.agendaSuggestions?.length ?? 0) > 0 && (
         <div className="space-y-1">
           <div className="flex items-center gap-1.5">
             <Lightbulb size={12} className="text-[var(--text-muted)]" />

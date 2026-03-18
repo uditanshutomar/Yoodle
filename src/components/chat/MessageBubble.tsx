@@ -4,6 +4,8 @@ import { useState, useCallback } from "react";
 import ReactMarkdown from "react-markdown";
 import { CornerUpLeft, Check, X, Loader2, Zap } from "lucide-react";
 import Avatar from "@/components/ui/Avatar";
+import { CardRenderer } from "@/components/ai/cards";
+import type { CardData } from "@/components/ai/cards/types";
 import type { ChatMsg } from "@/hooks/useMessages";
 
 interface MessageBubbleProps {
@@ -93,6 +95,8 @@ export default function MessageBubble({
 
   return (
     <div
+      role="article"
+      aria-label={`Message from ${isAgent ? `${senderDisplayName}'s Doodle` : senderDisplayName}`}
       className={`group flex flex-col ${isOwn ? "items-end" : "items-start"} ${showSender ? "mt-4" : "mt-0.5"}`}
     >
       {/* Sender info */}
@@ -130,6 +134,7 @@ export default function MessageBubble({
             <button
               key={emoji}
               type="button"
+              aria-label={`React with ${emoji}`}
               onClick={() => onReaction(message._id, emoji)}
               className="hover:scale-125 transition-transform px-0.5 text-sm cursor-pointer"
             >
@@ -138,6 +143,7 @@ export default function MessageBubble({
           ))}
           <button
             type="button"
+            aria-label="Reply to message"
             onClick={() => onReply(message)}
             className="ml-0.5 p-1 rounded hover:bg-[var(--surface-hover)] transition-colors cursor-pointer"
             style={{ color: "var(--text-muted)" }}
@@ -180,7 +186,22 @@ export default function MessageBubble({
                 className="prose prose-sm prose-invert max-w-none"
                 style={{ color: "var(--text-primary)" }}
               >
-                <ReactMarkdown>{displayContent}</ReactMarkdown>
+                <ReactMarkdown
+                  disallowedElements={["script", "iframe", "object", "embed", "form", "input", "style"]}
+                  unwrapDisallowed
+                  components={{
+                    a: ({ href, children }) => {
+                      const safe = href && (href.startsWith("https://") || href.startsWith("http://") || href.startsWith("/") || href.startsWith("mailto:"));
+                      return safe ? (
+                        <a href={href} target="_blank" rel="noopener noreferrer">{children}</a>
+                      ) : (
+                        <span>{children}</span>
+                      );
+                    },
+                  }}
+                >
+                  {displayContent}
+                </ReactMarkdown>
               </div>
 
               {isLong && (
@@ -239,6 +260,13 @@ export default function MessageBubble({
               messageId={message._id}
             />
           )}
+
+          {/* Agent cards (meeting cascade, analytics, etc.) */}
+          {isAgent && message.agentMeta?.cards && message.agentMeta.cards.length > 0 && (
+            <div className="mt-1.5">
+              <CardRenderer cards={message.agentMeta.cards as unknown as CardData[]} />
+            </div>
+          )}
         </div>
 
         {/* Reactions bar */}
@@ -252,6 +280,7 @@ export default function MessageBubble({
                 <button
                   key={r.emoji}
                   type="button"
+                  aria-label={`${r.emoji} reaction, ${r.users.length} ${r.users.length === 1 ? "person" : "people"}${userReacted ? ", you reacted" : ""}`}
                   onClick={() => onReaction(message._id, r.emoji)}
                   className={`inline-flex items-center gap-0.5 rounded-full px-2 py-0.5 text-xs cursor-pointer transition-colors ${
                     userReacted ? "ring-1 ring-[#FFE600]" : ""

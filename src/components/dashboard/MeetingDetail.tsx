@@ -503,6 +503,53 @@ function OverviewTab({ meeting, momData }: { meeting: MeetingRecord; momData?: {
                     </div>
                 </div>
             )}
+
+            {/* Meeting Artifacts — links to Google Docs, Folder, Slides */}
+            {meeting.status === "ended" && meeting.artifacts && (meeting.artifacts.momDocUrl || meeting.artifacts.folderUrl || meeting.artifacts.presentationUrl) && (
+                <div className="rounded-2xl border-[1.5px] border-[var(--border)] bg-[var(--surface)] p-5 mt-5">
+                    <p className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider mb-3 flex items-center gap-1.5" style={{ fontFamily: "var(--font-heading)" }}>
+                        <ExternalLink size={12} className="text-[#FFE600]" /> Meeting Artifacts
+                    </p>
+                    <div className="space-y-2">
+                        {meeting.artifacts.momDocUrl && (
+                            <a
+                                href={meeting.artifacts.momDocUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="flex items-center gap-2 text-sm text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors group"
+                            >
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#4285F4" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" /><line x1="16" y1="13" x2="8" y2="13" /><line x1="16" y1="17" x2="8" y2="17" /><polyline points="10 9 9 9 8 9" /></svg>
+                                <span className="group-hover:underline">Minutes of Meeting (Google Doc)</span>
+                                <ExternalLink size={10} className="opacity-0 group-hover:opacity-100 transition-opacity" />
+                            </a>
+                        )}
+                        {meeting.artifacts.presentationUrl && (
+                            <a
+                                href={meeting.artifacts.presentationUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="flex items-center gap-2 text-sm text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors group"
+                            >
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#FBBC04" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="3" width="20" height="14" rx="2" ry="2" /><line x1="8" y1="21" x2="16" y2="21" /><line x1="12" y1="17" x2="12" y2="21" /></svg>
+                                <span className="group-hover:underline">Presentation (Google Slides)</span>
+                                <ExternalLink size={10} className="opacity-0 group-hover:opacity-100 transition-opacity" />
+                            </a>
+                        )}
+                        {meeting.artifacts.folderUrl && (
+                            <a
+                                href={meeting.artifacts.folderUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="flex items-center gap-2 text-sm text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors group"
+                            >
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#34A853" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" /></svg>
+                                <span className="group-hover:underline">Meeting Folder (Google Drive)</span>
+                                <ExternalLink size={10} className="opacity-0 group-hover:opacity-100 transition-opacity" />
+                            </a>
+                        )}
+                    </div>
+                </div>
+            )}
         </motion.div>
     );
 }

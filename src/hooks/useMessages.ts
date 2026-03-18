@@ -40,6 +40,7 @@ export interface ChatMsg {
       summary: string;
       status: string;
     };
+    cards?: Array<Record<string, unknown>>;
     forUserId?: string;
   };
   createdAt: string;
@@ -55,6 +56,8 @@ export function useMessages(conversationId: string | null) {
   const [typingUsers, setTypingUsers] = useState<Map<string, string>>(
     new Map(),
   );
+  const [connected, setConnected] = useState(true);
+  const [sendError, setSendError] = useState<string | null>(null);
 
   // SSE reconnect: incrementing this forces the SSE effect to re-run
   const [sseRetry, setSseRetry] = useState(0);
@@ -68,6 +71,7 @@ export function useMessages(conversationId: string | null) {
   const isMountedRef = useRef(true);
   const sseRetriesRef = useRef(0);
   const fetchAbortRef = useRef<AbortController | null>(null);
+  const optimisticIdRef = useRef(0);
 
   // ── Fetch initial messages ───────────────────────────────────────────
 
@@ -137,7 +141,20 @@ export function useMessages(conversationId: string | null) {
       try {
         const msg: ChatMsg = JSON.parse(e.data);
         setMessages((prev) => {
+          // Deduplicate: if SSE delivers a message already in the list, skip
           if (prev.some((m) => m._id === msg._id)) return prev;
+          // If there's an optimistic message with matching content, replace it
+          // (optimistic IDs start with "optimistic-")
+          const optimisticIdx = prev.findIndex(
+            (m) =>
+              m._id.startsWith("optimistic-") &&
+              m.content === msg.content,
+          );
+          if (optimisticIdx !== -1) {
+            const next = [...prev];
+            next[optimisticIdx] = msg;
+            return next;
+          }
           return [...prev, msg];
         });
 
@@ -273,6 +290,7 @@ export function useMessages(conversationId: string | null) {
       // EventSource auto-reconnects for transient errors (readyState=CONNECTING).
       // If readyState is CLOSED, the browser gave up — manually reconnect
       // with exponential backoff by re-triggering this effect.
+      setConnected(false);
       if (es.readyState === EventSource.CLOSED && sseRetriesRef.current < 5) {
         const delay = Math.min(1000 * 2 ** sseRetriesRef.current, 30000);
         sseRetriesRef.current++;
@@ -280,10 +298,13 @@ export function useMessages(conversationId: string | null) {
           setSseRetry((n) => n + 1);
         }, delay);
       }
+      // After max retries, connection is lost — connected stays false
+      // so the UI can show a disconnection banner
     };
 
     // Reset retry counter on successful connection + re-fetch to fill gaps
     es.onopen = () => {
+      setConnected(true);
       if (sseRetriesRef.current > 0) {
         // Reconnected after a disconnect — fetch latest messages to fill the gap
         fetchMessages();
@@ -328,9 +349,31 @@ export function useMessages(conversationId: string | null) {
 
   // ── Actions ──────────────────────────────────────────────────────────
 
+  const clearSendError = useCallback(() => setSendError(null), []);
+
   const sendMessage = useCallback(
     async (content: string, replyTo?: string) => {
       if (!conversationId || !content.trim()) return;
+
+      // Clear previous send error
+      setSendError(null);
+
+      // Create optimistic message with a temporary ID
+      const optimisticId = `optimistic-${Date.now()}-${++optimisticIdRef.current}`;
+      const optimisticMsg: ChatMsg = {
+        _id: optimisticId,
+        conversationId,
+        sender: { _id: "", name: "" }, // Filled by server; sender info shown via isOwn
+        senderType: "user",
+        content: content.trim(),
+        replyTo,
+        reactions: [],
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+
+      // Immediately append the optimistic message so the UI feels instant
+      setMessages((prev) => [...prev, optimisticMsg]);
 
       try {
         const res = await fetch(
@@ -342,18 +385,36 @@ export function useMessages(conversationId: string | null) {
             body: JSON.stringify({ content: content.trim(), replyTo }),
           },
         );
-        if (!res.ok) return;
+
+        if (!res.ok) {
+          const errBody = await res.json().catch(() => null);
+          const errMsg = errBody?.error?.message || `Send failed (${res.status})`;
+          // Remove optimistic message and surface error
+          setMessages((prev) => prev.filter((m) => m._id !== optimisticId));
+          setSendError(errMsg);
+          return;
+        }
 
         const json = await res.json();
         if (json.success && json.data) {
-          // Append if not already present (SSE might beat us)
+          // Replace optimistic message with real server message
           setMessages((prev) => {
-            if (prev.some((m) => m._id === json.data._id)) return prev;
-            return [...prev, json.data];
+            // SSE may have already delivered the real message — deduplicate
+            const hasReal = prev.some((m) => m._id === json.data._id);
+            if (hasReal) {
+              // Remove the optimistic one; real one is already there
+              return prev.filter((m) => m._id !== optimisticId);
+            }
+            // Replace optimistic with real
+            return prev.map((m) => (m._id === optimisticId ? json.data : m));
           });
         }
-      } catch {
-        // Silent fail
+      } catch (err) {
+        // Network error — remove optimistic message and notify
+        setMessages((prev) => prev.filter((m) => m._id !== optimisticId));
+        setSendError(
+          err instanceof Error ? err.message : "Failed to send message. Check your connection.",
+        );
       }
     },
     [conversationId],
@@ -398,6 +459,9 @@ export function useMessages(conversationId: string | null) {
     loading,
     hasMore,
     typingUsers,
+    connected,
+    sendError,
+    clearSendError,
     sendMessage,
     sendTyping,
     toggleReaction,

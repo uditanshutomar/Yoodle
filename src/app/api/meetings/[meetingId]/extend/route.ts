@@ -67,9 +67,13 @@ export const POST = withHandler(async (req: NextRequest, context) => {
     throw new BadRequestError("Can only extend a live meeting.");
   }
 
-  // Calculate new duration
+  // Calculate new duration (cap at 8 hours / 480 min)
   const oldDuration = meeting.scheduledDuration || 15;
-  const newDuration = roundTo15(oldDuration + body.additionalMinutes);
+  const newDuration = Math.min(480, roundTo15(oldDuration + body.additionalMinutes));
+
+  if (newDuration <= oldDuration) {
+    throw new BadRequestError("Meeting is already at maximum duration (8 hours).");
+  }
 
   // Atomic update — prevents concurrent extend requests from overwriting
   // each other's duration changes

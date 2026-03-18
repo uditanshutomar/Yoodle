@@ -54,13 +54,13 @@ export default function MeetingCascadeCard({ data, onUndo }: Props) {
 
       {/* Steps */}
       <div className="space-y-1.5">
-        {data.steps.map((step, i) => {
+        {data.steps.map((step) => {
           const isUndone = step.undoToken ? undone.has(step.undoToken) : false;
           const isUndoing = step.undoToken ? undoing === step.undoToken : false;
 
           return (
             <div
-              key={i}
+              key={`${step.step}-${step.status}`}
               className={`flex items-start gap-2 ${isUndone ? "opacity-50" : ""}`}
             >
               <StatusIcon status={step.status} />

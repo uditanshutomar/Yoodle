@@ -195,7 +195,7 @@ export default function GhostRoomPage() {
         <p className="text-sm text-[var(--text-secondary)] mb-6" style={{ fontFamily: "var(--font-body)" }}>
           This room has expired or doesn&apos;t exist anymore.
         </p>
-        <Link href="/ghost-rooms">
+        <Link href="/meetings">
           <Button variant="secondary" size="md" icon={ArrowLeft}>
             Back to Ghost Rooms
           </Button>
@@ -218,7 +218,7 @@ export default function GhostRoomPage() {
         )}
 
         {/* Back link */}
-        <Link href="/ghost-rooms" className="inline-flex items-center gap-1 text-sm text-[var(--text-secondary)] hover:text-[#7C3AED] transition-colors" style={{ fontFamily: "var(--font-body)" }}>
+        <Link href="/meetings" className="inline-flex items-center gap-1 text-sm text-[var(--text-secondary)] hover:text-[#7C3AED] transition-colors" style={{ fontFamily: "var(--font-body)" }}>
           <ArrowLeft size={14} /> Back to Ghost Rooms
         </Link>
 

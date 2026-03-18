@@ -5,8 +5,11 @@ import { verifyAccessToken, verifyRefreshToken } from "@/lib/infra/auth/jwt";
 import { tokenBlacklist } from "@/lib/infra/redis/cache";
 import { withHandler } from "@/lib/infra/api/with-handler";
 import { successResponse } from "@/lib/infra/api/response";
+import { checkRateLimit } from "@/lib/infra/api/rate-limit";
 
 export const POST = withHandler(async (req: NextRequest) => {
+  await checkRateLimit(req, "auth");
+
   const accessToken = req.cookies.get("yoodle-access-token")?.value;
   const refreshToken = req.cookies.get("yoodle-refresh-token")?.value;
 
@@ -36,11 +39,15 @@ export const POST = withHandler(async (req: NextRequest) => {
 
   // Clear refresh token hash and set user offline in DB
   if (userId) {
-    await connectDB();
-    await User.findByIdAndUpdate(userId, {
-      $unset: { refreshTokenHash: 1 },
-      $set: { status: "offline" },
-    });
+    try {
+      await connectDB();
+      await User.findByIdAndUpdate(userId, {
+        $unset: { refreshTokenHash: 1 },
+        $set: { status: "offline" },
+      });
+    } catch {
+      // Best-effort — don't fail logout if DB update fails
+    }
   }
 
   // Build response and clear cookies

@@ -21,8 +21,8 @@ const updateTaskSchema = z.object({
   priority: z.enum(["urgent", "high", "medium", "low", "none"]).optional(),
   assigneeId: z.string().nullable().optional(),
   labels: z.array(z.string()).optional(),
-  dueDate: z.string().datetime().nullable().optional(),
-  startDate: z.string().datetime().nullable().optional(),
+  dueDate: z.string().refine((v) => !isNaN(Date.parse(v)), { message: "Invalid date" }).nullable().optional(),
+  startDate: z.string().refine((v) => !isNaN(Date.parse(v)), { message: "Invalid date" }).nullable().optional(),
   subtasks: z
     .array(
       z.object({
@@ -42,6 +42,11 @@ export const GET = withHandler(async (req: NextRequest, context) => {
   await checkRateLimit(req, "general");
   const userId = await getUserIdFromRequest(req);
   const { boardId, taskId } = await context!.params;
+
+  if (!mongoose.Types.ObjectId.isValid(boardId) || !mongoose.Types.ObjectId.isValid(taskId)) {
+    return badRequest("Invalid board or task ID");
+  }
+
   await connectDB();
 
   const userOid = new mongoose.Types.ObjectId(userId);
@@ -67,6 +72,11 @@ export const PATCH = withHandler(async (req: NextRequest, context) => {
   await checkRateLimit(req, "general");
   const userId = await getUserIdFromRequest(req);
   const { boardId, taskId } = await context!.params;
+
+  if (!mongoose.Types.ObjectId.isValid(boardId) || !mongoose.Types.ObjectId.isValid(taskId)) {
+    return badRequest("Invalid board or task ID");
+  }
+
   const body = updateTaskSchema.parse(await req.json());
   await connectDB();
 
@@ -80,6 +90,12 @@ export const PATCH = withHandler(async (req: NextRequest, context) => {
 
   const member = board.members.find((m) => m.userId.toString() === userId);
   if (member && member.role === "viewer") return badRequest("Viewers cannot edit tasks");
+
+  // Validate columnId exists on this board
+  if (body.columnId !== undefined) {
+    const colExists = board.columns.some((c) => c.id === body.columnId);
+    if (!colExists) return badRequest(`Invalid column ID: ${body.columnId}`);
+  }
 
   const updates: Record<string, unknown> = {};
   if (body.title !== undefined) updates.title = body.title;
@@ -152,6 +168,11 @@ export const DELETE = withHandler(async (req: NextRequest, context) => {
   await checkRateLimit(req, "general");
   const userId = await getUserIdFromRequest(req);
   const { boardId, taskId } = await context!.params;
+
+  if (!mongoose.Types.ObjectId.isValid(boardId) || !mongoose.Types.ObjectId.isValid(taskId)) {
+    return badRequest("Invalid board or task ID");
+  }
+
   await connectDB();
 
   const userOid = new mongoose.Types.ObjectId(userId);
@@ -165,10 +186,13 @@ export const DELETE = withHandler(async (req: NextRequest, context) => {
   const member = board.members.find((m) => m.userId.toString() === userId);
   if (member && member.role === "viewer") return badRequest("Viewers cannot delete tasks");
 
-  await Task.findOneAndDelete({
+  const deleted = await Task.findOneAndDelete({
     _id: new mongoose.Types.ObjectId(taskId),
     boardId: new mongoose.Types.ObjectId(boardId),
   });
+
+  if (!deleted) throw new NotFoundError("Task not found");
+
   await TaskComment.deleteMany({ taskId: new mongoose.Types.ObjectId(taskId) });
 
   return successResponse({ deleted: true });

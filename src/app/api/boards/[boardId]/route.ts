@@ -2,12 +2,14 @@ import { NextRequest } from "next/server";
 import mongoose from "mongoose";
 import { z } from "zod";
 import { withHandler } from "@/lib/infra/api/with-handler";
-import { successResponse, badRequest } from "@/lib/infra/api/response";
+import { successResponse, errorResponse } from "@/lib/infra/api/response";
 import { NotFoundError } from "@/lib/infra/api/errors";
 import { getUserIdFromRequest } from "@/lib/infra/auth/middleware";
 import { checkRateLimit } from "@/lib/infra/api/rate-limit";
 import connectDB from "@/lib/infra/db/client";
 import Board from "@/lib/infra/db/models/board";
+import Task from "@/lib/infra/db/models/task";
+import TaskComment from "@/lib/infra/db/models/task-comment";
 
 /* ─── Validation ─── */
 
@@ -39,6 +41,9 @@ const updateBoardSchema = z.object({
 /* ─── Helper: find board + verify access ─── */
 
 async function findBoardWithAccess(boardId: string, userId: string) {
+  if (!mongoose.Types.ObjectId.isValid(boardId)) {
+    throw new NotFoundError("Board not found");
+  }
   const userOid = new mongoose.Types.ObjectId(userId);
   const board = await Board.findOne({
     _id: new mongoose.Types.ObjectId(boardId),
@@ -70,11 +75,12 @@ export const PATCH = withHandler(async (req: NextRequest, context) => {
   await connectDB();
 
   const board = await findBoardWithAccess(boardId, userId);
+  const isOwner = board.ownerId.toString() === userId;
   const member = board.members.find(
     (m) => m.userId.toString() === userId,
   );
-  if (!member || (member.role !== "owner" && member.role !== "editor")) {
-    return badRequest("Insufficient permissions");
+  if (!isOwner && (!member || (member.role !== "owner" && member.role !== "editor"))) {
+    return errorResponse("FORBIDDEN", "Insufficient permissions", 403);
   }
 
   const updates: Record<string, unknown> = {};
@@ -97,9 +103,15 @@ export const DELETE = withHandler(async (req: NextRequest, context) => {
 
   const board = await findBoardWithAccess(boardId, userId);
   if (board.ownerId.toString() !== userId) {
-    return badRequest("Only the board owner can delete it");
+    return errorResponse("FORBIDDEN", "Only the board owner can delete it", 403);
   }
 
+  // Cascade: delete all tasks and their comments, then the board
+  const taskIds = await Task.find({ boardId: new mongoose.Types.ObjectId(boardId) }).distinct("_id");
+  if (taskIds.length > 0) {
+    await TaskComment.deleteMany({ taskId: { $in: taskIds } });
+    await Task.deleteMany({ boardId: new mongoose.Types.ObjectId(boardId) });
+  }
   await Board.findByIdAndDelete(boardId);
   return successResponse({ deleted: true });
 });

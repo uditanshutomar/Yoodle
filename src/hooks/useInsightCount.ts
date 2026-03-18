@@ -5,21 +5,9 @@ import { useState, useEffect, useCallback } from "react";
 export function useInsightCount(enabled: boolean) {
   const [count, setCount] = useState(0);
 
-  const fetchCount = useCallback(async () => {
-    try {
-      const res = await fetch("/api/ai/insights/count");
-      if (res.ok) {
-        const data = await res.json();
-        setCount(data.count ?? 0);
-      }
-    } catch {
-      /* ignore */
-    }
-  }, []);
-
   const clearCount = useCallback(async () => {
     try {
-      await fetch("/api/ai/insights/count", { method: "DELETE" });
+      await fetch("/api/ai/insights/count", { method: "DELETE", credentials: "include" });
       setCount(0);
     } catch {
       /* ignore */
@@ -28,10 +16,28 @@ export function useInsightCount(enabled: boolean) {
 
   useEffect(() => {
     if (!enabled) return;
-    fetchCount();
-    const interval = setInterval(fetchCount, 60_000);
-    return () => clearInterval(interval);
-  }, [enabled, fetchCount]);
+
+    let cancelled = false;
+
+    const poll = async () => {
+      try {
+        const res = await fetch("/api/ai/insights/count", { credentials: "include" });
+        if (res.ok && !cancelled) {
+          const data = await res.json();
+          setCount(data.count ?? 0);
+        }
+      } catch {
+        /* ignore */
+      }
+    };
+
+    poll();
+    const interval = setInterval(poll, 60_000);
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
+  }, [enabled]);
 
   return { count, clearCount };
 }

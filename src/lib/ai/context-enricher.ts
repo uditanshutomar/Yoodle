@@ -42,10 +42,10 @@ export async function enrichTask(
       .limit(MAX_RELATED)
       .lean();
 
-    result.relatedMessages = messages.map((m: Record<string, unknown>) => ({
+    result.relatedMessages = messages.map((m) => ({
       content: String(m.content ?? "").slice(0, 200),
       sender: String(m.senderId ?? "unknown"),
-      createdAt: (m.createdAt as Date)?.toISOString?.() ?? "",
+      createdAt: m.createdAt ? new Date(m.createdAt as string | number | Date).toISOString() : "",
     }));
   } catch (err) {
     log.warn({ err, taskId: task._id }, "Task enrichment failed (non-fatal)");
@@ -62,14 +62,15 @@ export async function enrichMeeting(
   try {
     const Task = (await import("@/lib/infra/db/models/task")).default;
 
-    const tasks = await Task.find({ meetingId: meeting._id })
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const tasks = await Task.find({ meetingId: meeting._id as any })
       .limit(MAX_RELATED)
       .lean();
 
-    result.relatedTasks = tasks.map((t: Record<string, unknown>) => ({
+    result.relatedTasks = tasks.map((t) => ({
       id: String(t._id),
       title: String(t.title),
-      status: t.completedAt ? "done" : "open",
+      status: "completedAt" in t && t.completedAt ? "done" : "open",
     }));
   } catch (err) {
     log.warn({ err, meetingId: meeting._id }, "Meeting enrichment failed (non-fatal)");

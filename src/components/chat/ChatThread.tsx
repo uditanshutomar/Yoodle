@@ -17,6 +17,8 @@ import {
   ChevronDown,
   Loader2,
   X,
+  WifiOff,
+  AlertCircle,
 } from "lucide-react";
 import Avatar from "@/components/ui/Avatar";
 import MessageBubble from "@/components/chat/MessageBubble";
@@ -85,6 +87,9 @@ export default function ChatThread({
     loading,
     hasMore,
     typingUsers,
+    connected,
+    sendError,
+    clearSendError,
     sendMessage,
     sendTyping,
     toggleReaction,
@@ -323,6 +328,7 @@ export default function ChatThread({
         {onBack && (
           <button
             onClick={onBack}
+            aria-label="Go back to conversation list"
             className="lg:hidden p-1 rounded-md hover:bg-[var(--surface-hover)] transition-colors"
           >
             <ArrowLeft className="h-5 w-5 text-[var(--text-primary)]" />
@@ -379,11 +385,53 @@ export default function ChatThread({
         </div>
       </div>
 
+      {/* ── Connection / Error Banners ────────────────────────────────── */}
+      <AnimatePresence>
+        {!connected && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: "auto", opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            className="overflow-hidden"
+          >
+            <div className="flex items-center gap-2 bg-[#EF4444]/10 border-b border-[#EF4444]/30 px-4 py-2">
+              <WifiOff className="h-4 w-4 text-[#EF4444] flex-shrink-0" />
+              <span className="text-xs text-[#EF4444] font-medium" style={{ fontFamily: "var(--font-body)" }}>
+                Connection lost. Reconnecting…
+              </span>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+      <AnimatePresence>
+        {sendError && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: "auto", opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            className="overflow-hidden"
+          >
+            <div className="flex items-center gap-2 bg-[#F59E0B]/10 border-b border-[#F59E0B]/30 px-4 py-2">
+              <AlertCircle className="h-4 w-4 text-[#F59E0B] flex-shrink-0" />
+              <span className="text-xs text-[#F59E0B] font-medium flex-1" style={{ fontFamily: "var(--font-body)" }}>
+                {sendError}
+              </span>
+              <button onClick={clearSendError} className="p-0.5 rounded hover:bg-[#F59E0B]/20 transition-colors">
+                <X className="h-3.5 w-3.5 text-[#F59E0B]" />
+              </button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* ── Message List ────────────────────────────────────────────────── */}
       <div
         ref={scrollContainerRef}
         onScroll={handleScroll}
         className="flex-1 overflow-y-auto px-4 py-3"
+        role="log"
+        aria-live="polite"
+        aria-label="Chat messages"
       >
         {/* Load more spinner */}
         {loading && hasMore && (
@@ -551,6 +599,7 @@ export default function ChatThread({
           <button
             onClick={handleSend}
             disabled={!inputValue.trim()}
+            aria-label="Send message"
             className={`shrink-0 p-2 rounded-lg transition-colors ${
               inputValue.trim()
                 ? "bg-[#FFE600] text-[#0A0A0A] hover:brightness-95"

@@ -15,6 +15,7 @@ interface MeetingPreview {
 export default function MeetingPulse() {
   const [meetings, setMeetings] = useState<MeetingPreview[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -24,12 +25,15 @@ export default function MeetingPulse() {
         const res = await fetch("/api/meetings?status=scheduled&limit=5", {
           credentials: "include",
         });
-        if (res.ok && !cancelled) {
+        if (cancelled) return;
+        if (res.ok) {
           const data = await res.json();
           setMeetings(data.data || []);
+        } else {
+          setError(true);
         }
       } catch {
-        /* ignore */
+        if (!cancelled) setError(true);
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -80,7 +84,11 @@ export default function MeetingPulse() {
         </span>
       </div>
 
-      {meetings.length === 0 ? (
+      {error ? (
+        <p className="text-xs text-[var(--text-muted)] text-center py-6">
+          Could not load meetings
+        </p>
+      ) : meetings.length === 0 ? (
         <p className="text-xs text-[var(--text-muted)] text-center py-6">
           No upcoming meetings
         </p>
@@ -88,14 +96,15 @@ export default function MeetingPulse() {
         <div className="space-y-1.5">
           {meetings.map((m) => {
             const dt = new Date(m.scheduledAt);
-            const date = dt.toLocaleDateString(undefined, {
+            const isValidDate = !isNaN(dt.getTime());
+            const date = isValidDate ? dt.toLocaleDateString(undefined, {
               month: "short",
               day: "numeric",
-            });
-            const time = dt.toLocaleTimeString(undefined, {
+            }) : "—";
+            const time = isValidDate ? dt.toLocaleTimeString(undefined, {
               hour: "2-digit",
               minute: "2-digit",
-            });
+            }) : "—";
 
             return (
               <Link

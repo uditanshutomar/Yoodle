@@ -22,6 +22,7 @@ export default function ActionItemTracker() {
     overdue: 0,
   });
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -31,19 +32,24 @@ export default function ActionItemTracker() {
         const res = await fetch("/api/boards/tasks?source=meeting-mom&limit=100", {
           credentials: "include",
         });
-        if (res.ok && !cancelled) {
+        if (cancelled) return;
+        if (res.ok) {
           const data = await res.json();
           const tasks: TaskItem[] = data.data || [];
           const now = new Date();
           const total = tasks.length;
           const completed = tasks.filter((t) => !!t.completedAt).length;
-          const overdue = tasks.filter(
-            (t) => !t.completedAt && t.dueDate && new Date(t.dueDate) < now
-          ).length;
+          const overdue = tasks.filter((t) => {
+            if (t.completedAt || !t.dueDate) return false;
+            const due = new Date(t.dueDate);
+            return !isNaN(due.getTime()) && due < now;
+          }).length;
           setStats({ total, completed, overdue });
+        } else {
+          setError(true);
         }
       } catch {
-        /* ignore */
+        if (!cancelled) setError(true);
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -95,6 +101,12 @@ export default function ActionItemTracker() {
           {stats.total} total
         </span>
       </div>
+
+      {error && (
+        <p className="text-xs text-[var(--text-muted)] text-center py-4">
+          Could not load action items
+        </p>
+      )}
 
       {/* Progress bar */}
       <div className="relative h-2.5 rounded-full bg-[var(--surface-hover)] overflow-hidden mb-3">

@@ -185,16 +185,12 @@ export async function buildMeetingContext(
     if (upcoming.length === 0 && recent.length === 0) return empty;
 
     let unresolvedActions = 0;
-    const meetingIds = recent
-      .filter((m) => m.mom?.actionItems?.length)
-      .map((m) => m._id);
+    // Query linked tasks for both upcoming and recent meetings
+    const allMeetingIds = [...upcoming, ...recent].map((m) => m._id);
     const linkedTasks =
-      meetingIds.length > 0
-        ? await Task.find({ meetingId: { $in: meetingIds } }).lean()
+      allMeetingIds.length > 0
+        ? await Task.find({ meetingId: { $in: allMeetingIds } }).lean()
         : [];
-    const linkedMeetingIds = new Set(
-      linkedTasks.map((t) => t.meetingId?.toString())
-    );
 
     const upcomingLines = upcoming.map((m) => {
       const participants = (
@@ -229,9 +225,11 @@ export async function buildMeetingContext(
     const recentLines = recent.map((m) => {
       const hasMom = !!m.mom?.summary;
       const actionCount = m.mom?.actionItems?.length || 0;
-      const hasLinkedTasks = linkedMeetingIds.has(m._id.toString());
+      const linkedCount = linkedTasks.filter(
+        (t) => t.meetingId?.toString() === m._id.toString()
+      ).length;
       const unresolved =
-        hasMom && actionCount > 0 && !hasLinkedTasks ? actionCount : 0;
+        hasMom && actionCount > 0 ? Math.max(0, actionCount - linkedCount) : 0;
       unresolvedActions += unresolved;
 
       let attrs = `id="${m._id}" title="${escapeXml(m.title)}"`;

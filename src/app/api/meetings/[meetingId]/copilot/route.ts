@@ -1,20 +1,25 @@
 import { NextRequest } from "next/server";
 import { withHandler } from "@/lib/infra/api/with-handler";
-import { getUserIdFromRequest } from "@/lib/infra/auth/middleware";
 import { errorResponse } from "@/lib/infra/api/response";
+import { checkRateLimit } from "@/lib/infra/api/rate-limit";
+import { getUserIdFromRequest } from "@/lib/infra/auth/middleware";
 import { getRedisClient } from "@/lib/infra/redis/client";
 import connectDB from "@/lib/infra/db/client";
 
 export const GET = withHandler(async (req: NextRequest, context) => {
+  await checkRateLimit(req, "meetings");
   const userId = await getUserIdFromRequest(req);
   const { meetingId } = await context!.params;
 
-  // Suppress unused-variable lint — userId is required for auth
-  void userId;
-
   await connectDB();
   const Meeting = (await import("@/lib/infra/db/models/meeting")).default;
-  const meeting = await Meeting.findById(meetingId).lean();
+  const meeting = await Meeting.findOne({
+    _id: meetingId,
+    $or: [
+      { hostId: userId },
+      { "participants.userId": userId },
+    ],
+  }).lean();
 
   if (!meeting) {
     return errorResponse("NOT_FOUND", "Meeting not found", 404);

@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import {
   Users,
@@ -9,6 +10,7 @@ import {
   Activity,
   BarChart3,
   Shield,
+  ShieldAlert,
   RefreshCw,
   TrendingUp,
   TrendingDown,
@@ -51,16 +53,25 @@ function formatEventType(type: string): string {
 }
 
 export default function AdminDashboard() {
+  const router = useRouter();
   const [data, setData] = useState<AnalyticsSummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [accessDenied, setAccessDenied] = useState(false);
   const [lastRefresh, setLastRefresh] = useState<Date>(new Date());
   const [secondsAgo, setSecondsAgo] = useState(0);
 
   const refresh = useCallback(() => {
     fetch("/api/analytics/summary", { credentials: "include" })
-      .then((r) => r.json())
+      .then((r) => {
+        if (r.status === 403) {
+          setAccessDenied(true);
+          return null;
+        }
+        return r.json();
+      })
       .then((res) => {
+        if (!res) return;
         if (res.success) setData(res.data);
         else setError(res.error?.message || "Failed to load analytics");
       })
@@ -84,32 +95,51 @@ export default function AdminDashboard() {
     return (
       <div className="max-w-6xl mx-auto px-6 py-8">
         <div className="flex items-center gap-3 mb-8">
-          <div className="w-10 h-10 rounded-xl bg-[#0A0A0A]/10 animate-pulse" />
-          <div className="h-8 w-48 rounded-lg bg-[#0A0A0A]/10 animate-pulse" />
+          <div className="w-10 h-10 rounded-xl bg-[var(--border)] animate-pulse" />
+          <div className="h-8 w-48 rounded-lg bg-[var(--border)] animate-pulse" />
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
           {Array.from({ length: 4 }).map((_, i) => (
-            <div key={i} className="rounded-xl border-2 border-[#0A0A0A]/10 bg-white p-5">
+            <div key={i} className="rounded-xl border-2 border-[var(--border)] bg-[var(--surface)] p-5">
               <div className="flex items-center gap-3 mb-3">
-                <div className="w-8 h-8 rounded-lg bg-[#0A0A0A]/10 animate-pulse" />
-                <div className="h-4 w-20 rounded bg-[#0A0A0A]/10 animate-pulse" />
+                <div className="w-8 h-8 rounded-lg bg-[var(--border)] animate-pulse" />
+                <div className="h-4 w-20 rounded bg-[var(--border)] animate-pulse" />
               </div>
-              <div className="h-9 w-16 rounded bg-[#0A0A0A]/10 animate-pulse" />
+              <div className="h-9 w-16 rounded bg-[var(--border)] animate-pulse" />
             </div>
           ))}
         </div>
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           {Array.from({ length: 2 }).map((_, i) => (
-            <div key={i} className="rounded-xl border-2 border-[#0A0A0A]/10 bg-white p-5">
-              <div className="h-5 w-32 rounded bg-[#0A0A0A]/10 animate-pulse mb-4" />
+            <div key={i} className="rounded-xl border-2 border-[var(--border)] bg-[var(--surface)] p-5">
+              <div className="h-5 w-32 rounded bg-[var(--border)] animate-pulse mb-4" />
               <div className="space-y-3">
                 {Array.from({ length: 3 }).map((_, j) => (
-                  <div key={j} className="h-4 w-full rounded bg-[#0A0A0A]/10 animate-pulse" />
+                  <div key={j} className="h-4 w-full rounded bg-[var(--border)] animate-pulse" />
                 ))}
               </div>
             </div>
           ))}
         </div>
+      </div>
+    );
+  }
+
+  if (accessDenied) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4">
+        <ShieldAlert size={48} className="text-[#FF6B6B]" />
+        <h2 className="text-xl font-bold text-[var(--text-primary)]" style={{ fontFamily: "var(--font-heading)" }}>
+          Access Denied
+        </h2>
+        <p className="text-sm text-[var(--text-secondary)]">You don&apos;t have admin privileges to view this page.</p>
+        <button
+          onClick={() => router.push("/dashboard")}
+          className="px-4 py-2 rounded-lg border-2 border-[var(--border-strong)] bg-[var(--surface)] text-[var(--text-primary)] font-bold text-sm hover:bg-[var(--surface-hover)] transition-colors"
+          style={{ fontFamily: "var(--font-heading)" }}
+        >
+          Go to Dashboard
+        </button>
       </div>
     );
   }
@@ -131,16 +161,16 @@ export default function AdminDashboard() {
     <div className="max-w-6xl mx-auto px-6 py-8">
       {/* Page header */}
       <div className="flex items-center gap-3 mb-8">
-        <div className="flex items-center justify-center w-10 h-10 rounded-xl border-2 border-[#0A0A0A] bg-[#FFE600] shadow-[2px_2px_0_#0A0A0A]">
+        <div className="flex items-center justify-center w-10 h-10 rounded-xl border-2 border-[var(--border-strong)] bg-[#FFE600] shadow-[2px_2px_0_var(--border-strong)]">
           <Shield size={20} />
         </div>
         <h1
-          className="text-2xl font-bold text-[#0A0A0A]"
+          className="text-2xl font-bold text-[var(--text-primary)]"
           style={{ fontFamily: "var(--font-heading)" }}
         >
           Admin Dashboard
           <span
-            className="ml-3 inline-flex items-center rounded-full border-2 border-[#0A0A0A] px-3 py-0.5 text-xs font-bold"
+            className="ml-3 inline-flex items-center rounded-full border-2 border-[var(--border-strong)] px-3 py-0.5 text-xs font-bold"
             style={{
               fontFamily: "var(--font-heading)",
               backgroundColor: features.isCloud ? "#06B6D4" : "#22C55E",
@@ -153,12 +183,12 @@ export default function AdminDashboard() {
         <div className="ml-auto flex items-center gap-2">
           <button
             onClick={() => { setLoading(true); refresh(); }}
-            className="flex items-center justify-center w-8 h-8 rounded-lg border-2 border-[#0A0A0A] bg-white hover:bg-[#FFE600] transition-colors shadow-[2px_2px_0_#0A0A0A] hover:shadow-[1px_1px_0_#0A0A0A] hover:translate-x-[1px] hover:translate-y-[1px] cursor-pointer"
+            className="flex items-center justify-center w-8 h-8 rounded-lg border-2 border-[var(--border-strong)] bg-[var(--surface)] hover:bg-[#FFE600] transition-colors shadow-[2px_2px_0_var(--border-strong)] hover:shadow-[1px_1px_0_var(--border-strong)] hover:translate-x-[1px] hover:translate-y-[1px] cursor-pointer"
             aria-label="Refresh analytics"
           >
             <RefreshCw size={14} className={loading ? "animate-spin" : ""} />
           </button>
-          <span className="text-xs text-[#0A0A0A]/40">
+          <span className="text-xs text-[var(--text-secondary)]">
             Updated {secondsAgo}s ago
           </span>
         </div>
@@ -170,32 +200,32 @@ export default function AdminDashboard() {
           const Icon = card.icon;
           const value = data.overview[card.key];
           const iconColor =
-            card.color === "#FFE600" ? "text-[#0A0A0A]" : "text-white";
+            card.color === "#FFE600" ? "text-[var(--text-primary)]" : "text-white";
 
           return (
             <motion.div
               key={card.key}
-              className="rounded-xl border-2 border-[#0A0A0A] bg-white p-5 shadow-[4px_4px_0_#0A0A0A]"
+              className="rounded-xl border-2 border-[var(--border-strong)] bg-[var(--surface)] p-5 shadow-[4px_4px_0_var(--border-strong)]"
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: i * 0.1 }}
             >
               <div className="flex items-center gap-3 mb-3">
                 <div
-                  className="flex items-center justify-center w-8 h-8 rounded-lg border-2 border-[#0A0A0A]"
+                  className="flex items-center justify-center w-8 h-8 rounded-lg border-2 border-[var(--border-strong)]"
                   style={{ backgroundColor: card.color }}
                 >
                   <Icon size={16} className={iconColor} />
                 </div>
                 <span
-                  className="text-xs font-bold text-[#0A0A0A]/60 uppercase tracking-wide"
+                  className="text-xs font-bold text-[var(--text-secondary)] uppercase tracking-wide"
                   style={{ fontFamily: "var(--font-heading)" }}
                 >
                   {card.label}
                 </span>
               </div>
               <p
-                className="text-3xl font-bold text-[#0A0A0A]"
+                className="text-3xl font-bold text-[var(--text-primary)]"
                 style={{ fontFamily: "var(--font-heading)" }}
               >
                 {value.toLocaleString()}
@@ -213,11 +243,11 @@ export default function AdminDashboard() {
         const maxCount = Math.max(...data.eventBreakdown.map(e => e.count), 1);
         return (
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-8">
-        <div className="rounded-xl border-2 border-[#0A0A0A] bg-white p-5 shadow-[4px_4px_0_#0A0A0A]">
+        <div className="rounded-xl border-2 border-[var(--border-strong)] bg-[var(--surface)] p-5 shadow-[4px_4px_0_var(--border-strong)]">
           <div className="flex items-center gap-2 mb-4">
-            <BarChart3 size={18} className="text-[#0A0A0A]/60" />
+            <BarChart3 size={18} className="text-[var(--text-secondary)]" />
             <h2
-              className="text-base font-bold text-[#0A0A0A]"
+              className="text-base font-bold text-[var(--text-primary)]"
               style={{ fontFamily: "var(--font-heading)" }}
             >
               Meeting Trends
@@ -225,7 +255,7 @@ export default function AdminDashboard() {
           </div>
           <div className="space-y-3">
             <div className="flex items-center justify-between">
-              <span className="text-sm text-[#0A0A0A]/60">Last 7 days</span>
+              <span className="text-sm text-[var(--text-secondary)]">Last 7 days</span>
               <div className="flex items-center gap-2">
                 <span
                   className="text-lg font-bold"
@@ -242,7 +272,7 @@ export default function AdminDashboard() {
               </div>
             </div>
             <div className="flex items-center justify-between">
-              <span className="text-sm text-[#0A0A0A]/60">Last 30 days</span>
+              <span className="text-sm text-[var(--text-secondary)]">Last 30 days</span>
               <span
                 className="text-lg font-bold"
                 style={{ fontFamily: "var(--font-heading)" }}
@@ -253,28 +283,28 @@ export default function AdminDashboard() {
           </div>
         </div>
 
-        <div className="rounded-xl border-2 border-[#0A0A0A] bg-white p-5 shadow-[4px_4px_0_#0A0A0A]">
+        <div className="rounded-xl border-2 border-[var(--border-strong)] bg-[var(--surface)] p-5 shadow-[4px_4px_0_var(--border-strong)]">
           <div className="flex items-center gap-2 mb-4">
-            <Activity size={18} className="text-[#0A0A0A]/60" />
+            <Activity size={18} className="text-[var(--text-secondary)]" />
             <h2
-              className="text-base font-bold text-[#0A0A0A]"
+              className="text-base font-bold text-[var(--text-primary)]"
               style={{ fontFamily: "var(--font-heading)" }}
             >
               Event Breakdown (30d)
             </h2>
           </div>
           {data.eventBreakdown.length === 0 ? (
-            <p className="text-sm text-[#0A0A0A]/40">
+            <p className="text-sm text-[var(--text-secondary)]">
               No events recorded yet
             </p>
           ) : (
             <div className="space-y-2">
               {data.eventBreakdown.map((event) => (
                 <div key={event.type} className="flex items-center gap-3">
-                  <span className="text-sm text-[#0A0A0A]/60 w-32 truncate">
+                  <span className="text-sm text-[var(--text-secondary)] w-32 truncate">
                     {formatEventType(event.type)}
                   </span>
-                  <div className="flex-1 h-3 rounded-full bg-[#0A0A0A]/5 overflow-hidden">
+                  <div className="flex-1 h-3 rounded-full bg-[var(--border)] overflow-hidden">
                     <motion.div
                       className="h-full rounded-full bg-[#FFE600]"
                       initial={{ width: 0 }}

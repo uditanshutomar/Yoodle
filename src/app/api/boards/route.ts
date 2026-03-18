@@ -56,9 +56,12 @@ export const POST = withHandler(async (req: NextRequest) => {
     if (existing) return badRequest("You already have a personal board");
   }
 
-  // Conversation boards: require conversationId
+  // Conversation boards: require valid conversationId
   if (body.scope === "conversation" && !body.conversationId) {
     return badRequest("conversationId required for conversation boards");
+  }
+  if (body.conversationId && !mongoose.Types.ObjectId.isValid(body.conversationId)) {
+    return badRequest("Invalid conversationId format");
   }
 
   const board = await Board.create({

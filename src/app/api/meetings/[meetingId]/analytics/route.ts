@@ -9,13 +9,28 @@ import connectDB from "@/lib/infra/db/client";
 
 /**
  * Return analytics for a specific meeting.
+ * Only participants and the host can view analytics.
  */
 export const GET = withHandler(async (req: NextRequest, context) => {
   await checkRateLimit(req, "meetings");
-  await getUserIdFromRequest(req); // auth gate
+  const userId = await getUserIdFromRequest(req);
   const { meetingId } = await context!.params;
 
   await connectDB();
+
+  // Verify the user is a participant or host of the meeting
+  const Meeting = (await import("@/lib/infra/db/models/meeting")).default;
+  const meeting = await Meeting.findOne({
+    _id: meetingId,
+    $or: [
+      { hostId: userId },
+      { "participants.userId": userId },
+    ],
+  }).lean();
+
+  if (!meeting) {
+    return errorResponse("FORBIDDEN", "Not a participant in this meeting", 403);
+  }
 
   const MeetingAnalytics = (await import("@/lib/infra/db/models/meeting-analytics")).default;
   const analytics = await MeetingAnalytics.findOne({ meetingId }).lean();

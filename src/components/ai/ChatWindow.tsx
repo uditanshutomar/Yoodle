@@ -8,6 +8,7 @@ import ChatBubble from "./ChatBubble";
 import SuggestionChips from "./SuggestionChips";
 import SmartEmptyState from "./SmartEmptyState";
 import InsightQueue, { type InsightItem } from "./InsightQueue";
+import SessionSwitcher from "./SessionSwitcher";
 import VoiceInputButton from "@/components/chat/VoiceInputButton";
 import { useAuth } from "@/hooks/useAuth";
 import type { ChatMessage } from "@/hooks/useAIChat";
@@ -25,6 +26,10 @@ interface ChatWindowProps {
   onStop: () => void;
   onClear: () => void;
   onClose?: () => void;
+  onCardAction?: (actionType: string, args: Record<string, unknown>) => void;
+  sessions?: Array<{ id: string; label?: string; createdAt: number }>;
+  activeSessionId?: string;
+  onSwitchSession?: (id: string) => void;
 }
 
 export default function ChatWindow({
@@ -34,6 +39,10 @@ export default function ChatWindow({
   onStop,
   onClear,
   onClose,
+  onCardAction,
+  sessions,
+  activeSessionId,
+  onSwitchSession,
 }: ChatWindowProps) {
   const { user } = useAuth();
   const mascotSrc = MASCOT_BY_MODE[user?.mode || "social"] || MASCOT_BY_MODE.social;
@@ -109,6 +118,14 @@ export default function ChatWindow({
         onDismiss={handleInsightDismiss}
       />
 
+      {sessions && onSwitchSession && (
+        <SessionSwitcher
+          sessions={sessions}
+          activeSessionId={activeSessionId}
+          onSwitch={onSwitchSession}
+        />
+      )}
+
       {/* Messages */}
       <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4 min-h-0">
         {messages.length === 0 && (
@@ -125,6 +142,7 @@ export default function ChatWindow({
             isStreaming={isStreaming && msg.role === "assistant" && msg === messages[messages.length - 1]}
             toolCalls={msg.toolCalls}
             cards={msg.cards}
+            onCardAction={onCardAction}
           />
         ))}
         <div ref={bottomRef} />

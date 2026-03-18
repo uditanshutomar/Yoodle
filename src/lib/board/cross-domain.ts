@@ -3,22 +3,59 @@ import Board from "@/lib/infra/db/models/board";
 import Task from "@/lib/infra/db/models/task";
 import TaskComment from "@/lib/infra/db/models/task-comment";
 import Meeting from "@/lib/infra/db/models/meeting";
+import mongoose from "mongoose";
 import { getEmail } from "@/lib/google/gmail";
 import { searchFiles } from "@/lib/google/drive";
+import { createEvent } from "@/lib/google/calendar";
 import { nanoid } from "nanoid";
+import { generateMeetingCode } from "@/lib/utils/id";
 import { getPersonalBoard } from "./tools";
 import type { ToolResult } from "@/lib/ai/tools";
 
+function isValidObjectId(id: unknown): id is string {
+  return typeof id === "string" && mongoose.Types.ObjectId.isValid(id);
+}
+
+async function verifyTaskAccess(userId: string, taskId: string) {
+  if (!isValidObjectId(taskId)) return null;
+  const task = await Task.findById(taskId);
+  if (!task) return null;
+  const board = await Board.findOne({
+    _id: task.boardId,
+    $or: [{ ownerId: userId }, { "members.userId": userId }],
+  });
+  if (!board) return null;
+  return { task, board };
+}
+
+async function verifyBoardAccess(userId: string, boardId: string) {
+  if (!isValidObjectId(boardId)) return null;
+  return Board.findOne({
+    _id: boardId,
+    $or: [{ ownerId: userId }, { "members.userId": userId }],
+  });
+}
+
 export async function createTaskFromMeeting(userId: string, args: Record<string, unknown>): Promise<ToolResult> {
   await connectDB();
+  if (!isValidObjectId(args.meetingId)) return { success: false, summary: "Invalid meeting ID." };
   const meeting = await Meeting.findById(args.meetingId as string)
     .populate("participants.userId", "displayName name _id")
     .lean();
   if (!meeting) return { success: false, summary: "Meeting not found." };
+  // Verify user is a participant (populated userId may be an object or ObjectId)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const isParticipant = meeting.participants?.some((p: any) => {
+    const pid = typeof p.userId === "object" && p.userId ? (p.userId._id || p.userId).toString() : p.userId?.toString();
+    return pid === userId;
+  });
+  if (!isParticipant) return { success: false, summary: "Access denied — you are not a participant of this meeting." };
   if (!meeting.mom?.actionItems?.length) return { success: false, summary: "No MoM action items found for this meeting." };
 
-  const board = args.boardId ? await Board.findById(args.boardId as string) : await getPersonalBoard(userId);
-  if (!board) return { success: false, summary: "Board not found." };
+  const boardId = args.boardId as string | undefined;
+  if (boardId && !isValidObjectId(boardId)) return { success: false, summary: "Invalid board ID." };
+  const board = boardId ? await verifyBoardAccess(userId, boardId) : await getPersonalBoard(userId);
+  if (!board) return { success: false, summary: "Board not found or access denied." };
   const firstColumnId = board.columns[0]?.id;
   if (!firstColumnId) return { success: false, summary: "Board has no columns." };
 
@@ -44,7 +81,7 @@ export async function createTaskFromMeeting(userId: string, args: Record<string,
     }
     const lastTask = await Task.findOne({ boardId: board._id, columnId: firstColumnId }).sort({ position: -1 }).lean();
     const task = await Task.create({
-      boardId: board._id, columnId: firstColumnId, position: (lastTask?.position ?? 0) + 1,
+      boardId: board._id, columnId: firstColumnId, position: lastTask ? lastTask.position + 1024 : 1024,
       title: item.task, priority: "medium", creatorId: userId,
       assigneeId: ownerUser?._id || undefined, dueDate,
       meetingId: meeting._id,
@@ -66,13 +103,15 @@ export async function createTaskFromEmail(userId: string, args: Record<string, u
   await connectDB();
   const email = await getEmail(userId, args.emailId as string);
   if (!email) return { success: false, summary: "Email not found." };
-  const board = args.boardId ? await Board.findById(args.boardId as string) : await getPersonalBoard(userId);
-  if (!board) return { success: false, summary: "Board not found." };
+  const boardId = args.boardId as string | undefined;
+  if (boardId && !isValidObjectId(boardId)) return { success: false, summary: "Invalid board ID." };
+  const board = boardId ? await verifyBoardAccess(userId, boardId) : await getPersonalBoard(userId);
+  if (!board) return { success: false, summary: "Board not found or access denied." };
   const firstColumnId = board.columns[0]?.id;
   const lastTask = await Task.findOne({ boardId: board._id, columnId: firstColumnId }).sort({ position: -1 }).lean();
   const title = (args.title as string) || email.subject || "Task from email";
   const task = await Task.create({
-    boardId: board._id, columnId: firstColumnId, position: (lastTask?.position ?? 0) + 1,
+    boardId: board._id, columnId: firstColumnId, position: lastTask ? lastTask.position + 1024 : 1024,
     title, description: `From email: "${email.subject}" by ${email.from}`,
     priority: (args.priority as string) || "medium", creatorId: userId,
     source: { type: "email", sourceId: args.emailId as string },
@@ -90,12 +129,13 @@ export async function createTaskFromChat(userId: string, args: Record<string, un
     const linkedBoard = await Board.findOne({ conversationId });
     boardId = linkedBoard?._id?.toString();
   }
-  const board = boardId ? await Board.findById(boardId) : await getPersonalBoard(userId);
-  if (!board) return { success: false, summary: "Board not found." };
+  if (boardId && !isValidObjectId(boardId)) return { success: false, summary: "Invalid board ID." };
+  const board = boardId ? await verifyBoardAccess(userId, boardId) : await getPersonalBoard(userId);
+  if (!board) return { success: false, summary: "Board not found or access denied." };
   const firstColumnId = board.columns[0]?.id;
   const lastTask = await Task.findOne({ boardId: board._id, columnId: firstColumnId }).sort({ position: -1 }).lean();
   const task = await Task.create({
-    boardId: board._id, columnId: firstColumnId, position: (lastTask?.position ?? 0) + 1,
+    boardId: board._id, columnId: firstColumnId, position: lastTask ? lastTask.position + 1024 : 1024,
     title: args.title as string, priority: "medium", creatorId: userId,
     source: { type: "chat", sourceId: conversationId },
     subtasks: [], linkedDocs: [], linkedEmails: [], collaborators: [], labels: [],
@@ -105,6 +145,9 @@ export async function createTaskFromChat(userId: string, args: Record<string, un
 
 export async function scheduleMeetingForTask(userId: string, args: Record<string, unknown>): Promise<ToolResult> {
   await connectDB();
+  if (!isValidObjectId(args.taskId)) return { success: false, summary: "Invalid task ID." };
+  const access = await verifyTaskAccess(userId, args.taskId as string);
+  if (!access) return { success: false, summary: "Task not found or access denied." };
   const task = await Task.findById(args.taskId as string)
     .populate("assigneeId", "email displayName")
     .populate("collaborators", "email displayName")
@@ -117,21 +160,79 @@ export async function scheduleMeetingForTask(userId: string, args: Record<string
   for (const c of collabs) {
     if (c.email && !attendeeEmails.includes(c.email)) attendeeEmails.push(c.email);
   }
+
+  const durationMin = (args.duration as number) || 30;
+  const scheduledAt = args.scheduledAt as string | undefined;
+
+  // If scheduledAt is provided, actually create the meeting + calendar event
+  if (scheduledAt) {
+    const code = generateMeetingCode();
+    const title = `${task.title}`;
+    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000";
+    const yoodleLink = `${baseUrl}/meetings/${code}/room`;
+
+    const meeting = await Meeting.create({
+      code,
+      title,
+      hostId: new mongoose.Types.ObjectId(userId),
+      type: "regular",
+      status: "scheduled",
+      scheduledAt: new Date(scheduledAt),
+      scheduledDuration: durationMin,
+      participants: [
+        { userId: new mongoose.Types.ObjectId(userId), role: "host", status: "joined", joinedAt: new Date() },
+      ],
+      settings: { maxParticipants: 25, allowRecording: true, allowScreenShare: true, waitingRoom: false, muteOnJoin: false },
+    });
+
+    // Link meeting to task
+    await Task.findByIdAndUpdate(task._id, {
+      $push: { linkedMeetings: { meetingId: meeting._id, title, joinUrl: yoodleLink } },
+    });
+
+    // Create Google Calendar event with Yoodle link
+    let calendarEventId: string | undefined;
+    try {
+      const startTime = new Date(scheduledAt).toISOString();
+      const endDate = new Date(new Date(scheduledAt).getTime() + durationMin * 60000);
+      const event = await createEvent(userId, {
+        title,
+        start: startTime,
+        end: endDate.toISOString(),
+        description: `Yoodle meeting for task: ${task.title}\nJoin: ${yoodleLink}`,
+        location: yoodleLink,
+        attendees: attendeeEmails,
+      });
+      calendarEventId = event?.id;
+    } catch { /* calendar event creation is best-effort */ }
+
+    return {
+      success: true,
+      summary: `Scheduled meeting "${title}" for ${new Date(scheduledAt).toLocaleString()}${calendarEventId ? " (added to Google Calendar)" : ""}`,
+      data: {
+        meetingId: meeting._id.toString(), meetingCode: code, joinUrl: yoodleLink,
+        calendarEventId, taskId: task._id.toString(), attendees: attendeeEmails,
+      },
+    };
+  }
+
+  // No scheduledAt — return suggestions for the AI to use
   return {
     success: true,
-    summary: `Ready to schedule meeting for task "${task.title}" with ${attendeeEmails.length} participant(s)`,
+    summary: `Ready to schedule meeting for task "${task.title}" with ${attendeeEmails.length} participant(s). Provide a scheduledAt time to create the meeting.`,
     data: {
       suggestedTitle: task.title, suggestedAttendees: attendeeEmails,
-      suggestedDuration: (args.duration as number) || 30,
-      scheduledAt: args.scheduledAt || null, taskId: task._id.toString(),
+      suggestedDuration: durationMin,
+      taskId: task._id.toString(),
     },
   };
 }
 
 export async function linkDocToTask(userId: string, args: Record<string, unknown>): Promise<ToolResult> {
   await connectDB();
-  const task = await Task.findById(args.taskId as string);
-  if (!task) return { success: false, summary: "Task not found." };
+  const docAccess = await verifyTaskAccess(userId, args.taskId as string);
+  if (!docAccess) return { success: false, summary: "Task not found or access denied." };
+  const task = docAccess.task;
   let docId = args.googleDocId as string | undefined;
   let docName = "";
   let docUrl = "";
@@ -158,8 +259,10 @@ export async function linkDocToTask(userId: string, args: Record<string, unknown
 
 export async function linkMeetingToTask(userId: string, args: Record<string, unknown>): Promise<ToolResult> {
   await connectDB();
-  const task = await Task.findById(args.taskId as string);
-  if (!task) return { success: false, summary: "Task not found." };
+  const linkAccess = await verifyTaskAccess(userId, args.taskId as string);
+  if (!linkAccess) return { success: false, summary: "Task not found or access denied." };
+  const task = linkAccess.task;
+  if (!isValidObjectId(args.meetingId)) return { success: false, summary: "Invalid meeting ID." };
   const meeting = await Meeting.findById(args.meetingId as string);
   if (!meeting) return { success: false, summary: "Meeting not found." };
   task.meetingId = meeting._id;
@@ -169,6 +272,8 @@ export async function linkMeetingToTask(userId: string, args: Record<string, unk
 
 export async function generateSubtasks(userId: string, args: Record<string, unknown>): Promise<ToolResult> {
   await connectDB();
+  const subAccess = await verifyTaskAccess(userId, args.taskId as string);
+  if (!subAccess) return { success: false, summary: "Task not found or access denied." };
   const task = await Task.findById(args.taskId as string).lean();
   if (!task) return { success: false, summary: "Task not found." };
   const count = Math.min(Math.max((args.count as number) || 5, 3), 10);
@@ -196,6 +301,8 @@ export async function generateSubtasks(userId: string, args: Record<string, unkn
 
 export async function getTaskContext(userId: string, args: Record<string, unknown>): Promise<ToolResult> {
   await connectDB();
+  const ctxAccess = await verifyTaskAccess(userId, args.taskId as string);
+  if (!ctxAccess) return { success: false, summary: "Task not found or access denied." };
   const task = await Task.findById(args.taskId as string)
     .populate("assigneeId", "displayName name email")
     .populate("collaborators", "displayName name")

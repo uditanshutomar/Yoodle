@@ -20,8 +20,8 @@ const createTaskSchema = z.object({
   priority: z.enum(["urgent", "high", "medium", "low", "none"]).optional(),
   assigneeId: z.string().optional(),
   labels: z.array(z.string()).optional(),
-  dueDate: z.string().datetime().optional(),
-  startDate: z.string().datetime().optional(),
+  dueDate: z.string().refine((v) => !isNaN(Date.parse(v)), { message: "Invalid date" }).optional(),
+  startDate: z.string().refine((v) => !isNaN(Date.parse(v)), { message: "Invalid date" }).optional(),
   subtasks: z
     .array(z.object({ title: z.string().min(1).max(500) }))
     .optional(),
@@ -33,6 +33,11 @@ export const GET = withHandler(async (req: NextRequest, context) => {
   await checkRateLimit(req, "general");
   const userId = await getUserIdFromRequest(req);
   const { boardId } = await context!.params;
+
+  if (!mongoose.Types.ObjectId.isValid(boardId)) {
+    return badRequest("Invalid board ID");
+  }
+
   await connectDB();
 
   const userOid = new mongoose.Types.ObjectId(userId);
@@ -69,6 +74,11 @@ export const POST = withHandler(async (req: NextRequest, context) => {
   await checkRateLimit(req, "general");
   const userId = await getUserIdFromRequest(req);
   const { boardId } = await context!.params;
+
+  if (!mongoose.Types.ObjectId.isValid(boardId)) {
+    return badRequest("Invalid board ID");
+  }
+
   const body = createTaskSchema.parse(await req.json());
   await connectDB();
 

@@ -8,7 +8,7 @@ import { jwtVerify } from "jose";
  * Allows all other routes (landing page, auth pages, API routes) through.
  *
  * Note: Token blacklist checks cannot run in Edge middleware (no Redis access).
- * The API-layer authenticateRequest() in src/lib/auth/middleware.ts handles
+ * The API-layer authenticateRequest() in src/lib/infra/auth/middleware.ts handles
  * blacklist validation for all API routes. For page routes, tokens are short-lived
  * (15 min) which limits the window after logout.
  */
@@ -17,11 +17,12 @@ import { jwtVerify } from "jose";
 const PROTECTED_PATHS = [
   "/dashboard",
   "/meetings",
+  "/messages",
   "/workspaces",
-  "/ghost-rooms",
-  "/ai",
+  "/ghost-rooms", // Ghost room detail pages still exist at /ghost-rooms/[roomId]
   "/settings",
   "/admin",
+  "/ai",
 ];
 
 function isProtectedRoute(pathname: string): boolean {

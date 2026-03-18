@@ -24,6 +24,7 @@ interface ChatBubbleProps {
   isStreaming?: boolean;
   toolCalls?: ToolCall[];
   cards?: CardData[];
+  onCardAction?: (actionType: string, args: Record<string, unknown>) => void;
   onConfirmAction?: (actionId: string, actionType: string, args: Record<string, unknown>) => void;
   onDenyAction?: (actionId: string) => void;
 }
@@ -239,7 +240,7 @@ const ACTION_ICONS: Record<string, React.ElementType> = {
   clear_sheet_range: FileText,
 };
 
-export default function ChatBubble({ id, role, content, timestamp, isStreaming, toolCalls, cards, onConfirmAction, onDenyAction }: ChatBubbleProps) {
+export default function ChatBubble({ id, role, content, timestamp, isStreaming, toolCalls, cards, onCardAction, onConfirmAction, onDenyAction }: ChatBubbleProps) {
   const { user } = useAuth();
   const mascotSrc = MASCOT_BY_MODE[user?.mode || "social"] || MASCOT_BY_MODE.social;
   const isAssistant = role === "assistant";
@@ -270,7 +271,20 @@ export default function ChatBubble({ id, role, content, timestamp, isStreaming, 
             </span>
           </div>
           <div className="text-xs leading-relaxed text-[var(--text-primary)] prose prose-sm prose-invert max-w-none prose-headings:text-[var(--text-primary)] prose-headings:text-xs prose-headings:font-bold prose-headings:mt-2 prose-headings:mb-1 prose-p:my-1 prose-ul:my-1 prose-li:my-0 prose-strong:text-[var(--text-primary)]">
-            <ReactMarkdown>{content}</ReactMarkdown>
+            <ReactMarkdown
+                disallowedElements={["script", "iframe", "object", "embed", "form", "input", "style"]}
+                unwrapDisallowed
+                components={{
+                  a: ({ href, children }) => {
+                    const safe = href && (href.startsWith("https://") || href.startsWith("http://") || href.startsWith("/") || href.startsWith("mailto:"));
+                    return safe ? (
+                      <a href={href} target="_blank" rel="noopener noreferrer">{children}</a>
+                    ) : (
+                      <span>{children}</span>
+                    );
+                  },
+                }}
+              >{content}</ReactMarkdown>
           </div>
           {timestamp && (
             <p className="text-[9px] text-[var(--text-muted)] mt-2">
@@ -330,7 +344,7 @@ export default function ChatBubble({ id, role, content, timestamp, isStreaming, 
 
         {/* Structured response cards */}
         {isAssistant && hasCards && (
-          <CardRenderer cards={cards} />
+          <CardRenderer cards={cards} onAction={onCardAction} />
         )}
 
         <div
@@ -343,7 +357,20 @@ export default function ChatBubble({ id, role, content, timestamp, isStreaming, 
         >
           {content ? (
             <div className="prose prose-sm prose-invert max-w-none prose-headings:text-sm prose-headings:font-bold prose-headings:mt-3 prose-headings:mb-1 prose-p:my-1.5 prose-ul:my-1.5 prose-ol:my-1.5 prose-li:my-0.5 prose-strong:text-[var(--text-primary)] prose-a:text-[#FFE600] prose-a:no-underline hover:prose-a:underline [&>*:first-child]:mt-0">
-              <ReactMarkdown>{content}</ReactMarkdown>
+              <ReactMarkdown
+                disallowedElements={["script", "iframe", "object", "embed", "form", "input", "style"]}
+                unwrapDisallowed
+                components={{
+                  a: ({ href, children }) => {
+                    const safe = href && (href.startsWith("https://") || href.startsWith("http://") || href.startsWith("/") || href.startsWith("mailto:"));
+                    return safe ? (
+                      <a href={href} target="_blank" rel="noopener noreferrer">{children}</a>
+                    ) : (
+                      <span>{children}</span>
+                    );
+                  },
+                }}
+              >{content}</ReactMarkdown>
             </div>
           ) : isStreaming ? (
             <motion.span

@@ -40,6 +40,12 @@ function getSnapshot(userId: string): WorkspaceSnapshot | undefined {
   return entry.snapshot;
 }
 
+/** Compare nullable numeric fields — treat null→non-null transitions as changes */
+function nullableChanged(prev: number | null, curr: number | null): boolean {
+  if (prev === null && curr === null) return false;
+  return prev !== curr;
+}
+
 function hasSnapshotChanged(
   prev: WorkspaceSnapshot | undefined,
   curr: WorkspaceSnapshot
@@ -47,22 +53,24 @@ function hasSnapshotChanged(
   if (!prev) return true;
   if (prev.unreadCount !== curr.unreadCount) return true;
   if (prev.nextMeetingId !== curr.nextMeetingId) return true;
-  // Board tasks (replaces Google Tasks diff)
-  if (prev.boardOverdueCount !== null && curr.boardOverdueCount !== null &&
-      prev.boardOverdueCount !== curr.boardOverdueCount) return true;
-  if (prev.boardTaskCount !== null && curr.boardTaskCount !== null &&
-      prev.boardTaskCount !== curr.boardTaskCount) return true;
+  // Board tasks
+  if (nullableChanged(prev.boardOverdueCount, curr.boardOverdueCount)) return true;
+  if (nullableChanged(prev.boardTaskCount, curr.boardTaskCount)) return true;
+  // Emails
+  if (prev.emailIds === null !== (curr.emailIds === null)) return true;
   if (prev.emailIds !== null && curr.emailIds !== null) {
     if (prev.emailIds.length !== curr.emailIds.length) return true;
     if (prev.emailIds.some((id, i) => curr.emailIds![i] !== id)) return true;
   }
+  // Board task IDs
+  if (prev.boardTaskIds === null !== (curr.boardTaskIds === null)) return true;
   if (prev.boardTaskIds !== null && curr.boardTaskIds !== null) {
     if (prev.boardTaskIds.length !== curr.boardTaskIds.length) return true;
     if (prev.boardTaskIds.some((id, i) => curr.boardTaskIds![i] !== id)) return true;
   }
-  // Meeting actions changed
-  if (prev.unresolvedMeetingActions !== null && curr.unresolvedMeetingActions !== null &&
-      prev.unresolvedMeetingActions !== curr.unresolvedMeetingActions) return true;
+  // Meeting actions + conversation threads
+  if (nullableChanged(prev.unresolvedMeetingActions, curr.unresolvedMeetingActions)) return true;
+  if (nullableChanged(prev.activeConversationThreads, curr.activeConversationThreads)) return true;
   return false;
 }
 

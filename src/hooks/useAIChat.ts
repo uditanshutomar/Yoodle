@@ -29,6 +29,15 @@ export interface ChatMessage {
 }
 
 const STORAGE_KEY = "yoodle-ai-chat-messages";
+const SESSIONS_KEY = "ai-chat-sessions";
+const MAX_SESSIONS = 3;
+
+export interface ChatSession {
+  id: string;
+  messages: ChatMessage[];
+  label?: string;
+  createdAt: number;
+}
 
 function loadPersistedMessages(): ChatMessage[] {
   if (typeof window === "undefined") return [];
@@ -60,6 +69,17 @@ export function useAIChat() {
   const abortRef = useRef<AbortController | null>(null);
   const messagesRef = useRef<ChatMessage[]>([]);
   const isStreamingRef = useRef(false);
+
+  const [sessions, setSessions] = useState<ChatSession[]>(() => {
+    if (typeof window === "undefined") return [];
+    try {
+      const stored = sessionStorage.getItem(SESSIONS_KEY);
+      return stored ? JSON.parse(stored) : [];
+    } catch { return []; }
+  });
+  const [activeSessionId, setActiveSessionId] = useState<string>(() =>
+    typeof window !== "undefined" ? crypto.randomUUID() : "default"
+  );
 
   // Pending action detection callback
   const onPendingActionRef = useRef<((data: Record<string, unknown>) => void) | null>(null);
@@ -237,6 +257,10 @@ export function useAIChat() {
                   const newCards = resultData.cards as CardData[];
                   cards = [...cards, ...newCards];
                 }
+                // Single card (from workflows, batch actions, etc.)
+                if (resultData?.card && typeof resultData.card === "object" && "type" in (resultData.card as object)) {
+                  cards = [...cards, resultData.card as CardData];
+                }
 
                 setMessages((prev) =>
                   prev.map((m) =>
@@ -310,9 +334,29 @@ export function useAIChat() {
   }, []);
 
   const clearMessages = useCallback(() => {
+    if (messages.length > 0) {
+      setSessions((prev) => {
+        const newSession: ChatSession = {
+          id: activeSessionId,
+          messages,
+          createdAt: messages[0]?.timestamp ?? Date.now(),
+        };
+        const updated = [newSession, ...prev.filter((s) => s.id !== activeSessionId)].slice(0, MAX_SESSIONS);
+        try { sessionStorage.setItem(SESSIONS_KEY, JSON.stringify(updated)); } catch { /* quota */ }
+        return updated;
+      });
+    }
     setMessages([]);
-    try { sessionStorage.removeItem(STORAGE_KEY); } catch { /* ignore */ }
-  }, []);
+    setActiveSessionId(typeof window !== "undefined" ? crypto.randomUUID() : "default");
+  }, [messages, activeSessionId]);
+
+  const switchSession = useCallback((sessionId: string) => {
+    const session = sessions.find((s) => s.id === sessionId);
+    if (session) {
+      setMessages(session.messages);
+      setActiveSessionId(session.id);
+    }
+  }, [sessions]);
 
   const fetchBriefing = useCallback(async (signal?: AbortSignal) => {
     try {
@@ -354,5 +398,5 @@ export function useAIChat() {
     };
   }, [user, fetchBriefing]);
 
-  return { messages, isStreaming, sendMessage, stopStreaming, clearMessages, setOnPendingAction, fetchBriefing };
+  return { messages, isStreaming, sendMessage, stopStreaming, clearMessages, setOnPendingAction, fetchBriefing, sessions, activeSessionId, switchSession };
 }

@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { z } from "zod";
 import { withHandler } from "@/lib/infra/api/with-handler";
+import { checkRateLimit } from "@/lib/infra/api/rate-limit";
 import { getUserIdFromRequest } from "@/lib/infra/auth/middleware";
 import { consumeUndoToken } from "@/lib/ai/meeting-undo";
 import { executeWorkspaceTool } from "@/lib/ai/tools";
@@ -11,6 +12,7 @@ const undoSchema = z.object({
 });
 
 export const POST = withHandler(async (req: NextRequest) => {
+  await checkRateLimit(req, "ai");
   const userId = await getUserIdFromRequest(req);
 
   const body = undoSchema.parse(await req.json());

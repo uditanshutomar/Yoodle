@@ -33,8 +33,13 @@ export const useAIDrawer = () => useContext(AIDrawerContext);
 export function AIDrawerProvider({ children }: { children: React.ReactNode }) {
   const [isOpen, setIsOpen] = useState(false);
   const close = useCallback(() => setIsOpen(false), []);
-  const toggle = useCallback(() => setIsOpen((p) => !p), []);
   const { count: insightCount, clearCount } = useInsightCount(!isOpen);
+  const toggle = useCallback(() => {
+    setIsOpen((p) => {
+      if (!p) clearCount(); // Clear badge when opening via toggle
+      return !p;
+    });
+  }, [clearCount]);
   const open = useCallback(() => { setIsOpen(true); clearCount(); }, [clearCount]);
 
   useEffect(() => {
@@ -97,7 +102,26 @@ function AIDrawerFAB({ onClick, isOpen, insightCount }: { onClick: () => void; i
 }
 
 function AIDrawerPanel({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
-  const { messages, isStreaming, sendMessage, stopStreaming, clearMessages } = useAIChat();
+  const { messages, isStreaming, sendMessage, stopStreaming, clearMessages, sessions, activeSessionId, switchSession } = useAIChat();
+
+  const handleCardAction = useCallback(async (actionType: string, args: Record<string, unknown>) => {
+    if (actionType === "undo_cascade_action" && args.undoToken) {
+      try {
+        const res = await fetch("/api/ai/action/undo", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify({ undoToken: args.undoToken }),
+        });
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          console.error("Undo failed:", data.error?.message || res.statusText);
+        }
+      } catch (err) {
+        console.error("Undo request failed:", err);
+      }
+    }
+  }, []);
 
   return (
     <AnimatePresence>
@@ -125,6 +149,10 @@ function AIDrawerPanel({ isOpen, onClose }: { isOpen: boolean; onClose: () => vo
                 onStop={stopStreaming}
                 onClear={clearMessages}
                 onClose={onClose}
+                onCardAction={handleCardAction}
+                sessions={sessions}
+                activeSessionId={activeSessionId}
+                onSwitchSession={switchSession}
               />
             </div>
           </motion.aside>

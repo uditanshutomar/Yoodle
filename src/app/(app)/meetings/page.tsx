@@ -296,6 +296,12 @@ export default function MeetingsPage() {
               <DropdownMenu.Item onSelect={handleCreateGhostRoom} className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)] transition-colors cursor-pointer outline-none" style={{ fontFamily: "var(--font-heading)" }}>
                 <Ghost size={14} /> Ghost Room
               </DropdownMenu.Item>
+              <DropdownMenu.Separator className="my-1 h-px bg-[var(--border)]" />
+              <DropdownMenu.Item asChild>
+                <Link href="/meetings/templates" className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)] transition-colors cursor-pointer outline-none" style={{ fontFamily: "var(--font-heading)" }}>
+                  <Users size={14} /> Manage Templates
+                </Link>
+              </DropdownMenu.Item>
             </DropdownMenu.Content>
           </DropdownMenu.Portal>
         </DropdownMenu.Root>

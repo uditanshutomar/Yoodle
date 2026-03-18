@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, useCallback, useEffect } from "react";
+import { nanoid } from "nanoid";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   X,
@@ -80,6 +81,15 @@ const PRIORITIES: BoardTask["priority"][] = ["urgent", "high", "medium", "low", 
 
 type DetailTab = "comments" | "activity";
 
+interface CommentEntry {
+  _id: string;
+  authorId: string;
+  type: "comment" | "activity";
+  content: string;
+  changes?: { field: string; from: string; to: string };
+  createdAt: string;
+}
+
 /* ────────────────────────────────────────────────────────────
    Component
    ──────────────────────────────────────────────────────────── */
@@ -137,6 +147,8 @@ function TaskDetailInner({
   const [newSubtask, setNewSubtask] = useState("");
   const [tab, setTab] = useState<DetailTab>("comments");
   const [commentText, setCommentText] = useState("");
+  const [comments, setComments] = useState<CommentEntry[]>([]);
+  const [commentsLoading, setCommentsLoading] = useState(true);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
@@ -165,6 +177,52 @@ function TaskDetailInner({
   useEffect(() => {
     if (editingDesc && descRef.current) descRef.current.focus();
   }, [editingDesc]);
+
+  /* ── Fetch comments & activity ── */
+  const fetchComments = useCallback(async () => {
+    if (!task.boardId) return;
+    try {
+      const res = await fetch(
+        `/api/boards/${task.boardId}/tasks/${task._id}/comments`,
+        { credentials: "include" }
+      );
+      if (res.ok) {
+        const json = await res.json();
+        setComments(json.data || []);
+      }
+    } catch {
+      // silently fail
+    } finally {
+      setCommentsLoading(false);
+    }
+  }, [task.boardId, task._id]);
+
+  useEffect(() => {
+    fetchComments();
+  }, [fetchComments]);
+
+  const submitComment = useCallback(async () => {
+    const trimmed = commentText.trim();
+    if (!trimmed || !task.boardId) return;
+    setCommentText("");
+    try {
+      const res = await fetch(
+        `/api/boards/${task.boardId}/tasks/${task._id}/comments`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify({ content: trimmed }),
+        }
+      );
+      if (res.ok) {
+        fetchComments();
+      }
+    } catch {
+      // restore text on failure
+      setCommentText(trimmed);
+    }
+  }, [commentText, task.boardId, task._id, fetchComments]);
 
   /* ── Persist helpers ── */
   const persist = useCallback(
@@ -236,7 +294,7 @@ function TaskDetailInner({
     const trimmed = newSubtask.trim();
     if (!trimmed) return;
     const sub: Subtask = {
-      id: `st_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+      id: `st_${nanoid(8)}`,
       title: trimmed,
       done: false,
     };
@@ -706,52 +764,75 @@ function TaskDetailInner({
                 ))}
               </div>
 
-              {tab === "comments" ? (
-                <div>
-                  {/* Empty state */}
-                  <div className="flex flex-col items-center justify-center py-6 text-center">
-                    <MessageSquare
-                      size={28}
-                      className="text-[var(--text-secondary)]/30 mb-2"
-                    />
-                    <p className="text-xs text-[var(--text-secondary)]">No comments yet</p>
-                    <p className="text-[10px] text-[var(--text-secondary)]/60 mt-0.5">
-                      Be the first to leave a comment
-                    </p>
-                  </div>
+              {(() => {
+                const filtered = comments.filter((c) =>
+                  tab === "comments" ? c.type === "comment" : c.type === "activity"
+                );
+                return (
+                  <div>
+                    {commentsLoading ? (
+                      <div className="flex items-center justify-center py-6">
+                        <div className="w-5 h-5 border-2 border-[var(--border-strong)] border-t-transparent rounded-full animate-spin" />
+                      </div>
+                    ) : filtered.length === 0 ? (
+                      <div className="flex flex-col items-center justify-center py-6 text-center">
+                        {tab === "comments" ? (
+                          <>
+                            <MessageSquare size={28} className="text-[var(--text-secondary)]/30 mb-2" />
+                            <p className="text-xs text-[var(--text-secondary)]">No comments yet</p>
+                            <p className="text-[10px] text-[var(--text-secondary)]/60 mt-0.5">Be the first to leave a comment</p>
+                          </>
+                        ) : (
+                          <>
+                            <Activity size={28} className="text-[var(--text-secondary)]/30 mb-2" />
+                            <p className="text-xs text-[var(--text-secondary)]">No activity yet</p>
+                            <p className="text-[10px] text-[var(--text-secondary)]/60 mt-0.5">Changes to this task will appear here</p>
+                          </>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="space-y-3 max-h-[200px] overflow-y-auto">
+                        {filtered.map((c) => (
+                          <div key={c._id} className="flex items-start gap-2">
+                            <div className="h-6 w-6 rounded-full bg-[var(--surface-hover)] border border-[var(--border)] flex items-center justify-center flex-shrink-0 mt-0.5">
+                              {c.type === "activity" ? <Activity size={10} /> : <User size={10} />}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-xs text-[var(--text-primary)]">{c.content}</p>
+                              <p className="text-[10px] text-[var(--text-secondary)]/60 mt-0.5">
+                                {new Date(c.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}{" "}
+                                {new Date(c.createdAt).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}
+                              </p>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
 
-                  {/* Comment input */}
-                  <div className="flex items-start gap-2 mt-2">
-                    <div className="h-7 w-7 rounded-full bg-[var(--yellow)] border-[1.5px] border-[var(--border-strong)] flex items-center justify-center flex-shrink-0 shadow-[1px_1px_0_var(--border-strong)]">
-                      <User size={12} />
-                    </div>
-                    <div className="flex-1 flex items-center gap-1">
-                      <input
-                        value={commentText}
-                        onChange={(e) => setCommentText(e.target.value)}
-                        placeholder="Write a comment..."
-                        className="flex-1 rounded-lg border-2 border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-xs outline-none focus:border-[var(--border-strong)] transition-colors placeholder:text-[var(--text-secondary)]/40"
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter" && commentText.trim()) {
-                            // Comment submission would go through onUpdate or a dedicated API
-                            setCommentText("");
-                          }
-                        }}
-                      />
-                    </div>
+                    {/* Comment input (only on comments tab) */}
+                    {tab === "comments" && (
+                      <div className="flex items-start gap-2 mt-3">
+                        <div className="h-7 w-7 rounded-full bg-[var(--yellow)] border-[1.5px] border-[var(--border-strong)] flex items-center justify-center flex-shrink-0 shadow-[1px_1px_0_var(--border-strong)]">
+                          <User size={12} />
+                        </div>
+                        <div className="flex-1 flex items-center gap-1">
+                          <input
+                            value={commentText}
+                            onChange={(e) => setCommentText(e.target.value)}
+                            placeholder="Write a comment..."
+                            className="flex-1 rounded-lg border-2 border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-xs outline-none focus:border-[var(--border-strong)] transition-colors placeholder:text-[var(--text-secondary)]/40"
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter" && commentText.trim()) {
+                                submitComment();
+                              }
+                            }}
+                          />
+                        </div>
+                      </div>
+                    )}
                   </div>
-                </div>
-              ) : (
-                <div className="flex flex-col items-center justify-center py-6 text-center">
-                  <Activity size={28} className="text-[var(--text-secondary)]/30 mb-2" />
-                  <p className="text-xs text-[var(--text-secondary)]">
-                    Activity log coming soon
-                  </p>
-                  <p className="text-[10px] text-[var(--text-secondary)]/60 mt-0.5">
-                    Track all changes made to this task
-                  </p>
-                </div>
-              )}
+                );
+              })()}
             </section>
           </div>
 

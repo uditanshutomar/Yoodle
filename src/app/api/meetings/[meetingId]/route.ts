@@ -139,6 +139,16 @@ export const PATCH = withHandler(async (req: NextRequest, context) => {
       : null;
   }
   if (updates.settings !== undefined) {
+    // Validate maxParticipants against feature flags
+    if (updates.settings.maxParticipants !== undefined) {
+      const { features } = await import("@/lib/features/flags");
+      if (updates.settings.maxParticipants > features.maxParticipantsPerRoom) {
+        throw new BadRequestError(
+          `Maximum ${features.maxParticipantsPerRoom} participants allowed on ${features.edition} edition`
+        );
+      }
+    }
+
     // Merge individual settings fields
     for (const [key, value] of Object.entries(updates.settings)) {
       if (value !== undefined) {

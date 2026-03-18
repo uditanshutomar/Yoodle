@@ -1,15 +1,45 @@
 import connectDB from "@/lib/infra/db/client";
 import Board from "@/lib/infra/db/models/board";
 import Task from "@/lib/infra/db/models/task";
+import TaskComment from "@/lib/infra/db/models/task-comment";
+import mongoose from "mongoose";
 import { nanoid } from "nanoid";
+import { generateDefaultLabels } from "./helpers";
 import type { ToolResult } from "@/lib/ai/tools";
+
+/** Validate that a string is a valid MongoDB ObjectId */
+function isValidObjectId(id: unknown): id is string {
+  return typeof id === "string" && mongoose.Types.ObjectId.isValid(id);
+}
+
+/** Verify the user has access to the board that owns a task */
+async function verifyTaskAccess(userId: string, taskId: string): Promise<{ task: InstanceType<typeof Task>; board: InstanceType<typeof Board> } | null> {
+  if (!isValidObjectId(taskId)) return null;
+  const task = await Task.findById(taskId);
+  if (!task) return null;
+  const board = await Board.findOne({
+    _id: task.boardId,
+    $or: [{ ownerId: userId }, { "members.userId": userId }],
+  });
+  if (!board) return null;
+  return { task, board };
+}
+
+/** Verify the user has access to a specific board */
+async function verifyBoardAccess(userId: string, boardId: string): Promise<InstanceType<typeof Board> | null> {
+  if (!isValidObjectId(boardId)) return null;
+  return Board.findOne({
+    _id: boardId,
+    $or: [{ ownerId: userId }, { "members.userId": userId }],
+  });
+}
 
 export async function getPersonalBoard(userId: string) {
   await connectDB();
   let board = await Board.findOne({ ownerId: userId, scope: "personal" });
   if (!board) {
     board = await Board.create({
-      title: "Personal",
+      title: "My Tasks",
       ownerId: userId,
       scope: "personal",
       members: [{ userId, role: "owner", joinedAt: new Date() }],
@@ -19,7 +49,7 @@ export async function getPersonalBoard(userId: string) {
         { id: nanoid(8), title: "Review", color: "#F59E0B", position: 2 },
         { id: nanoid(8), title: "Done", color: "#10B981", position: 3 },
       ],
-      labels: [],
+      labels: generateDefaultLabels(),
     });
   }
   return board;
@@ -28,14 +58,15 @@ export async function getPersonalBoard(userId: string) {
 export async function createBoardTask(userId: string, args: Record<string, unknown>): Promise<ToolResult> {
   await connectDB();
   const boardId = args.boardId as string | undefined;
-  const board = boardId ? await Board.findById(boardId) : await getPersonalBoard(userId);
-  if (!board) return { success: false, summary: "Board not found." };
+  if (boardId && !isValidObjectId(boardId)) return { success: false, summary: "Invalid board ID." };
+  const board = boardId ? await verifyBoardAccess(userId, boardId) : await getPersonalBoard(userId);
+  if (!board) return { success: false, summary: "Board not found or access denied." };
 
   const columnId = (args.columnId as string) || board.columns[0]?.id;
   if (!columnId) return { success: false, summary: "Board has no columns." };
 
   const lastTask = await Task.findOne({ boardId: board._id, columnId }).sort({ position: -1 }).lean();
-  const position = (lastTask?.position ?? 0) + 1;
+  const position = lastTask ? lastTask.position + 1024 : 1024;
 
   const task = await Task.create({
     boardId: board._id, columnId, position,
@@ -59,8 +90,9 @@ export async function createBoardTask(userId: string, args: Record<string, unkno
 
 export async function updateBoardTask(userId: string, args: Record<string, unknown>): Promise<ToolResult> {
   await connectDB();
-  const task = await Task.findById(args.taskId as string);
-  if (!task) return { success: false, summary: "Task not found." };
+  const access = await verifyTaskAccess(userId, args.taskId as string);
+  if (!access) return { success: false, summary: "Task not found or access denied." };
+  const { task } = access;
   if (args.title) task.title = args.title as string;
   if (args.description !== undefined) task.description = args.description as string;
   if (args.priority) task.priority = args.priority as "urgent" | "high" | "medium" | "low" | "none";
@@ -72,14 +104,14 @@ export async function updateBoardTask(userId: string, args: Record<string, unkno
 
 export async function moveBoardTask(userId: string, args: Record<string, unknown>): Promise<ToolResult> {
   await connectDB();
-  const task = await Task.findById(args.taskId as string);
-  if (!task) return { success: false, summary: "Task not found." };
-  const board = await Board.findById(task.boardId);
-  const targetCol = board?.columns?.find((c: { id: string; title: string }) => c.id === (args.columnId as string));
+  const access = await verifyTaskAccess(userId, args.taskId as string);
+  if (!access) return { success: false, summary: "Task not found or access denied." };
+  const { task, board } = access;
+  const targetCol = board.columns?.find((c: { id: string; title: string }) => c.id === (args.columnId as string));
   if (!targetCol) return { success: false, summary: "Target column not found." };
   const lastInCol = await Task.findOne({ boardId: task.boardId, columnId: targetCol.id }).sort({ position: -1 }).lean();
   task.columnId = targetCol.id;
-  task.position = (lastInCol?.position ?? 0) + 1;
+  task.position = lastInCol ? lastInCol.position + 1024 : 1024;
   if (targetCol.title === "Done" && !task.completedAt) task.completedAt = new Date();
   else if (targetCol.title !== "Done" && task.completedAt) task.completedAt = undefined;
   await task.save();
@@ -88,23 +120,29 @@ export async function moveBoardTask(userId: string, args: Record<string, unknown
 
 export async function assignBoardTask(userId: string, args: Record<string, unknown>): Promise<ToolResult> {
   await connectDB();
-  const task = await Task.findByIdAndUpdate(args.taskId as string, { $set: { assigneeId: args.assigneeId as string } }, { new: true });
-  if (!task) return { success: false, summary: "Task not found." };
-  return { success: true, summary: `Assigned "${task.title}" to user ${args.assigneeId}`, data: { taskId: task._id.toString() } };
+  const access = await verifyTaskAccess(userId, args.taskId as string);
+  if (!access) return { success: false, summary: "Task not found or access denied." };
+  await Task.findByIdAndUpdate(access.task._id, { $set: { assigneeId: args.assigneeId as string } });
+  return { success: true, summary: `Assigned "${access.task.title}" to user ${args.assigneeId}`, data: { taskId: access.task._id.toString() } };
 }
 
 export async function deleteBoardTask(userId: string, args: Record<string, unknown>): Promise<ToolResult> {
   await connectDB();
-  const task = await Task.findByIdAndDelete(args.taskId as string);
-  if (!task) return { success: false, summary: "Task not found." };
-  return { success: true, summary: `Deleted task "${task.title}"` };
+  const access = await verifyTaskAccess(userId, args.taskId as string);
+  if (!access) return { success: false, summary: "Task not found or access denied." };
+  await TaskComment.deleteMany({ taskId: access.task._id });
+  await Task.findByIdAndDelete(access.task._id);
+  return { success: true, summary: `Deleted task "${access.task.title}"` };
 }
 
 export async function listBoardTasks(userId: string, args: Record<string, unknown>): Promise<ToolResult> {
   await connectDB();
   const filter: Record<string, unknown> = { completedAt: null };
   if (args.boardId) {
-    filter.boardId = args.boardId;
+    if (!isValidObjectId(args.boardId as string)) return { success: false, summary: "Invalid board ID." };
+    const board = await verifyBoardAccess(userId, args.boardId as string);
+    if (!board) return { success: false, summary: "Board not found or access denied." };
+    filter.boardId = board._id;
   } else {
     const boards = await Board.find({ $or: [{ ownerId: userId }, { "members.userId": userId }] }).lean();
     filter.boardId = { $in: boards.map((b) => b._id) };
@@ -127,18 +165,32 @@ export async function listBoardTasks(userId: string, args: Record<string, unknow
 
 export async function searchBoardTasks(userId: string, args: Record<string, unknown>): Promise<ToolResult> {
   await connectDB();
-  const boards = await Board.find({ $or: [{ ownerId: userId }, { "members.userId": userId }] }).lean();
+  // Escape regex special characters to prevent injection
+  const rawQuery = (args.query as string) || "";
+  const escaped = rawQuery.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+  let boardFilter: unknown;
+  if (args.boardId) {
+    if (!isValidObjectId(args.boardId as string)) return { success: false, summary: "Invalid board ID." };
+    const board = await verifyBoardAccess(userId, args.boardId as string);
+    if (!board) return { success: false, summary: "Board not found or access denied." };
+    boardFilter = board._id;
+  } else {
+    const boards = await Board.find({ $or: [{ ownerId: userId }, { "members.userId": userId }] }).lean();
+    boardFilter = { $in: boards.map((b) => b._id) };
+  }
+
   const filter: Record<string, unknown> = {
-    boardId: args.boardId ? args.boardId : { $in: boards.map((b) => b._id) },
+    boardId: boardFilter,
     $or: [
-      { title: { $regex: args.query as string, $options: "i" } },
-      { description: { $regex: args.query as string, $options: "i" } },
+      { title: { $regex: escaped, $options: "i" } },
+      { description: { $regex: escaped, $options: "i" } },
     ],
   };
   const tasks = await Task.find(filter).limit(15).populate("assigneeId", "displayName name").lean();
   return {
     success: true,
-    summary: `Found ${tasks.length} task(s) matching "${args.query}"`,
+    summary: `Found ${tasks.length} task(s) matching "${rawQuery}"`,
     data: tasks.map((t) => ({ id: t._id.toString(), title: t.title, priority: t.priority, dueDate: t.dueDate })),
   };
 }

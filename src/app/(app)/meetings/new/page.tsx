@@ -1,12 +1,24 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { motion } from "framer-motion";
-import { Video, ArrowLeft, Clock, Shield, Mic, Monitor, Users, Copy, Check, Link2 } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
+import { Video, ArrowLeft, Clock, Shield, Mic, Monitor, Users, Copy, Check, Link2, FileText, ChevronDown, X } from "lucide-react";
 import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
 import Input from "@/components/ui/Input";
+
+interface MeetingTemplateOption {
+  _id: string;
+  name: string;
+  description?: string;
+  defaultDuration: number;
+  meetingSettings: {
+    maxParticipants?: number;
+    waitingRoom?: boolean;
+    muteOnJoin?: boolean;
+  };
+}
 
 export default function NewMeetingPage() {
   const router = useRouter();
@@ -27,6 +39,41 @@ export default function NewMeetingPage() {
   const [error, setError] = useState("");
   const [titleError, setTitleError] = useState("");
 
+  // Template picker state
+  const [templates, setTemplates] = useState<MeetingTemplateOption[]>([]);
+  const [selectedTemplate, setSelectedTemplate] = useState<MeetingTemplateOption | null>(null);
+  const [templateDropdownOpen, setTemplateDropdownOpen] = useState(false);
+
+  useEffect(() => {
+    async function fetchTemplates() {
+      try {
+        const res = await fetch("/api/meetings/templates", { credentials: "include" });
+        if (res.ok) {
+          const data = await res.json();
+          if (data.success && Array.isArray(data.data)) {
+            setTemplates(data.data);
+          }
+        }
+      } catch {
+        // Silent — template picker is optional
+      }
+    }
+    fetchTemplates();
+  }, []);
+
+  const applyTemplate = (template: MeetingTemplateOption | null) => {
+    setSelectedTemplate(template);
+    setTemplateDropdownOpen(false);
+    if (template) {
+      // Apply template settings as defaults
+      setSettings((s) => ({
+        ...s,
+        waitingRoom: template.meetingSettings.waitingRoom ?? s.waitingRoom,
+        muteOnJoin: template.meetingSettings.muteOnJoin ?? s.muteOnJoin,
+      }));
+    }
+  };
+
   // After creation, show meeting code for sharing before navigating
   const [createdMeeting, setCreatedMeeting] = useState<{
     id: string;
@@ -42,6 +89,10 @@ export default function NewMeetingPage() {
       type: "regular",
       settings,
     };
+
+    if (selectedTemplate) {
+      body.templateId = selectedTemplate._id;
+    }
 
     if (isScheduled && scheduledAt) {
       body.scheduledAt = new Date(scheduledAt).toISOString();
@@ -284,6 +335,84 @@ export default function NewMeetingPage() {
               style={{ fontFamily: "var(--font-body)" }}
             />
           </div>
+
+          {/* Template picker */}
+          {templates.length > 0 && (
+            <div>
+              <label className="text-sm font-bold text-[#0A0A0A] mb-1.5 block" style={{ fontFamily: "var(--font-heading)" }}>
+                Template (optional)
+              </label>
+              <div className="relative">
+                <button
+                  type="button"
+                  onClick={() => setTemplateDropdownOpen((o) => !o)}
+                  className={`w-full flex items-center justify-between rounded-xl border-2 bg-white py-2.5 px-4 text-sm transition-all cursor-pointer ${
+                    selectedTemplate
+                      ? "border-[#FFE600] ring-2 ring-[#FFE600]/30"
+                      : "border-[#0A0A0A]/15 hover:border-[#0A0A0A]/30"
+                  }`}
+                  style={{ fontFamily: "var(--font-body)" }}
+                >
+                  <span className="flex items-center gap-2">
+                    <FileText size={14} className="text-[#0A0A0A]/40" />
+                    {selectedTemplate ? (
+                      <span className="text-[#0A0A0A]">{selectedTemplate.name}</span>
+                    ) : (
+                      <span className="text-[#0A0A0A]/40">Choose a template...</span>
+                    )}
+                  </span>
+                  <span className="flex items-center gap-1">
+                    {selectedTemplate && (
+                      <button
+                        type="button"
+                        onClick={(e) => { e.stopPropagation(); applyTemplate(null); }}
+                        className="p-0.5 rounded hover:bg-[#0A0A0A]/10 transition-colors"
+                      >
+                        <X size={14} className="text-[#0A0A0A]/40" />
+                      </button>
+                    )}
+                    <ChevronDown size={14} className={`text-[#0A0A0A]/40 transition-transform ${templateDropdownOpen ? "rotate-180" : ""}`} />
+                  </span>
+                </button>
+
+                <AnimatePresence>
+                  {templateDropdownOpen && (
+                    <motion.div
+                      initial={{ opacity: 0, y: -4 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -4 }}
+                      className="absolute z-20 mt-1 w-full rounded-xl border-2 border-[#0A0A0A]/15 bg-white shadow-lg overflow-hidden"
+                    >
+                      {templates.map((t) => (
+                        <button
+                          key={t._id}
+                          type="button"
+                          onClick={() => applyTemplate(t)}
+                          className={`w-full text-left px-4 py-3 hover:bg-[#FFE600]/10 transition-colors border-b border-[#0A0A0A]/5 last:border-b-0 cursor-pointer ${
+                            selectedTemplate?._id === t._id ? "bg-[#FFE600]/10" : ""
+                          }`}
+                        >
+                          <p className="text-sm font-bold text-[#0A0A0A]" style={{ fontFamily: "var(--font-heading)" }}>
+                            {t.name}
+                          </p>
+                          {t.description && (
+                            <p className="text-xs text-[#0A0A0A]/50 mt-0.5 line-clamp-1" style={{ fontFamily: "var(--font-body)" }}>
+                              {t.description}
+                            </p>
+                          )}
+                          <p className="text-[10px] text-[#0A0A0A]/30 mt-0.5" style={{ fontFamily: "var(--font-body)" }}>
+                            {t.defaultDuration} min
+                            {t.meetingSettings.waitingRoom && " \u00B7 Waiting room"}
+                            {t.meetingSettings.muteOnJoin && " \u00B7 Mute on join"}
+                          </p>
+                        </button>
+                      ))}
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+            </div>
+          )}
 
           {/* Schedule toggle */}
           <div>

@@ -25,6 +25,16 @@ export type MeetingRecord = {
     };
     transcript?: { speaker: string; time: string; text: string }[];
     recordingUrl?: string;
+    artifacts?: {
+        momDocUrl?: string;
+        momDocId?: string;
+        presentationUrl?: string;
+        presentationId?: string;
+        folderUrl?: string;
+        folderId?: string;
+        analyticsSheetId?: string;
+    };
+    status?: string;
 };
 
 // ── API response types ────────────────────────────────────────────────
@@ -76,6 +86,15 @@ export interface APIMeeting {
     type: string;
     recordingId?: string;
     mom?: APIMeetingMoM;
+    artifacts?: {
+        momDocUrl?: string;
+        momDocId?: string;
+        presentationUrl?: string;
+        presentationId?: string;
+        folderUrl?: string;
+        folderId?: string;
+        analyticsSheetId?: string;
+    };
     createdAt: string;
     updatedAt: string;
 }
@@ -168,5 +187,7 @@ export function apiMeetingToRecord(m: APIMeeting): MeetingRecord {
                   nextSteps: m.mom.nextSteps || [],
               }
             : undefined,
+        artifacts: m.artifacts || undefined,
+        status: m.status,
     };
 }

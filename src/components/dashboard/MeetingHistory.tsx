@@ -91,7 +91,7 @@ export default function MeetingHistory({
             ) : meetings.length === 0 ? (
                 <p className="text-xs text-[var(--text-muted)] text-center py-6">No past meetings yet. Create your first room!</p>
             ) : (
-                <div className="space-y-1.5 max-h-[240px] overflow-y-auto pr-1">
+                <div className="space-y-1.5">
                     {meetings.map((m, i) => (
                         <motion.div
                             key={m.id}

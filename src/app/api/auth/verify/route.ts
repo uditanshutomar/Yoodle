@@ -42,11 +42,16 @@ export const GET = withHandler(async (req: NextRequest) => {
     const accessToken = await signAccessToken(userId);
     const refreshToken = await signRefreshToken(userId);
 
+    // Determine status based on user mode (consistent with Google callback)
+    let loginStatus = "online";
+    if (user.mode === "lockin") loginStatus = "dnd";
+    else if (user.mode === "invisible") loginStatus = "offline";
+
     // Store the hashed refresh token in the user document
     const refreshTokenHash = await bcrypt.hash(refreshToken, 10);
     await User.findByIdAndUpdate(user._id, {
       refreshTokenHash,
-      status: "online",
+      status: loginStatus,
     });
 
     // Redirect to dashboard with cookies set

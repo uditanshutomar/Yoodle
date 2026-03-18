@@ -517,40 +517,46 @@ export async function triggerPostMeetingCascade(): Promise<void> {
         const conv = await Conversation.findOne({ meetingId: meeting._id }).lean();
         if (!conv) continue;
 
-        for (const p of (conv.participants || [])) {
-          if (!p.agentEnabled) continue;
+        // Find the first eligible participant to execute the cascade ONCE per meeting
+        const eligibleParticipants = (conv.participants || []).filter((p) => p.agentEnabled);
+        if (eligibleParticipants.length === 0) continue;
 
+        const firstUid = eligibleParticipants[0].userId.toString();
+        const cid = conv._id.toString();
+
+        // Execute cascade once using the first eligible participant
+        const result = await executeMeetingCascade(firstUid, String(meeting._id));
+
+        const stepSummaries = result.steps
+          .filter((s) => s.status === "done")
+          .map((s) => `- ${s.summary}`)
+          .join("\n");
+
+        const undoNote =
+          result.undoTokens.length > 0
+            ? "\n\nYou can undo any of these actions — just ask."
+            : "";
+
+        const content = `**Post-Meeting Cascade: ${meeting.title}**\n\n${stepSummaries}${undoNote}`;
+
+        const cascadeCard = {
+          type: "meeting_cascade" as const,
+          meetingTitle: meeting.title,
+          steps: result.steps.map((s) => ({
+            step: s.step,
+            status: s.status,
+            summary: s.summary,
+            undoToken: s.undoToken,
+          })),
+        };
+
+        // Notify all eligible participants about the cascade results
+        for (const p of eligibleParticipants) {
           try {
             const uid = p.userId.toString();
-            const cid = conv._id.toString();
 
             if (await isAgentMuted(cid, uid)) continue;
             if (!(await canSendProactive(cid, uid, "post_meeting_cascade"))) continue;
-
-            const result = await executeMeetingCascade(uid, String(meeting._id));
-
-            const stepSummaries = result.steps
-              .filter((s) => s.status === "done")
-              .map((s) => `- ${s.summary}`)
-              .join("\n");
-
-            const undoNote =
-              result.undoTokens.length > 0
-                ? "\n\nYou can undo any of these actions — just ask."
-                : "";
-
-            const content = `**Post-Meeting Cascade: ${meeting.title}**\n\n${stepSummaries}${undoNote}`;
-
-            const cascadeCard = {
-              type: "meeting_cascade" as const,
-              meetingTitle: meeting.title,
-              steps: result.steps.map((s) => ({
-                step: s.step,
-                status: s.status,
-                summary: s.summary,
-                undoToken: s.undoToken,
-              })),
-            };
 
             await postAgentMessage(cid, uid, content, { cards: [cascadeCard] });
             log.info({ meetingId: meeting._id, userId: uid }, "Post-meeting cascade sent");

@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import mongoose from "mongoose";
 import { withHandler } from "@/lib/infra/api/with-handler";
-import { successResponse } from "@/lib/infra/api/response";
+import { successResponse, badRequest } from "@/lib/infra/api/response";
 import { getUserIdFromRequest } from "@/lib/infra/auth/middleware";
 import { checkRateLimit } from "@/lib/infra/api/rate-limit";
 import { NotFoundError } from "@/lib/infra/api/errors";
@@ -16,6 +16,11 @@ export const GET = withHandler(async (req: NextRequest, context) => {
   await checkRateLimit(req, "general");
   const userId = await getUserIdFromRequest(req);
   const { id } = await context!.params;
+
+  if (!mongoose.Types.ObjectId.isValid(id)) {
+    return badRequest("Invalid conversation ID");
+  }
+
   await connectDB();
 
   const userOid = new mongoose.Types.ObjectId(userId);
