@@ -135,3 +135,100 @@ function formatFile(file: drive_v3.Schema$File): DriveFile {
     shared: file.shared || false,
   };
 }
+
+const FOLDER_MIME = "application/vnd.google-apps.folder";
+
+/**
+ * Get or create the Yoodle Meetings root folder in Drive.
+ */
+export async function getOrCreateRootMeetingFolder(
+  userId: string,
+): Promise<DriveFile> {
+  const { drive } = await getGoogleServices(userId);
+
+  const res = await drive.files.list({
+    q: `name = 'Yoodle Meetings' and mimeType = '${FOLDER_MIME}' and trashed = false`,
+    fields: "files(id, name, mimeType, webViewLink, createdTime, modifiedTime, size, owners, shared)",
+    pageSize: 1,
+  });
+
+  const existing = res.data.files?.[0];
+  if (existing) {
+    return formatFile(existing);
+  }
+
+  const created = await drive.files.create({
+    requestBody: {
+      name: "Yoodle Meetings",
+      mimeType: FOLDER_MIME,
+    },
+    fields: "id, name, mimeType, webViewLink, createdTime, modifiedTime",
+  });
+
+  return formatFile(created.data);
+}
+
+/**
+ * Sanitize a string for use as a folder name.
+ * Replaces forbidden characters with `-` and truncates to 100 chars.
+ */
+function sanitizeFolderName(name: string): string {
+  return name
+    .replace(/[/\\?%*:|"<>]/g, "-")
+    .slice(0, 100)
+    .trim();
+}
+
+/**
+ * Get or create a meeting-specific folder: Yoodle Meetings / YYYY-MM / {Meeting Title}
+ * Creates a 3-level folder hierarchy.
+ */
+export async function getOrCreateMeetingFolder(
+  userId: string,
+  meetingTitle: string,
+  meetingDate: Date,
+): Promise<DriveFile> {
+  const { drive } = await getGoogleServices(userId);
+  const root = await getOrCreateRootMeetingFolder(userId);
+
+  // Format month folder name as YYYY-MM
+  const year = meetingDate.getFullYear();
+  const month = String(meetingDate.getMonth() + 1).padStart(2, "0");
+  const monthName = `${year}-${month}`;
+
+  // Search for month folder under root
+  const monthRes = await drive.files.list({
+    q: `name = '${monthName}' and mimeType = '${FOLDER_MIME}' and '${root.id}' in parents and trashed = false`,
+    fields: "files(id, name, mimeType, webViewLink, createdTime, modifiedTime, size, owners, shared)",
+    pageSize: 1,
+  });
+
+  let monthFolder: DriveFile;
+  const existingMonth = monthRes.data.files?.[0];
+  if (existingMonth) {
+    monthFolder = formatFile(existingMonth);
+  } else {
+    const createdMonth = await drive.files.create({
+      requestBody: {
+        name: monthName,
+        mimeType: FOLDER_MIME,
+        parents: [root.id],
+      },
+      fields: "id, name, mimeType, webViewLink, createdTime, modifiedTime",
+    });
+    monthFolder = formatFile(createdMonth.data);
+  }
+
+  // Create meeting folder under month folder
+  const safeName = sanitizeFolderName(meetingTitle);
+  const createdMeeting = await drive.files.create({
+    requestBody: {
+      name: safeName,
+      mimeType: FOLDER_MIME,
+      parents: [monthFolder.id],
+    },
+    fields: "id, name, mimeType, webViewLink, createdTime, modifiedTime",
+  });
+
+  return formatFile(createdMeeting.data);
+}
