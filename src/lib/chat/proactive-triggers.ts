@@ -12,6 +12,7 @@ async function postAgentMessage(
   convId: string,
   agentUserId: string,
   content: string,
+  meta?: { cards?: Array<Record<string, unknown>> },
 ) {
   const DirectMessage = (await import("@/lib/infra/db/models/direct-message")).default;
   const Conversation = (await import("@/lib/infra/db/models/conversation")).default;
@@ -22,7 +23,10 @@ async function postAgentMessage(
     senderType: "agent",
     content,
     type: "agent",
-    agentMeta: { forUserId: new mongoose.Types.ObjectId(agentUserId) },
+    agentMeta: {
+      forUserId: new mongoose.Types.ObjectId(agentUserId),
+      ...(meta?.cards ? { cards: meta.cards } : {}),
+    },
   });
 
   const preview = content.length > 80 ? content.slice(0, 80) + "..." : content;
@@ -491,20 +495,29 @@ export async function triggerPostMeetingCascade(): Promise<void> {
 
     const fifteenMinAgo = new Date(Date.now() - 15 * 60 * 1000);
 
+    // Only find meetings that haven't had cascade executed yet (idempotency guard)
     const meetings = await Meeting.find({
       status: "ended",
       endedAt: { $gte: fifteenMinAgo },
       mom: { $exists: true },
+      cascadeExecutedAt: { $exists: false },
     }).lean();
 
     log.info({ count: meetings.length }, "Post-meeting cascade: meetings found");
 
     for (const meeting of meetings) {
       try {
+        // Mark cascade as executed BEFORE running it to prevent duplicate runs
+        // even if a concurrent cron fires
+        await Meeting.updateOne(
+          { _id: meeting._id, cascadeExecutedAt: { $exists: false } },
+          { $set: { cascadeExecutedAt: new Date() } },
+        );
+
         const conv = await Conversation.findOne({ meetingId: meeting._id }).lean();
         if (!conv) continue;
 
-        for (const p of conv.participants) {
+        for (const p of (conv.participants || [])) {
           if (!p.agentEnabled) continue;
 
           try {
@@ -528,7 +541,18 @@ export async function triggerPostMeetingCascade(): Promise<void> {
 
             const content = `**Post-Meeting Cascade: ${meeting.title}**\n\n${stepSummaries}${undoNote}`;
 
-            await postAgentMessage(cid, uid, content);
+            const cascadeCard = {
+              type: "meeting_cascade" as const,
+              meetingTitle: meeting.title,
+              steps: result.steps.map((s) => ({
+                step: s.step,
+                status: s.status,
+                summary: s.summary,
+                undoToken: s.undoToken,
+              })),
+            };
+
+            await postAgentMessage(cid, uid, content, { cards: [cascadeCard] });
             log.info({ meetingId: meeting._id, userId: uid }, "Post-meeting cascade sent");
           } catch (err) {
             log.error({ err, meetingId: meeting._id }, "Post-meeting cascade: participant error");
