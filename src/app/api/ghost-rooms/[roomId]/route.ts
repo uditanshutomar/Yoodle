@@ -4,7 +4,7 @@ import { withHandler } from "@/lib/infra/api/with-handler";
 import { successResponse } from "@/lib/infra/api/response";
 import { checkRateLimit } from "@/lib/infra/api/rate-limit";
 import { getUserIdFromRequest } from "@/lib/infra/auth/middleware";
-import { BadRequestError, NotFoundError, ForbiddenError } from "@/lib/infra/api/errors";
+import { AppError, BadRequestError, NotFoundError, ForbiddenError } from "@/lib/infra/api/errors";
 import { ephemeralStore } from "@/lib/ghost/ephemeral-store";
 import { checkConsensus, persistGhostData } from "@/lib/ghost/consensus";
 import connectDB from "@/lib/infra/db/client";
@@ -246,7 +246,13 @@ export const DELETE = withHandler(async (req: NextRequest, context) => {
           await ephemeralStore.restoreRoom(claimedRoom);
           claimed = false; // allow normal destroy path below
         } catch (restoreErr) {
-          log.error({ restoreErr }, "failed to restore ghost room after persist failure");
+          log.error({ restoreErr, roomId: room.roomId }, "CRITICAL: failed to restore ghost room — data may be lost");
+          // Room is destroyed and data lost — surface error to user
+          throw new AppError(
+            "Ghost room data could not be saved and the room could not be restored. Please contact support.",
+            "DATA_LOSS",
+            500,
+          );
         }
       }
     }

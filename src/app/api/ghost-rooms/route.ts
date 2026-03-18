@@ -4,6 +4,7 @@ import { withHandler } from "@/lib/infra/api/with-handler";
 import { successResponse } from "@/lib/infra/api/response";
 import { checkRateLimit } from "@/lib/infra/api/rate-limit";
 import { getUserIdFromRequest } from "@/lib/infra/auth/middleware";
+import { BadRequestError } from "@/lib/infra/api/errors";
 import { ephemeralStore } from "@/lib/ghost/ephemeral-store";
 import connectDB from "@/lib/infra/db/client";
 import User from "@/lib/infra/db/models/user";
@@ -42,10 +43,13 @@ export const POST = withHandler(async (req: NextRequest) => {
   const userId = await getUserIdFromRequest(req);
 
   let body: Record<string, unknown> = {};
-  try {
-    body = await req.json();
-  } catch {
-    // Empty body is fine -- title is optional
+  const text = await req.text();
+  if (text.trim()) {
+    try {
+      body = JSON.parse(text);
+    } catch {
+      throw new BadRequestError("Invalid JSON in request body.");
+    }
   }
 
   const parsed = createGhostRoomSchema.parse(body);

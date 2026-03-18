@@ -119,7 +119,7 @@ export const POST = withHandler(async (req: NextRequest) => {
   const now = new Date();
   const datePart = now.toISOString().slice(0, 10); // YYYY-MM-DD
   const timePart = now.toTimeString().slice(0, 5).replace(":", "-"); // HH-MM
-  const safeName = meeting.title.replace(/[^a-zA-Z0-9 _-]/g, "").replace(/\s+/g, "_");
+  const safeName = (meeting.title || "Recording").replace(/[^a-zA-Z0-9 _-]/g, "").replace(/\s+/g, "_");
   const fileName = `${safeName}_${datePart}_${timePart}.${ext}`;
 
   // Upload to Google Drive
@@ -164,7 +164,7 @@ export const POST = withHandler(async (req: NextRequest) => {
         );
       }
     } catch (err) {
-      log.warn({ err }, "failed to process speech segments — recording still uploaded");
+      log.warn({ err, meetingId }, "failed to process speech segments — recording still uploaded");
     }
   }
 
@@ -180,7 +180,7 @@ export const POST = withHandler(async (req: NextRequest) => {
     });
   } catch (err) {
     // Queue may not be available (no Redis) — recording still uploaded
-    log.warn({ err }, "transcription job not queued");
+    log.warn({ err, meetingId }, "transcription job not queued");
     transcriptionQueued = false;
   }
 

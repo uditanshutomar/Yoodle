@@ -3,7 +3,7 @@ import { withHandler } from "@/lib/infra/api/with-handler";
 import { successResponse } from "@/lib/infra/api/response";
 import { checkRateLimit } from "@/lib/infra/api/rate-limit";
 import { getUserIdFromRequest } from "@/lib/infra/auth/middleware";
-import { NotFoundError, ForbiddenError } from "@/lib/infra/api/errors";
+import { NotFoundError, ForbiddenError, AppError } from "@/lib/infra/api/errors";
 import { ephemeralStore } from "@/lib/ghost/ephemeral-store";
 import { checkConsensus, persistGhostData } from "@/lib/ghost/consensus";
 import { createLogger } from "@/lib/infra/logger";
@@ -78,12 +78,19 @@ export const POST = withHandler(async (req: NextRequest, context) => {
     }
   }
 
+  if (dataLost) {
+    throw new AppError(
+      "Ghost room data could not be saved and the room could not be restored. Please contact support.",
+      "DATA_LOSS",
+      500,
+    );
+  }
+
   return successResponse({
     voted: true,
     votes: consensus,
     consensusReached: consensus.allVoted,
     dataSaved: savedMeetingId !== null,
     meetingId: savedMeetingId,
-    ...(dataLost && { dataLost: true }),
   });
 });

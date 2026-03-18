@@ -10,9 +10,12 @@ export async function POST(req: NextRequest) {
     return new Response("Server misconfigured", { status: 500 });
   }
 
-  const secret =
-    req.headers.get("x-cron-secret") || req.headers.get("authorization");
-  if (secret !== `Bearer ${cronSecret}` && secret !== cronSecret) {
+  const xSecret = req.headers.get("x-cron-secret");
+  const authHeader = req.headers.get("authorization");
+  const isValid =
+    xSecret === cronSecret ||
+    authHeader === `Bearer ${cronSecret}`;
+  if (!isValid) {
     return new Response("Unauthorized", { status: 401 });
   }
 
@@ -56,7 +59,17 @@ export async function POST(req: NextRequest) {
     const summary = results.map((r, i) => ({
       trigger: names[i],
       status: r.status,
+      ...(r.status === "rejected" && {
+        error: r.reason instanceof Error ? r.reason.message : String(r.reason),
+      }),
     }));
+
+    // Log individual failures at error level for alerting
+    results.forEach((r, i) => {
+      if (r.status === "rejected") {
+        log.error({ err: r.reason, trigger: names[i] }, "proactive trigger failed");
+      }
+    });
 
     log.info({ summary }, "Proactive triggers completed");
     return Response.json({ ok: true, summary });

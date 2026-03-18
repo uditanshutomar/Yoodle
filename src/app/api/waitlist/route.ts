@@ -3,7 +3,6 @@ import { z } from "zod";
 import { withHandler } from "@/lib/infra/api/with-handler";
 import { successResponse } from "@/lib/infra/api/response";
 import { checkRateLimit } from "@/lib/infra/api/rate-limit";
-import { BadRequestError } from "@/lib/infra/api/errors";
 import connectDB from "@/lib/infra/db/client";
 import Waitlist from "@/lib/infra/db/models/waitlist";
 
@@ -17,19 +16,9 @@ const waitlistSchema = z.object({
 export const POST = withHandler(async (req: NextRequest) => {
   await checkRateLimit(req, "auth");
 
-  const body = await req.json();
-  const parsed = waitlistSchema.safeParse(body);
-
-  if (!parsed.success) {
-    const errors = parsed.error.flatten().fieldErrors;
-    const firstError =
-      Object.values(errors).flat()[0] || "Invalid input.";
-    throw new BadRequestError(firstError);
-  }
+  const { email, name, source } = waitlistSchema.parse(await req.json());
 
   await connectDB();
-
-  const { email, name, source } = parsed.data;
 
   // Check if email already exists
   const existing = await Waitlist.findOne({ email: email.toLowerCase() })

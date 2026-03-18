@@ -21,7 +21,7 @@ export const GET = withHandler(async (req: NextRequest, context) => {
 
   const { meetingId } = await context!.params;
   if (!meetingId?.match(/^[0-9a-fA-F]{24}$/)) {
-    throw new BadRequestError("Invalid meeting ID");
+    throw new NotFoundError("Meeting not found.");
   }
 
   // Verify the user is a participant or host of this meeting

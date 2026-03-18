@@ -3,6 +3,9 @@ import { withHandler } from "@/lib/infra/api/with-handler";
 import { successResponse } from "@/lib/infra/api/response";
 import { checkRateLimit } from "@/lib/infra/api/rate-limit";
 import { getUserIdFromRequest } from "@/lib/infra/auth/middleware";
+import { createLogger } from "@/lib/infra/logger";
+
+const log = createLogger("api:stt-token");
 
 /**
  * POST /api/stt/token
@@ -30,9 +33,11 @@ export const POST = withHandler(async (req: NextRequest) => {
     if (res.ok) {
       const projects = await res.json();
       projectId = projects.projects?.[0]?.project_id;
+    } else {
+      log.warn({ status: res.status }, "Deepgram projects API returned non-OK status");
     }
-  } catch {
-    // Fall through to return main key
+  } catch (err) {
+    log.warn({ err }, "failed to fetch Deepgram project list");
   }
 
   if (!projectId) {
@@ -65,9 +70,13 @@ export const POST = withHandler(async (req: NextRequest) => {
       if (keyData.key) {
         return successResponse({ key: keyData.key });
       }
+      log.warn("Deepgram key creation returned OK but no key in response");
+    } else {
+      const errorBody = await keyRes.text().catch(() => "unreadable");
+      log.error({ status: keyRes.status, body: errorBody }, "Deepgram key creation API returned error");
     }
-  } catch {
-    // Fall through to return main key
+  } catch (err) {
+    log.warn({ err }, "failed to create temporary Deepgram key");
   }
 
   // If temporary key creation failed, do NOT fall back to the main API key.
