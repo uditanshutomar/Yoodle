@@ -10,31 +10,11 @@ import { createEvent } from "@/lib/google/calendar";
 import { nanoid } from "nanoid";
 import { generateMeetingCode } from "@/lib/utils/id";
 import { getPersonalBoard } from "./tools";
+import { isValidObjectId, verifyTaskAccess, verifyBoardAccess } from "./helpers";
+import { createLogger } from "@/lib/infra/logger";
 import type { ToolResult } from "@/lib/ai/tools";
 
-function isValidObjectId(id: unknown): id is string {
-  return typeof id === "string" && mongoose.Types.ObjectId.isValid(id);
-}
-
-async function verifyTaskAccess(userId: string, taskId: string) {
-  if (!isValidObjectId(taskId)) return null;
-  const task = await Task.findById(taskId);
-  if (!task) return null;
-  const board = await Board.findOne({
-    _id: task.boardId,
-    $or: [{ ownerId: userId }, { "members.userId": userId }],
-  });
-  if (!board) return null;
-  return { task, board };
-}
-
-async function verifyBoardAccess(userId: string, boardId: string) {
-  if (!isValidObjectId(boardId)) return null;
-  return Board.findOne({
-    _id: boardId,
-    $or: [{ ownerId: userId }, { "members.userId": userId }],
-  });
-}
+const log = createLogger("board:cross-domain");
 
 export async function createTaskFromMeeting(userId: string, args: Record<string, unknown>): Promise<ToolResult> {
   await connectDB();
@@ -130,6 +110,16 @@ export async function createTaskFromEmail(userId: string, args: Record<string, u
 export async function createTaskFromChat(userId: string, args: Record<string, unknown>): Promise<ToolResult> {
   await connectDB();
   const conversationId = args.conversationId as string;
+  if (!conversationId || !isValidObjectId(conversationId)) return { success: false, summary: "Invalid conversation ID." };
+
+  // Verify the user is a participant of the conversation
+  const Conversation = (await import("@/lib/infra/db/models/conversation")).default;
+  const isParticipant = await Conversation.exists({
+    _id: conversationId,
+    "participants.userId": userId,
+  });
+  if (!isParticipant) return { success: false, summary: "Conversation not found or access denied." };
+
   let boardId = args.boardId as string | undefined;
   if (!boardId) {
     const linkedBoard = await Board.findOne({ conversationId });
@@ -214,7 +204,9 @@ export async function scheduleMeetingForTask(userId: string, args: Record<string
         attendees: attendeeEmails,
       });
       calendarEventId = event?.id;
-    } catch { /* calendar event creation is best-effort */ }
+    } catch (err) {
+      log.warn({ err, meetingId: meeting._id.toString() }, "Calendar event creation failed (best-effort)");
+    }
 
     return {
       success: true,

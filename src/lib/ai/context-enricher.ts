@@ -14,13 +14,15 @@ interface EnrichedMeetingContext {
 
 export async function enrichTask(
   task: { _id: unknown; title: string; meetingId?: unknown },
+  userId?: string,
 ): Promise<EnrichedTaskContext> {
   const result: EnrichedTaskContext = { sourceMeeting: null, relatedMessages: [] };
 
   try {
-    const [Meeting, DirectMessage] = await Promise.all([
+    const [Meeting, DirectMessage, Conversation] = await Promise.all([
       import("@/lib/infra/db/models/meeting").then((m) => m.default),
       import("@/lib/infra/db/models/direct-message").then((m) => m.default),
+      import("@/lib/infra/db/models/conversation").then((m) => m.default),
     ]);
 
     if (task.meetingId) {
@@ -37,9 +39,22 @@ export async function enrichTask(
     }
 
     const escapedTitle = task.title.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-    const messages = await DirectMessage.find({
+
+    // Scope message search to conversations the user is a member of
+    // to prevent leaking messages from other users' private conversations.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const messageFilter: Record<string, any> = {
       content: { $regex: escapedTitle, $options: "i" },
-    })
+    };
+    if (userId) {
+      const userConvs = await Conversation.find(
+        { "participants.userId": userId },
+        { _id: 1 },
+      ).lean();
+      messageFilter.conversationId = { $in: userConvs.map((c) => c._id) };
+    }
+
+    const messages = await DirectMessage.find(messageFilter)
       .select("content senderId createdAt")
       .sort({ createdAt: -1 })
       .limit(MAX_RELATED)

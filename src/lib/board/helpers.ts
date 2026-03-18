@@ -1,7 +1,54 @@
 import mongoose from "mongoose";
 import Board, { IBoardDocument } from "@/lib/infra/db/models/board";
+import Task from "@/lib/infra/db/models/task";
 import { NotFoundError, ForbiddenError } from "@/lib/infra/api/errors";
 import { nanoid } from "nanoid";
+
+// ── Shared Validation ──────────────────────────────────────────────
+
+/** Validate that a value is a valid MongoDB ObjectId string */
+export function isValidObjectId(id: unknown): id is string {
+  return typeof id === "string" && mongoose.Types.ObjectId.isValid(id);
+}
+
+// ── Null-returning Access Checks (for AI tool functions) ───────────
+
+/**
+ * Verify the user has access to the board that owns a task.
+ * Returns null instead of throwing — used by AI tool functions that
+ * return ToolResult objects rather than throwing errors.
+ */
+export async function verifyTaskAccess(
+  userId: string,
+  taskId: string,
+): Promise<{ task: InstanceType<typeof Task>; board: InstanceType<typeof Board> } | null> {
+  if (!isValidObjectId(taskId)) return null;
+  const task = await Task.findById(taskId);
+  if (!task) return null;
+  const board = await Board.findOne({
+    _id: task.boardId,
+    $or: [{ ownerId: userId }, { "members.userId": userId }],
+  });
+  if (!board) return null;
+  return { task, board };
+}
+
+/**
+ * Verify the user has access to a specific board.
+ * Returns null instead of throwing — used by AI tool functions.
+ */
+export async function verifyBoardAccess(
+  userId: string,
+  boardId: string,
+): Promise<InstanceType<typeof Board> | null> {
+  if (!isValidObjectId(boardId)) return null;
+  return Board.findOne({
+    _id: boardId,
+    $or: [{ ownerId: userId }, { "members.userId": userId }],
+  });
+}
+
+// ── Throwing Access Checks (for API routes) ────────────────────────
 
 export function generateDefaultColumns() {
   return [

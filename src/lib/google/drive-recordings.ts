@@ -1,6 +1,9 @@
 import { Readable } from "stream";
 import { getGoogleServices } from "./client";
 import { withRetry, isTransientError } from "@/lib/utils/retry";
+import { createLogger } from "@/lib/infra/logger";
+
+const log = createLogger("google:drive-recordings");
 
 const YOODLE_FOLDER_NAME = "Yoodle Recordings";
 
@@ -205,7 +208,8 @@ export async function listMeetingRecordings(
       webViewLink: f.webViewLink || undefined,
       webContentLink: f.webContentLink || undefined,
     }));
-  } catch {
+  } catch (err) {
+    log.error({ err, meetingId }, "Failed to list meeting recordings");
     return [];
   }
 }

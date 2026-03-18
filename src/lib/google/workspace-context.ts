@@ -3,20 +3,7 @@ import { listEmails, getUnreadCount } from "./gmail";
 import { listEvents } from "./calendar";
 import { listFiles } from "./drive";
 import { buildBoardContext, buildMeetingContext, buildConversationContextSummary } from "@/lib/board/context";
-
-/**
- * Escape XML-significant characters to prevent prompt injection
- * via workspace data breaking out of the XML fence.
- * E.g. a malicious email subject containing `</workspace-data>`.
- */
-function escapeXml(s: string): string {
-  return s
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&apos;");
-}
+import { escapeXml } from "@/lib/utils/xml";
 
 /**
  * Structured snapshot for diff detection — used by briefing endpoint.

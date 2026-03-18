@@ -1,58 +1,18 @@
 import connectDB from "@/lib/infra/db/client";
-import Board from "@/lib/infra/db/models/board";
 import Task from "@/lib/infra/db/models/task";
 import TaskComment from "@/lib/infra/db/models/task-comment";
-import mongoose from "mongoose";
-import { nanoid } from "nanoid";
-import { generateDefaultLabels } from "./helpers";
+import Board from "@/lib/infra/db/models/board";
+import {
+  isValidObjectId,
+  verifyTaskAccess,
+  verifyBoardAccess,
+  getOrCreatePersonalBoard,
+} from "./helpers";
 import type { ToolResult } from "@/lib/ai/tools";
-
-/** Validate that a string is a valid MongoDB ObjectId */
-function isValidObjectId(id: unknown): id is string {
-  return typeof id === "string" && mongoose.Types.ObjectId.isValid(id);
-}
-
-/** Verify the user has access to the board that owns a task */
-async function verifyTaskAccess(userId: string, taskId: string): Promise<{ task: InstanceType<typeof Task>; board: InstanceType<typeof Board> } | null> {
-  if (!isValidObjectId(taskId)) return null;
-  const task = await Task.findById(taskId);
-  if (!task) return null;
-  const board = await Board.findOne({
-    _id: task.boardId,
-    $or: [{ ownerId: userId }, { "members.userId": userId }],
-  });
-  if (!board) return null;
-  return { task, board };
-}
-
-/** Verify the user has access to a specific board */
-async function verifyBoardAccess(userId: string, boardId: string): Promise<InstanceType<typeof Board> | null> {
-  if (!isValidObjectId(boardId)) return null;
-  return Board.findOne({
-    _id: boardId,
-    $or: [{ ownerId: userId }, { "members.userId": userId }],
-  });
-}
 
 export async function getPersonalBoard(userId: string) {
   await connectDB();
-  let board = await Board.findOne({ ownerId: userId, scope: "personal" });
-  if (!board) {
-    board = await Board.create({
-      title: "My Tasks",
-      ownerId: userId,
-      scope: "personal",
-      members: [{ userId, role: "owner", joinedAt: new Date() }],
-      columns: [
-        { id: nanoid(8), title: "To Do", color: "#6B7280", position: 0 },
-        { id: nanoid(8), title: "In Progress", color: "#3B82F6", position: 1 },
-        { id: nanoid(8), title: "Review", color: "#F59E0B", position: 2 },
-        { id: nanoid(8), title: "Done", color: "#10B981", position: 3 },
-      ],
-      labels: generateDefaultLabels(),
-    });
-  }
-  return board;
+  return getOrCreatePersonalBoard(userId);
 }
 
 export async function createBoardTask(userId: string, args: Record<string, unknown>): Promise<ToolResult> {

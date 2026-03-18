@@ -5,17 +5,9 @@ import Meeting from "@/lib/infra/db/models/meeting";
 import Conversation from "@/lib/infra/db/models/conversation";
 import DirectMessage from "@/lib/infra/db/models/direct-message";
 import { createLogger } from "@/lib/infra/logger";
+import { escapeXml } from "@/lib/utils/xml";
 
 const log = createLogger("board:context");
-
-function escapeXml(s: string): string {
-  return s
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&apos;");
-}
 
 export interface BoardContextResult {
   contextXml: string;

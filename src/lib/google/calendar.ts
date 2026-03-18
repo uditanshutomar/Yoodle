@@ -1,5 +1,8 @@
 import { getGoogleServices } from "./client";
 import { calendar_v3 } from "googleapis";
+import { createLogger } from "@/lib/infra/logger";
+
+const log = createLogger("google:calendar");
 
 export interface CalendarEvent {
   id: string;
@@ -149,9 +152,14 @@ export async function getEvent(
     });
 
     return formatEvent(res.data);
-  } catch {
-    // 404 (not found), 410 (gone/deleted), or permission errors
-    return null;
+  } catch (err: unknown) {
+    const status = (err as { code?: number }).code;
+    // 404 (not found), 410 (gone/deleted), or 403 (permission denied) — event is inaccessible
+    if (status === 404 || status === 410 || status === 403) return null;
+    // Rethrow unexpected errors (network, quota, token expiry) so callers don't
+    // treat transient failures as "event does not exist"
+    log.error({ err, eventId }, "getEvent failed with unexpected error");
+    throw err;
   }
 }
 

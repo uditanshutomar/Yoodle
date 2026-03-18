@@ -279,32 +279,30 @@ export async function executeMeetingCascade(
     }
   }
 
-  // Run independent steps in parallel
-  const parallelSteps = await Promise.allSettled([
+  // Run independent steps in parallel — each step has its own .catch() so
+  // the array always resolves (no rejections). Using Promise.all is correct
+  // here because individual error handling is already done per-step.
+  const parallelSteps = await Promise.all([
     // Step 1: Create MoM doc
     !skipSet.has("create_mom_doc") && mtg.mom
       ? stepCreateMomDoc(userId, mtg).catch((err) => ({ step: "create_mom_doc", status: "error" as const, summary: err instanceof Error ? err.message : "Unknown error" }))
-      : Promise.resolve({ step: "create_mom_doc", status: "skipped" as const, summary: skipSet.has("create_mom_doc") ? "Skipped by user" : "No MoM data on meeting" }),
+      : { step: "create_mom_doc", status: "skipped" as const, summary: skipSet.has("create_mom_doc") ? "Skipped by user" : "No MoM data on meeting" },
     // Step 2: Create tasks
     !skipSet.has("create_tasks") && (mtg.mom as any)?.actionItems?.length
       ? stepCreateTasks(userId, mtg).catch((err) => ({ step: "create_tasks", status: "error" as const, summary: err instanceof Error ? err.message : "Unknown error" }))
-      : Promise.resolve({ step: "create_tasks", status: "skipped" as const, summary: skipSet.has("create_tasks") ? "Skipped by user" : "No action items in MoM" }),
+      : { step: "create_tasks", status: "skipped" as const, summary: skipSet.has("create_tasks") ? "Skipped by user" : "No action items in MoM" },
     // Step 3: Send follow-up
     !skipSet.has("send_followup")
       ? stepSendFollowup(userId, mtg).catch((err) => ({ step: "send_followup", status: "error" as const, summary: err instanceof Error ? err.message : "Unknown error" }))
-      : Promise.resolve({ step: "send_followup", status: "skipped" as const, summary: "Skipped by user" }),
+      : { step: "send_followup", status: "skipped" as const, summary: "Skipped by user" },
     // Step 4: Append sheet
     !skipSet.has("append_sheet") && options?.analyticsSheetId
       ? stepAppendSheet(userId, mtg, options.analyticsSheetId).catch((err) => ({ step: "append_sheet", status: "error" as const, summary: err instanceof Error ? err.message : "Unknown error" }))
-      : Promise.resolve({ step: "append_sheet", status: "skipped" as const, summary: skipSet.has("append_sheet") ? "Skipped by user" : "No analytics sheet ID provided" }),
+      : { step: "append_sheet", status: "skipped" as const, summary: skipSet.has("append_sheet") ? "Skipped by user" : "No analytics sheet ID provided" },
   ]);
 
-  for (const result of parallelSteps) {
-    if (result.status === "fulfilled") {
-      pushStep(result.value);
-    } else {
-      pushStep({ step: "unknown", status: "error", summary: result.reason?.message || "Unknown error" });
-    }
+  for (const stepResult of parallelSteps) {
+    pushStep(stepResult);
   }
 
   // Step 5: notify (always last)
