@@ -974,7 +974,7 @@ export const WORKSPACE_TOOLS: FunctionDeclarationsTool = {
           actionType: {
             type: SchemaType.STRING,
             description:
-              "The tool that would be called: 'send_email', 'reply_to_email', 'create_yoodle_meeting', 'create_calendar_event', 'update_calendar_event', 'delete_calendar_event', 'create_board_task', 'update_board_task', 'move_board_task', 'assign_board_task', 'delete_board_task', 'create_task_from_meeting', 'create_task_from_email', 'create_task_from_chat', 'schedule_meeting_for_task', 'link_doc_to_task', 'link_meeting_to_task', 'generate_subtasks', 'append_to_doc', 'find_replace_in_doc', 'write_sheet', 'append_to_sheet', 'clear_sheet_range'.",
+              "The tool that would be called: 'send_email', 'reply_to_email', 'create_yoodle_meeting', 'create_calendar_event', 'update_calendar_event', 'delete_calendar_event', 'create_board_task', 'update_board_task', 'move_board_task', 'assign_board_task', 'delete_board_task', 'create_task_from_meeting', 'create_task_from_email', 'create_task_from_chat', 'schedule_meeting_for_task', 'link_doc_to_task', 'link_meeting_to_task', 'generate_subtasks', 'append_to_doc', 'find_replace_in_doc', 'write_sheet', 'append_to_sheet', 'clear_sheet_range', 'start_workflow', 'generate_meeting_slides', 'prepare_meeting_brief'.",
           },
           args: {
             type: SchemaType.OBJECT,
@@ -1097,6 +1097,262 @@ export const WORKSPACE_TOOLS: FunctionDeclarationsTool = {
           },
         },
         required: ["query"],
+      },
+    },
+
+    // ── Workflows ──────────────────────────────────────────────────
+    {
+      name: "start_workflow",
+      description:
+        "Start a predefined multi-step workflow. Use when the user asks to prep for a meeting, follow up on a meeting, wrap up a sprint, close out their day, or create a handoff package. Returns a workflow progress card.",
+      parameters: {
+        type: SchemaType.OBJECT,
+        properties: {
+          workflowId: {
+            type: SchemaType.STRING,
+            description: "The workflow template ID. One of: meeting-prep, meeting-followup, sprint-wrapup, daily-closeout, handoff-package.",
+            format: "enum",
+            enum: ["meeting-prep", "meeting-followup", "sprint-wrapup", "daily-closeout", "handoff-package"],
+          },
+          params: {
+            type: SchemaType.OBJECT,
+            description: "Optional parameters for the workflow (e.g., meetingTime, projectName, conversationId).",
+            properties: {},
+          },
+          skipSteps: {
+            type: SchemaType.ARRAY,
+            items: { type: SchemaType.STRING },
+            description: "Optional list of step IDs to skip.",
+          },
+        },
+        required: ["workflowId"],
+      },
+    },
+    {
+      name: "list_workflows",
+      description:
+        "List available workflow templates the user can start. Use when user asks 'what workflows are available?' or 'what can you automate?'",
+      parameters: {
+        type: SchemaType.OBJECT,
+        properties: {},
+      },
+    },
+
+    // ── Batch Operations ────────────────────────────────────────────
+    {
+      name: "batch_action",
+      description:
+        "Propose a batch operation on multiple items. Shows a selectable list for the user to confirm. Use when user asks to update, complete, or move multiple tasks at once.",
+      parameters: {
+        type: SchemaType.OBJECT,
+        properties: {
+          actionType: {
+            type: SchemaType.STRING,
+            description: "The action to apply to each selected item.",
+            format: "enum",
+            enum: ["update_board_task", "move_board_task", "assign_board_task", "delete_board_task", "mark_email_read"],
+          },
+          actionLabel: {
+            type: SchemaType.STRING,
+            description: "Human-readable label for the batch action (e.g., 'Mark 5 tasks as done').",
+          },
+          items: {
+            type: SchemaType.ARRAY,
+            items: {
+              type: SchemaType.OBJECT,
+              properties: {
+                id: { type: SchemaType.STRING, description: "Item ID" },
+                title: { type: SchemaType.STRING, description: "Item title for display" },
+                subtitle: { type: SchemaType.STRING, description: "Optional subtitle" },
+              },
+              required: ["id", "title"],
+            },
+            description: "Items to include in the batch.",
+          },
+        },
+        required: ["actionType", "actionLabel", "items"],
+      },
+    },
+
+    // ── Scheduled Actions ───────────────────────────────────────────
+    {
+      name: "schedule_action",
+      description:
+        "Schedule an action to fire at a future time. Creates a scheduled reminder or task. Use when user says 'remind me Thursday', 'in 2 hours remind me', 'schedule a check on Friday'. Max 10 active per user.",
+      parameters: {
+        type: SchemaType.OBJECT,
+        properties: {
+          action: {
+            type: SchemaType.STRING,
+            description: "The action or reminder text to fire at the scheduled time.",
+          },
+          triggerAt: {
+            type: SchemaType.STRING,
+            description: "ISO 8601 datetime when the action should fire. Parse natural language dates relative to current time.",
+          },
+          summary: {
+            type: SchemaType.STRING,
+            description: "Short summary shown to user in confirmation (e.g., 'Remind about standup Thursday 9 AM').",
+          },
+        },
+        required: ["action", "triggerAt", "summary"],
+      },
+    },
+
+    // ── Meeting Intelligence ─────────────────────────────────────────
+    {
+      name: "search_meeting_history",
+      description:
+        "Search across meeting transcripts, minutes of meeting (MoM), and key decisions. Use when user asks 'what did we decide about X', 'find the meeting where we discussed Y'.",
+      parameters: {
+        type: SchemaType.OBJECT,
+        properties: {
+          query: {
+            type: SchemaType.STRING,
+            description: "Search query to match against meeting titles, MoM summaries, key decisions, discussion points, and transcripts.",
+          },
+          limit: {
+            type: SchemaType.NUMBER,
+            description: "Max number of results to return (default: 5).",
+          },
+        },
+        required: ["query"],
+      },
+    },
+    {
+      name: "get_meeting_analytics",
+      description:
+        "Get meeting analytics and trends. Returns meeting scores, speaker stats, and patterns.",
+      parameters: {
+        type: SchemaType.OBJECT,
+        properties: {
+          meetingId: {
+            type: SchemaType.STRING,
+            description: "Specific meeting ID to get analytics for (optional). If omitted, returns aggregated trends.",
+          },
+          timeRange: {
+            type: SchemaType.STRING,
+            description: "Time range for aggregated trends: 'week', 'month', or 'quarter'. Default: 'month'.",
+            format: "enum",
+            enum: ["week", "month", "quarter"],
+          },
+        },
+        required: [],
+      },
+    },
+    {
+      name: "prepare_meeting_brief",
+      description:
+        "Generate a pre-meeting brief. Pulls related tasks, email threads, drive files, and past MoMs.",
+      parameters: {
+        type: SchemaType.OBJECT,
+        properties: {
+          meetingId: {
+            type: SchemaType.STRING,
+            description: "The meeting ID to prepare a brief for.",
+          },
+          createDoc: {
+            type: SchemaType.BOOLEAN,
+            description: "Whether to create a Google Doc with the brief content (default: true).",
+          },
+        },
+        required: ["meetingId"],
+      },
+    },
+    {
+      name: "generate_meeting_slides",
+      description:
+        "Generate a Google Slides presentation from a meeting's MoM.",
+      parameters: {
+        type: SchemaType.OBJECT,
+        properties: {
+          meetingId: {
+            type: SchemaType.STRING,
+            description: "The meeting ID to generate slides from. Meeting must have a MoM.",
+          },
+        },
+        required: ["meetingId"],
+      },
+    },
+    {
+      name: "suggest_meeting_time",
+      description:
+        "Suggest optimal meeting times based on calendar availability.",
+      parameters: {
+        type: SchemaType.OBJECT,
+        properties: {
+          attendeeEmails: {
+            type: SchemaType.ARRAY,
+            items: { type: SchemaType.STRING },
+            description: "Email addresses of attendees to check availability for.",
+          },
+          duration: {
+            type: SchemaType.NUMBER,
+            description: "Meeting duration in minutes (default: 30).",
+          },
+          timeRangeStart: {
+            type: SchemaType.STRING,
+            description: "Start of the time range to search in ISO 8601 format (optional, defaults to tomorrow).",
+          },
+          timeRangeEnd: {
+            type: SchemaType.STRING,
+            description: "End of the time range to search in ISO 8601 format (optional, defaults to 5 business days out).",
+          },
+          preferMorning: {
+            type: SchemaType.BOOLEAN,
+            description: "Whether to prefer morning slots (optional).",
+          },
+        },
+        required: ["attendeeEmails"],
+      },
+    },
+    {
+      name: "query_knowledge_graph",
+      description:
+        "Search cross-meeting knowledge graph for topics, decisions, or expertise.",
+      parameters: {
+        type: SchemaType.OBJECT,
+        properties: {
+          query: {
+            type: SchemaType.STRING,
+            description: "Search query to match against knowledge graph entries.",
+          },
+          nodeType: {
+            type: SchemaType.STRING,
+            description: "Filter by node type (optional).",
+            format: "enum",
+            enum: ["topic", "decision", "person_expertise", "action_evolution"],
+          },
+        },
+        required: ["query"],
+      },
+    },
+    {
+      name: "create_meeting_template",
+      description:
+        "Create or update a reusable meeting template.",
+      parameters: {
+        type: SchemaType.OBJECT,
+        properties: {
+          name: {
+            type: SchemaType.STRING,
+            description: "Template name.",
+          },
+          description: {
+            type: SchemaType.STRING,
+            description: "Template description (optional).",
+          },
+          defaultDuration: {
+            type: SchemaType.NUMBER,
+            description: "Default meeting duration in minutes (optional).",
+          },
+          agendaTopics: {
+            type: SchemaType.ARRAY,
+            items: { type: SchemaType.STRING },
+            description: "Default agenda topics for meetings using this template (optional).",
+          },
+        },
+        required: ["name"],
       },
     },
   ],
@@ -2485,6 +2741,592 @@ export async function executeWorkspaceTool(
               userExplicit: m.userExplicit ?? false,
               createdAt: m.createdAt.toISOString(),
             })),
+          },
+        };
+      }
+
+      // ── Workflows ──────────────────────────────────────────────
+      case "start_workflow": {
+        const { getWorkflow } = await import("@/lib/ai/workflows/registry");
+        const { executeWorkflow } = await import("@/lib/ai/workflows/executor");
+
+        const wfId = args.workflowId as string;
+        const template = getWorkflow(wfId);
+        if (!template) {
+          return { success: false, summary: `Unknown workflow: ${wfId}` };
+        }
+
+        const params = (args.params as Record<string, unknown>) ?? {};
+        const skipSet = args.skipSteps
+          ? new Set(args.skipSteps as string[])
+          : undefined;
+
+        const state = await executeWorkflow(template, userId, params, undefined, skipSet);
+
+        const doneCount = state.steps.filter((s) => s.status === "done").length;
+        const errorCount = state.steps.filter((s) => s.status === "error").length;
+
+        return {
+          success: errorCount === 0,
+          summary: `Workflow "${template.name}" completed: ${doneCount}/${state.steps.length} steps succeeded${errorCount > 0 ? `, ${errorCount} failed` : ""}.`,
+          data: {
+            card: {
+              type: "workflow_progress" as const,
+              workflowId: state.workflowId,
+              title: state.title,
+              steps: state.steps,
+            },
+            stepResults: Object.fromEntries(
+              Object.entries(state.context.stepResults).map(([k, v]) => [k, v.summary]),
+            ),
+          },
+        };
+      }
+
+      case "list_workflows": {
+        const { listWorkflows } = await import("@/lib/ai/workflows/registry");
+        const all = listWorkflows();
+        return {
+          success: true,
+          summary: `Available workflows: ${all.map((w) => w.name).join(", ")}`,
+          data: all.map((w) => ({
+            id: w.id,
+            name: w.name,
+            description: w.description,
+            stepCount: w.steps.length,
+          })),
+        };
+      }
+
+      // ── Batch Operations ──────────────────────────────────────
+      case "batch_action": {
+        return {
+          success: true,
+          summary: args.actionLabel as string,
+          data: {
+            card: {
+              type: "batch_action" as const,
+              actionType: args.actionType as string,
+              actionLabel: args.actionLabel as string,
+              items: (args.items as Array<{ id: string; title: string; subtitle?: string }>).map((i) => ({
+                id: i.id,
+                title: i.title,
+                subtitle: i.subtitle,
+                args: {},
+              })),
+            },
+          },
+        };
+      }
+
+      // ── Scheduled Actions ──────────────────────────────────────
+      case "schedule_action": {
+        const actionText = args.action as string;
+        const triggerAt = new Date(args.triggerAt as string);
+        const summary = args.summary as string;
+
+        if (isNaN(triggerAt.getTime()) || triggerAt.getTime() <= Date.now()) {
+          return { success: false, summary: "triggerAt must be a valid future datetime." };
+        }
+
+        await connectDB();
+        const ScheduledAction = (await import("@/lib/infra/db/models/scheduled-action")).default;
+
+        const activeCount = await ScheduledAction.countDocuments({
+          userId: new mongoose.Types.ObjectId(userId),
+          status: "pending",
+        });
+
+        if (activeCount >= 10) {
+          return { success: false, summary: "You have 10 active scheduled actions — cancel one first." };
+        }
+
+        const doc = await ScheduledAction.create({
+          userId: new mongoose.Types.ObjectId(userId),
+          action: actionText,
+          args: {},
+          summary,
+          triggerAt,
+        });
+
+        return {
+          success: true,
+          summary: `Scheduled: "${summary}" for ${triggerAt.toLocaleString()}.`,
+          data: { scheduledActionId: doc._id.toString(), triggerAt: triggerAt.toISOString() },
+        };
+      }
+
+      // ── Meeting Intelligence ──────────────────────────────────────
+      case "search_meeting_history": {
+        await connectDB();
+        const Recording = (await import("@/lib/infra/db/models/recording")).default;
+
+        const query = args.query as string;
+        const limit = Math.min((args.limit as number) || 5, 20);
+        const escapedQuery = query.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+        const regex = { $regex: escapedQuery, $options: "i" };
+
+        // Search meetings by title, description, MoM fields
+        const meetings = await Meeting.find({
+          "participants.userId": new mongoose.Types.ObjectId(userId),
+          $or: [
+            { title: regex },
+            { description: regex },
+            { "mom.summary": regex },
+            { "mom.keyDecisions": regex },
+            { "mom.discussionPoints": regex },
+            { "mom.actionItems.task": regex },
+          ],
+        })
+          .sort({ createdAt: -1 })
+          .limit(limit)
+          .select("title scheduledAt status mom.summary mom.keyDecisions")
+          .lean();
+
+        // Also search recordings for transcript matches
+        const recordings = await Recording.find({
+          "transcript.fullText": regex,
+        })
+          .limit(limit)
+          .select("meetingId transcript.fullText")
+          .lean();
+
+        // Get meeting details for transcript matches
+        const transcriptMeetingIds = recordings
+          .map((r: { meetingId?: { toString(): string } }) => r.meetingId?.toString())
+          .filter(Boolean);
+        const transcriptMeetings = transcriptMeetingIds.length > 0
+          ? await Meeting.find({
+              _id: { $in: transcriptMeetingIds },
+              "participants.userId": new mongoose.Types.ObjectId(userId),
+            })
+              .select("title scheduledAt status")
+              .lean()
+          : [];
+
+        const results = [
+          ...meetings.map((m) => ({
+            meetingId: (m._id as mongoose.Types.ObjectId).toString(),
+            title: m.title,
+            date: m.scheduledAt,
+            status: m.status,
+            momSummary: (m as unknown as { mom?: { summary?: string } }).mom?.summary,
+            keyDecisions: (m as unknown as { mom?: { keyDecisions?: string[] } }).mom?.keyDecisions,
+            source: "meeting" as const,
+          })),
+          ...transcriptMeetings.map((m) => ({
+            meetingId: (m._id as mongoose.Types.ObjectId).toString(),
+            title: m.title,
+            date: m.scheduledAt,
+            status: m.status,
+            source: "transcript" as const,
+          })),
+        ];
+
+        // Deduplicate by meetingId
+        const seen = new Set<string>();
+        const unique = results.filter((r) => {
+          if (seen.has(r.meetingId)) return false;
+          seen.add(r.meetingId);
+          return true;
+        });
+
+        return {
+          success: true,
+          summary: `Found ${unique.length} meeting(s) matching "${query}"`,
+          data: unique.slice(0, limit),
+        };
+      }
+
+      case "get_meeting_analytics": {
+        await connectDB();
+        const MeetingAnalytics = (await import("@/lib/infra/db/models/meeting-analytics")).default;
+
+        const meetingId = args.meetingId as string | undefined;
+
+        if (meetingId) {
+          // Verify user is participant
+          if (!mongoose.Types.ObjectId.isValid(meetingId)) {
+            return { success: false, summary: "Invalid meeting ID." };
+          }
+          const meetingDoc = await Meeting.findById(meetingId).select("participants").lean();
+          if (!meetingDoc) return { success: false, summary: "Meeting not found." };
+          const isParticipant = meetingDoc.participants?.some(
+            (p: { userId: { toString(): string } }) => p.userId.toString() === userId
+          );
+          if (!isParticipant) return { success: false, summary: "Not a participant in this meeting." };
+
+          const analytics = await MeetingAnalytics.findOne({ meetingId: new mongoose.Types.ObjectId(meetingId) }).lean();
+          if (!analytics) return { success: true, summary: "No analytics available for this meeting yet.", data: null };
+          return { success: true, summary: `Analytics for meeting ${meetingId}`, data: analytics };
+        }
+
+        // Aggregate trends
+        const timeRange = (args.timeRange as string) || "month";
+        const daysMap: Record<string, number> = { week: 7, month: 30, quarter: 90 };
+        const days = daysMap[timeRange] || 30;
+        const since = new Date();
+        since.setDate(since.getDate() - days);
+
+        // Get user's meetings in the time range
+        const userMeetings = await Meeting.find({
+          "participants.userId": new mongoose.Types.ObjectId(userId),
+          createdAt: { $gte: since },
+        }).select("_id mom").lean();
+
+        const meetingIds = userMeetings.map((m) => m._id);
+        const analyticsRecords = await MeetingAnalytics.find({
+          meetingId: { $in: meetingIds },
+        }).lean();
+
+        const scores = analyticsRecords
+          .map((a: { overallScore?: number }) => a.overallScore)
+          .filter((s): s is number => typeof s === "number");
+        const avgScore = scores.length > 0 ? Math.round(scores.reduce((a, b) => a + b, 0) / scores.length) : null;
+
+        let totalDecisions = 0;
+        let totalActionItems = 0;
+        for (const m of userMeetings) {
+          const mom = (m as unknown as { mom?: { keyDecisions?: unknown[]; actionItems?: unknown[] } }).mom;
+          if (mom) {
+            totalDecisions += mom.keyDecisions?.length || 0;
+            totalActionItems += mom.actionItems?.length || 0;
+          }
+        }
+
+        return {
+          success: true,
+          summary: `Meeting trends (${timeRange}): ${userMeetings.length} meetings, avg score ${avgScore ?? "N/A"}`,
+          data: {
+            timeRange,
+            totalMeetings: userMeetings.length,
+            avgScore,
+            totalDecisions,
+            totalActionItems,
+            analyticsCount: analyticsRecords.length,
+          },
+        };
+      }
+
+      case "prepare_meeting_brief": {
+        await connectDB();
+        const MeetingBrief = (await import("@/lib/infra/db/models/meeting-brief")).default;
+
+        const meetingId = args.meetingId as string;
+        const shouldCreateDoc = args.createDoc !== false; // default true
+
+        if (!mongoose.Types.ObjectId.isValid(meetingId)) {
+          return { success: false, summary: "Invalid meeting ID." };
+        }
+
+        const meetingDoc = await Meeting.findById(meetingId).lean();
+        if (!meetingDoc) return { success: false, summary: "Meeting not found." };
+
+        const isParticipant = meetingDoc.participants?.some(
+          (p: { userId: { toString(): string } }) => p.userId.toString() === userId
+        );
+        if (!isParticipant) return { success: false, summary: "Not a participant in this meeting." };
+
+        // Find related tasks by meetingId or title keyword
+        const titleWords = meetingDoc.title.split(/\s+/).filter((w: string) => w.length > 3).slice(0, 3);
+        const titleRegex = titleWords.length > 0 ? titleWords.join("|") : meetingDoc.title;
+        const participantIds = meetingDoc.participants?.map(
+          (p: { userId: { toString(): string } }) => new mongoose.Types.ObjectId(p.userId.toString())
+        ) || [];
+
+        const relatedTasks = await Task.find({
+          $or: [
+            { meetingId: new mongoose.Types.ObjectId(meetingId) },
+            {
+              assigneeId: { $in: participantIds },
+              title: { $regex: titleRegex, $options: "i" },
+              completedAt: null,
+            },
+          ],
+        })
+          .select("title priority dueDate assigneeId status")
+          .limit(15)
+          .lean();
+
+        // Find past MoMs with same participants (last 3 ended meetings)
+        const pastMeetings = await Meeting.find({
+          _id: { $ne: new mongoose.Types.ObjectId(meetingId) },
+          status: "ended",
+          "participants.userId": { $all: participantIds.slice(0, 3) },
+          mom: { $exists: true },
+        })
+          .sort({ scheduledAt: -1 })
+          .limit(3)
+          .select("title scheduledAt mom.summary mom.actionItems")
+          .lean();
+
+        // Extract carryover items from past MoMs
+        const carryoverItems: { task: string; from: string }[] = [];
+        for (const pm of pastMeetings) {
+          const mom = (pm as unknown as { mom?: { actionItems?: { task: string; status?: string }[] } }).mom;
+          if (mom?.actionItems) {
+            for (const item of mom.actionItems) {
+              if (!item.status || item.status === "open" || item.status === "pending") {
+                carryoverItems.push({ task: item.task, from: pm.title });
+              }
+            }
+          }
+        }
+
+        // Build brief content
+        const briefData = {
+          meetingId,
+          meetingTitle: meetingDoc.title,
+          scheduledAt: meetingDoc.scheduledAt,
+          relatedTasks: relatedTasks.map((t) => ({
+            title: t.title,
+            priority: t.priority,
+            dueDate: t.dueDate,
+          })),
+          pastMeetingSummaries: pastMeetings.map((m) => ({
+            title: m.title,
+            date: m.scheduledAt,
+            summary: (m as unknown as { mom?: { summary?: string } }).mom?.summary,
+          })),
+          carryoverItems,
+        };
+
+        // Upsert MeetingBrief
+        await MeetingBrief.findOneAndUpdate(
+          { meetingId: new mongoose.Types.ObjectId(meetingId) },
+          {
+            meetingId: new mongoose.Types.ObjectId(meetingId),
+            userId: new mongoose.Types.ObjectId(userId),
+            ...briefData,
+            generatedAt: new Date(),
+          },
+          { upsert: true, new: true }
+        );
+
+        // Optionally create Google Doc
+        let docUrl: string | undefined;
+        if (shouldCreateDoc) {
+          try {
+            const doc = await createGoogleDoc(userId, `Brief: ${meetingDoc.title}`);
+            if (doc?.webViewLink) {
+              docUrl = doc.webViewLink;
+              const docContent = [
+                `Meeting Brief: ${meetingDoc.title}`,
+                `Date: ${meetingDoc.scheduledAt || "TBD"}`,
+                "",
+                "## Related Tasks",
+                ...relatedTasks.map((t) => `- ${t.title} (${t.priority || "no priority"})`),
+                "",
+                "## Past Meeting Summaries",
+                ...pastMeetings.map((m) =>
+                  `- ${m.title}: ${(m as unknown as { mom?: { summary?: string } }).mom?.summary || "No summary"}`
+                ),
+                "",
+                "## Carryover Items",
+                ...carryoverItems.map((c) => `- ${c.task} (from: ${c.from})`),
+              ].join("\n");
+              await appendToDoc(userId, doc.id, docContent);
+            }
+          } catch (docErr) {
+            log.warn({ err: docErr }, "failed to create brief doc");
+          }
+        }
+
+        return {
+          success: true,
+          summary: `Prepared brief for "${meetingDoc.title}": ${relatedTasks.length} related tasks, ${pastMeetings.length} past meetings, ${carryoverItems.length} carryover items${docUrl ? " + doc created" : ""}`,
+          data: { ...briefData, docUrl },
+        };
+      }
+
+      case "generate_meeting_slides": {
+        await connectDB();
+        const { createMomPresentation } = await import("@/lib/google/slides");
+
+        const meetingId = args.meetingId as string;
+        if (!mongoose.Types.ObjectId.isValid(meetingId)) {
+          return { success: false, summary: "Invalid meeting ID." };
+        }
+
+        const meetingDoc = await Meeting.findById(meetingId).lean();
+        if (!meetingDoc) return { success: false, summary: "Meeting not found." };
+
+        const isParticipant = meetingDoc.participants?.some(
+          (p: { userId: { toString(): string } }) => p.userId.toString() === userId
+        );
+        if (!isParticipant) return { success: false, summary: "Not a participant in this meeting." };
+
+        const mom = (meetingDoc as unknown as { mom?: Record<string, unknown> }).mom;
+        if (!mom) return { success: false, summary: "This meeting does not have a MoM yet." };
+
+        const presentation = await createMomPresentation(userId, meetingId);
+        return {
+          success: true,
+          summary: `Generated slides for "${meetingDoc.title}"`,
+          data: {
+            meetingId,
+            presentationUrl: presentation.url,
+            presentationId: presentation.id,
+          },
+        };
+      }
+
+      case "suggest_meeting_time": {
+        const attendeeEmails = (args.attendeeEmails as string[]) || [];
+        if (attendeeEmails.length === 0) return { success: false, summary: "No attendee emails provided." };
+
+        const duration = (args.duration as number) || 30;
+        const preferMorning = args.preferMorning as boolean | undefined;
+
+        // Default range: tomorrow to 5 business days out
+        const now = new Date();
+        const tomorrow = new Date(now);
+        tomorrow.setDate(tomorrow.getDate() + 1);
+        tomorrow.setHours(9, 0, 0, 0);
+
+        const rangeEnd = new Date(tomorrow);
+        rangeEnd.setDate(rangeEnd.getDate() + 7); // 7 calendar days to cover 5 business days
+
+        const timeRangeStart = (args.timeRangeStart as string) || tomorrow.toISOString();
+        const timeRangeEnd = (args.timeRangeEnd as string) || rangeEnd.toISOString();
+
+        // Fetch user's calendar events for the range
+        const events = await listEvents(userId, {
+          timeMin: timeRangeStart,
+          timeMax: timeRangeEnd,
+          maxResults: 50,
+        });
+
+        const busySlots = events.map((e) => ({
+          start: new Date(e.start).getTime(),
+          end: new Date(e.end).getTime(),
+        }));
+        busySlots.sort((a, b) => a.start - b.start);
+
+        // Find up to 3 free slots (9AM-5PM, weekdays, 15min buffer, 30min increments)
+        const suggestions: { start: string; end: string; reason: string }[] = [];
+        const durationMs = duration * 60000;
+        const bufferMs = 15 * 60000;
+        const incrementMs = 30 * 60000;
+        const startDate = new Date(timeRangeStart);
+        const endDate = new Date(timeRangeEnd);
+
+        for (let day = new Date(startDate); day < endDate && suggestions.length < 3; day.setDate(day.getDate() + 1)) {
+          const dayOfWeek = day.getDay();
+          if (dayOfWeek === 0 || dayOfWeek === 6) continue; // skip weekends
+
+          const dayStart = new Date(day);
+          dayStart.setHours(9, 0, 0, 0);
+          const dayEnd = new Date(day);
+          dayEnd.setHours(17, 0, 0, 0);
+
+          if (preferMorning) {
+            dayEnd.setHours(12, 0, 0, 0); // only check morning slots
+          }
+
+          for (let cursor = dayStart.getTime(); cursor + durationMs <= dayEnd.getTime() && suggestions.length < 3; cursor += incrementMs) {
+            const slotStart = cursor;
+            const slotEnd = cursor + durationMs;
+
+            // Check if slot (with buffer) conflicts with any busy slot
+            const hasConflict = busySlots.some(
+              (b) => slotStart - bufferMs < b.end && slotEnd + bufferMs > b.start
+            );
+
+            if (!hasConflict) {
+              const slotDate = new Date(slotStart);
+              const dayLabel = slotDate.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
+              const timeLabel = slotDate.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+              suggestions.push({
+                start: new Date(slotStart).toISOString(),
+                end: new Date(slotEnd).toISOString(),
+                reason: `${dayLabel} at ${timeLabel} — free slot with ${duration}min available`,
+              });
+            }
+          }
+        }
+
+        return {
+          success: true,
+          summary: suggestions.length > 0
+            ? `Found ${suggestions.length} suggested time(s) for a ${duration}-min meeting`
+            : `No available ${duration}-min slots found in the given range`,
+          data: { suggestions, duration, attendeeEmails },
+        };
+      }
+
+      case "query_knowledge_graph": {
+        await connectDB();
+        const MeetingKnowledge = (await import("@/lib/infra/db/models/meeting-knowledge")).default;
+
+        const query = args.query as string;
+        const nodeType = args.nodeType as string | undefined;
+        const escapedQuery = query.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+        const regex = { $regex: escapedQuery, $options: "i" };
+
+        const filter: Record<string, unknown> = {
+          $or: [
+            { key: regex },
+            { "entries.content": regex },
+          ],
+        };
+        if (nodeType) filter.type = nodeType;
+
+        const nodes = await MeetingKnowledge.find(filter)
+          .sort({ updatedAt: -1 })
+          .limit(15)
+          .lean();
+
+        return {
+          success: true,
+          summary: `Found ${nodes.length} knowledge graph node(s) matching "${query}"`,
+          data: nodes.map((n: { _id: unknown; type?: string; key?: string; entries?: unknown[]; updatedAt?: unknown }) => ({
+            id: (n._id as mongoose.Types.ObjectId).toString(),
+            type: n.type,
+            key: n.key,
+            entries: n.entries,
+            updatedAt: n.updatedAt,
+          })),
+        };
+      }
+
+      case "create_meeting_template": {
+        await connectDB();
+        const MeetingTemplate = (await import("@/lib/infra/db/models/meeting-template")).default;
+
+        const templateName = args.name as string;
+        if (!templateName || templateName.trim().length === 0) {
+          return { success: false, summary: "Template name is required." };
+        }
+
+        const template = await MeetingTemplate.findOneAndUpdate(
+          {
+            userId: new mongoose.Types.ObjectId(userId),
+            name: templateName,
+          },
+          {
+            userId: new mongoose.Types.ObjectId(userId),
+            name: templateName,
+            description: (args.description as string) || "",
+            defaultDuration: (args.defaultDuration as number) || 30,
+            agendaTopics: (args.agendaTopics as string[]) || [],
+            cascadeConfig: {
+              createTasks: true,
+              sendSummaryEmail: true,
+              updateKnowledgeGraph: true,
+              createFollowUpMeeting: true,
+              scheduleNextMeeting: false,
+            },
+          },
+          { upsert: true, new: true }
+        );
+
+        return {
+          success: true,
+          summary: `Meeting template "${templateName}" saved`,
+          data: {
+            templateId: template._id.toString(),
+            name: template.name,
           },
         };
       }
