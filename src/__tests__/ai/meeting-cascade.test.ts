@@ -9,6 +9,8 @@ vi.mock("@/lib/infra/db/client", () => ({
   default: () => mockConnectDB(),
 }));
 
+const mockMeetingUpdateOne = vi.fn().mockResolvedValue({ modifiedCount: 1 });
+
 vi.mock("@/lib/infra/db/models/meeting", () => ({
   default: {
     findById: (...args: unknown[]) => ({
@@ -16,6 +18,7 @@ vi.mock("@/lib/infra/db/models/meeting", () => ({
         lean: () => mockFindById(...args),
       }),
     }),
+    updateOne: (...args: unknown[]) => mockMeetingUpdateOne(...args),
   },
 }));
 
@@ -61,6 +64,11 @@ vi.mock("@/lib/ai/meeting-undo", () => ({
   storeUndoToken: (...args: unknown[]) => mockStoreUndoToken(...args),
 }));
 
+const mockUpdateKnowledgeGraph = vi.fn().mockResolvedValue(undefined);
+vi.mock("@/lib/ai/knowledge-builder", () => ({
+  updateKnowledgeGraph: (...args: unknown[]) => mockUpdateKnowledgeGraph(...args),
+}));
+
 vi.mock("@/lib/infra/logger", () => ({
   createLogger: () => ({
     info: vi.fn(),
@@ -104,8 +112,8 @@ describe("executeMeetingCascade", () => {
 
     // Default happy-path mocks
     mockFindById.mockResolvedValue(baseMeeting);
-    mockGetOrCreateMeetingFolder.mockResolvedValue({ id: "folder-1", name: "Sprint Retro" });
-    mockCreateGoogleDoc.mockResolvedValue({ id: "doc-1", name: "MoM — Sprint Retro" });
+    mockGetOrCreateMeetingFolder.mockResolvedValue({ id: "folder-1", name: "Sprint Retro", webViewLink: "https://drive.google.com/drive/folders/folder-1" });
+    mockCreateGoogleDoc.mockResolvedValue({ id: "doc-1", name: "MoM — Sprint Retro", webViewLink: "https://docs.google.com/document/d/doc-1/edit" });
     mockAppendToDoc.mockResolvedValue({ documentId: "doc-1" });
     mockCreateTaskFromMeeting.mockResolvedValue({
       success: true,
@@ -119,7 +127,7 @@ describe("executeMeetingCascade", () => {
     mockSendEmail.mockResolvedValue({ messageId: "msg-1", threadId: "thread-1" });
     mockAppendToSheet.mockResolvedValue({ updatedRows: 1 });
     mockStoreUndoToken.mockImplementation((_uid: string, payload: Record<string, unknown>) =>
-      Promise.resolve(`undo_${payload.type}`),
+      Promise.resolve(`undo_${payload.action}`),
     );
   });
 
@@ -179,9 +187,9 @@ describe("executeMeetingCascade", () => {
 
     // create_mom_doc, create_tasks, send_followup all produce tokens
     expect(result.undoTokens.length).toBe(3);
-    expect(result.undoTokens).toContain("undo_delete_file");
-    expect(result.undoTokens).toContain("undo_delete_tasks");
-    expect(result.undoTokens).toContain("undo_noop");
+    expect(result.undoTokens).toContain("undo_create_mom_doc");
+    expect(result.undoTokens).toContain("undo_create_tasks");
+    expect(result.undoTokens).toContain("undo_send_followup");
   });
 
   it("skips steps listed in skipSteps", async () => {
@@ -262,5 +270,57 @@ describe("executeMeetingCascade", () => {
     expect(notifyStep.status).toBe("done");
     expect(notifyStep.summary).toMatch(/\d+ done/);
     expect(notifyStep.summary).toMatch(/\d+ error/);
+  });
+
+  /* ─── Artifact Tests ─── */
+
+  it("returns artifacts from create_mom_doc step", async () => {
+    const result = await executeMeetingCascade(USER_ID, MEETING_ID);
+    const momStep = result.steps.find((s) => s.step === "create_mom_doc");
+    expect(momStep!.artifacts).toBeDefined();
+    expect(momStep!.artifacts!.momDocId).toBe("doc-1");
+    expect(momStep!.artifacts!.momDocUrl).toBe("https://docs.google.com/document/d/doc-1/edit");
+    expect(momStep!.artifacts!.folderId).toBe("folder-1");
+    expect(momStep!.artifacts!.folderUrl).toBe("https://drive.google.com/drive/folders/folder-1");
+  });
+
+  it("persists artifacts on Meeting model after cascade completes", async () => {
+    await executeMeetingCascade(USER_ID, MEETING_ID);
+    expect(mockMeetingUpdateOne).toHaveBeenCalledWith(
+      { _id: MEETING_ID },
+      { $set: { artifacts: expect.objectContaining({ momDocId: "doc-1", folderId: "folder-1" }) } },
+    );
+  });
+
+  it("does not call Meeting.updateOne for artifacts when no steps produce artifacts", async () => {
+    mockFindById.mockResolvedValue({ ...baseMeeting, mom: undefined });
+    await executeMeetingCascade(USER_ID, MEETING_ID);
+    // Check updateOne was NOT called with artifacts (it may be called for other reasons)
+    const artifactCalls = mockMeetingUpdateOne.mock.calls.filter(
+      (call) => call[1]?.$set?.artifacts,
+    );
+    expect(artifactCalls.length).toBe(0);
+  });
+
+  /* ─── Knowledge Graph Tests ─── */
+
+  it("calls updateKnowledgeGraph when meeting has MoM", async () => {
+    await executeMeetingCascade(USER_ID, MEETING_ID);
+    expect(mockUpdateKnowledgeGraph).toHaveBeenCalledWith(USER_ID, MEETING_ID);
+  });
+
+  it("does not call updateKnowledgeGraph when meeting has no MoM", async () => {
+    mockFindById.mockResolvedValue({ ...baseMeeting, mom: undefined });
+    await executeMeetingCascade(USER_ID, MEETING_ID);
+    expect(mockUpdateKnowledgeGraph).not.toHaveBeenCalled();
+  });
+
+  it("continues cascade when updateKnowledgeGraph throws", async () => {
+    mockUpdateKnowledgeGraph.mockRejectedValue(new Error("KB failure"));
+    const result = await executeMeetingCascade(USER_ID, MEETING_ID);
+    // Cascade should still complete with all steps
+    expect(result.steps.length).toBeGreaterThanOrEqual(4);
+    const tasksStep = result.steps.find((s) => s.step === "create_tasks");
+    expect(tasksStep!.status).toBe("done");
   });
 });
