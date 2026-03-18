@@ -479,3 +479,113 @@ export async function triggerUnreadHighlights(): Promise<void> {
     log.error({ err }, "triggerUnreadHighlights failed");
   }
 }
+
+/* ─── 8. Post-Meeting Cascade ─── */
+
+export async function triggerPostMeetingCascade(): Promise<void> {
+  try {
+    await connectDB();
+    const Meeting = (await import("@/lib/infra/db/models/meeting")).default;
+    const Conversation = (await import("@/lib/infra/db/models/conversation")).default;
+    const { executeMeetingCascade } = await import("@/lib/ai/meeting-cascade");
+
+    const fifteenMinAgo = new Date(Date.now() - 15 * 60 * 1000);
+
+    const meetings = await Meeting.find({
+      status: "ended",
+      endedAt: { $gte: fifteenMinAgo },
+      mom: { $exists: true },
+    }).lean();
+
+    log.info({ count: meetings.length }, "Post-meeting cascade: meetings found");
+
+    for (const meeting of meetings) {
+      try {
+        const conv = await Conversation.findOne({ meetingId: meeting._id }).lean();
+        if (!conv) continue;
+
+        for (const p of conv.participants) {
+          if (!p.agentEnabled) continue;
+
+          try {
+            const uid = p.userId.toString();
+            const cid = conv._id.toString();
+
+            if (await isAgentMuted(cid, uid)) continue;
+            if (!(await canSendProactive(cid, uid, "post_meeting_cascade"))) continue;
+
+            const result = await executeMeetingCascade(uid, String(meeting._id));
+
+            const stepSummaries = result.steps
+              .filter((s) => s.status === "done")
+              .map((s) => `- ${s.summary}`)
+              .join("\n");
+
+            const undoNote =
+              result.undoTokens.length > 0
+                ? "\n\nYou can undo any of these actions — just ask."
+                : "";
+
+            const content = `**Post-Meeting Cascade: ${meeting.title}**\n\n${stepSummaries}${undoNote}`;
+
+            await postAgentMessage(cid, uid, content);
+            log.info({ meetingId: meeting._id, userId: uid }, "Post-meeting cascade sent");
+          } catch (err) {
+            log.error({ err, meetingId: meeting._id }, "Post-meeting cascade: participant error");
+          }
+        }
+      } catch (err) {
+        log.error({ err, meetingId: meeting._id }, "Post-meeting cascade: meeting error");
+      }
+    }
+  } catch (err) {
+    log.error({ err }, "triggerPostMeetingCascade failed");
+  }
+}
+
+/* ─── Scheduled Actions ─── */
+
+export async function triggerScheduledActions(): Promise<void> {
+  try {
+    await connectDB();
+    const ScheduledAction = (await import("@/lib/infra/db/models/scheduled-action")).default;
+    const Conversation = (await import("@/lib/infra/db/models/conversation")).default;
+
+    const dueActions = await ScheduledAction.find({
+      status: "pending",
+      triggerAt: { $lte: new Date() },
+    })
+      .limit(20)
+      .lean();
+
+    if (dueActions.length === 0) return;
+
+    log.info({ count: dueActions.length }, "Firing scheduled actions");
+
+    for (const action of dueActions) {
+      try {
+        const uid = action.userId.toString();
+
+        const conv = await Conversation.findOne({
+          participants: { $elemMatch: { userId: action.userId, agentEnabled: true } },
+        }).lean();
+
+        if (conv) {
+          const content = `⏰ **Scheduled reminder:** ${action.summary}\n\n${action.action}`;
+          await postAgentMessage(conv._id.toString(), uid, content);
+        }
+
+        await ScheduledAction.updateOne(
+          { _id: action._id },
+          { $set: { status: "fired", firedAt: new Date() } },
+        );
+
+        log.info({ actionId: action._id, userId: uid }, "Scheduled action fired");
+      } catch (err) {
+        log.error({ err, actionId: action._id }, "Failed to fire scheduled action");
+      }
+    }
+  } catch (err) {
+    log.error({ err }, "triggerScheduledActions failed");
+  }
+}

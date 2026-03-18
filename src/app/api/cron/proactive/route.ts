@@ -25,6 +25,8 @@ export async function POST(req: NextRequest) {
       triggerStaleTasks,
       triggerWeeklyPatternSummary,
       triggerUnreadHighlights,
+      triggerScheduledActions,
+      triggerPostMeetingCascade,
     } = await import("@/lib/chat/proactive-triggers");
 
     const results = await Promise.allSettled([
@@ -35,6 +37,8 @@ export async function POST(req: NextRequest) {
       triggerStaleTasks(),
       triggerWeeklyPatternSummary(),
       triggerUnreadHighlights(),
+      triggerScheduledActions(),
+      triggerPostMeetingCascade(),
     ]);
 
     const names = [
@@ -45,6 +49,8 @@ export async function POST(req: NextRequest) {
       "staleTasks",
       "weeklyPatternSummary",
       "unreadHighlights",
+      "scheduledActions",
+      "postMeetingCascade",
     ] as const;
 
     const summary = results.map((r, i) => ({

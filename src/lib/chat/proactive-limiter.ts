@@ -15,7 +15,9 @@ export type ProactiveType =
   | "task_status"
   | "stale_task_nudge"
   | "unread_highlights"
-  | "weekly_pattern_summary";
+  | "weekly_pattern_summary"
+  | "scheduled_action"
+  | "post_meeting_cascade";
 
 /**
  * Atomically check whether a proactive message of the given type is allowed.
