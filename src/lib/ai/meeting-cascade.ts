@@ -9,6 +9,7 @@ export interface CascadeStepResult {
   status: "done" | "skipped" | "error";
   summary: string;
   undoToken?: string;
+  artifacts?: Record<string, string>;
 }
 
 export interface CascadeResult {
@@ -96,6 +97,12 @@ async function stepCreateMomDoc(
     status: "done",
     summary: `Created MoM document "${doc.name}" in folder "${folder.name}"`,
     undoToken: token,
+    artifacts: {
+      momDocId: doc.id,
+      momDocUrl: doc.webViewLink || `https://docs.google.com/document/d/${doc.id}/edit`,
+      folderId: folder.id,
+      folderUrl: folder.webViewLink || `https://drive.google.com/drive/folders/${folder.id}`,
+    },
   };
 }
 
@@ -345,6 +352,25 @@ export async function executeMeetingCascade(
 
   // Step 5: notify (always last)
   pushStep(buildNotifyStep(steps));
+
+  // Persist artifacts on the meeting document
+  const allArtifacts: Record<string, string> = {};
+  for (const step of steps) {
+    if (step.artifacts) {
+      Object.assign(allArtifacts, step.artifacts);
+    }
+  }
+
+  if (Object.keys(allArtifacts).length > 0) {
+    try {
+      await Meeting.updateOne(
+        { _id: meetingId },
+        { $set: { artifacts: allArtifacts } },
+      );
+    } catch (err) {
+      log.warn({ err, meetingId }, "Failed to persist artifacts on meeting");
+    }
+  }
 
   log.info(
     { meetingId, steps: steps.map((s) => `${s.step}:${s.status}`) },
