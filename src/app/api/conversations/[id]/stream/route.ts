@@ -5,6 +5,9 @@ import { getRedisClient } from "@/lib/infra/redis/client";
 import connectDB from "@/lib/infra/db/client";
 import Conversation from "@/lib/infra/db/models/conversation";
 import mongoose from "mongoose";
+import { createLogger } from "@/lib/infra/logger";
+
+const log = createLogger("api:conversations:stream");
 
 export async function GET(
   req: NextRequest,
@@ -37,8 +40,21 @@ export async function GET(
     }
 
     // Create a dedicated Redis subscriber connection for this SSE stream
-    const subscriber = getRedisClient().duplicate();
-    await subscriber.subscribe(`chat:${id}`);
+    // Track subscriber so we can clean up on any failure path
+    let subscriber;
+    try {
+      subscriber = getRedisClient().duplicate();
+      await subscriber.subscribe(`chat:${id}`);
+    } catch (err) {
+      if (subscriber) {
+        subscriber.quit().catch(() => {});
+      }
+      log.error({ err, conversationId: id }, "Failed to create Redis subscriber for SSE stream");
+      return new Response(
+        JSON.stringify({ error: "Service temporarily unavailable" }),
+        { status: 503 },
+      );
+    }
 
     const encoder = new TextEncoder();
     const stream = new ReadableStream({
@@ -47,7 +63,8 @@ export async function GET(
         const heartbeat = setInterval(() => {
           try {
             controller.enqueue(encoder.encode(": heartbeat\n\n"));
-          } catch {
+          } catch (err) {
+            log.debug({ err, conversationId: id }, "Heartbeat failed — stream likely closed");
             clearInterval(heartbeat);
           }
         }, 15000);
@@ -68,9 +85,13 @@ export async function GET(
             controller.enqueue(
               encoder.encode(`event: ${eventType}\ndata: ${payload}\n\n`),
             );
-          } catch {
-            // Forward raw if JSON parsing fails
-            controller.enqueue(encoder.encode(`data: ${message}\n\n`));
+          } catch (parseErr) {
+            log.warn({ err: parseErr, message: message.slice(0, 200) }, "Failed to parse Redis SSE message as JSON");
+            try {
+              controller.enqueue(encoder.encode(`data: ${message}\n\n`));
+            } catch {
+              // Stream closed — nothing more we can do
+            }
           }
         };
         subscriber.on("message", messageHandler);
@@ -102,6 +123,11 @@ export async function GET(
     // anything else (DB down, Redis error, etc.) is a server error.
     const isAuthError =
       err instanceof Error && (err.name === "UnauthorizedError" || err.message === "Unauthorized");
+
+    if (!isAuthError) {
+      log.error({ err, url: req.nextUrl?.pathname }, "SSE stream setup failed");
+    }
+
     return new Response(
       JSON.stringify({ error: isAuthError ? "Unauthorized" : "Internal server error" }),
       { status: isAuthError ? 401 : 500 },

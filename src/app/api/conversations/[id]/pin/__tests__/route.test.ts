@@ -20,6 +20,10 @@ vi.mock("@/lib/infra/auth/middleware", () => ({
   getUserIdFromRequest: (...args: unknown[]) => mockedGetUserId(...args),
 }));
 
+const mockFindOneChain = {
+  select: vi.fn().mockReturnThis(),
+  lean: vi.fn(),
+};
 const mockFindByIdChain = {
   select: vi.fn().mockReturnThis(),
   lean: vi.fn(),
@@ -27,6 +31,7 @@ const mockFindByIdChain = {
 const mockUpdateOne = vi.fn().mockResolvedValue({ modifiedCount: 1 });
 vi.mock("@/lib/infra/db/models/conversation", () => ({
   default: {
+    findOne: vi.fn(() => mockFindOneChain),
     findById: vi.fn(() => mockFindByIdChain),
     updateOne: (...args: unknown[]) => mockUpdateOne(...args),
   },
@@ -62,34 +67,21 @@ const { POST } = await import("../route");
 describe("POST /api/conversations/[id]/pin", () => {
   beforeEach(() => vi.clearAllMocks());
 
-  function setupConversation(pinnedIds: string[] = []) {
-    mockFindByIdChain.lean.mockResolvedValue({
+  it("pins a message", async () => {
+    // findOne: initial participant check (no pinned messages)
+    mockFindOneChain.lean.mockResolvedValue({
       _id: VALID_CONV_ID,
-      participants: [
-        { userId: { toString: () => TEST_USER_ID } },
-      ],
-      pinnedMessageIds: pinnedIds.map((pid) => ({ toString: () => pid })),
+      participants: [{ userId: { toString: () => TEST_USER_ID } }],
+      pinnedMessageIds: [],
     });
     mockDmFindByIdChain.lean.mockResolvedValue({
       _id: VALID_MSG_ID,
       conversationId: { toString: () => VALID_CONV_ID },
     });
-  }
-
-  it("pins a message", async () => {
-    // First call: initial findById (no pinned messages)
-    // Second call: updated findById after pin
-    setupConversation([]);
-    // Override the second findById call to return updated pinned list
-    mockFindByIdChain.lean
-      .mockResolvedValueOnce({
-        _id: VALID_CONV_ID,
-        participants: [{ userId: { toString: () => TEST_USER_ID } }],
-        pinnedMessageIds: [],
-      })
-      .mockResolvedValueOnce({
-        pinnedMessageIds: [{ toString: () => VALID_MSG_ID }],
-      });
+    // findById: re-fetch after pin for response
+    mockFindByIdChain.lean.mockResolvedValue({
+      pinnedMessageIds: [{ toString: () => VALID_MSG_ID }],
+    });
 
     const res = await POST(
       createRequest("POST", { messageId: VALID_MSG_ID }),
@@ -102,19 +94,19 @@ describe("POST /api/conversations/[id]/pin", () => {
   });
 
   it("unpins a message", async () => {
-    // Message is already pinned
-    mockFindByIdChain.lean
-      .mockResolvedValueOnce({
-        _id: VALID_CONV_ID,
-        participants: [{ userId: { toString: () => TEST_USER_ID } }],
-        pinnedMessageIds: [{ toString: () => VALID_MSG_ID }],
-      })
-      .mockResolvedValueOnce({
-        pinnedMessageIds: [],
-      });
+    // findOne: participant check (message is already pinned)
+    mockFindOneChain.lean.mockResolvedValue({
+      _id: VALID_CONV_ID,
+      participants: [{ userId: { toString: () => TEST_USER_ID } }],
+      pinnedMessageIds: [{ toString: () => VALID_MSG_ID }],
+    });
     mockDmFindByIdChain.lean.mockResolvedValue({
       _id: VALID_MSG_ID,
       conversationId: { toString: () => VALID_CONV_ID },
+    });
+    // findById: re-fetch after unpin for response
+    mockFindByIdChain.lean.mockResolvedValue({
+      pinnedMessageIds: [],
     });
 
     const res = await POST(

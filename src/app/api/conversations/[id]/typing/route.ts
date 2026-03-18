@@ -4,11 +4,14 @@ import { withHandler } from "@/lib/infra/api/with-handler";
 import { successResponse } from "@/lib/infra/api/response";
 import { checkRateLimit } from "@/lib/infra/api/rate-limit";
 import { getUserIdFromRequest } from "@/lib/infra/auth/middleware";
-import { BadRequestError, ForbiddenError, NotFoundError } from "@/lib/infra/api/errors";
+import { BadRequestError, NotFoundError } from "@/lib/infra/api/errors";
 import connectDB from "@/lib/infra/db/client";
 import Conversation from "@/lib/infra/db/models/conversation";
 import User from "@/lib/infra/db/models/user";
 import { getRedisClient } from "@/lib/infra/redis/client";
+import { createLogger } from "@/lib/infra/logger";
+
+const log = createLogger("api:conversations:typing");
 
 // -- POST /api/conversations/[id]/typing --------------------------------------
 
@@ -22,17 +25,15 @@ export const POST = withHandler(async (req: NextRequest, context) => {
 
   await connectDB();
 
-  // Verify user is a participant
-  const conversation = await Conversation.findById(id).lean();
+  // Verify user is a participant (atomic single query)
+  const conversation = await Conversation.findOne({
+    _id: new mongoose.Types.ObjectId(id),
+    "participants.userId": new mongoose.Types.ObjectId(userId),
+  })
+    .select("_id")
+    .lean();
   if (!conversation) {
     throw new NotFoundError("Conversation not found.");
-  }
-
-  const isParticipant = conversation.participants.some(
-    (p) => p.userId.toString() === userId
-  );
-  if (!isParticipant) {
-    throw new ForbiddenError("You are not a participant in this conversation.");
   }
 
   // Look up user's displayName
@@ -48,8 +49,8 @@ export const POST = withHandler(async (req: NextRequest, context) => {
       `chat:${id}`,
       JSON.stringify({ type: "typing", userId, name: user.displayName })
     );
-  } catch {
-    // Typing indicator is ephemeral; real-time delivery is best-effort
+  } catch (err) {
+    log.warn({ err, conversationId: id }, "Failed to publish typing indicator to Redis");
   }
 
   return successResponse({ ok: true });

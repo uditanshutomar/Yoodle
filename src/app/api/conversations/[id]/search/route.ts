@@ -6,7 +6,6 @@ import { checkRateLimit } from "@/lib/infra/api/rate-limit";
 import { getUserIdFromRequest } from "@/lib/infra/auth/middleware";
 import {
   BadRequestError,
-  ForbiddenError,
   NotFoundError,
 } from "@/lib/infra/api/errors";
 import connectDB from "@/lib/infra/db/client";
@@ -26,25 +25,26 @@ export const GET = withHandler(async (req: NextRequest, context) => {
 
   await connectDB();
 
-  // Verify user is a participant
-  const conversation = await Conversation.findById(id).lean();
+  // Verify user is a participant (atomic single query)
+  const conversation = await Conversation.findOne({
+    _id: new mongoose.Types.ObjectId(id),
+    "participants.userId": new mongoose.Types.ObjectId(userId),
+  })
+    .select("_id")
+    .lean();
   if (!conversation) {
     throw new NotFoundError("Conversation not found.");
-  }
-
-  const isParticipant = conversation.participants.some(
-    (p) => p.userId.toString() === userId
-  );
-  if (!isParticipant) {
-    throw new ForbiddenError("You are not a participant in this conversation.");
   }
 
   // Parse search query
   const { searchParams } = new URL(req.url);
   const q = searchParams.get("q");
 
-  if (!q || typeof q !== "string" || q.trim().length === 0) {
+  if (!q || q.trim().length === 0) {
     throw new BadRequestError("Search query (q) is required.");
+  }
+  if (q.length > 200) {
+    throw new BadRequestError("Search query must be 200 characters or fewer.");
   }
 
   // Escape special regex characters to prevent injection

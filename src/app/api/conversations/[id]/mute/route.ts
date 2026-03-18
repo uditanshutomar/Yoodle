@@ -7,7 +7,6 @@ import { checkRateLimit } from "@/lib/infra/api/rate-limit";
 import { getUserIdFromRequest } from "@/lib/infra/auth/middleware";
 import {
   BadRequestError,
-  ForbiddenError,
   NotFoundError,
 } from "@/lib/infra/api/errors";
 import connectDB from "@/lib/infra/db/client";
@@ -29,26 +28,21 @@ export const PATCH = withHandler(async (req: NextRequest, context) => {
 
   await connectDB();
 
-  // Verify user is a participant
-  const conversation = await Conversation.findById(id).select("participants").lean();
-  if (!conversation) {
-    throw new NotFoundError("Conversation not found.");
-  }
-
-  const isParticipant = conversation.participants.some(
-    (p) => p.userId.toString() === userId
-  );
-  if (!isParticipant) {
-    throw new ForbiddenError("You are not a participant in this conversation.");
-  }
-
   // Validate body
   const { muted } = muteSchema.parse(await req.json());
 
-  await Conversation.updateOne(
-    { _id: id, "participants.userId": new mongoose.Types.ObjectId(userId) },
+  // Atomic: verify participant + update in a single operation
+  const result = await Conversation.updateOne(
+    {
+      _id: new mongoose.Types.ObjectId(id),
+      "participants.userId": new mongoose.Types.ObjectId(userId),
+    },
     { $set: { "participants.$.muted": muted } }
   );
+
+  if (result.matchedCount === 0) {
+    throw new NotFoundError("Conversation not found.");
+  }
 
   return successResponse({ muted });
 });

@@ -8,6 +8,9 @@ import { BadRequestError, ForbiddenError, NotFoundError } from "@/lib/infra/api/
 import connectDB from "@/lib/infra/db/client";
 import Conversation from "@/lib/infra/db/models/conversation";
 import { getRedisClient } from "@/lib/infra/redis/client";
+import { createLogger } from "@/lib/infra/logger";
+
+const log = createLogger("api:conversations:read");
 
 // -- POST /api/conversations/[id]/read ----------------------------------------
 
@@ -48,8 +51,8 @@ export const POST = withHandler(async (req: NextRequest, context) => {
       `chat:${id}`,
       JSON.stringify({ type: "read", userId, readAt: readAt.toISOString() })
     );
-  } catch {
-    // Read receipt is persisted in DB; real-time delivery is best-effort
+  } catch (err) {
+    log.warn({ err, conversationId: id }, "Failed to publish read receipt to Redis");
   }
 
   return successResponse({ success: true });

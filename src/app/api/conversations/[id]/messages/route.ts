@@ -4,12 +4,15 @@ import { withHandler } from "@/lib/infra/api/with-handler";
 import { successResponse } from "@/lib/infra/api/response";
 import { checkRateLimit } from "@/lib/infra/api/rate-limit";
 import { getUserIdFromRequest } from "@/lib/infra/auth/middleware";
-import { BadRequestError, ForbiddenError, NotFoundError } from "@/lib/infra/api/errors";
+import { BadRequestError, NotFoundError } from "@/lib/infra/api/errors";
 import connectDB from "@/lib/infra/db/client";
 import Conversation from "@/lib/infra/db/models/conversation";
 import DirectMessage from "@/lib/infra/db/models/direct-message";
 import { getRedisClient } from "@/lib/infra/redis/client";
 import { toClientMessage } from "@/lib/chat/message-transform";
+import { createLogger } from "@/lib/infra/logger";
+
+const log = createLogger("api:conversations:messages");
 
 const URGENCY_PATTERNS = /\b(asap|urgent|blocking|blocked|critical|deadline today|deadline tomorrow|p0|p1|emergency|immediately)\b/i;
 
@@ -30,17 +33,15 @@ export const GET = withHandler(async (req: NextRequest, context) => {
 
   await connectDB();
 
-  // Verify user is a participant
-  const conversation = await Conversation.findById(id).lean();
+  // Verify user is a participant (atomic single query — no TOCTOU gap)
+  const conversation = await Conversation.findOne({
+    _id: new mongoose.Types.ObjectId(id),
+    "participants.userId": new mongoose.Types.ObjectId(userId),
+  })
+    .select("participants")
+    .lean();
   if (!conversation) {
     throw new NotFoundError("Conversation not found.");
-  }
-
-  const isParticipant = conversation.participants.some(
-    (p) => p.userId.toString() === userId
-  );
-  if (!isParticipant) {
-    throw new ForbiddenError("You are not a participant in this conversation.");
   }
 
   // Parse query params
@@ -89,17 +90,15 @@ export const POST = withHandler(async (req: NextRequest, context) => {
 
   await connectDB();
 
-  // Verify user is a participant
-  const conversation = await Conversation.findById(id).lean();
+  // Verify user is a participant (atomic single query — no TOCTOU gap)
+  const conversation = await Conversation.findOne({
+    _id: new mongoose.Types.ObjectId(id),
+    "participants.userId": new mongoose.Types.ObjectId(userId),
+  })
+    .select("participants meetingId")
+    .lean();
   if (!conversation) {
     throw new NotFoundError("Conversation not found.");
-  }
-
-  const isParticipant = conversation.participants.some(
-    (p) => p.userId.toString() === userId
-  );
-  if (!isParticipant) {
-    throw new ForbiddenError("You are not a participant in this conversation.");
   }
 
   // Validate body
@@ -149,12 +148,19 @@ export const POST = withHandler(async (req: NextRequest, context) => {
     ...(isActiveMeeting ? { meetingContext: true } : {}),
   });
 
-  // Update conversation metadata
-  await Conversation.findByIdAndUpdate(id, {
-    lastMessageAt: message.createdAt,
-    lastMessagePreview: content.trim().slice(0, 100),
-    lastMessageSenderId: new mongoose.Types.ObjectId(userId),
-  });
+  // Update conversation metadata (non-fatal — message is already persisted)
+  // Use $max to prevent lastMessageAt from regressing under concurrent writes
+  try {
+    await Conversation.findByIdAndUpdate(id, {
+      $max: { lastMessageAt: message.createdAt },
+      $set: {
+        lastMessagePreview: content.trim().slice(0, 100),
+        lastMessageSenderId: new mongoose.Types.ObjectId(userId),
+      },
+    });
+  } catch (err) {
+    log.warn({ err, conversationId: id }, "Failed to update conversation metadata after message creation");
+  }
 
   // Populate for response and Redis publish
   const populated = await DirectMessage.findById(message._id)
@@ -166,6 +172,11 @@ export const POST = withHandler(async (req: NextRequest, context) => {
     })
     .lean();
 
+  if (!populated) {
+    log.warn({ messageId: message._id, conversationId: id }, "Failed to re-fetch message after creation");
+    return successResponse({ _id: message._id.toString(), content: content.trim(), createdAt: message.createdAt }, 201);
+  }
+
   const clientMessage = toClientMessage(populated);
 
   // Publish to Redis for real-time delivery (non-fatal if Redis is down)
@@ -175,17 +186,21 @@ export const POST = withHandler(async (req: NextRequest, context) => {
       `chat:${id}`,
       JSON.stringify({ type: "message", data: clientMessage })
     );
-  } catch {
-    // Message is persisted in DB; real-time delivery is best-effort
+  } catch (err) {
+    log.warn({ err, conversationId: id }, "Failed to publish message to Redis");
   }
 
   // Fire-and-forget: trigger agent responses (including the sender's own agent)
   const mentionsDoodle = content.toLowerCase().includes("@doodle");
   if (mentionsDoodle || conversation.participants.some((p: { agentEnabled?: boolean }) => p.agentEnabled)) {
     import("@/lib/chat/agent-processor").then(({ processAgentResponses }) => {
-      processAgentResponses(id, { senderId: userId, content, senderType: "user" }).catch(() => {});
-    }).catch(() => {});
+      processAgentResponses(id, { senderId: userId, content, senderType: "user" }).catch((err) => {
+        log.error({ err, conversationId: id }, "Agent processing failed");
+      });
+    }).catch((err) => {
+      log.error({ err, conversationId: id }, "Failed to import agent-processor module");
+    });
   }
 
-  return successResponse(clientMessage);
+  return successResponse(clientMessage, 201);
 });

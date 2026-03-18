@@ -19,12 +19,12 @@ vi.mock("@/lib/infra/auth/middleware", () => ({
   getUserIdFromRequest: (...args: unknown[]) => mockedGetUserId(...args),
 }));
 
-const mockConversationFindById = vi.fn();
-const mockConversationFindByIdAndUpdate = vi.fn().mockResolvedValue(null);
+const mockConversationFindOne = vi.fn();
+const mockConversationFindOneAndUpdate = vi.fn().mockResolvedValue(null);
 vi.mock("@/lib/infra/db/models/conversation", () => ({
   default: {
-    findById: (...args: unknown[]) => mockConversationFindById(...args),
-    findByIdAndUpdate: (...args: unknown[]) => mockConversationFindByIdAndUpdate(...args),
+    findOne: (...args: unknown[]) => mockConversationFindOne(...args),
+    findByIdAndUpdate: (...args: unknown[]) => mockConversationFindOneAndUpdate(...args),
   },
 }));
 
@@ -90,7 +90,7 @@ describe("GET /api/conversations/[id]/messages", () => {
   beforeEach(() => vi.clearAllMocks());
 
   it("returns messages for a conversation", async () => {
-    mockConversationFindById.mockReturnValue({ lean: vi.fn().mockResolvedValue(convDoc) });
+    mockConversationFindOne.mockReturnValue({ select: vi.fn().mockReturnValue({ lean: vi.fn().mockResolvedValue(convDoc) }) });
     const msgs = [
       { _id: "m1", content: "Hello", senderId: TEST_USER_ID, createdAt: new Date() },
     ];
@@ -115,7 +115,7 @@ describe("POST /api/conversations/[id]/messages", () => {
   beforeEach(() => vi.clearAllMocks());
 
   it("creates a new message", async () => {
-    mockConversationFindById.mockReturnValue({ lean: vi.fn().mockResolvedValue(convDoc) });
+    mockConversationFindOne.mockReturnValue({ select: vi.fn().mockReturnValue({ lean: vi.fn().mockResolvedValue(convDoc) }) });
 
     const createdMsg = {
       _id: "msg1",
@@ -132,7 +132,7 @@ describe("POST /api/conversations/[id]/messages", () => {
       makeContext(VALID_CONV_ID),
     );
     const body = await res.json();
-    expect(res.status).toBe(200);
+    expect(res.status).toBe(201);
     expect(body.success).toBe(true);
   });
 

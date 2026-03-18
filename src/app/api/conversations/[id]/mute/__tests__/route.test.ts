@@ -19,14 +19,9 @@ vi.mock("@/lib/infra/auth/middleware", () => ({
   getUserIdFromRequest: (...args: unknown[]) => mockedGetUserId(...args),
 }));
 
-const mockFindByIdChain = {
-  select: vi.fn().mockReturnThis(),
-  lean: vi.fn(),
-};
-const mockUpdateOne = vi.fn().mockResolvedValue({ modifiedCount: 1 });
+const mockUpdateOne = vi.fn().mockResolvedValue({ matchedCount: 1, modifiedCount: 1 });
 vi.mock("@/lib/infra/db/models/conversation", () => ({
   default: {
-    findById: vi.fn(() => mockFindByIdChain),
     updateOne: (...args: unknown[]) => mockUpdateOne(...args),
   },
 }));
@@ -51,18 +46,7 @@ const { PATCH } = await import("../route");
 describe("PATCH /api/conversations/[id]/mute", () => {
   beforeEach(() => vi.clearAllMocks());
 
-  function setupParticipant() {
-    mockFindByIdChain.lean.mockResolvedValue({
-      _id: VALID_CONV_ID,
-      participants: [
-        { userId: { toString: () => TEST_USER_ID } },
-      ],
-    });
-  }
-
   it("mutes a conversation", async () => {
-    setupParticipant();
-
     const res = await PATCH(
       createRequest("PATCH", { muted: true }),
       makeContext(VALID_CONV_ID),
@@ -75,8 +59,6 @@ describe("PATCH /api/conversations/[id]/mute", () => {
   });
 
   it("unmutes a conversation", async () => {
-    setupParticipant();
-
     const res = await PATCH(
       createRequest("PATCH", { muted: false }),
       makeContext(VALID_CONV_ID),

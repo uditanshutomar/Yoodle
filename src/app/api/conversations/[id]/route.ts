@@ -1,10 +1,10 @@
 import { NextRequest } from "next/server";
 import mongoose from "mongoose";
 import { withHandler } from "@/lib/infra/api/with-handler";
-import { successResponse, badRequest } from "@/lib/infra/api/response";
+import { successResponse } from "@/lib/infra/api/response";
 import { getUserIdFromRequest } from "@/lib/infra/auth/middleware";
 import { checkRateLimit } from "@/lib/infra/api/rate-limit";
-import { NotFoundError } from "@/lib/infra/api/errors";
+import { BadRequestError, NotFoundError } from "@/lib/infra/api/errors";
 import connectDB from "@/lib/infra/db/client";
 import Conversation from "@/lib/infra/db/models/conversation";
 import DirectMessage from "@/lib/infra/db/models/direct-message";
@@ -18,7 +18,7 @@ export const GET = withHandler(async (req: NextRequest, context) => {
   const { id } = await context!.params;
 
   if (!mongoose.Types.ObjectId.isValid(id)) {
-    return badRequest("Invalid conversation ID");
+    throw new BadRequestError("Invalid conversation ID.");
   }
 
   await connectDB();
@@ -32,23 +32,24 @@ export const GET = withHandler(async (req: NextRequest, context) => {
 
   if (!conv) throw new NotFoundError("Conversation not found.");
 
-  // Populate participant details
+  // Populate participant details + compute unread count in parallel
   const participantIds = conv.participants.map((p) => p.userId);
-  const users = await User.find({ _id: { $in: participantIds } })
-    .select("name displayName avatarUrl status")
-    .lean();
-  const userMap = new Map(users.map((u) => [u._id.toString(), u]));
-
-  // Compute unread count
   const me = conv.participants.find(
     (p) => p.userId.toString() === userId,
   );
   const lastReadAt = me?.lastReadAt ?? new Date(0);
-  const unreadCount = await DirectMessage.countDocuments({
-    conversationId: conv._id,
-    createdAt: { $gt: lastReadAt },
-    senderId: { $ne: userOid },
-  });
+
+  const [users, unreadCount] = await Promise.all([
+    User.find({ _id: { $in: participantIds } })
+      .select("name displayName avatarUrl status")
+      .lean(),
+    DirectMessage.countDocuments({
+      conversationId: conv._id,
+      createdAt: { $gt: lastReadAt },
+      senderId: { $ne: userOid },
+    }),
+  ]);
+  const userMap = new Map(users.map((u) => [u._id.toString(), u]));
 
   return successResponse({
     _id: conv._id.toString(),

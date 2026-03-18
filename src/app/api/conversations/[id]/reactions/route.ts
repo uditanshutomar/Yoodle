@@ -14,6 +14,9 @@ import connectDB from "@/lib/infra/db/client";
 import Conversation from "@/lib/infra/db/models/conversation";
 import DirectMessage from "@/lib/infra/db/models/direct-message";
 import { getRedisClient } from "@/lib/infra/redis/client";
+import { createLogger } from "@/lib/infra/logger";
+
+const log = createLogger("api:conversations:reactions");
 
 const reactionSchema = z.object({
   messageId: z.string().min(1, "messageId is required"),
@@ -99,6 +102,14 @@ export const POST = withHandler(async (req: NextRequest, context) => {
       },
       { new: true }
     ).lean();
+    if (!pushResult) {
+      // Cap reached or concurrent duplicate — check which
+      const current = await DirectMessage.findById(messageId).select("reactions").lean();
+      if (current && (current.reactions?.length ?? 0) >= MAX_REACTIONS) {
+        throw new BadRequestError("Maximum reactions per message reached.");
+      }
+      // Concurrent duplicate add — treat as success, return current state
+    }
     updatedMessage = pushResult || message;
     action = "add";
   }
@@ -110,9 +121,9 @@ export const POST = withHandler(async (req: NextRequest, context) => {
       `chat:${id}`,
       JSON.stringify({ type: "reaction", messageId, emoji, userId, action })
     );
-  } catch {
-    // Reaction is persisted in DB; real-time delivery is best-effort
+  } catch (err) {
+    log.warn({ err, conversationId: id, messageId }, "Failed to publish reaction event to Redis");
   }
 
-  return successResponse(updatedMessage);
+  return successResponse({ reactions: updatedMessage?.reactions ?? [], action });
 });

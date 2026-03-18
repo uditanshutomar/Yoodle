@@ -6,7 +6,6 @@ import { checkRateLimit } from "@/lib/infra/api/rate-limit";
 import { getUserIdFromRequest } from "@/lib/infra/auth/middleware";
 import {
   BadRequestError,
-  ForbiddenError,
   NotFoundError,
 } from "@/lib/infra/api/errors";
 import connectDB from "@/lib/infra/db/client";
@@ -27,13 +26,14 @@ export const GET = withHandler(async (req: NextRequest, context) => {
 
   await connectDB();
 
-  const conversation = await Conversation.findById(id).lean();
+  // Verify user is a participant (atomic single query)
+  const conversation = await Conversation.findOne({
+    _id: new mongoose.Types.ObjectId(id),
+    "participants.userId": new mongoose.Types.ObjectId(userId),
+  })
+    .select("_id")
+    .lean();
   if (!conversation) throw new NotFoundError("Conversation not found.");
-
-  const isParticipant = conversation.participants.some(
-    (p) => p.userId.toString() === userId
-  );
-  if (!isParticipant) throw new ForbiddenError("Not a participant.");
 
   const { searchParams } = new URL(req.url);
   const mediaType = searchParams.get("type") || "links";
@@ -50,6 +50,7 @@ export const GET = withHandler(async (req: NextRequest, context) => {
   })
     .sort({ createdAt: -1 })
     .limit(200)
+    .select("content senderId createdAt")
     .populate("senderId", "name displayName avatarUrl")
     .lean();
 

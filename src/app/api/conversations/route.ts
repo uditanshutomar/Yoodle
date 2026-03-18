@@ -2,9 +2,10 @@ import { NextRequest } from "next/server";
 import mongoose from "mongoose";
 import { z } from "zod";
 import { withHandler } from "@/lib/infra/api/with-handler";
-import { successResponse, badRequest } from "@/lib/infra/api/response";
+import { successResponse } from "@/lib/infra/api/response";
 import { getUserIdFromRequest } from "@/lib/infra/auth/middleware";
 import { checkRateLimit } from "@/lib/infra/api/rate-limit";
+import { BadRequestError } from "@/lib/infra/api/errors";
 import connectDB from "@/lib/infra/db/client";
 import Conversation, { buildDmPairKey } from "@/lib/infra/db/models/conversation";
 import DirectMessage from "@/lib/infra/db/models/direct-message";
@@ -125,15 +126,16 @@ export const POST = withHandler(async (req: NextRequest) => {
 
   if (body.type === "dm") {
     if (body.recipientId === userId) {
-      return badRequest("Cannot create a DM with yourself");
+      throw new BadRequestError("Cannot create a DM with yourself");
     }
 
     const recipientOid = new mongoose.Types.ObjectId(body.recipientId);
+    const pairKey = buildDmPairKey(userId, body.recipientId);
 
-    // Check if a DM already exists between these two users
+    // Check if a DM already exists using the unique dmPairKey index (faster + correct)
     const existing = await Conversation.findOne({
       type: "dm",
-      "participants.userId": { $all: [userOid, recipientOid] },
+      dmPairKey: pairKey,
     })
       .select("_id type participants lastMessageAt createdAt")
       .lean();
@@ -145,7 +147,7 @@ export const POST = withHandler(async (req: NextRequest) => {
     // Verify recipient exists
     const recipientExists = await User.exists({ _id: recipientOid });
     if (!recipientExists) {
-      return badRequest("Recipient user not found");
+      throw new BadRequestError("Recipient user not found");
     }
 
     try {
@@ -165,7 +167,7 @@ export const POST = withHandler(async (req: NextRequest) => {
       if (err instanceof Error && "code" in err && (err as { code: number }).code === 11000) {
         const raceWinner = await Conversation.findOne({
           type: "dm",
-          "participants.userId": { $all: [userOid, recipientOid] },
+          dmPairKey: pairKey,
         })
           .select("_id type participants lastMessageAt createdAt")
           .lean();
@@ -181,7 +183,7 @@ export const POST = withHandler(async (req: NextRequest) => {
   );
 
   if (allParticipantIds.length < 2) {
-    return badRequest("A group conversation requires at least one other participant.");
+    throw new BadRequestError("A group conversation requires at least one other participant.");
   }
 
   // Verify all non-self participant IDs correspond to real users
@@ -191,7 +193,7 @@ export const POST = withHandler(async (req: NextRequest) => {
   if (otherIds.length > 0) {
     const existingCount = await User.countDocuments({ _id: { $in: otherIds } });
     if (existingCount !== otherIds.length) {
-      return badRequest("One or more participant IDs are invalid.");
+      throw new BadRequestError("One or more participant IDs are invalid.");
     }
   }
 
