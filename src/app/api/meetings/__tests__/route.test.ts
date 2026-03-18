@@ -50,6 +50,14 @@ vi.mock("@/lib/utils/id", () => ({
   generateMeetingCode: vi.fn().mockReturnValue("yoo-abc-xyz"),
 }));
 
+const mockTemplateFindOne = vi.fn();
+vi.mock("@/lib/infra/db/models/meeting-template", () => ({
+  default: {
+    findOne: vi.fn(() => ({ lean: () => mockTemplateFindOne() })),
+    updateOne: vi.fn().mockResolvedValue({ modifiedCount: 1 }),
+  },
+}));
+
 vi.mock("@/lib/features/flags", () => ({
   features: {
     maxParticipantsPerRoom: 25,
@@ -392,5 +400,72 @@ describe("POST /api/meetings", () => {
     const response = await POST(req, defaultContext);
 
     expect(response.status).toBe(400);
+  });
+
+  // ── Template tests ──────────────────────────────────────────────
+
+  it("accepts templateId and applies template settings as defaults", async () => {
+    const templateId = "507f1f77bcf86cd799439022";
+    mockTemplateFindOne.mockResolvedValue({
+      _id: templateId,
+      name: "Standup Template",
+      defaultDuration: 15,
+      meetingSettings: { waitingRoom: true, muteOnJoin: true, maxParticipants: 10 },
+    });
+
+    const req = createRequest("POST", undefined, { title: "Standup", templateId });
+    const response = await POST(req, defaultContext);
+
+    expect(response.status).toBe(201);
+    expect(mockMeetingCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        templateId: expect.anything(),
+        scheduledDuration: 15,
+        settings: expect.objectContaining({
+          waitingRoom: true,
+          muteOnJoin: true,
+        }),
+      }),
+    );
+  });
+
+  it("returns 400 for invalid templateId format", async () => {
+    const req = createRequest("POST", undefined, { title: "Test", templateId: "not-valid" });
+    const response = await POST(req, defaultContext);
+    expect(response.status).toBe(400);
+  });
+
+  it("returns 404 when template not found", async () => {
+    mockTemplateFindOne.mockResolvedValue(null);
+    const req = createRequest("POST", undefined, { title: "Test", templateId: "507f1f77bcf86cd799439022" });
+    const response = await POST(req, defaultContext);
+    expect(response.status).toBe(404);
+  });
+
+  it("explicit settings override template settings", async () => {
+    const templateId = "507f1f77bcf86cd799439022";
+    mockTemplateFindOne.mockResolvedValue({
+      _id: templateId,
+      name: "Template",
+      defaultDuration: 15,
+      meetingSettings: { waitingRoom: true, maxParticipants: 10 },
+    });
+
+    const req = createRequest("POST", undefined, {
+      title: "Test",
+      templateId,
+      settings: { waitingRoom: false, maxParticipants: 20 },
+    });
+    const response = await POST(req, defaultContext);
+
+    expect(response.status).toBe(201);
+    expect(mockMeetingCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        settings: expect.objectContaining({
+          waitingRoom: false,
+          maxParticipants: 20,
+        }),
+      }),
+    );
   });
 });
