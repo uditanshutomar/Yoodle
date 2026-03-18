@@ -48,6 +48,7 @@ const createMeetingSchema = z.object({
       muteOnJoin: z.boolean().optional(),
     })
     .optional(),
+  templateId: z.string().optional(),
 });
 
 // ── GET /api/meetings ───────────────────────────────────────────────
@@ -114,6 +115,37 @@ export const POST = withHandler(async (req: NextRequest) => {
 
   const body = createMeetingSchema.parse(await req.json());
   const { title, description, type, scheduledAt, settings } = body;
+  const { templateId } = body;
+
+  // Load template if provided — apply its settings as defaults
+  let templateDuration: number | undefined;
+  let templateSettings: Record<string, unknown> | undefined;
+  let templateObjId: mongoose.Types.ObjectId | undefined;
+
+  if (templateId) {
+    if (!mongoose.Types.ObjectId.isValid(templateId)) {
+      return errorResponse("INVALID_TEMPLATE", "Invalid template ID", 400);
+    }
+    const MeetingTemplate = (await import("@/lib/infra/db/models/meeting-template")).default;
+    const template = await MeetingTemplate.findOne({
+      _id: new mongoose.Types.ObjectId(templateId),
+      userId: new mongoose.Types.ObjectId(userId),
+    }).lean();
+
+    if (!template) {
+      return errorResponse("TEMPLATE_NOT_FOUND", "Meeting template not found", 404);
+    }
+
+    templateObjId = new mongoose.Types.ObjectId(templateId);
+    templateDuration = template.defaultDuration;
+    templateSettings = template.meetingSettings as Record<string, unknown> | undefined;
+
+    // Increment usage count (fire-and-forget)
+    MeetingTemplate.updateOne(
+      { _id: templateObjId },
+      { $inc: { usageCount: 1 } },
+    ).catch((err: unknown) => log.warn({ err }, "failed to increment template usage count"));
+  }
 
   // Enforce max participants from feature flags
   if (settings?.maxParticipants && settings.maxParticipants > features.maxParticipantsPerRoom) {
@@ -136,6 +168,8 @@ export const POST = withHandler(async (req: NextRequest) => {
     type,
     status: "scheduled",
     scheduledAt: scheduledAt ? new Date(scheduledAt) : undefined,
+    scheduledDuration: templateDuration || undefined,
+    templateId: templateObjId || undefined,
     participants: [
       {
         userId: new mongoose.Types.ObjectId(userId),
@@ -144,13 +178,13 @@ export const POST = withHandler(async (req: NextRequest) => {
         joinedAt: new Date(),
       },
     ],
-    settings: settings
+    settings: settings || templateSettings
       ? {
-          maxParticipants: settings.maxParticipants ?? 25,
-          allowRecording: settings.allowRecording ?? true,
-          allowScreenShare: settings.allowScreenShare ?? true,
-          waitingRoom: settings.waitingRoom ?? false,
-          muteOnJoin: settings.muteOnJoin ?? false,
+          maxParticipants: settings?.maxParticipants ?? (templateSettings?.maxParticipants as number) ?? 25,
+          allowRecording: settings?.allowRecording ?? true,
+          allowScreenShare: settings?.allowScreenShare ?? true,
+          waitingRoom: settings?.waitingRoom ?? (templateSettings?.waitingRoom as boolean) ?? false,
+          muteOnJoin: settings?.muteOnJoin ?? (templateSettings?.muteOnJoin as boolean) ?? false,
         }
       : undefined,
   });
