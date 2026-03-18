@@ -163,12 +163,12 @@ export default function MeetingLobbyPage() {
     return (
       <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex flex-col items-center justify-center min-h-[60vh] gap-4">
         <div className="text-6xl">😵</div>
-        <h2 className="text-xl font-bold text-[#0A0A0A]" style={{ fontFamily: "var(--font-heading)" }}>
+        <h2 className="text-xl font-bold text-[var(--text-primary)]" style={{ fontFamily: "var(--font-heading)" }}>
           {error || "Meeting not found"}
         </h2>
         <button
           onClick={() => router.push("/meetings")}
-          className="text-sm text-[#0A0A0A]/60 underline cursor-pointer"
+          className="text-sm text-[var(--text-secondary)] underline cursor-pointer"
           style={{ fontFamily: "var(--font-body)" }}
         >
           Back to meetings
@@ -186,13 +186,13 @@ export default function MeetingLobbyPage() {
       >
         <div className="h-12 w-12 rounded-full border-4 border-[#FFE600] border-t-transparent animate-spin" />
         <h2
-          className="text-2xl font-black text-[#0A0A0A]"
+          className="text-2xl font-black text-[var(--text-primary)]"
           style={{ fontFamily: "var(--font-heading)" }}
         >
           Waiting for host approval
         </h2>
         <p
-          className="max-w-md text-sm text-[#0A0A0A]/60"
+          className="max-w-md text-sm text-[var(--text-secondary)]"
           style={{ fontFamily: "var(--font-body)" }}
         >
           Your request has been sent to the host. Keep this page open and you

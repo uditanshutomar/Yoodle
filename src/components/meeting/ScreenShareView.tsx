@@ -60,13 +60,13 @@ export default function ScreenShareView({
             className="absolute inset-0 z-20 flex flex-col"
         >
             {/* Shared screen content — takes most of the space */}
-            <div className="relative flex-1 mx-4 mt-4 mb-20 rounded-2xl overflow-hidden border-2 border-[#0A0A0A] shadow-[6px_6px_0_#0A0A0A] bg-white">
+            <div className="relative flex-1 mx-4 mt-4 mb-20 rounded-2xl overflow-hidden border-2 border-[var(--border-strong)] shadow-[6px_6px_0_var(--border-strong)] bg-[var(--surface)]">
                 {/* "Sharing" indicator banner */}
                 <motion.div
                     initial={{ y: -40, opacity: 0 }}
                     animate={{ y: 0, opacity: 1 }}
                     transition={{ delay: 0.3, type: "spring", stiffness: 200, damping: 25 }}
-                    className="absolute top-3 left-1/2 -translate-x-1/2 z-20 flex items-center gap-2 rounded-full border-2 border-[#0A0A0A] bg-[#FFE600] px-4 py-1.5 shadow-[3px_3px_0_#0A0A0A]"
+                    className="absolute top-3 left-1/2 -translate-x-1/2 z-20 flex items-center gap-2 rounded-full border-2 border-[var(--border-strong)] bg-[#FFE600] px-4 py-1.5 shadow-[3px_3px_0_var(--border-strong)]"
                 >
                     <span className="relative flex h-2 w-2">
                         <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[#FF6B6B] opacity-75" />
@@ -83,7 +83,7 @@ export default function ScreenShareView({
                             whileHover={{ scale: 1.05 }}
                             whileTap={{ scale: 0.95 }}
                             onClick={onStopSharing}
-                            className="ml-1 rounded-full border-2 border-[#0A0A0A] bg-[#FF6B6B] px-3 py-0.5 text-[11px] font-bold text-white shadow-[2px_2px_0_#0A0A0A] hover:shadow-[1px_1px_0_#0A0A0A] hover:translate-x-[1px] hover:translate-y-[1px] transition-all"
+                            className="ml-1 rounded-full border-2 border-[var(--border-strong)] bg-[#FF6B6B] px-3 py-0.5 text-[11px] font-bold text-white shadow-[2px_2px_0_var(--border-strong)] hover:shadow-[1px_1px_0_var(--border-strong)] hover:translate-x-[1px] hover:translate-y-[1px] transition-all"
                             style={{ fontFamily: "var(--font-heading)" }}
                         >
                             Stop
@@ -127,9 +127,9 @@ export default function ScreenShareView({
                 <div className="group relative">
                     {/* Bubble */}
                     <div
-                        className={`relative h-28 w-28 overflow-hidden rounded-full border-[3px] bg-white ${presenter.isSpeaking
+                        className={`relative h-28 w-28 overflow-hidden rounded-full border-[3px] bg-[var(--surface)] ${presenter.isSpeaking
                             ? "border-[#FFE600] speaker-ring"
-                            : "border-[#0A0A0A] shadow-[4px_4px_0_#0A0A0A]"
+                            : "border-[var(--border-strong)] shadow-[4px_4px_0_var(--border-strong)]"
                             }`}
                     >
                         {presenter.stream && !presenter.isVideoOff ? (
@@ -157,7 +157,7 @@ export default function ScreenShareView({
                         initial={{ scale: 0 }}
                         animate={{ scale: 1 }}
                         transition={{ delay: 0.8 }}
-                        className="absolute -bottom-2 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full border-2 border-[#0A0A0A] bg-[#FFE600] px-2.5 py-0.5 shadow-[2px_2px_0_#0A0A0A]"
+                        className="absolute -bottom-2 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full border-2 border-[var(--border-strong)] bg-[#FFE600] px-2.5 py-0.5 shadow-[2px_2px_0_var(--border-strong)]"
                     >
                         <span
                             className="text-[10px] font-bold text-[#0A0A0A]"
@@ -170,7 +170,7 @@ export default function ScreenShareView({
                     {/* Drag hint — shows on hover */}
                     <motion.div
                         initial={{ opacity: 0 }}
-                        className="absolute -top-2 -right-2 flex h-6 w-6 items-center justify-center rounded-full border-2 border-[#0A0A0A] bg-white shadow-[2px_2px_0_#0A0A0A] opacity-0 group-hover:opacity-100 transition-opacity"
+                        className="absolute -top-2 -right-2 flex h-6 w-6 items-center justify-center rounded-full border-2 border-[var(--border-strong)] bg-[var(--surface)] shadow-[2px_2px_0_var(--border-strong)] opacity-0 group-hover:opacity-100 transition-opacity"
                     >
                         <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#0A0A0A" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
                             <path d="M5 9l-3 3 3 3" />
@@ -185,7 +185,7 @@ export default function ScreenShareView({
                     {/* Speaking indicator on PiP */}
                     {presenter.isSpeaking && (
                         <motion.div
-                            className="absolute bottom-4 left-0 flex items-end gap-[2px] rounded-full border-2 border-[#0A0A0A] bg-[#FFE600] px-1.5 py-1"
+                            className="absolute bottom-4 left-0 flex items-end gap-[2px] rounded-full border-2 border-[var(--border-strong)] bg-[#FFE600] px-1.5 py-1"
                             initial={{ opacity: 0, scale: 0 }}
                             animate={{ opacity: 1, scale: 1 }}
                         >
@@ -251,7 +251,7 @@ export default function ScreenShareView({
                         transition={{ type: "spring", stiffness: 250, damping: 25 }}
                         className="absolute right-5 top-8 bottom-28 z-30 flex items-center"
                     >
-                        <div className="flex flex-col items-center gap-3 rounded-2xl border-2 border-[#0A0A0A] bg-white/90 px-2.5 py-3 shadow-[4px_4px_0_#0A0A0A] backdrop-blur-sm max-h-full overflow-y-auto">
+                        <div className="flex flex-col items-center gap-3 rounded-2xl border-2 border-[var(--border-strong)] bg-white/90 px-2.5 py-3 shadow-[4px_4px_0_var(--border-strong)] backdrop-blur-sm max-h-full overflow-y-auto">
                             <DoodleStar color="#FFE600" size={16} className="flex-shrink-0" />
 
                             {otherParticipants.map((p, i) => (
@@ -264,7 +264,7 @@ export default function ScreenShareView({
                                     className="group relative flex flex-col items-center"
                                 >
                                     <div
-                                        className={`relative h-12 w-12 overflow-hidden rounded-full border-2 flex-shrink-0 ${p.isSpeaking ? "border-[#FFE600]" : "border-[#0A0A0A]"
+                                        className={`relative h-12 w-12 overflow-hidden rounded-full border-2 flex-shrink-0 ${p.isSpeaking ? "border-[#FFE600]" : "border-[var(--border-strong)]"
                                             }`}
                                         style={{
                                             boxShadow: p.isSpeaking
@@ -281,7 +281,7 @@ export default function ScreenShareView({
                                         />
                                         {p.isMuted && (
                                             <div className="absolute inset-0 flex items-end justify-end">
-                                                <div className="flex h-4 w-4 items-center justify-center rounded-full border border-[#0A0A0A] bg-[#FF6B6B] mr-0.5 mb-0.5">
+                                                <div className="flex h-4 w-4 items-center justify-center rounded-full border border-[var(--border-strong)] bg-[#FF6B6B] mr-0.5 mb-0.5">
                                                     <svg width="7" height="7" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3" strokeLinecap="round">
                                                         <line x1="1" y1="1" x2="23" y2="23" />
                                                     </svg>
@@ -292,7 +292,7 @@ export default function ScreenShareView({
 
                                     <div className="absolute left-0 -translate-x-full pl-1 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
                                         <span
-                                            className="whitespace-nowrap rounded-full border-2 border-[#0A0A0A] bg-white px-2 py-0.5 text-[10px] font-bold shadow-[2px_2px_0_#0A0A0A]"
+                                            className="whitespace-nowrap rounded-full border-2 border-[var(--border-strong)] bg-[var(--surface)] px-2 py-0.5 text-[10px] font-bold shadow-[2px_2px_0_var(--border-strong)]"
                                             style={{ fontFamily: "var(--font-heading)" }}
                                         >
                                             {p.name}

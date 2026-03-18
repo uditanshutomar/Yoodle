@@ -101,7 +101,7 @@ export default function OpenSource() {
           viewport={{ once: true }}
           transition={{ duration: 0.6 }}
         >
-          <div className="overflow-hidden rounded-2xl border-2 border-[#0A0A0A] bg-[#0A0A0A] shadow-[4px_4px_0_#0A0A0A]">
+          <div className="overflow-hidden rounded-2xl border-2 border-[var(--border-strong)] bg-[#0A0A0A] shadow-[4px_4px_0_var(--border-strong)]">
             {/* Terminal title bar */}
             <div className="flex items-center gap-2 border-b border-white/10 px-4 py-3">
               <div className="h-3 w-3 rounded-full bg-[#FF6B6B]" />
@@ -155,11 +155,11 @@ export default function OpenSource() {
                 rotate: i % 2 === 0 ? 1 : -1,
                 transition: { type: "spring", stiffness: 400 },
               }}
-              className="group relative cursor-default rounded-2xl border-2 border-[#0A0A0A] bg-white p-6 shadow-[4px_4px_0_#0A0A0A] transition-shadow hover:shadow-[2px_2px_0_#0A0A0A]"
+              className="group relative cursor-default rounded-2xl border-2 border-[var(--border-strong)] bg-[var(--surface)] p-6 shadow-[4px_4px_0_var(--border-strong)] transition-shadow hover:shadow-[2px_2px_0_var(--border-strong)]"
             >
               {/* Colored dot */}
               <div
-                className="absolute -top-2 -right-2 h-5 w-5 rounded-full border-2 border-[#0A0A0A]"
+                className="absolute -top-2 -right-2 h-5 w-5 rounded-full border-2 border-[var(--border-strong)]"
                 style={{ background: card.color }}
               />
 
@@ -197,7 +197,7 @@ export default function OpenSource() {
             href="https://github.com/uditanshutomar/Yoodle"
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex items-center gap-2.5 rounded-xl border-2 border-[#0A0A0A] bg-[#FFE600] px-8 py-3.5 text-base font-bold text-[#0A0A0A] shadow-[4px_4px_0_#0A0A0A] transition-shadow hover:shadow-[2px_2px_0_#0A0A0A]"
+            className="inline-flex items-center gap-2.5 rounded-xl border-2 border-[var(--border-strong)] bg-[#FFE600] px-8 py-3.5 text-base font-bold text-[#0A0A0A] shadow-[4px_4px_0_var(--border-strong)] transition-shadow hover:shadow-[2px_2px_0_var(--border-strong)]"
             style={{ fontFamily: "var(--font-heading)" }}
             whileHover={{ y: -2 }}
             whileTap={{ scale: 0.98 }}

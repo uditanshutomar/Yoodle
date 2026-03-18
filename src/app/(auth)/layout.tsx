@@ -4,7 +4,7 @@ import Image from "next/image";
 
 export default function AuthLayout({ children }: { children: React.ReactNode }) {
   return (
-    <div className="relative flex min-h-screen items-center justify-center bg-[#FAFAF8] px-4 py-12">
+    <div className="relative flex min-h-screen items-center justify-center bg-[var(--background)] px-4 py-12">
       {/* Background doodle pattern */}
       <div className="pointer-events-none absolute inset-0">
         <Image

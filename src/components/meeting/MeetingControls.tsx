@@ -67,7 +67,7 @@ function ControlButton({
 }) {
   return (
     <motion.button
-      className={`relative h-11 w-11 sm:h-12 sm:w-12 rounded-full border-2 border-[#0A0A0A] flex items-center justify-center transition-colors ${
+      className={`relative h-11 w-11 sm:h-12 sm:w-12 rounded-full border-2 border-[var(--border-strong)] flex items-center justify-center transition-colors ${
         disabled
           ? "cursor-not-allowed opacity-40"
           : "cursor-pointer"
@@ -75,8 +75,8 @@ function ControlButton({
         danger
           ? "bg-[#FF6B6B] text-white hover:bg-[#ff5252]"
           : active
-            ? "bg-white text-[#0A0A0A] hover:bg-gray-50"
-            : "bg-[#0A0A0A]/80 text-white hover:bg-[#0A0A0A]"
+            ? "bg-[var(--surface)] text-[var(--text-primary)] hover:bg-[var(--surface-hover)]"
+            : "bg-[var(--foreground)]/80 text-[var(--background)] hover:bg-[var(--foreground)]"
       }`}
       whileHover={disabled ? undefined : { scale: 1.1, y: -2 }}
       whileTap={disabled ? undefined : { scale: 0.9 }}
@@ -88,7 +88,7 @@ function ControlButton({
     >
       {children}
       {badge && (
-        <span className="absolute -top-1 -right-1 h-3 w-3 rounded-full bg-[#FF6B6B] border-2 border-[#0A0A0A]" />
+        <span className="absolute -top-1 -right-1 h-3 w-3 rounded-full bg-[#FF6B6B] border-2 border-[var(--border-strong)]" />
       )}
     </motion.button>
   );
@@ -126,7 +126,7 @@ export default function MeetingControls({
       <AnimatePresence>
         {showReactions && (
           <motion.div
-            className="absolute bottom-full mb-3 z-50 flex gap-2 rounded-2xl bg-white border-2 border-[#0A0A0A] shadow-[4px_4px_0_#0A0A0A] px-3 py-2"
+            className="absolute bottom-full mb-3 z-50 flex gap-2 rounded-2xl bg-[var(--surface)] border-2 border-[var(--border-strong)] shadow-[4px_4px_0_var(--border-strong)] px-3 py-2"
             initial={{ opacity: 0, y: 10, scale: 0.9 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 10, scale: 0.9 }}
@@ -152,7 +152,7 @@ export default function MeetingControls({
 
       {/* Control bar */}
       <motion.div
-        className="flex items-center gap-1.5 sm:gap-3 rounded-2xl bg-white/95 backdrop-blur-sm border-2 border-[#0A0A0A] shadow-[3px_3px_0_#0A0A0A] sm:shadow-[4px_4px_0_#0A0A0A] px-3 py-2 sm:px-5 sm:py-3"
+        className="flex items-center gap-1.5 sm:gap-3 rounded-2xl bg-white/95 backdrop-blur-sm border-2 border-[var(--border-strong)] shadow-[3px_3px_0_var(--border-strong)] sm:shadow-[4px_4px_0_var(--border-strong)] px-3 py-2 sm:px-5 sm:py-3"
         role="toolbar"
         aria-label="Meeting controls"
         initial={{ y: 100, opacity: 0 }}
@@ -173,7 +173,7 @@ export default function MeetingControls({
           )}
           {/* Colored dot indicator */}
           <span
-            className={`absolute -bottom-0.5 left-1/2 -translate-x-1/2 h-2 w-2 rounded-full border border-[#0A0A0A] ${
+            className={`absolute -bottom-0.5 left-1/2 -translate-x-1/2 h-2 w-2 rounded-full border border-[var(--border-strong)] ${
               isAudioEnabled ? "bg-green-400" : "bg-[#FF6B6B]"
             }`}
           />

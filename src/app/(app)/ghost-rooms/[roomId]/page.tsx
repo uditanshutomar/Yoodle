@@ -239,7 +239,7 @@ export default function GhostRoomPage() {
               {room.meetingId ? (
                 <button
                   onClick={handleJoinCall}
-                  className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-[#7C3AED] text-white font-bold rounded-xl border-2 border-[#0A0A0A] shadow-[3px_3px_0_#0A0A0A] hover:translate-y-[1px] hover:shadow-[2px_2px_0_#0A0A0A] transition-all cursor-pointer"
+                  className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-[#7C3AED] text-white font-bold rounded-xl border-2 border-[var(--border-strong)] shadow-[3px_3px_0_var(--border-strong)] hover:translate-y-[1px] hover:shadow-[2px_2px_0_var(--border-strong)] transition-all cursor-pointer"
                   style={{ fontFamily: "var(--font-heading)" }}
                 >
                   <Video size={18} />
@@ -249,7 +249,7 @@ export default function GhostRoomPage() {
                 <button
                   onClick={handleStartCall}
                   disabled={startingCall}
-                  className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-[#7C3AED] text-white font-bold rounded-xl border-2 border-[#0A0A0A] shadow-[3px_3px_0_#0A0A0A] hover:translate-y-[1px] hover:shadow-[2px_2px_0_#0A0A0A] transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-[#7C3AED] text-white font-bold rounded-xl border-2 border-[var(--border-strong)] shadow-[3px_3px_0_var(--border-strong)] hover:translate-y-[1px] hover:shadow-[2px_2px_0_var(--border-strong)] transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                   style={{ fontFamily: "var(--font-heading)" }}
                 >
                   <Video size={18} />

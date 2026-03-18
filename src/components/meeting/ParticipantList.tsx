@@ -53,14 +53,14 @@ export default function ParticipantList({
     <AnimatePresence>
       {isOpen && (
         <motion.div
-          className="w-80 h-full flex flex-col bg-white/95 backdrop-blur-sm border-l-2 border-[#0A0A0A]"
+          className="w-80 h-full flex flex-col bg-white/95 backdrop-blur-sm border-l-2 border-[var(--border-strong)]"
           initial={{ x: 320, opacity: 0 }}
           animate={{ x: 0, opacity: 1 }}
           exit={{ x: 320, opacity: 0 }}
           transition={{ type: "spring", stiffness: 300, damping: 30 }}
         >
           {/* Header */}
-          <div className="flex items-center justify-between px-4 py-3 border-b-2 border-[#0A0A0A]/10">
+          <div className="flex items-center justify-between px-4 py-3 border-b-2 border-[var(--border-strong)]/10">
             <div className="flex items-center gap-2">
               <h3
                 className="text-base font-bold text-[#0A0A0A]"
@@ -182,7 +182,7 @@ export default function ParticipantList({
                       <div className="hidden group-hover:flex items-center gap-1 ml-1">
                         {onTransferHost && (
                           <motion.button
-                            className="h-6 w-6 rounded-md border border-[#0A0A0A]/20 bg-[#0A0A0A]/5 flex items-center justify-center cursor-pointer"
+                            className="h-6 w-6 rounded-md border border-[var(--border-strong)]/20 bg-[#0A0A0A]/5 flex items-center justify-center cursor-pointer"
                             whileHover={{ scale: 1.15, backgroundColor: "#FFE60030" }}
                             whileTap={{ scale: 0.9 }}
                             onClick={() => onTransferHost(p.id)}
@@ -193,7 +193,7 @@ export default function ParticipantList({
                         )}
                         {p.isAudioEnabled && onMuteParticipant && (
                           <motion.button
-                            className="h-6 w-6 rounded-md border border-[#0A0A0A]/20 bg-[#0A0A0A]/5 flex items-center justify-center cursor-pointer"
+                            className="h-6 w-6 rounded-md border border-[var(--border-strong)]/20 bg-[#0A0A0A]/5 flex items-center justify-center cursor-pointer"
                             whileHover={{ scale: 1.15, backgroundColor: "#FF6B6B20" }}
                             whileTap={{ scale: 0.9 }}
                             onClick={() => onMuteParticipant(p.id)}
@@ -204,7 +204,7 @@ export default function ParticipantList({
                         )}
                         {onKickParticipant && (
                           <motion.button
-                            className="h-6 w-6 rounded-md border border-[#0A0A0A]/20 bg-[#0A0A0A]/5 flex items-center justify-center cursor-pointer"
+                            className="h-6 w-6 rounded-md border border-[var(--border-strong)]/20 bg-[#0A0A0A]/5 flex items-center justify-center cursor-pointer"
                             whileHover={{ scale: 1.15, backgroundColor: "#FF6B6B20" }}
                             whileTap={{ scale: 0.9 }}
                             onClick={() => onKickParticipant(p.id)}

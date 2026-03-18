@@ -68,7 +68,7 @@ export default function Avatar({ src, name = "", size = "md", status, className 
   return (
     <div className={`relative inline-flex shrink-0 ${className}`}>
       <div
-        className={`${s.container} rounded-full border-2 border-[#0A0A0A] overflow-hidden flex items-center justify-center font-bold`}
+        className={`${s.container} rounded-full border-2 border-[var(--border-strong)] overflow-hidden flex items-center justify-center font-bold`}
         style={{
           backgroundColor: src ? "transparent" : getAvatarColor(name),
           fontFamily: "var(--font-heading)",
@@ -83,14 +83,14 @@ export default function Avatar({ src, name = "", size = "md", status, className 
             className="h-full w-full object-cover"
           />
         ) : (
-          <span className={`${s.text} text-[#0A0A0A] select-none`}>
+          <span className={`${s.text} text-[var(--text-primary)] select-none`}>
             {name ? getInitials(name) : "?"}
           </span>
         )}
       </div>
       {status && (
         <span
-          className={`absolute ${s.dotPos} ${s.dot} ${statusColors[status]} rounded-full border-2 border-white`}
+          className={`absolute ${s.dotPos} ${s.dot} ${statusColors[status]} rounded-full border-2 border-[var(--surface)]`}
         />
       )}
     </div>

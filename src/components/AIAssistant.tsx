@@ -70,7 +70,7 @@ export default function AIAssistant() {
               {capabilities.map((text, i) => (
                 <motion.div
                   key={text}
-                  className="flex items-center gap-3 rounded-xl border-2 border-[#0A0A0A] bg-white p-4 shadow-[3px_3px_0_#0A0A0A]"
+                  className="flex items-center gap-3 rounded-xl border-2 border-[var(--border-strong)] bg-[var(--surface)] p-4 shadow-[3px_3px_0_var(--border-strong)]"
                   initial={{ opacity: 0, x: 30 }}
                   whileInView={{ opacity: 1, x: 0 }}
                   viewport={{ once: true }}

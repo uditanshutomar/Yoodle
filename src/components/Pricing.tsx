@@ -71,9 +71,9 @@ export default function Pricing() {
           whileInView="visible"
           viewport={{ once: true, margin: "-80px" }}
         >
-          <div className="relative rounded-2xl border-2 border-[#0A0A0A] bg-white p-8 shadow-[4px_4px_0_#0A0A0A]">
+          <div className="relative rounded-2xl border-2 border-[var(--border-strong)] bg-[var(--surface)] p-8 shadow-[4px_4px_0_var(--border-strong)]">
             {/* Colored dot */}
-            <div className="absolute -top-2 -right-2 h-5 w-5 rounded-full border-2 border-[#0A0A0A] bg-[#22C55E]" />
+            <div className="absolute -top-2 -right-2 h-5 w-5 rounded-full border-2 border-[var(--border-strong)] bg-[#22C55E]" />
 
             {/* Price */}
             <div className="mb-6 text-center">
@@ -113,7 +113,7 @@ export default function Pricing() {
                   viewport={{ once: true }}
                   transition={{ delay: 0.05 * i, duration: 0.4 }}
                 >
-                  <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 border-[#0A0A0A] bg-[#22C55E]">
+                  <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 border-[var(--border-strong)] bg-[#22C55E]">
                     <svg width="10" height="10" viewBox="0 0 24 24" fill="none">
                       <path
                         d="M4 12L10 18L20 6"
@@ -137,7 +137,7 @@ export default function Pricing() {
             {/* CTA button */}
             <Link href="/login">
               <motion.button
-                className="w-full rounded-xl border-2 border-[#0A0A0A] bg-[#FFE600] px-6 py-3.5 text-base font-bold text-[#0A0A0A] shadow-[4px_4px_0_#0A0A0A] transition-shadow hover:shadow-[2px_2px_0_#0A0A0A]"
+                className="w-full rounded-xl border-2 border-[var(--border-strong)] bg-[#FFE600] px-6 py-3.5 text-base font-bold text-[#0A0A0A] shadow-[4px_4px_0_var(--border-strong)] transition-shadow hover:shadow-[2px_2px_0_var(--border-strong)]"
                 style={{ fontFamily: "var(--font-heading)" }}
                 whileHover={{ y: -2 }}
                 whileTap={{ scale: 0.98 }}
@@ -163,9 +163,9 @@ export default function Pricing() {
             Community vs Cloud
           </h3>
 
-          <div className="overflow-hidden rounded-2xl border-2 border-[#0A0A0A] bg-white shadow-[4px_4px_0_#0A0A0A]">
+          <div className="overflow-hidden rounded-2xl border-2 border-[var(--border-strong)] bg-[var(--surface)] shadow-[4px_4px_0_var(--border-strong)]">
             {/* Table header */}
-            <div className="grid grid-cols-3 border-b-2 border-[#0A0A0A] bg-[#0A0A0A]/5">
+            <div className="grid grid-cols-3 border-b-2 border-[var(--border-strong)] bg-[#0A0A0A]/5">
               <div
                 className="px-4 py-3 text-sm font-bold text-[#0A0A0A]/50"
                 style={{ fontFamily: "var(--font-heading)" }}

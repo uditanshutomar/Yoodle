@@ -793,18 +793,18 @@ export default function MeetingRoomPage() {
       >
         {/* Left: LIVE badge + timer */}
         <div className="flex items-center gap-1.5 sm:gap-3">
-          <div className="flex items-center gap-2 rounded-full border-2 border-[#0A0A0A] bg-[#FF6B6B] px-3 py-1 shadow-[2px_2px_0_#0A0A0A]" role="status">
+          <div className="flex items-center gap-2 rounded-full border-2 border-[var(--border-strong)] bg-[#FF6B6B] px-3 py-1 shadow-[2px_2px_0_var(--border-strong)]" role="status">
             <span className="relative flex h-2 w-2">
               <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-white opacity-75" />
               <span className="relative inline-flex h-2 w-2 rounded-full bg-white" />
             </span>
             <span className="text-[9px] sm:text-[11px] font-bold text-white" style={{ fontFamily: "var(--font-heading)" }}>LIVE</span>
           </div>
-          <span className={`text-sm font-mono ${meetingTimer.isOvertime ? "text-[#FF6B6B]" : meetingTimer.isWarningZone ? "text-[#FFB800]" : "text-[#0A0A0A]/40"}`}>
+          <span className={`text-sm font-mono ${meetingTimer.isOvertime ? "text-[#FF6B6B]" : meetingTimer.isWarningZone ? "text-[#FFB800]" : "text-[var(--text-muted)]"}`}>
             {meetingTimer.elapsedFormatted}
           </span>
           {/* Transport mode indicator */}
-          <span className="hidden sm:inline text-xs px-2 py-0.5 rounded-full border-2 border-black bg-[#FFE600]">
+          <span className="hidden sm:inline text-xs px-2 py-0.5 rounded-full border-2 border-[var(--border-strong)] bg-[#FFE600]">
             SFU
           </span>
           {!isLivekitConnected && livekitConnectionState !== "disconnected" && (
@@ -815,18 +815,18 @@ export default function MeetingRoomPage() {
         </div>
 
         {/* Center: meeting code */}
-        <span className="hidden sm:block text-xs font-mono text-[#0A0A0A]/25">{meetingId.slice(0, 8)}</span>
+        <span className="hidden sm:block text-xs font-mono text-[var(--text-muted)]">{meetingId.slice(0, 8)}</span>
 
         {/* Right: connection quality + participant count + recording indicator */}
         <div className="flex items-center gap-1 sm:gap-2">
           <div className="hidden sm:block">
             <ConnectionIndicator quality={connectionQuality} rtt={rtt} packetLoss={packetLoss} />
           </div>
-          <div className="flex items-center gap-1.5 rounded-full border border-[#0A0A0A]/15 px-3 py-1">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#0A0A0A" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="opacity-40">
+          <div className="flex items-center gap-1.5 rounded-full border border-[var(--border)] px-3 py-1">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-[var(--text-muted)]">
               <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M23 21v-2a4 4 0 0 0-3-3.87" /><path d="M16 3.13a4 4 0 0 1 0 7.75" />
             </svg>
-            <span className="text-xs font-bold text-[#0A0A0A]/50" style={{ fontFamily: "var(--font-heading)" }}>
+            <span className="text-xs font-bold text-[var(--text-secondary)]" style={{ fontFamily: "var(--font-heading)" }}>
               {participants.length}
             </span>
           </div>
@@ -914,7 +914,7 @@ export default function MeetingRoomPage() {
               animate={{ x: 0, opacity: 1 }}
               exit={{ x: 300, opacity: 0 }}
               transition={{ type: "spring", stiffness: 200, damping: 28 }}
-              className="absolute right-0 top-0 bottom-0 z-30 w-[300px] border-l-2 border-[#0A0A0A] bg-[#FAFAF8] shadow-[-4px_0_0_#0A0A0A] overflow-y-auto"
+              className="absolute right-0 top-0 bottom-0 z-30 w-[300px] border-l-2 border-[var(--border-strong)] bg-[var(--background)] shadow-[-4px_0_0_var(--border-strong)] overflow-y-auto"
             >
               <ParticipantList
                 isOpen={showParticipants}
@@ -973,7 +973,7 @@ export default function MeetingRoomPage() {
       <AnimatePresence>
         {showMutedWarning && (
           <motion.div
-            className="fixed bottom-28 left-1/2 z-[90] -translate-x-1/2 rounded-xl border-2 border-[#0A0A0A] bg-[#FFE600] px-4 py-2.5 shadow-[3px_3px_0_#0A0A0A]"
+            className="fixed bottom-28 left-1/2 z-[90] -translate-x-1/2 rounded-xl border-2 border-[var(--border-strong)] bg-[#FFE600] px-4 py-2.5 shadow-[3px_3px_0_var(--border-strong)]"
             initial={{ opacity: 0, y: 20, scale: 0.9 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 20, scale: 0.9 }}
@@ -992,7 +992,7 @@ export default function MeetingRoomPage() {
       <AnimatePresence>
         {ghostConverted && (
           <motion.div
-            className="fixed top-20 left-1/2 z-[90] -translate-x-1/2 rounded-xl border-2 border-[#0A0A0A] bg-[#7C3AED] px-5 py-3 shadow-[3px_3px_0_#0A0A0A]"
+            className="fixed top-20 left-1/2 z-[90] -translate-x-1/2 rounded-xl border-2 border-[var(--border-strong)] bg-[#7C3AED] px-5 py-3 shadow-[3px_3px_0_var(--border-strong)]"
             initial={{ opacity: 0, y: -20, scale: 0.9 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: -20, scale: 0.9 }}

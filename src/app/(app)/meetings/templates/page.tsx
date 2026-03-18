@@ -174,7 +174,7 @@ export default function TemplatesPage() {
               Back
             </Button>
           </Link>
-          <h1 className="text-2xl font-black text-[#0A0A0A]" style={{ fontFamily: "var(--font-heading)" }}>
+          <h1 className="text-2xl font-black text-[var(--text-primary)]" style={{ fontFamily: "var(--font-heading)" }}>
             Meeting Templates
           </h1>
         </div>
@@ -193,10 +193,10 @@ export default function TemplatesPage() {
           >
             <Card>
               <div className="flex items-center justify-between mb-4">
-                <h3 className="text-base font-bold text-[#0A0A0A]" style={{ fontFamily: "var(--font-heading)" }}>
+                <h3 className="text-base font-bold text-[var(--text-primary)]" style={{ fontFamily: "var(--font-heading)" }}>
                   {editingId ? "Edit Template" : "New Template"}
                 </h3>
-                <button onClick={() => setShowForm(false)} className="p-1 rounded-lg hover:bg-[#0A0A0A]/5 cursor-pointer">
+                <button onClick={() => setShowForm(false)} className="p-1 rounded-lg hover:bg-[var(--surface-hover)] cursor-pointer">
                   <X size={16} />
                 </button>
               </div>
@@ -210,7 +210,7 @@ export default function TemplatesPage() {
                 />
 
                 <div>
-                  <label className="text-sm font-bold text-[#0A0A0A] mb-1.5 block" style={{ fontFamily: "var(--font-heading)" }}>
+                  <label className="text-sm font-bold text-[var(--text-primary)] mb-1.5 block" style={{ fontFamily: "var(--font-heading)" }}>
                     Description (optional)
                   </label>
                   <textarea
@@ -218,14 +218,14 @@ export default function TemplatesPage() {
                     onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
                     placeholder="What is this template for?"
                     rows={2}
-                    className="w-full rounded-xl border-2 border-[#0A0A0A]/15 bg-white py-2.5 px-4 text-sm text-[#0A0A0A] placeholder:text-[#0A0A0A]/40 focus:border-[#0A0A0A] focus:outline-none focus:ring-2 focus:ring-[#FFE600] transition-all resize-none"
+                    className="w-full rounded-xl border-2 border-[var(--border)] bg-[var(--surface)] py-2.5 px-4 text-sm text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:border-[var(--border-strong)] focus:outline-none focus:ring-2 focus:ring-[#FFE600] transition-all resize-none"
                     style={{ fontFamily: "var(--font-body)" }}
                   />
                 </div>
 
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="text-sm font-bold text-[#0A0A0A] mb-1.5 block" style={{ fontFamily: "var(--font-heading)" }}>
+                    <label className="text-sm font-bold text-[var(--text-primary)] mb-1.5 block" style={{ fontFamily: "var(--font-heading)" }}>
                       Duration (minutes)
                     </label>
                     <input
@@ -234,12 +234,12 @@ export default function TemplatesPage() {
                       onChange={(e) => setForm((f) => ({ ...f, defaultDuration: Math.max(5, Math.min(480, parseInt(e.target.value) || 30)) }))}
                       min={5}
                       max={480}
-                      className="w-full rounded-xl border-2 border-[#0A0A0A]/15 bg-white py-2.5 px-4 text-sm focus:border-[#0A0A0A] focus:outline-none"
+                      className="w-full rounded-xl border-2 border-[var(--border)] bg-[var(--surface)] py-2.5 px-4 text-sm text-[var(--text-primary)] focus:border-[var(--border-strong)] focus:outline-none"
                       style={{ fontFamily: "var(--font-body)" }}
                     />
                   </div>
                   <div>
-                    <label className="text-sm font-bold text-[#0A0A0A] mb-1.5 block" style={{ fontFamily: "var(--font-heading)" }}>
+                    <label className="text-sm font-bold text-[var(--text-primary)] mb-1.5 block" style={{ fontFamily: "var(--font-heading)" }}>
                       Max Participants
                     </label>
                     <input
@@ -248,7 +248,7 @@ export default function TemplatesPage() {
                       onChange={(e) => setForm((f) => ({ ...f, maxParticipants: Math.max(1, Math.min(100, parseInt(e.target.value) || 25)) }))}
                       min={1}
                       max={100}
-                      className="w-full rounded-xl border-2 border-[#0A0A0A]/15 bg-white py-2.5 px-4 text-sm focus:border-[#0A0A0A] focus:outline-none"
+                      className="w-full rounded-xl border-2 border-[var(--border)] bg-[var(--surface)] py-2.5 px-4 text-sm text-[var(--text-primary)] focus:border-[var(--border-strong)] focus:outline-none"
                       style={{ fontFamily: "var(--font-body)" }}
                     />
                   </div>
@@ -261,18 +261,18 @@ export default function TemplatesPage() {
                     { key: "muteOnJoin" as const, icon: Mic, label: "Mute on Join" },
                   ].map(({ key, icon: Icon, label }) => (
                     <label key={key} className="flex items-center justify-between py-1.5 cursor-pointer">
-                      <span className="flex items-center gap-2 text-sm text-[#0A0A0A]/70" style={{ fontFamily: "var(--font-heading)" }}>
+                      <span className="flex items-center gap-2 text-sm text-[var(--text-secondary)]" style={{ fontFamily: "var(--font-heading)" }}>
                         <Icon size={14} /> {label}
                       </span>
                       <button
                         type="button"
                         onClick={() => setForm((f) => ({ ...f, [key]: !f[key] }))}
                         className={`w-10 h-5 rounded-full transition-all cursor-pointer ${
-                          form[key] ? "bg-[#FFE600]" : "bg-[#0A0A0A]/15"
+                          form[key] ? "bg-[#FFE600]" : "bg-[var(--border)]"
                         }`}
                       >
                         <motion.div
-                          className="w-4 h-4 rounded-full bg-white border-2 border-[#0A0A0A] shadow-sm"
+                          className="w-4 h-4 rounded-full bg-[var(--surface)] border-2 border-[var(--border-strong)] shadow-sm"
                           animate={{ x: form[key] ? 18 : 2 }}
                           transition={{ type: "spring", stiffness: 500, damping: 30 }}
                         />
@@ -324,15 +324,15 @@ export default function TemplatesPage() {
               <Card className="!p-4">
                 <div className="flex items-start justify-between">
                   <div className="flex-1 min-w-0">
-                    <h3 className="text-sm font-bold text-[#0A0A0A] truncate" style={{ fontFamily: "var(--font-heading)" }}>
+                    <h3 className="text-sm font-bold text-[var(--text-primary)] truncate" style={{ fontFamily: "var(--font-heading)" }}>
                       {t.name}
                     </h3>
                     {t.description && (
-                      <p className="text-xs text-[#0A0A0A]/50 mt-0.5 line-clamp-1" style={{ fontFamily: "var(--font-body)" }}>
+                      <p className="text-xs text-[var(--text-secondary)] mt-0.5 line-clamp-1" style={{ fontFamily: "var(--font-body)" }}>
                         {t.description}
                       </p>
                     )}
-                    <div className="flex items-center gap-3 mt-2 text-[10px] text-[#0A0A0A]/40" style={{ fontFamily: "var(--font-body)" }}>
+                    <div className="flex items-center gap-3 mt-2 text-[10px] text-[var(--text-muted)]" style={{ fontFamily: "var(--font-body)" }}>
                       <span className="flex items-center gap-1">
                         <Clock size={10} /> {t.defaultDuration} min
                       </span>
@@ -358,7 +358,7 @@ export default function TemplatesPage() {
                       className="p-2 rounded-lg hover:bg-[#FFE600]/20 transition-colors cursor-pointer"
                       title="Edit template"
                     >
-                      <Edit3 size={14} className="text-[#0A0A0A]/50" />
+                      <Edit3 size={14} className="text-[var(--text-secondary)]" />
                     </button>
                     <button
                       onClick={() => handleDelete(t._id)}

@@ -9,18 +9,18 @@ export default function PrivacyPolicyPage() {
   return (
     <article className="prose-legal">
       <h1
-        className="text-3xl font-black text-[#0A0A0A] mb-2"
+        className="text-3xl font-black text-[var(--text-primary)] mb-2"
         style={{ fontFamily: "var(--font-heading)" }}
       >
         Privacy Policy
       </h1>
-      <p className="text-sm text-[#0A0A0A]/50 mb-8" style={{ fontFamily: "var(--font-body)" }}>
+      <p className="text-sm text-[var(--text-secondary)] mb-8" style={{ fontFamily: "var(--font-body)" }}>
         Last updated: March 9, 2026
       </p>
 
-      <div className="space-y-8 text-[#0A0A0A]/80" style={{ fontFamily: "var(--font-body)" }}>
+      <div className="space-y-8 text-[var(--text-primary)]" style={{ fontFamily: "var(--font-body)" }}>
         <section>
-          <h2 className="text-lg font-bold text-[#0A0A0A] mb-3" style={{ fontFamily: "var(--font-heading)" }}>
+          <h2 className="text-lg font-bold text-[var(--text-primary)] mb-3" style={{ fontFamily: "var(--font-heading)" }}>
             1. Introduction
           </h2>
           <p className="leading-relaxed">
@@ -31,17 +31,17 @@ export default function PrivacyPolicyPage() {
         </section>
 
         <section>
-          <h2 className="text-lg font-bold text-[#0A0A0A] mb-3" style={{ fontFamily: "var(--font-heading)" }}>
+          <h2 className="text-lg font-bold text-[var(--text-primary)] mb-3" style={{ fontFamily: "var(--font-heading)" }}>
             2. Information We Collect
           </h2>
-          <h3 className="text-base font-semibold text-[#0A0A0A] mb-2">Account Information</h3>
+          <h3 className="text-base font-semibold text-[var(--text-primary)] mb-2">Account Information</h3>
           <ul className="list-disc pl-6 space-y-1 leading-relaxed">
             <li>Name and email address (via Google Sign-In or magic link)</li>
             <li>Profile picture (from Google account, if available)</li>
             <li>Workspace and organization membership</li>
           </ul>
 
-          <h3 className="text-base font-semibold text-[#0A0A0A] mt-4 mb-2">Meeting Data</h3>
+          <h3 className="text-base font-semibold text-[var(--text-primary)] mt-4 mb-2">Meeting Data</h3>
           <ul className="list-disc pl-6 space-y-1 leading-relaxed">
             <li>Meeting metadata (titles, schedules, participants, duration)</li>
             <li>Meeting recordings (when you choose to record)</li>
@@ -49,13 +49,13 @@ export default function PrivacyPolicyPage() {
             <li>Chat messages within meetings</li>
           </ul>
 
-          <h3 className="text-base font-semibold text-[#0A0A0A] mt-4 mb-2">Ghost Room Data</h3>
+          <h3 className="text-base font-semibold text-[var(--text-primary)] mt-4 mb-2">Ghost Room Data</h3>
           <ul className="list-disc pl-6 space-y-1 leading-relaxed">
             <li>Ghost room content is ephemeral and automatically deleted after 4 hours</li>
             <li>We do not retain ghost room messages or files after expiry</li>
           </ul>
 
-          <h3 className="text-base font-semibold text-[#0A0A0A] mt-4 mb-2">Technical Data</h3>
+          <h3 className="text-base font-semibold text-[var(--text-primary)] mt-4 mb-2">Technical Data</h3>
           <ul className="list-disc pl-6 space-y-1 leading-relaxed">
             <li>IP address and approximate location (for rate limiting and abuse prevention)</li>
             <li>Browser type and operating system</li>
@@ -64,7 +64,7 @@ export default function PrivacyPolicyPage() {
         </section>
 
         <section>
-          <h2 className="text-lg font-bold text-[#0A0A0A] mb-3" style={{ fontFamily: "var(--font-heading)" }}>
+          <h2 className="text-lg font-bold text-[var(--text-primary)] mb-3" style={{ fontFamily: "var(--font-heading)" }}>
             3. How We Use Your Information
           </h2>
           <ul className="list-disc pl-6 space-y-1 leading-relaxed">
@@ -79,7 +79,7 @@ export default function PrivacyPolicyPage() {
         </section>
 
         <section>
-          <h2 className="text-lg font-bold text-[#0A0A0A] mb-3" style={{ fontFamily: "var(--font-heading)" }}>
+          <h2 className="text-lg font-bold text-[var(--text-primary)] mb-3" style={{ fontFamily: "var(--font-heading)" }}>
             4. AI Processing
           </h2>
           <p className="leading-relaxed">
@@ -91,7 +91,7 @@ export default function PrivacyPolicyPage() {
         </section>
 
         <section>
-          <h2 className="text-lg font-bold text-[#0A0A0A] mb-3" style={{ fontFamily: "var(--font-heading)" }}>
+          <h2 className="text-lg font-bold text-[var(--text-primary)] mb-3" style={{ fontFamily: "var(--font-heading)" }}>
             5. Data Storage and Security
           </h2>
           <ul className="list-disc pl-6 space-y-1 leading-relaxed">
@@ -105,7 +105,7 @@ export default function PrivacyPolicyPage() {
         </section>
 
         <section>
-          <h2 className="text-lg font-bold text-[#0A0A0A] mb-3" style={{ fontFamily: "var(--font-heading)" }}>
+          <h2 className="text-lg font-bold text-[var(--text-primary)] mb-3" style={{ fontFamily: "var(--font-heading)" }}>
             6. Data Sharing
           </h2>
           <p className="leading-relaxed mb-2">
@@ -120,7 +120,7 @@ export default function PrivacyPolicyPage() {
         </section>
 
         <section>
-          <h2 className="text-lg font-bold text-[#0A0A0A] mb-3" style={{ fontFamily: "var(--font-heading)" }}>
+          <h2 className="text-lg font-bold text-[var(--text-primary)] mb-3" style={{ fontFamily: "var(--font-heading)" }}>
             7. Your Rights
           </h2>
           <p className="leading-relaxed mb-2">You have the right to:</p>
@@ -138,7 +138,7 @@ export default function PrivacyPolicyPage() {
         </section>
 
         <section>
-          <h2 className="text-lg font-bold text-[#0A0A0A] mb-3" style={{ fontFamily: "var(--font-heading)" }}>
+          <h2 className="text-lg font-bold text-[var(--text-primary)] mb-3" style={{ fontFamily: "var(--font-heading)" }}>
             8. Data Retention
           </h2>
           <ul className="list-disc pl-6 space-y-1 leading-relaxed">
@@ -151,7 +151,7 @@ export default function PrivacyPolicyPage() {
         </section>
 
         <section>
-          <h2 className="text-lg font-bold text-[#0A0A0A] mb-3" style={{ fontFamily: "var(--font-heading)" }}>
+          <h2 className="text-lg font-bold text-[var(--text-primary)] mb-3" style={{ fontFamily: "var(--font-heading)" }}>
             9. Cookies
           </h2>
           <p className="leading-relaxed">
@@ -162,7 +162,7 @@ export default function PrivacyPolicyPage() {
         </section>
 
         <section>
-          <h2 className="text-lg font-bold text-[#0A0A0A] mb-3" style={{ fontFamily: "var(--font-heading)" }}>
+          <h2 className="text-lg font-bold text-[var(--text-primary)] mb-3" style={{ fontFamily: "var(--font-heading)" }}>
             10. Changes to This Policy
           </h2>
           <p className="leading-relaxed">
@@ -173,7 +173,7 @@ export default function PrivacyPolicyPage() {
         </section>
 
         <section>
-          <h2 className="text-lg font-bold text-[#0A0A0A] mb-3" style={{ fontFamily: "var(--font-heading)" }}>
+          <h2 className="text-lg font-bold text-[var(--text-primary)] mb-3" style={{ fontFamily: "var(--font-heading)" }}>
             11. Contact
           </h2>
           <p className="leading-relaxed">

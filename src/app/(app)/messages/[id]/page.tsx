@@ -2,9 +2,19 @@
 
 import { useState } from "react";
 import { useParams, useRouter } from "next/navigation";
+import dynamic from "next/dynamic";
 import ConversationList from "@/components/chat/ConversationList";
-import ChatThread from "@/components/chat/ChatThread";
-import NewMessageModal from "@/components/chat/NewMessageModal";
+
+const ChatThread = dynamic(() => import("@/components/chat/ChatThread"), {
+  ssr: false,
+  loading: () => (
+    <div className="flex-1 animate-pulse bg-[var(--surface)]" />
+  ),
+});
+
+const NewMessageModal = dynamic(() => import("@/components/chat/NewMessageModal"), {
+  ssr: false,
+});
 
 export default function ConversationPage() {
   const { id } = useParams<{ id: string }>();

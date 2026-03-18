@@ -25,7 +25,7 @@ export default function ConnectionIndicator({
 
   return (
     <motion.div
-      className="group relative flex items-center gap-1.5 rounded-full border border-[#0A0A0A]/15 px-2.5 py-1 cursor-default"
+      className="group relative flex items-center gap-1.5 rounded-full border border-[var(--border-strong)]/15 px-2.5 py-1 cursor-default"
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
     >
@@ -34,7 +34,7 @@ export default function ConnectionIndicator({
         {[1, 2, 3].map((bar) => (
           <div
             key={bar}
-            className="w-[3px] rounded-sm border border-[#0A0A0A]/10"
+            className="w-[3px] rounded-sm border border-[var(--border-strong)]/10"
             style={{
               height: `${bar * 4}px`,
               backgroundColor:
@@ -46,7 +46,7 @@ export default function ConnectionIndicator({
 
       {/* Tooltip on hover */}
       <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:block z-50">
-        <div className="rounded-lg border-2 border-[#0A0A0A] bg-white px-3 py-2 shadow-[2px_2px_0_#0A0A0A] whitespace-nowrap">
+        <div className="rounded-lg border-2 border-[var(--border-strong)] bg-[var(--surface)] px-3 py-2 shadow-[2px_2px_0_var(--border-strong)] whitespace-nowrap">
           <p
             className="text-xs font-bold mb-1"
             style={{ fontFamily: "var(--font-heading)", color: config.color }}

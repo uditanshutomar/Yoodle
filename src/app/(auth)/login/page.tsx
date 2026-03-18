@@ -89,19 +89,19 @@ function LoginContent() {
               animate={{ rotate: [0, -10, 10, -5, 0] }}
               transition={{ duration: 1.5, delay: 0.5 }}
             >
-              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[#FFE600] border-2 border-[#0A0A0A]">
+              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[#FFE600] border-2 border-[var(--border-strong)]">
                 <YoodleMascotSmall className="h-10 w-10 mix-blend-multiply" />
               </div>
             </motion.div>
             <div>
               <h1
-                className="text-2xl font-black text-[#0A0A0A]"
+                className="text-2xl font-black text-[var(--text-primary)]"
                 style={{ fontFamily: "var(--font-heading)" }}
               >
                 Welcome back!
               </h1>
               <p
-                className="text-sm text-[#0A0A0A]/60"
+                className="text-sm text-[var(--text-secondary)]"
                 style={{ fontFamily: "var(--font-body)" }}
               >
                 Let&apos;s get you back in the vibe
@@ -126,7 +126,7 @@ function LoginContent() {
             </Button>
 
             <p
-              className="text-xs text-[#0A0A0A]/40 text-center leading-relaxed"
+              className="text-xs text-[var(--text-muted)] text-center leading-relaxed"
               style={{ fontFamily: "var(--font-body)" }}
             >
               We&apos;ll connect your Google Workspace so Yoodle can help manage
@@ -135,9 +135,9 @@ function LoginContent() {
           </div>
 
           {/* Footer */}
-          <div className="mt-6 pt-4 border-t border-[#0A0A0A]/10 text-center">
+          <div className="mt-6 pt-4 border-t border-[var(--border)] text-center">
             <p
-              className="text-sm text-[#0A0A0A]/60"
+              className="text-sm text-[var(--text-secondary)]"
               style={{ fontFamily: "var(--font-body)" }}
             >
               New here?{" "}

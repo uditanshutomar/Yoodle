@@ -59,13 +59,13 @@ function VerifyContent() {
           <div className="space-y-4">
             <LoadingSpinner size="lg" />
             <h2
-              className="text-lg font-bold text-[#0A0A0A]"
+              className="text-lg font-bold text-[var(--text-primary)]"
               style={{ fontFamily: "var(--font-heading)" }}
             >
               Verifying your session...
             </h2>
             <p
-              className="text-sm text-[#0A0A0A]/60"
+              className="text-sm text-[var(--text-secondary)]"
               style={{ fontFamily: "var(--font-body)" }}
             >
               Hang tight, we&apos;re finishing up
@@ -80,20 +80,20 @@ function VerifyContent() {
             className="space-y-4"
           >
             <motion.div
-              className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-green-100 border-2 border-[#0A0A0A]"
+              className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-green-100 dark:bg-green-900/30 border-2 border-[var(--border-strong)]"
               animate={{ scale: [1, 1.1, 1] }}
               transition={{ duration: 0.5 }}
             >
               <CheckCircle size={32} className="text-green-600" />
             </motion.div>
             <h2
-              className="text-lg font-bold text-[#0A0A0A]"
+              className="text-lg font-bold text-[var(--text-primary)]"
               style={{ fontFamily: "var(--font-heading)" }}
             >
               You&apos;re in!
             </h2>
             <p
-              className="text-sm text-[#0A0A0A]/60"
+              className="text-sm text-[var(--text-secondary)]"
               style={{ fontFamily: "var(--font-body)" }}
             >
               Redirecting you to your dashboard...
@@ -107,11 +107,11 @@ function VerifyContent() {
             animate={{ opacity: 1, scale: 1 }}
             className="space-y-4"
           >
-            <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-red-100 border-2 border-[#0A0A0A]">
+            <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-red-100 dark:bg-red-900/30 border-2 border-[var(--border-strong)]">
               <XCircle size={32} className="text-[#FF6B6B]" />
             </div>
             <h2
-              className="text-lg font-bold text-[#0A0A0A]"
+              className="text-lg font-bold text-[var(--text-primary)]"
               style={{ fontFamily: "var(--font-heading)" }}
             >
               Oops, that didn&apos;t work
@@ -138,7 +138,7 @@ function VerifyFallback() {
       <div className="space-y-4">
         <LoadingSpinner size="lg" />
         <h2
-          className="text-lg font-bold text-[#0A0A0A]"
+          className="text-lg font-bold text-[var(--text-primary)]"
           style={{ fontFamily: "var(--font-heading)" }}
         >
           Verifying...

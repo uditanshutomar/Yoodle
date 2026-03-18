@@ -130,11 +130,11 @@ export default function Features() {
                 rotate: i % 2 === 0 ? 1 : -1,
                 transition: { type: "spring", stiffness: 400 },
               }}
-              className="group relative cursor-default rounded-2xl border-2 border-[#0A0A0A] bg-white p-6 shadow-[4px_4px_0_#0A0A0A] transition-shadow hover:shadow-[2px_2px_0_#0A0A0A]"
+              className="group relative cursor-default rounded-2xl border-2 border-[var(--border-strong)] bg-[var(--surface)] p-6 shadow-[4px_4px_0_var(--border-strong)] transition-shadow hover:shadow-[2px_2px_0_var(--border-strong)]"
             >
               {/* Colored dot */}
               <div
-                className="absolute -top-2 -right-2 h-5 w-5 rounded-full border-2 border-[#0A0A0A]"
+                className="absolute -top-2 -right-2 h-5 w-5 rounded-full border-2 border-[var(--border-strong)]"
                 style={{ background: feature.color }}
               />
 

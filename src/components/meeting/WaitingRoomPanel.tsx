@@ -40,14 +40,14 @@ export default function WaitingRoomPanel({
     <AnimatePresence>
       {isOpen && (
         <motion.div
-          className="w-80 h-full flex flex-col bg-white/95 backdrop-blur-sm border-l-2 border-[#0A0A0A]"
+          className="w-80 h-full flex flex-col bg-white/95 backdrop-blur-sm border-l-2 border-[var(--border-strong)]"
           initial={{ x: 320, opacity: 0 }}
           animate={{ x: 0, opacity: 1 }}
           exit={{ x: 320, opacity: 0 }}
           transition={{ type: "spring", stiffness: 300, damping: 30 }}
         >
           {/* Header */}
-          <div className="flex items-center justify-between px-4 py-3 border-b-2 border-[#0A0A0A]/10">
+          <div className="flex items-center justify-between px-4 py-3 border-b-2 border-[var(--border-strong)]/10">
             <div className="flex items-center gap-2">
               <Clock size={16} className="text-[#FFE600]" />
               <h3
@@ -58,7 +58,7 @@ export default function WaitingRoomPanel({
               </h3>
               {waitingUsers.length > 0 && (
                 <span
-                  className="inline-flex items-center justify-center h-5 min-w-[20px] rounded-full bg-[#FFE600] text-[#0A0A0A] text-[10px] font-bold px-1.5 border border-[#0A0A0A]"
+                  className="inline-flex items-center justify-center h-5 min-w-[20px] rounded-full bg-[#FFE600] text-[#0A0A0A] text-[10px] font-bold px-1.5 border border-[var(--border-strong)]"
                   style={{ fontFamily: "var(--font-heading)" }}
                 >
                   {waitingUsers.length}
@@ -77,9 +77,9 @@ export default function WaitingRoomPanel({
 
           {/* Admit all button */}
           {waitingUsers.length > 1 && (
-            <div className="px-4 py-2 border-b border-[#0A0A0A]/5">
+            <div className="px-4 py-2 border-b border-[var(--border-strong)]/5">
               <motion.button
-                className="w-full py-2 rounded-lg border-2 border-[#0A0A0A] bg-[#06B6D4] text-white text-xs font-bold shadow-[2px_2px_0_#0A0A0A] cursor-pointer"
+                className="w-full py-2 rounded-lg border-2 border-[var(--border-strong)] bg-[#06B6D4] text-white text-xs font-bold shadow-[2px_2px_0_var(--border-strong)] cursor-pointer"
                 style={{ fontFamily: "var(--font-heading)" }}
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
@@ -130,7 +130,7 @@ export default function WaitingRoomPanel({
                   {/* Admit / Deny buttons */}
                   <div className="flex items-center gap-1 shrink-0">
                     <motion.button
-                      className="h-7 w-7 rounded-lg border-2 border-[#0A0A0A] bg-[#06B6D4] text-white flex items-center justify-center cursor-pointer shadow-[1px_1px_0_#0A0A0A]"
+                      className="h-7 w-7 rounded-lg border-2 border-[var(--border-strong)] bg-[#06B6D4] text-white flex items-center justify-center cursor-pointer shadow-[1px_1px_0_var(--border-strong)]"
                       whileHover={{ scale: 1.1 }}
                       whileTap={{ scale: 0.9 }}
                       onClick={() => onAdmit(user.id)}
@@ -139,7 +139,7 @@ export default function WaitingRoomPanel({
                       <Check size={14} />
                     </motion.button>
                     <motion.button
-                      className="h-7 w-7 rounded-lg border-2 border-[#0A0A0A] bg-[#FF6B6B] text-white flex items-center justify-center cursor-pointer shadow-[1px_1px_0_#0A0A0A]"
+                      className="h-7 w-7 rounded-lg border-2 border-[var(--border-strong)] bg-[#FF6B6B] text-white flex items-center justify-center cursor-pointer shadow-[1px_1px_0_var(--border-strong)]"
                       whileHover={{ scale: 1.1 }}
                       whileTap={{ scale: 0.9 }}
                       onClick={() => onDeny(user.id)}

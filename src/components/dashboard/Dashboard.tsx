@@ -2,14 +2,48 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import CalendarPanel from "./CalendarPanel";
-import TasksBoardPanel from "./TasksBoardPanel";
-import MeetingHistory from "./MeetingHistory";
-import MeetingDetail from "./MeetingDetail";
-import TeamMap from "./TeamMap";
+import dynamic from "next/dynamic";
 import MeetingPulse from "./MeetingPulse";
-import ActionItemTracker from "./ActionItemTracker";
 import { MeetingRecord } from "./meetingsData";
+
+const CalendarPanel = dynamic(() => import("./CalendarPanel"), {
+    ssr: false,
+    loading: () => (
+        <div className="rounded-2xl border-2 border-[var(--border-strong)] bg-[var(--surface)] h-[420px] animate-pulse shadow-[4px_4px_0_var(--border-strong)]" />
+    ),
+});
+
+const TasksBoardPanel = dynamic(() => import("./TasksBoardPanel"), {
+    ssr: false,
+    loading: () => (
+        <div className="h-[200px] animate-pulse rounded-xl bg-[var(--surface-hover)]" />
+    ),
+});
+
+const MeetingHistory = dynamic(() => import("./MeetingHistory"), {
+    ssr: false,
+    loading: () => (
+        <div className="rounded-2xl border-2 border-[var(--border-strong)] bg-[var(--surface)] h-[200px] animate-pulse shadow-[4px_4px_0_var(--border-strong)]" />
+    ),
+});
+
+const MeetingDetail = dynamic(() => import("./MeetingDetail"), {
+    ssr: false,
+});
+
+const TeamMap = dynamic(() => import("./TeamMap"), {
+    ssr: false,
+    loading: () => (
+        <div className="rounded-2xl border-2 border-[var(--border-strong)] bg-[var(--surface)] h-[300px] animate-pulse shadow-[4px_4px_0_var(--border-strong)]" />
+    ),
+});
+
+const ActionItemTracker = dynamic(() => import("./ActionItemTracker"), {
+    ssr: false,
+    loading: () => (
+        <div className="rounded-2xl border-2 border-[var(--border-strong)] bg-[var(--surface)] h-[120px] animate-pulse shadow-[4px_4px_0_var(--border-strong)]" />
+    ),
+});
 import { useAuth } from "@/hooks/useAuth";
 import { usePendingActions } from "@/hooks/usePendingActions";
 import { useRouter } from "next/navigation";

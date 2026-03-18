@@ -72,7 +72,7 @@ export default function AppSidebar() {
               />
               {item.label}
               {item.label === "Messages" && totalUnread > 0 && (
-                <span className="ml-auto flex h-5 min-w-5 items-center justify-center rounded-full bg-[#FFE600] px-1.5 text-[10px] font-black text-[#0A0A0A] border border-[#0A0A0A] tabular-nums">
+                <span className="ml-auto flex h-5 min-w-5 items-center justify-center rounded-full bg-[#FFE600] px-1.5 text-[10px] font-black text-[#0A0A0A] border border-[var(--border-strong)] tabular-nums">
                   {totalUnread > 99 ? "99+" : totalUnread}
                 </span>
               )}

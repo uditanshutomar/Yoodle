@@ -16,7 +16,7 @@ const Input = forwardRef<HTMLInputElement, InputProps>(
       <div className="flex flex-col gap-1.5">
         {label && (
           <label
-            className="text-sm font-bold text-[#0A0A0A]"
+            className="text-sm font-bold text-[var(--text-primary)]"
             style={{ fontFamily: "var(--font-heading)" }}
           >
             {label}
@@ -24,7 +24,7 @@ const Input = forwardRef<HTMLInputElement, InputProps>(
         )}
         <div className="relative">
           {Icon && (
-            <div className="absolute left-3 top-1/2 -translate-y-1/2 text-[#0A0A0A]/40">
+            <div className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)]">
               <Icon size={18} />
             </div>
           )}
@@ -33,7 +33,7 @@ const Input = forwardRef<HTMLInputElement, InputProps>(
             type={type}
             aria-invalid={!!error}
             aria-describedby={error ? errorId : undefined}
-            className={`w-full border-2 border-[#0A0A0A] rounded-xl px-4 py-3 text-sm bg-white text-[#0A0A0A] placeholder:text-[#0A0A0A]/40 focus:outline-none focus:ring-2 focus:ring-[#FFE600] focus:ring-offset-0 transition-all ${
+            className={`w-full border-2 border-[var(--border-strong)] rounded-xl px-4 py-3 text-sm bg-[var(--surface)] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:ring-2 focus:ring-[#FFE600] focus:ring-offset-0 transition-all ${
               Icon ? "pl-10" : ""
             } ${error ? "border-[#FF6B6B] focus:ring-[#FF6B6B]" : ""} ${className}`}
             style={{ fontFamily: "var(--font-body)" }}
@@ -68,7 +68,7 @@ const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(
       <div className="flex flex-col gap-1.5">
         {label && (
           <label
-            className="text-sm font-bold text-[#0A0A0A]"
+            className="text-sm font-bold text-[var(--text-primary)]"
             style={{ fontFamily: "var(--font-heading)" }}
           >
             {label}
@@ -78,7 +78,7 @@ const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(
           ref={ref}
           aria-invalid={!!error}
           aria-describedby={error ? errorId : undefined}
-          className={`w-full border-2 border-[#0A0A0A] rounded-xl px-4 py-3 text-sm bg-white text-[#0A0A0A] placeholder:text-[#0A0A0A]/40 focus:outline-none focus:ring-2 focus:ring-[#FFE600] focus:ring-offset-0 transition-all resize-none ${
+          className={`w-full border-2 border-[var(--border-strong)] rounded-xl px-4 py-3 text-sm bg-[var(--surface)] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:ring-2 focus:ring-[#FFE600] focus:ring-offset-0 transition-all resize-none ${
             error ? "border-[#FF6B6B] focus:ring-[#FF6B6B]" : ""
           } ${className}`}
           style={{ fontFamily: "var(--font-body)" }}

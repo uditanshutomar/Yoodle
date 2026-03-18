@@ -630,15 +630,15 @@ function CreateEventModal({ open, onClose, onCreated, defaultStart, defaultEnd, 
                         </span>
                     </div>
                     <button onClick={() => setAddYoodleLink(!addYoodleLink)} className="relative h-6 w-11 rounded-full transition-colors duration-200"
-                        style={{ backgroundColor: addYoodleLink ? "#FFE600" : "rgba(10,10,10,0.15)" }}>
-                        <motion.div className="absolute top-0.5 h-5 w-5 rounded-full bg-white border border-[#0A0A0A]/20 shadow-sm"
+                        style={{ backgroundColor: addYoodleLink ? "#FFE600" : "var(--border)" }}>
+                        <motion.div className="absolute top-0.5 h-5 w-5 rounded-full bg-[var(--surface)] border border-[var(--border)] shadow-sm"
                             animate={{ left: addYoodleLink ? "calc(100% - 22px)" : "2px" }}
                             transition={{ type: "spring", stiffness: 500, damping: 30 }} />
                     </button>
                 </div>
 
                 {error && (
-                    <div className="rounded-xl bg-red-50 border border-red-200 px-4 py-2.5 text-sm text-red-700 font-medium">
+                    <div className="rounded-xl bg-[#EF4444]/10 border border-[#EF4444]/30 px-4 py-2.5 text-sm text-[#EF4444] font-medium">
                         {error}
                     </div>
                 )}

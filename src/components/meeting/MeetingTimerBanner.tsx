@@ -105,10 +105,10 @@ export default function MeetingTimerBanner({
                     onClick={() => handleExtend(min)}
                     disabled={extending}
                     className={`
-                      rounded-full border-2 border-[#0A0A0A] px-2.5 py-0.5 text-xs font-bold
-                      shadow-[1px_1px_0_#0A0A0A] transition-all
+                      rounded-full border-2 border-[var(--border-strong)] px-2.5 py-0.5 text-xs font-bold
+                      shadow-[1px_1px_0_var(--border-strong)] transition-all
                       hover:shadow-none hover:translate-x-[1px] hover:translate-y-[1px]
-                      ${extending ? "opacity-50 cursor-wait" : "bg-white text-[#0A0A0A]"}
+                      ${extending ? "opacity-50 cursor-wait" : "bg-[var(--surface)] text-[var(--text-primary)]"}
                     `}
                     style={{ fontFamily: "var(--font-heading)" }}
                   >
@@ -117,7 +117,7 @@ export default function MeetingTimerBanner({
                 ))}
                 <button
                   onClick={() => setShowExtendOptions(false)}
-                  className="ml-1 rounded-full p-1 hover:bg-black/5"
+                  className="ml-1 rounded-full p-1 hover:bg-[var(--surface-hover)]"
                 >
                   <X size={12} className="text-[#0A0A0A]/40" />
                 </button>
@@ -125,7 +125,7 @@ export default function MeetingTimerBanner({
             ) : (
               <button
                 onClick={() => setShowExtendOptions(true)}
-                className="flex items-center gap-1 rounded-full border-2 border-[#0A0A0A] bg-white px-3 py-1 text-xs font-bold shadow-[2px_2px_0_#0A0A0A] transition-all hover:shadow-none hover:translate-x-[2px] hover:translate-y-[2px]"
+                className="flex items-center gap-1 rounded-full border-2 border-[var(--border-strong)] bg-[var(--surface)] px-3 py-1 text-xs font-bold shadow-[2px_2px_0_var(--border-strong)] transition-all hover:shadow-none hover:translate-x-[2px] hover:translate-y-[2px]"
                 style={{ fontFamily: "var(--font-heading)" }}
               >
                 <Plus size={12} />

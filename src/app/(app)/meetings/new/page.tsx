@@ -230,36 +230,36 @@ export default function NewMeetingPage() {
             initial={{ scale: 0 }}
             animate={{ scale: 1 }}
             transition={{ type: "spring", stiffness: 400, damping: 15, delay: 0.1 }}
-            className="w-16 h-16 mx-auto mb-4 rounded-full bg-[#10B981] border-2 border-[#0A0A0A] shadow-[3px_3px_0_#0A0A0A] flex items-center justify-center"
+            className="w-16 h-16 mx-auto mb-4 rounded-full bg-[#10B981] border-2 border-[var(--border-strong)] shadow-[3px_3px_0_var(--border-strong)] flex items-center justify-center"
           >
             <Check size={32} className="text-white" />
           </motion.div>
 
-          <h2 className="text-2xl font-black text-[#0A0A0A] mb-1" style={{ fontFamily: "var(--font-heading)" }}>
+          <h2 className="text-2xl font-black text-[var(--text-primary)] mb-1" style={{ fontFamily: "var(--font-heading)" }}>
             Meeting Created!
           </h2>
-          <p className="text-sm text-[#0A0A0A]/50 mb-6" style={{ fontFamily: "var(--font-body)" }}>
+          <p className="text-sm text-[var(--text-secondary)] mb-6" style={{ fontFamily: "var(--font-body)" }}>
             Share this code with others so they can join
           </p>
 
           {/* Meeting code display */}
-          <div className="bg-[#FAFAF8] border-2 border-[#0A0A0A]/15 rounded-xl p-4 mb-4">
-            <p className="text-xs font-bold text-[#0A0A0A]/40 mb-1" style={{ fontFamily: "var(--font-heading)" }}>
+          <div className="bg-[var(--surface-hover)] border-2 border-[var(--border)] rounded-xl p-4 mb-4">
+            <p className="text-xs font-bold text-[var(--text-muted)] mb-1" style={{ fontFamily: "var(--font-heading)" }}>
               MEETING CODE
             </p>
             <div className="flex items-center justify-center gap-3">
               <span
-                className="text-2xl font-black font-mono tracking-widest text-[#0A0A0A]"
+                className="text-2xl font-black font-mono tracking-widest text-[var(--text-primary)]"
                 style={{ fontFamily: "var(--font-heading)" }}
               >
                 {createdMeeting.code}
               </span>
               <button
                 onClick={copyMeetingCode}
-                className="p-2 rounded-lg bg-white border-2 border-[#0A0A0A]/15 hover:border-[#0A0A0A]/30 transition-all cursor-pointer"
+                className="p-2 rounded-lg bg-[var(--surface)] border-2 border-[var(--border)] hover:border-[var(--border-strong)] transition-all cursor-pointer"
                 title="Copy code"
               >
-                {copied ? <Check size={16} className="text-[#10B981]" /> : <Copy size={16} className="text-[#0A0A0A]/50" />}
+                {copied ? <Check size={16} className="text-[#10B981]" /> : <Copy size={16} className="text-[var(--text-secondary)]" />}
               </button>
             </div>
           </div>
@@ -267,14 +267,14 @@ export default function NewMeetingPage() {
           {/* Copy full link */}
           <button
             onClick={copyMeetingLink}
-            className="w-full flex items-center justify-center gap-2 py-3 rounded-xl border-2 border-[#0A0A0A]/15 bg-white hover:border-[#0A0A0A]/30 transition-all cursor-pointer mb-6 text-sm font-bold text-[#0A0A0A]/70"
+            className="w-full flex items-center justify-center gap-2 py-3 rounded-xl border-2 border-[var(--border)] bg-[var(--surface)] hover:border-[var(--border-strong)] transition-all cursor-pointer mb-6 text-sm font-bold text-[var(--text-secondary)]"
             style={{ fontFamily: "var(--font-heading)" }}
           >
             <Link2 size={16} />
             {copied ? "Copied!" : "Copy Meeting Link"}
           </button>
 
-          <p className="text-xs text-[#0A0A0A]/40 mb-4" style={{ fontFamily: "var(--font-body)" }}>
+          <p className="text-xs text-[var(--text-muted)] mb-4" style={{ fontFamily: "var(--font-body)" }}>
             Others can join at <span className="font-mono">/meetings/join</span> using the code above
           </p>
 
@@ -301,7 +301,7 @@ export default function NewMeetingPage() {
         <Button variant="ghost" size="sm" icon={ArrowLeft} href="/meetings">
           Back
         </Button>
-        <h1 className="text-2xl font-black text-[#0A0A0A]" style={{ fontFamily: "var(--font-heading)" }}>
+        <h1 className="text-2xl font-black text-[var(--text-primary)]" style={{ fontFamily: "var(--font-heading)" }}>
           New Meeting
         </h1>
       </div>
@@ -323,7 +323,7 @@ export default function NewMeetingPage() {
           />
 
           <div>
-            <label className="text-sm font-bold text-[#0A0A0A] mb-1.5 block" style={{ fontFamily: "var(--font-heading)" }}>
+            <label className="text-sm font-bold text-[var(--text-primary)] mb-1.5 block" style={{ fontFamily: "var(--font-heading)" }}>
               Description (optional)
             </label>
             <textarea
@@ -331,7 +331,7 @@ export default function NewMeetingPage() {
               onChange={(e) => setDescription(e.target.value)}
               placeholder="What's this meeting about?"
               rows={3}
-              className="w-full rounded-xl border-2 border-[#0A0A0A]/15 bg-white py-2.5 px-4 text-sm text-[#0A0A0A] placeholder:text-[#0A0A0A]/40 focus:border-[#0A0A0A] focus:outline-none focus:ring-2 focus:ring-[#FFE600] transition-all resize-none"
+              className="w-full rounded-xl border-2 border-[var(--border)] bg-[var(--surface)] py-2.5 px-4 text-sm text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:border-[var(--border-strong)] focus:outline-none focus:ring-2 focus:ring-[#FFE600] transition-all resize-none"
               style={{ fontFamily: "var(--font-body)" }}
             />
           </div>
@@ -339,26 +339,26 @@ export default function NewMeetingPage() {
           {/* Template picker */}
           {templates.length > 0 && (
             <div>
-              <label className="text-sm font-bold text-[#0A0A0A] mb-1.5 block" style={{ fontFamily: "var(--font-heading)" }}>
+              <label className="text-sm font-bold text-[var(--text-primary)] mb-1.5 block" style={{ fontFamily: "var(--font-heading)" }}>
                 Template (optional)
               </label>
               <div className="relative">
                 <button
                   type="button"
                   onClick={() => setTemplateDropdownOpen((o) => !o)}
-                  className={`w-full flex items-center justify-between rounded-xl border-2 bg-white py-2.5 px-4 text-sm transition-all cursor-pointer ${
+                  className={`w-full flex items-center justify-between rounded-xl border-2 bg-[var(--surface)] py-2.5 px-4 text-sm transition-all cursor-pointer ${
                     selectedTemplate
                       ? "border-[#FFE600] ring-2 ring-[#FFE600]/30"
-                      : "border-[#0A0A0A]/15 hover:border-[#0A0A0A]/30"
+                      : "border-[var(--border)] hover:border-[var(--border-strong)]"
                   }`}
                   style={{ fontFamily: "var(--font-body)" }}
                 >
                   <span className="flex items-center gap-2">
-                    <FileText size={14} className="text-[#0A0A0A]/40" />
+                    <FileText size={14} className="text-[var(--text-muted)]" />
                     {selectedTemplate ? (
-                      <span className="text-[#0A0A0A]">{selectedTemplate.name}</span>
+                      <span className="text-[var(--text-primary)]">{selectedTemplate.name}</span>
                     ) : (
-                      <span className="text-[#0A0A0A]/40">Choose a template...</span>
+                      <span className="text-[var(--text-muted)]">Choose a template...</span>
                     )}
                   </span>
                   <span className="flex items-center gap-1">
@@ -366,12 +366,12 @@ export default function NewMeetingPage() {
                       <button
                         type="button"
                         onClick={(e) => { e.stopPropagation(); applyTemplate(null); }}
-                        className="p-0.5 rounded hover:bg-[#0A0A0A]/10 transition-colors"
+                        className="p-0.5 rounded hover:bg-[var(--surface-hover)] transition-colors"
                       >
-                        <X size={14} className="text-[#0A0A0A]/40" />
+                        <X size={14} className="text-[var(--text-muted)]" />
                       </button>
                     )}
-                    <ChevronDown size={14} className={`text-[#0A0A0A]/40 transition-transform ${templateDropdownOpen ? "rotate-180" : ""}`} />
+                    <ChevronDown size={14} className={`text-[var(--text-muted)] transition-transform ${templateDropdownOpen ? "rotate-180" : ""}`} />
                   </span>
                 </button>
 
@@ -381,26 +381,26 @@ export default function NewMeetingPage() {
                       initial={{ opacity: 0, y: -4 }}
                       animate={{ opacity: 1, y: 0 }}
                       exit={{ opacity: 0, y: -4 }}
-                      className="absolute z-20 mt-1 w-full rounded-xl border-2 border-[#0A0A0A]/15 bg-white shadow-lg overflow-hidden"
+                      className="absolute z-20 mt-1 w-full rounded-xl border-2 border-[var(--border)] bg-[var(--surface)] shadow-lg overflow-hidden"
                     >
                       {templates.map((t) => (
                         <button
                           key={t._id}
                           type="button"
                           onClick={() => applyTemplate(t)}
-                          className={`w-full text-left px-4 py-3 hover:bg-[#FFE600]/10 transition-colors border-b border-[#0A0A0A]/5 last:border-b-0 cursor-pointer ${
+                          className={`w-full text-left px-4 py-3 hover:bg-[#FFE600]/10 transition-colors border-b border-[var(--border)] last:border-b-0 cursor-pointer ${
                             selectedTemplate?._id === t._id ? "bg-[#FFE600]/10" : ""
                           }`}
                         >
-                          <p className="text-sm font-bold text-[#0A0A0A]" style={{ fontFamily: "var(--font-heading)" }}>
+                          <p className="text-sm font-bold text-[var(--text-primary)]" style={{ fontFamily: "var(--font-heading)" }}>
                             {t.name}
                           </p>
                           {t.description && (
-                            <p className="text-xs text-[#0A0A0A]/50 mt-0.5 line-clamp-1" style={{ fontFamily: "var(--font-body)" }}>
+                            <p className="text-xs text-[var(--text-secondary)] mt-0.5 line-clamp-1" style={{ fontFamily: "var(--font-body)" }}>
                               {t.description}
                             </p>
                           )}
-                          <p className="text-[10px] text-[#0A0A0A]/30 mt-0.5" style={{ fontFamily: "var(--font-body)" }}>
+                          <p className="text-[10px] text-[var(--text-muted)] mt-0.5" style={{ fontFamily: "var(--font-body)" }}>
                             {t.defaultDuration} min
                             {t.meetingSettings.waitingRoom && " \u00B7 Waiting room"}
                             {t.meetingSettings.muteOnJoin && " \u00B7 Mute on join"}
@@ -416,7 +416,7 @@ export default function NewMeetingPage() {
 
           {/* Schedule toggle */}
           <div>
-            <label className="text-sm font-bold text-[#0A0A0A] mb-2 block" style={{ fontFamily: "var(--font-heading)" }}>
+            <label className="text-sm font-bold text-[var(--text-primary)] mb-2 block" style={{ fontFamily: "var(--font-heading)" }}>
               When
             </label>
             <div className="flex gap-3">
@@ -425,8 +425,8 @@ export default function NewMeetingPage() {
                 disabled={startingNow}
                 className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl border-2 font-bold text-sm transition-all cursor-pointer ${
                   startingNow
-                    ? "border-[#0A0A0A] bg-[#FFE600]/70 shadow-[3px_3px_0_#0A0A0A] opacity-70"
-                    : "border-[#0A0A0A] bg-[#FFE600] shadow-[3px_3px_0_#0A0A0A] hover:shadow-[1px_1px_0_#0A0A0A] hover:translate-x-[2px] hover:translate-y-[2px]"
+                    ? "border-[var(--border-strong)] bg-[#FFE600]/70 shadow-[3px_3px_0_var(--border-strong)] opacity-70"
+                    : "border-[var(--border-strong)] bg-[#FFE600] shadow-[3px_3px_0_var(--border-strong)] hover:shadow-[1px_1px_0_var(--border-strong)] hover:translate-x-[2px] hover:translate-y-[2px]"
                 }`}
                 style={{ fontFamily: "var(--font-heading)" }}
               >
@@ -436,8 +436,8 @@ export default function NewMeetingPage() {
                 onClick={() => setScheduleMode(scheduleMode === "later" ? "now" : "later")}
                 className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl border-2 font-bold text-sm transition-all cursor-pointer ${
                   scheduleMode === "later"
-                    ? "border-[#0A0A0A] bg-[#FFE600] shadow-[3px_3px_0_#0A0A0A]"
-                    : "border-[#0A0A0A]/15 bg-white hover:border-[#0A0A0A]/30"
+                    ? "border-[var(--border-strong)] bg-[#FFE600] shadow-[3px_3px_0_var(--border-strong)]"
+                    : "border-[var(--border)] bg-[var(--surface)] hover:border-[var(--border-strong)]"
                 }`}
                 style={{ fontFamily: "var(--font-heading)" }}
               >
@@ -451,7 +451,7 @@ export default function NewMeetingPage() {
                   type="datetime-local"
                   value={scheduledAt}
                   onChange={(e) => setScheduledAt(e.target.value)}
-                  className="w-full rounded-xl border-2 border-[#0A0A0A]/15 bg-white py-2.5 px-4 text-sm focus:border-[#0A0A0A] focus:outline-none"
+                  className="w-full rounded-xl border-2 border-[var(--border)] bg-[var(--surface)] py-2.5 px-4 text-sm text-[var(--text-primary)] focus:border-[var(--border-strong)] focus:outline-none"
                   style={{ fontFamily: "var(--font-body)" }}
                 />
               </motion.div>
@@ -462,7 +462,7 @@ export default function NewMeetingPage() {
 
       {/* Settings */}
       <Card>
-        <h3 className="text-base font-bold text-[#0A0A0A] mb-4" style={{ fontFamily: "var(--font-heading)" }}>
+        <h3 className="text-base font-bold text-[var(--text-primary)] mb-4" style={{ fontFamily: "var(--font-heading)" }}>
           Meeting Settings
         </h3>
         <div className="space-y-3">
@@ -473,18 +473,18 @@ export default function NewMeetingPage() {
             { key: "muteOnJoin", icon: Mic, label: "Mute on Join" },
           ].map(({ key, icon: Icon, label }) => (
             <label key={key} className="flex items-center justify-between py-2 cursor-pointer">
-              <span className="flex items-center gap-2 text-sm text-[#0A0A0A]/70" style={{ fontFamily: "var(--font-heading)" }}>
+              <span className="flex items-center gap-2 text-sm text-[var(--text-secondary)]" style={{ fontFamily: "var(--font-heading)" }}>
                 <Icon size={16} /> {label}
               </span>
               <button
                 type="button"
                 onClick={() => setSettings((s) => ({ ...s, [key]: !s[key as keyof typeof s] }))}
                 className={`w-11 h-6 rounded-full transition-all cursor-pointer ${
-                  settings[key as keyof typeof settings] ? "bg-[#FFE600]" : "bg-[#0A0A0A]/15"
+                  settings[key as keyof typeof settings] ? "bg-[#FFE600]" : "bg-[var(--border)]"
                 }`}
               >
                 <motion.div
-                  className="w-5 h-5 rounded-full bg-white border-2 border-[#0A0A0A] shadow-sm"
+                  className="w-5 h-5 rounded-full bg-[var(--surface)] border-2 border-[var(--border-strong)] shadow-sm"
                   animate={{ x: settings[key as keyof typeof settings] ? 20 : 2 }}
                   transition={{ type: "spring", stiffness: 500, damping: 30 }}
                 />

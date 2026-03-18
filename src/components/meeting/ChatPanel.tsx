@@ -56,7 +56,7 @@ export default function ChatPanel({ isOpen, onClose, messages, onSendMessage, cu
                     aria-label="Meeting chat"
                 >
                     {/* Header */}
-                    <div className="flex items-center justify-between border-b-2 border-[#0A0A0A] px-5 py-4">
+                    <div className="flex items-center justify-between border-b-2 border-[var(--border-strong)] px-5 py-4">
                         <h3
                             className="text-sm font-bold text-[#0A0A0A] tracking-wide"
                             style={{ fontFamily: "var(--font-heading)" }}
@@ -68,7 +68,7 @@ export default function ChatPanel({ isOpen, onClose, messages, onSendMessage, cu
                             whileTap={{ scale: 0.9 }}
                             onClick={onClose}
                             aria-label="Close chat"
-                            className="flex h-7 w-7 items-center justify-center rounded-full border-2 border-[#0A0A0A] bg-white text-[#0A0A0A] shadow-[2px_2px_0_#0A0A0A] hover:shadow-[1px_1px_0_#0A0A0A] hover:translate-x-[1px] hover:translate-y-[1px] transition-all"
+                            className="flex h-7 w-7 items-center justify-center rounded-full border-2 border-[var(--border-strong)] bg-[var(--surface)] text-[#0A0A0A] shadow-[2px_2px_0_var(--border-strong)] hover:shadow-[1px_1px_0_var(--border-strong)] hover:translate-x-[1px] hover:translate-y-[1px] transition-all"
                         >
                             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
                                 <line x1="18" y1="6" x2="6" y2="18" />
@@ -100,7 +100,7 @@ export default function ChatPanel({ isOpen, onClose, messages, onSendMessage, cu
                                 >
                                     {/* Avatar circle with initial */}
                                     <div
-                                        className="relative h-7 w-7 flex-shrink-0 overflow-hidden rounded-full border-2 border-[#0A0A0A] flex items-center justify-center"
+                                        className="relative h-7 w-7 flex-shrink-0 overflow-hidden rounded-full border-2 border-[var(--border-strong)] flex items-center justify-center"
                                         style={{ backgroundColor: color }}
                                     >
                                         <span className="text-[10px] font-bold text-[#0A0A0A]" style={{ fontFamily: "var(--font-heading)" }}>
@@ -124,8 +124,8 @@ export default function ChatPanel({ isOpen, onClose, messages, onSendMessage, cu
                     </div>
 
                     {/* Input */}
-                    <div className="border-t-2 border-[#0A0A0A] px-4 py-3">
-                        <div className="flex items-center gap-2 rounded-full border-2 border-[#0A0A0A] bg-white px-3 py-1.5 shadow-[3px_3px_0_#0A0A0A]">
+                    <div className="border-t-2 border-[var(--border-strong)] px-4 py-3">
+                        <div className="flex items-center gap-2 rounded-full border-2 border-[var(--border-strong)] bg-[var(--surface)] px-3 py-1.5 shadow-[3px_3px_0_var(--border-strong)]">
                             <input
                                 type="text"
                                 value={message}
@@ -146,7 +146,7 @@ export default function ChatPanel({ isOpen, onClose, messages, onSendMessage, cu
                                 whileTap={{ scale: 0.9 }}
                                 onClick={handleSend}
                                 aria-label="Send message"
-                                className="flex h-8 w-8 items-center justify-center rounded-full bg-[#FFE600] border-2 border-[#0A0A0A] shadow-[2px_2px_0_#0A0A0A] hover:shadow-[1px_1px_0_#0A0A0A] transition-all"
+                                className="flex h-8 w-8 items-center justify-center rounded-full bg-[#FFE600] border-2 border-[var(--border-strong)] shadow-[2px_2px_0_var(--border-strong)] hover:shadow-[1px_1px_0_var(--border-strong)] transition-all"
                             >
                                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#0A0A0A" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                                     <line x1="22" y1="2" x2="11" y2="13" />

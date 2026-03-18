@@ -66,7 +66,7 @@ export default function KanbanColumn({ column, tasks, onCreateTask, onTaskClick 
       <div className="flex items-center gap-2 mb-3 px-1">
         {/* Color dot */}
         <span
-          className="h-3 w-3 rounded-full border border-black/10 flex-shrink-0"
+          className="h-3 w-3 rounded-full border border-[var(--border)] flex-shrink-0"
           style={{ backgroundColor: column.color }}
         />
         {/* Title */}

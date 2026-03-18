@@ -172,7 +172,7 @@ function Header({ onNewMessage }: { onNewMessage?: () => void }) {
       {onNewMessage && (
         <button
           onClick={onNewMessage}
-          className="flex items-center gap-1.5 rounded-lg bg-[#FFE600] px-3 py-1.5 text-sm font-semibold text-[#0A0A0A] border-2 border-[#0A0A0A] shadow-[2px_2px_0px_#0A0A0A] hover:shadow-[1px_1px_0px_#0A0A0A] hover:translate-x-[1px] hover:translate-y-[1px] active:shadow-none active:translate-x-[2px] active:translate-y-[2px] transition-all"
+          className="flex items-center gap-1.5 rounded-lg bg-[#FFE600] px-3 py-1.5 text-sm font-semibold text-[#0A0A0A] border-2 border-[var(--border-strong)] shadow-[2px_2px_0px_var(--border-strong)] hover:shadow-[1px_1px_0px_var(--border-strong)] hover:translate-x-[1px] hover:translate-y-[1px] active:shadow-none active:translate-x-[2px] active:translate-y-[2px] transition-all"
           style={{ fontFamily: "var(--font-heading)" }}
         >
           <Plus className="h-4 w-4" />
@@ -260,7 +260,7 @@ function ConversationItem({
             {preview ?? "No messages yet"}
           </p>
           {conversation.unreadCount > 0 && (
-            <span className="shrink-0 flex items-center justify-center h-5 min-w-[20px] rounded-full bg-[#FFE600] px-1.5 text-[10px] font-bold text-[#0A0A0A] border border-[#0A0A0A]">
+            <span className="shrink-0 flex items-center justify-center h-5 min-w-[20px] rounded-full bg-[#FFE600] px-1.5 text-[10px] font-bold text-[#0A0A0A] border border-[var(--border-strong)]">
               {conversation.unreadCount}
             </span>
           )}

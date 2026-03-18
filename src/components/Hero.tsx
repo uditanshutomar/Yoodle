@@ -28,7 +28,7 @@ export default function Hero() {
             >
               {/* Small tag */}
               <motion.div
-                className="mb-6 inline-flex items-center gap-2 rounded-full border-2 border-[#0A0A0A] bg-white px-4 py-1.5"
+                className="mb-6 inline-flex items-center gap-2 rounded-full border-2 border-[var(--border-strong)] bg-[var(--surface)] px-4 py-1.5"
                 initial={{ opacity: 0, scale: 0.8 }}
                 animate={{ opacity: 1, scale: 1 }}
                 transition={{ delay: 0.3 }}
@@ -85,7 +85,7 @@ export default function Hero() {
                   href="/login"
                   whileHover={{ scale: 1.05, y: -2 }}
                   whileTap={{ scale: 0.97 }}
-                  className="inline-flex items-center gap-2 rounded-full bg-[#FFE600] px-8 py-4 text-lg font-bold text-[#0A0A0A] shadow-[5px_5px_0_#0A0A0A] transition-all hover:shadow-[3px_3px_0_#0A0A0A]"
+                  className="inline-flex items-center gap-2 rounded-full bg-[#FFE600] px-8 py-4 text-lg font-bold text-[#0A0A0A] shadow-[5px_5px_0_var(--border-strong)] transition-all hover:shadow-[3px_3px_0_var(--border-strong)]"
                   style={{ fontFamily: "var(--font-heading)" }}
                 >
                   Launch App

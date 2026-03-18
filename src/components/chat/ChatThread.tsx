@@ -344,7 +344,7 @@ export default function ChatThread({
             status="online"
           />
         ) : (
-          <div className="h-10 w-10 rounded-full bg-[#FFE600] border-2 border-[#0A0A0A] flex items-center justify-center">
+          <div className="h-10 w-10 rounded-full bg-[#FFE600] border-2 border-[var(--border-strong)] flex items-center justify-center">
             <span
               className="text-sm font-bold text-[#0A0A0A]"
               style={{ fontFamily: "var(--font-heading)" }}

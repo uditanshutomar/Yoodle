@@ -46,7 +46,7 @@ export default function MobileTabBar() {
             <div className="relative">
               <tab.icon size={20} />
               {tab.label === "Messages" && totalUnread > 0 && (
-                <span className="absolute -top-1 -right-2 flex h-4 min-w-4 items-center justify-center rounded-full bg-[#FFE600] px-1 text-[9px] font-black text-[#0A0A0A] border border-[#0A0A0A]">
+                <span className="absolute -top-1 -right-2 flex h-4 min-w-4 items-center justify-center rounded-full bg-[#FFE600] px-1 text-[9px] font-black text-[#0A0A0A] border border-[var(--border-strong)]">
                   {totalUnread > 99 ? "99+" : totalUnread}
                 </span>
               )}

@@ -109,7 +109,7 @@ export default function PreJoinLobby({
         </h1>
         <button
           onClick={handleCopyCode}
-          className="inline-flex items-center gap-2 mt-1 px-3 py-1 rounded-lg bg-[#0A0A0A]/5 hover:bg-[#0A0A0A]/10 transition-all cursor-pointer border border-[#0A0A0A]/10"
+          className="inline-flex items-center gap-2 mt-1 px-3 py-1 rounded-lg bg-[#0A0A0A]/5 hover:bg-[#0A0A0A]/10 transition-all cursor-pointer border border-[var(--border-strong)]/10"
           title="Click to copy meeting link"
         >
           <span
@@ -139,7 +139,7 @@ export default function PreJoinLobby({
 
       {/* Video preview circle */}
       <motion.div
-        className="relative w-64 h-64 rounded-full overflow-hidden border-4 border-[#0A0A0A] shadow-[6px_6px_0_#0A0A0A] bg-[#0A0A0A]"
+        className="relative w-64 h-64 rounded-full overflow-hidden border-4 border-[var(--border-strong)] shadow-[6px_6px_0_var(--border-strong)] bg-[#0A0A0A]"
         animate={isVideoEnabled ? { scale: [1, 1.02, 1] } : {}}
         transition={{ duration: 2, repeat: Infinity }}
       >
@@ -180,8 +180,8 @@ export default function PreJoinLobby({
       <div className="flex items-center gap-4">
         <button
           onClick={toggleVideo}
-          className={`flex items-center justify-center w-14 h-14 rounded-full border-2 border-[#0A0A0A] shadow-[3px_3px_0_#0A0A0A] transition-all cursor-pointer ${
-            isVideoEnabled ? "bg-white" : "bg-[#FF6B6B] text-white"
+          className={`flex items-center justify-center w-14 h-14 rounded-full border-2 border-[var(--border-strong)] shadow-[3px_3px_0_var(--border-strong)] transition-all cursor-pointer ${
+            isVideoEnabled ? "bg-[var(--surface)]" : "bg-[#FF6B6B] text-white"
           }`}
         >
           {isVideoEnabled ? <Video size={20} /> : <VideoOff size={20} />}
@@ -189,8 +189,8 @@ export default function PreJoinLobby({
 
         <button
           onClick={toggleAudio}
-          className={`flex items-center justify-center w-14 h-14 rounded-full border-2 border-[#0A0A0A] shadow-[3px_3px_0_#0A0A0A] transition-all cursor-pointer ${
-            isAudioEnabled ? "bg-white" : "bg-[#FF6B6B] text-white"
+          className={`flex items-center justify-center w-14 h-14 rounded-full border-2 border-[var(--border-strong)] shadow-[3px_3px_0_var(--border-strong)] transition-all cursor-pointer ${
+            isAudioEnabled ? "bg-[var(--surface)]" : "bg-[#FF6B6B] text-white"
           }`}
         >
           {isAudioEnabled ? <Mic size={20} /> : <MicOff size={20} />}
@@ -207,7 +207,7 @@ export default function PreJoinLobby({
             <select
               value={selectedVideoDevice}
               onChange={(e) => setSelectedVideoDevice(e.target.value)}
-              className="w-full rounded-xl border-2 border-[#0A0A0A]/15 bg-white py-2 px-3 text-sm focus:border-[#0A0A0A] focus:outline-none"
+              className="w-full rounded-xl border-2 border-[var(--border-strong)]/15 bg-[var(--surface)] py-2 px-3 text-sm focus:border-[var(--border-strong)] focus:outline-none"
               style={{ fontFamily: "var(--font-body)" }}
             >
               {videoDevices.map((d) => (
@@ -227,7 +227,7 @@ export default function PreJoinLobby({
             <select
               value={selectedAudioDevice}
               onChange={(e) => setSelectedAudioDevice(e.target.value)}
-              className="w-full rounded-xl border-2 border-[#0A0A0A]/15 bg-white py-2 px-3 text-sm focus:border-[#0A0A0A] focus:outline-none"
+              className="w-full rounded-xl border-2 border-[var(--border-strong)]/15 bg-[var(--surface)] py-2 px-3 text-sm focus:border-[var(--border-strong)] focus:outline-none"
               style={{ fontFamily: "var(--font-body)" }}
             >
               {audioDevices.map((d) => (
