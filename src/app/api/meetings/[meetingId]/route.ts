@@ -203,16 +203,6 @@ export const DELETE = withHandler(async (req: NextRequest, context) => {
     { new: true, projection: { _id: 1, status: 1, calendarEventId: 1 } },
   );
 
-  // Clean up Google Calendar event if one was created
-  if (result?.calendarEventId) {
-    try {
-      await deleteEvent(userId, result.calendarEventId);
-    } catch {
-      // Calendar cleanup is best-effort — don't fail the meeting cancellation
-      // The event may already have been deleted externally
-    }
-  }
-
   if (!result) {
     // Distinguish "not found" from "forbidden" from "already cancelled"
     const meeting = await Meeting.findOne(filter)
@@ -225,6 +215,16 @@ export const DELETE = withHandler(async (req: NextRequest, context) => {
       throw new ForbiddenError("Only the host can cancel this meeting.");
     }
     throw new BadRequestError("Meeting is already ended or cancelled.");
+  }
+
+  // Clean up Google Calendar event if one was created
+  if (result.calendarEventId) {
+    try {
+      await deleteEvent(userId, result.calendarEventId);
+    } catch {
+      // Calendar cleanup is best-effort — don't fail the meeting cancellation
+      // The event may already have been deleted externally
+    }
   }
 
   return successResponse({ cancelled: true });

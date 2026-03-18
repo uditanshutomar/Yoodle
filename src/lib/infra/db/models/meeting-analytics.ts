@@ -68,10 +68,10 @@ const speakerStatSchema = new Schema<ISpeakerStat>(
 
 const scoreBreakdownSchema = new Schema<IScoreBreakdown>(
   {
-    agendaCoverage: { type: Number, default: 0 },
-    decisionDensity: { type: Number, default: 0 },
-    actionItemClarity: { type: Number, default: 0 },
-    participationBalance: { type: Number, default: 0 },
+    agendaCoverage: { type: Number, default: 0, min: 0, max: 100 },
+    decisionDensity: { type: Number, default: 0, min: 0, max: 100 },
+    actionItemClarity: { type: Number, default: 0, min: 0, max: 100 },
+    participationBalance: { type: Number, default: 0, min: 0, max: 100 },
   },
   { _id: false },
 );

@@ -8,7 +8,7 @@ export interface ICascadeConfig {
   scheduleNextMeeting: boolean;
 }
 
-export interface IMeetingSettings {
+export interface ITemplateMeetingSettings {
   maxParticipants?: number;
   waitingRoom?: boolean;
   muteOnJoin?: boolean;
@@ -23,7 +23,7 @@ export interface IMeetingTemplate {
   preMeetingChecklist: string[];
   cascadeConfig: ICascadeConfig;
   googleDocTemplateId?: string;
-  meetingSettings: IMeetingSettings;
+  meetingSettings: ITemplateMeetingSettings;
   usageCount: number;
   createdAt: Date;
   updatedAt: Date;
@@ -54,7 +54,7 @@ const meetingTemplateSchema = new Schema<IMeetingTemplateDocument>(
       waitingRoom: { type: Boolean },
       muteOnJoin: { type: Boolean },
     },
-    usageCount: { type: Number, default: 0 },
+    usageCount: { type: Number, default: 0, min: 0 },
   },
   { timestamps: true, collection: "meeting_templates" },
 );

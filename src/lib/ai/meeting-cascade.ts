@@ -249,6 +249,7 @@ export async function executeMeetingCascade(
 
   // Load meeting
   const meeting = await Meeting.findById(meetingId)
+    .select("-ghostMessages -ghostNotes")
     .populate("participants.userId", "email displayName")
     .lean();
 
@@ -267,25 +268,6 @@ export async function executeMeetingCascade(
 
   log.info({ meetingId, title: mtg.title }, "Starting meeting cascade");
 
-  // Step 1: create_mom_doc
-  if (!skipSet.has("create_mom_doc")) {
-    if (mtg.mom) {
-      try {
-        pushStep(await stepCreateMomDoc(userId, mtg));
-      } catch (err) {
-        pushStep({
-          step: "create_mom_doc",
-          status: "error",
-          summary: err instanceof Error ? err.message : "Unknown error creating MoM doc",
-        });
-      }
-    } else {
-      pushStep({ step: "create_mom_doc", status: "skipped", summary: "No MoM data on meeting" });
-    }
-  } else {
-    pushStep({ step: "create_mom_doc", status: "skipped", summary: "Skipped by user" });
-  }
-
   // Step 1b: update knowledge graph (non-blocking enrichment)
   if (mtg.mom) {
     try {
@@ -297,57 +279,32 @@ export async function executeMeetingCascade(
     }
   }
 
-  // Step 2: create_tasks
-  if (!skipSet.has("create_tasks")) {
-    if ((mtg.mom as any)?.actionItems?.length) {
-      try {
-        pushStep(await stepCreateTasks(userId, mtg));
-      } catch (err) {
-        pushStep({
-          step: "create_tasks",
-          status: "error",
-          summary: err instanceof Error ? err.message : "Unknown error creating tasks",
-        });
-      }
-    } else {
-      pushStep({ step: "create_tasks", status: "skipped", summary: "No action items in MoM" });
-    }
-  } else {
-    pushStep({ step: "create_tasks", status: "skipped", summary: "Skipped by user" });
-  }
+  // Run independent steps in parallel
+  const parallelSteps = await Promise.allSettled([
+    // Step 1: Create MoM doc
+    !skipSet.has("create_mom_doc") && mtg.mom
+      ? stepCreateMomDoc(userId, mtg).catch((err) => ({ step: "create_mom_doc", status: "error" as const, summary: err instanceof Error ? err.message : "Unknown error" }))
+      : Promise.resolve({ step: "create_mom_doc", status: "skipped" as const, summary: skipSet.has("create_mom_doc") ? "Skipped by user" : "No MoM data on meeting" }),
+    // Step 2: Create tasks
+    !skipSet.has("create_tasks") && (mtg.mom as any)?.actionItems?.length
+      ? stepCreateTasks(userId, mtg).catch((err) => ({ step: "create_tasks", status: "error" as const, summary: err instanceof Error ? err.message : "Unknown error" }))
+      : Promise.resolve({ step: "create_tasks", status: "skipped" as const, summary: skipSet.has("create_tasks") ? "Skipped by user" : "No action items in MoM" }),
+    // Step 3: Send follow-up
+    !skipSet.has("send_followup")
+      ? stepSendFollowup(userId, mtg).catch((err) => ({ step: "send_followup", status: "error" as const, summary: err instanceof Error ? err.message : "Unknown error" }))
+      : Promise.resolve({ step: "send_followup", status: "skipped" as const, summary: "Skipped by user" }),
+    // Step 4: Append sheet
+    !skipSet.has("append_sheet") && options?.analyticsSheetId
+      ? stepAppendSheet(userId, mtg, options.analyticsSheetId).catch((err) => ({ step: "append_sheet", status: "error" as const, summary: err instanceof Error ? err.message : "Unknown error" }))
+      : Promise.resolve({ step: "append_sheet", status: "skipped" as const, summary: skipSet.has("append_sheet") ? "Skipped by user" : "No analytics sheet ID provided" }),
+  ]);
 
-  // Step 3: send_followup
-  if (!skipSet.has("send_followup")) {
-    try {
-      pushStep(await stepSendFollowup(userId, mtg));
-    } catch (err) {
-      pushStep({
-        step: "send_followup",
-        status: "error",
-        summary: err instanceof Error ? err.message : "Unknown error sending follow-up",
-      });
-    }
-  } else {
-    pushStep({ step: "send_followup", status: "skipped", summary: "Skipped by user" });
-  }
-
-  // Step 4: append_sheet
-  if (!skipSet.has("append_sheet")) {
-    if (options?.analyticsSheetId) {
-      try {
-        pushStep(await stepAppendSheet(userId, mtg, options.analyticsSheetId));
-      } catch (err) {
-        pushStep({
-          step: "append_sheet",
-          status: "error",
-          summary: err instanceof Error ? err.message : "Unknown error appending to sheet",
-        });
-      }
+  for (const result of parallelSteps) {
+    if (result.status === "fulfilled") {
+      pushStep(result.value);
     } else {
-      pushStep({ step: "append_sheet", status: "skipped", summary: "No analytics sheet ID provided" });
+      pushStep({ step: "unknown", status: "error", summary: result.reason?.message || "Unknown error" });
     }
-  } else {
-    pushStep({ step: "append_sheet", status: "skipped", summary: "Skipped by user" });
   }
 
   // Step 5: notify (always last)

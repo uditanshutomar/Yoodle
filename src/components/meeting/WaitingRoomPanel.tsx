@@ -1,5 +1,6 @@
 "use client";
 
+import { useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { X, Clock, Check, Ban } from "lucide-react";
 import Avatar from "@/components/ui/Avatar";
@@ -36,10 +37,19 @@ export default function WaitingRoomPanel({
   onDeny,
   onAdmitAll,
 }: WaitingRoomPanelProps) {
+  const panelRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (isOpen) {
+      panelRef.current?.focus();
+    }
+  }, [isOpen]);
+
   return (
     <AnimatePresence>
       {isOpen && (
         <motion.div
+          ref={panelRef}
+          tabIndex={-1}
           className="w-80 h-full flex flex-col bg-white/95 backdrop-blur-sm border-l-2 border-[var(--border-strong)]"
           role="complementary"
           aria-label="Waiting room"

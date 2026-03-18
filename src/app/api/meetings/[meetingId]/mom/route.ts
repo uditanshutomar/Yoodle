@@ -163,7 +163,7 @@ export const POST = withHandler(
 
     // Generate MoM using Gemini
     const apiKey = process.env.GEMINI_API_KEY;
-    if (!apiKey) throw new Error("GEMINI_API_KEY not configured");
+    if (!apiKey) throw new BadRequestError("Meeting minutes generation is not available. Please contact your administrator.");
 
     const genAI = new GoogleGenerativeAI(apiKey);
     const model = genAI.getGenerativeModel({

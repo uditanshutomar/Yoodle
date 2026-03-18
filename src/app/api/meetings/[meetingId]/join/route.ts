@@ -21,58 +21,60 @@ const chatLog = createLogger("meetings:chat-link");
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function ensureMeetingConversation(meetingId: string, meeting: any) {
   try {
-    let conv = await Conversation.findOne({ meetingId: new mongoose.Types.ObjectId(meetingId) }).lean();
-    if (!conv) {
-      const participants = meeting.participants
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        .filter((p: any) => p.status === "joined" || p.status === "invited")
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        .map((p: any) => {
-          const uid = p.userId?._id || p.userId;
-          return {
-            userId: uid instanceof mongoose.Types.ObjectId ? uid : new mongoose.Types.ObjectId(uid.toString()),
-            role: uid.toString() === (meeting.hostId?._id || meeting.hostId).toString() ? "admin" as const : "member" as const,
-            agentEnabled: false,
-            muted: false,
-          };
-        });
-
-      if (participants.length < 2) return;
-
-      const hostId = meeting.hostId?._id || meeting.hostId;
-
-      conv = await Conversation.create({
-        type: "group",
-        name: `Meeting: ${(meeting.title as string) || (meeting.code as string)}`,
-        participants,
-        meetingId: new mongoose.Types.ObjectId(meetingId),
-        createdBy: hostId,
+    const participants = meeting.participants
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      .filter((p: any) => p.status === "joined" || p.status === "invited")
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      .map((p: any) => {
+        const uid = p.userId?._id || p.userId;
+        return {
+          userId: uid instanceof mongoose.Types.ObjectId ? uid : new mongoose.Types.ObjectId(uid.toString()),
+          role: uid.toString() === (meeting.hostId?._id || meeting.hostId).toString() ? "admin" as const : "member" as const,
+          agentEnabled: false,
+          muted: false,
+        };
       });
 
-      const msg = await DirectMessage.create({
-        conversationId: conv._id,
-        senderId: hostId,
-        senderType: "user",
-        content: "Meeting started — this group chat was created automatically.",
-        type: "system",
-      });
+    if (participants.length < 2) return;
 
-      await Conversation.updateOne(
-        { _id: conv._id },
-        {
-          $set: {
-            lastMessageAt: msg.createdAt,
-            lastMessagePreview: msg.content,
-            lastMessageSenderId: msg.senderId,
-          },
+    const hostId = meeting.hostId?._id || meeting.hostId;
+
+    const conv = await Conversation.findOneAndUpdate(
+      { meetingId: new mongoose.Types.ObjectId(meetingId) },
+      {
+        $setOnInsert: {
+          type: "group",
+          name: `Meeting: ${(meeting.title as string) || (meeting.code as string)}`,
+          participants: participants,
+          createdBy: hostId,
         },
-      );
+      },
+      { upsert: true, new: true },
+    );
 
-      try {
-        const redis = getRedisClient();
-        await redis.publish(`chat:${conv._id}`, JSON.stringify({ type: "message", message: msg }));
-      } catch (err) { chatLog.warn({ err }, "Redis publish failed"); }
-    }
+    const msg = await DirectMessage.create({
+      conversationId: conv._id,
+      senderId: hostId,
+      senderType: "user",
+      content: "Meeting started — this group chat was created automatically.",
+      type: "system",
+    });
+
+    await Conversation.updateOne(
+      { _id: conv._id },
+      {
+        $set: {
+          lastMessageAt: msg.createdAt,
+          lastMessagePreview: msg.content,
+          lastMessageSenderId: msg.senderId,
+        },
+      },
+    );
+
+    try {
+      const redis = getRedisClient();
+      await redis.publish(`chat:${conv._id}`, JSON.stringify({ type: "message", message: msg }));
+    } catch (err) { chatLog.warn({ err }, "Redis publish failed"); }
   } catch (err) {
     chatLog.warn({ err, meetingId }, "failed to create meeting conversation");
   }
@@ -90,6 +92,7 @@ function getHostUserId(meeting: { hostId: unknown }): string {
     return hostId._id.toString();
   }
 
+  chatLog.warn({ hostId: typeof hostId === 'object' ? JSON.stringify(hostId) : String(hostId) }, "Unable to resolve hostId to string");
   return "";
 }
 
@@ -200,7 +203,7 @@ export const POST = withHandler(async (req: NextRequest, context) => {
   }
 
   const meetingForAccess = await Meeting.findOne(filter)
-    .select("hostId settings status participants")
+    .select("hostId settings status participants -ghostMessages -ghostNotes")
     .lean();
   if (!meetingForAccess) {
     throw new NotFoundError("Meeting not found.");

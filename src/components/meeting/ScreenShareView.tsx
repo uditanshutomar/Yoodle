@@ -266,6 +266,8 @@ export default function ScreenShareView({
                                     exit={{ scale: 0, opacity: 0 }}
                                     transition={{ delay: i * 0.05, type: "spring", stiffness: 300, damping: 25 }}
                                     className="group relative flex flex-col items-center"
+                                    tabIndex={0}
+                                    aria-label={p.name}
                                 >
                                     <div
                                         className={`relative h-12 w-12 overflow-hidden rounded-full border-2 flex-shrink-0 ${p.isSpeaking ? "border-[#FFE600]" : "border-[var(--border-strong)]"

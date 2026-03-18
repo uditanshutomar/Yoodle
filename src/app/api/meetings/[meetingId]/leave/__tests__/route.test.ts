@@ -51,7 +51,10 @@ vi.mock("@/lib/google/calendar", () => ({
 }));
 
 // Mock Meeting model
-const mockFindOneAndUpdate = vi.fn().mockResolvedValue(null);
+const mockFindOneAndUpdateResult = vi.fn().mockResolvedValue(null);
+const mockFindOneAndUpdate = vi.fn(() => ({
+  select: vi.fn().mockImplementation(() => mockFindOneAndUpdateResult()),
+}));
 const mockFindById = vi.fn().mockReturnValue({
   populate: vi.fn().mockReturnValue({
     populate: vi.fn().mockReturnValue({
@@ -123,7 +126,7 @@ describe("POST /api/meetings/[meetingId]/leave", () => {
         { userId: { toString: () => OTHER_HOST }, status: "joined", joinedAt: new Date() },
       ],
     };
-    mockFindOneAndUpdate.mockResolvedValueOnce(fakeMeetingResult);
+    mockFindOneAndUpdateResult.mockResolvedValueOnce(fakeMeetingResult);
 
     const populatedMeeting = {
       _id: TEST_MEETING_ID,
@@ -152,7 +155,7 @@ describe("POST /api/meetings/[meetingId]/leave", () => {
 
   it("returns 404 when not in meeting", async () => {
     // findOneAndUpdate returns null (no match)
-    mockFindOneAndUpdate.mockResolvedValueOnce(null);
+    mockFindOneAndUpdateResult.mockResolvedValueOnce(null);
     // fallback findOne also returns null (meeting not found)
     mockFindOneChain.lean.mockResolvedValueOnce(null);
 

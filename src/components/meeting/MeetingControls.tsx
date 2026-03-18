@@ -1,6 +1,6 @@
 "use client";
 
-import { motion, AnimatePresence } from "framer-motion";
+import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 import {
   Mic,
   MicOff,
@@ -88,7 +88,7 @@ function ControlButton({
     >
       {children}
       {badge && (
-        <span className="absolute -top-1 -right-1 h-3 w-3 rounded-full bg-[#FF6B6B] border-2 border-[var(--border-strong)]" />
+        <span aria-hidden="true" className="absolute -top-1 -right-1 h-3 w-3 rounded-full bg-[#FF6B6B] border-2 border-[var(--border-strong)]" />
       )}
     </motion.button>
   );
@@ -118,6 +118,7 @@ export default function MeetingControls({
   onToggleHandRaise,
   onToggleLayout,
 }: MeetingControlsProps) {
+  const shouldReduceMotion = useReducedMotion();
   const [showReactions, setShowReactions] = useState(false);
 
   return (
@@ -249,7 +250,7 @@ export default function MeetingControls({
         <ControlButton
           onClick={onToggleChat}
           active={isChatOpen}
-          label="Chat (A)"
+          label={unreadChatCount > 0 ? `Chat — ${unreadChatCount} unread` : "Chat (A)"}
           badge={unreadChatCount > 0}
         >
           <MessageCircle
@@ -305,8 +306,8 @@ export default function MeetingControls({
           {isRecording && (
             <motion.span
               className="absolute -top-1 -right-1 h-3 w-3 rounded-full bg-[#FF6B6B]"
-              animate={{ opacity: [1, 0.3, 1] }}
-              transition={{ duration: 1, repeat: Infinity }}
+              animate={!shouldReduceMotion ? { opacity: [1, 0.3, 1] } : {}}
+              transition={!shouldReduceMotion ? { duration: 1, repeat: Infinity } : {}}
             />
           )}
         </ControlButton>

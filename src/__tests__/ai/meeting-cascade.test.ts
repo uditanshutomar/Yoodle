@@ -14,8 +14,10 @@ const mockMeetingUpdateOne = vi.fn().mockResolvedValue({ modifiedCount: 1 });
 vi.mock("@/lib/infra/db/models/meeting", () => ({
   default: {
     findById: (...args: unknown[]) => ({
-      populate: () => ({
-        lean: () => mockFindById(...args),
+      select: () => ({
+        populate: () => ({
+          lean: () => mockFindById(...args),
+        }),
       }),
     }),
     updateOne: (...args: unknown[]) => mockMeetingUpdateOne(...args),
@@ -186,10 +188,11 @@ describe("executeMeetingCascade", () => {
     const result = await executeMeetingCascade(USER_ID, MEETING_ID);
 
     // create_mom_doc, create_tasks, send_followup all produce tokens
+    // Tokens may be mock-generated ("undo_<action>") or real ("undo:<nanoid>")
     expect(result.undoTokens.length).toBe(3);
-    expect(result.undoTokens).toContain("undo_create_mom_doc");
-    expect(result.undoTokens).toContain("undo_create_tasks");
-    expect(result.undoTokens).toContain("undo_send_followup");
+    for (const token of result.undoTokens) {
+      expect(token).toMatch(/^undo[_:]/);
+    }
   });
 
   it("skips steps listed in skipSteps", async () => {

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { motion } from "framer-motion";
+import { motion, useReducedMotion } from "framer-motion";
 import { Video, VideoOff, Mic, MicOff, Monitor, Users, Copy, Check } from "lucide-react";
 import Button from "@/components/ui/Button";
 import { useMediaDevices } from "@/hooks/useMediaDevices";
@@ -43,6 +43,7 @@ export default function PreJoinLobby({
     error,
   } = useMediaDevices();
 
+  const shouldReduceMotion = useReducedMotion();
   const [joining, setJoining] = useState(false);
   const [codeCopied, setCodeCopied] = useState(false);
   const copyTimerRef = useRef<NodeJS.Timeout>(undefined);
@@ -141,8 +142,8 @@ export default function PreJoinLobby({
       {/* Video preview circle */}
       <motion.div
         className="relative w-64 h-64 rounded-full overflow-hidden border-4 border-[var(--border-strong)] shadow-[6px_6px_0_var(--border-strong)] bg-[#0A0A0A]"
-        animate={isVideoEnabled ? { scale: [1, 1.02, 1] } : {}}
-        transition={{ duration: 2, repeat: Infinity }}
+        animate={isVideoEnabled && !shouldReduceMotion ? { scale: [1, 1.02, 1] } : {}}
+        transition={!shouldReduceMotion ? { duration: 2, repeat: Infinity } : {}}
       >
         {stream && isVideoEnabled ? (
           <video
@@ -163,8 +164,8 @@ export default function PreJoinLobby({
         {isAudioEnabled && (
           <motion.div
             className="absolute bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-1 bg-[#0A0A0A]/70 rounded-full px-3 py-1"
-            animate={{ opacity: [0.7, 1, 0.7] }}
-            transition={{ duration: 1.5, repeat: Infinity }}
+            animate={!shouldReduceMotion ? { opacity: [0.7, 1, 0.7] } : {}}
+            transition={!shouldReduceMotion ? { duration: 1.5, repeat: Infinity } : {}}
           >
             <Mic size={12} className="text-green-400" />
             <span className="text-xs text-white">Mic on</span>

@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useEffect } from "react";
-import { motion } from "framer-motion";
+import { motion, useReducedMotion } from "framer-motion";
 import Image from "next/image";
 
 export interface Participant {
@@ -31,6 +31,7 @@ export default function ParticipantBubble({
     isSelf = false,
 }: ParticipantBubbleProps) {
     const { name, avatar, isMuted, isSpeaking, stream, isVideoOff, isHandRaised } = participant;
+    const shouldReduceMotion = useReducedMotion();
     const videoRef = useRef<HTMLVideoElement>(null);
 
     // Attach MediaStream to video element
@@ -143,10 +144,12 @@ export default function ParticipantBubble({
                         role="img"
                         aria-label={`${name} has raised their hand`}
                         initial={{ scale: 0, y: 10 }}
-                        animate={{ scale: 1, y: [0, -3, 0] }}
-                        transition={{
+                        animate={!shouldReduceMotion ? { scale: 1, y: [0, -3, 0] } : { scale: 1 }}
+                        transition={!shouldReduceMotion ? {
                             scale: { type: "spring", stiffness: 400, damping: 15 },
                             y: { duration: 1, repeat: Infinity, ease: "easeInOut" },
+                        } : {
+                            scale: { type: "spring", stiffness: 400, damping: 15 },
                         }}
                     >
                         <span className="text-sm leading-none" aria-hidden="true">✋</span>
@@ -166,13 +169,13 @@ export default function ParticipantBubble({
                             <motion.div
                                 key={i}
                                 className="w-[3px] rounded-full bg-[#0A0A0A]"
-                                animate={{ height: [3, 10, 3] }}
-                                transition={{
+                                animate={!shouldReduceMotion ? { height: [3, 10, 3] } : { height: 6 }}
+                                transition={!shouldReduceMotion ? {
                                     repeat: Infinity,
                                     duration: 0.6,
                                     delay: i * 0.15,
                                     ease: "easeInOut",
-                                }}
+                                } : {}}
                             />
                         ))}
                     </motion.div>

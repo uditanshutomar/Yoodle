@@ -3,7 +3,10 @@ import { withHandler } from "@/lib/infra/api/with-handler";
 import { successResponse } from "@/lib/infra/api/response";
 import { checkRateLimit } from "@/lib/infra/api/rate-limit";
 import { getUserIdFromRequest } from "@/lib/infra/auth/middleware";
+import { createLogger } from "@/lib/infra/logger";
 import connectDB from "@/lib/infra/db/client";
+
+const log = createLogger("analytics:trends");
 
 // ── Helpers ─────────────────────────────────────────────────────────
 
@@ -64,8 +67,8 @@ export const GET = withHandler(async (req: NextRequest) => {
   try {
     const { analyzeMeetingPatterns } = await import("@/lib/ai/meeting-patterns");
     patterns = await analyzeMeetingPatterns(userId);
-  } catch {
-    // Pattern analysis is non-critical — return empty array on failure
+  } catch (err) {
+    log.warn({ err, userId }, "Meeting pattern analysis failed, returning empty patterns");
     patterns = [];
   }
 

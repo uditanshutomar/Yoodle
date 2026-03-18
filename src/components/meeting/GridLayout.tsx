@@ -117,6 +117,7 @@ export default function GridLayout({
           <button
             onClick={() => setPage((p) => Math.max(0, p - 1))}
             disabled={clampedPage === 0}
+            aria-label="Previous page of participants"
             className="rounded-lg border-2 border-[var(--border-strong)] bg-[var(--surface)] px-3 py-1 text-sm font-bold shadow-[2px_2px_0_var(--border-strong)] transition-shadow hover:shadow-[4px_4px_0_var(--border-strong)] disabled:opacity-40"
             style={{ fontFamily: "var(--font-heading)" }}
           >
@@ -125,12 +126,15 @@ export default function GridLayout({
           <span
             className="text-sm font-bold text-[#0A0A0A]"
             style={{ fontFamily: "var(--font-heading)" }}
+            aria-live="polite"
+            aria-atomic="true"
           >
             {clampedPage + 1} / {totalPages}
           </span>
           <button
             onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
             disabled={clampedPage >= totalPages - 1}
+            aria-label="Next page of participants"
             className="rounded-lg border-2 border-[var(--border-strong)] bg-[var(--surface)] px-3 py-1 text-sm font-bold shadow-[2px_2px_0_var(--border-strong)] transition-shadow hover:shadow-[4px_4px_0_var(--border-strong)] disabled:opacity-40"
             style={{ fontFamily: "var(--font-heading)" }}
           >

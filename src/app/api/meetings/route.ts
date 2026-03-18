@@ -160,6 +160,14 @@ export const POST = withHandler(async (req: NextRequest) => {
 
   const code = generateMeetingCode();
 
+  const resolvedSettings = (settings || templateSettings) ? {
+    maxParticipants: settings?.maxParticipants ?? (templateSettings?.maxParticipants as number) ?? 25,
+    allowRecording: settings?.allowRecording ?? true,
+    allowScreenShare: settings?.allowScreenShare ?? true,
+    waitingRoom: settings?.waitingRoom ?? (templateSettings?.waitingRoom as boolean) ?? false,
+    muteOnJoin: settings?.muteOnJoin ?? (templateSettings?.muteOnJoin as boolean) ?? false,
+  } : undefined;
+
   const meeting = await Meeting.create({
     code,
     title: title || "Untitled Meeting",
@@ -178,15 +186,7 @@ export const POST = withHandler(async (req: NextRequest) => {
         joinedAt: new Date(),
       },
     ],
-    settings: settings || templateSettings
-      ? {
-          maxParticipants: settings?.maxParticipants ?? (templateSettings?.maxParticipants as number) ?? 25,
-          allowRecording: settings?.allowRecording ?? true,
-          allowScreenShare: settings?.allowScreenShare ?? true,
-          waitingRoom: settings?.waitingRoom ?? (templateSettings?.waitingRoom as boolean) ?? false,
-          muteOnJoin: settings?.muteOnJoin ?? (templateSettings?.muteOnJoin as boolean) ?? false,
-        }
-      : undefined,
+    settings: resolvedSettings,
   });
 
   // Auto-create Google Calendar event for scheduled meetings

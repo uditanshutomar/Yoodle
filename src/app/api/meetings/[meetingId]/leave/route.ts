@@ -72,7 +72,7 @@ export const POST = withHandler(async (req: NextRequest, context) => {
       },
     },
     { new: true },
-  );
+  ).select("-ghostMessages -ghostNotes");
 
   if (!result) {
     // Determine the reason for failure
@@ -186,13 +186,8 @@ export const POST = withHandler(async (req: NextRequest, context) => {
         log.warn({ err, meetingId: result._id }, "failed to post meeting-ended message");
       }
 
-      // Fetch MoM data once — used by steps 2 and 3
-      let meetingWithMom: MeetingWithMom | null = null;
-      try {
-        meetingWithMom = await Meeting.findById(result._id).select("mom title").lean();
-      } catch (err) {
-        log.warn({ err, meetingId: result._id }, "failed to fetch meeting MoM data");
-      }
+      // Use MoM data from the already-fetched result (no redundant DB read)
+      const meetingWithMom: MeetingWithMom | null = result as unknown as MeetingWithMom;
 
       // 2. Post MoM if it exists (independent of step 1)
       try {

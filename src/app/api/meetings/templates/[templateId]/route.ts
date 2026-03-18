@@ -7,6 +7,7 @@ import { getUserIdFromRequest } from "@/lib/infra/auth/middleware";
 import { checkRateLimit } from "@/lib/infra/api/rate-limit";
 import connectDB from "@/lib/infra/db/client";
 import MeetingTemplate from "@/lib/infra/db/models/meeting-template";
+import { BadRequestError } from "@/lib/infra/api/errors";
 
 // ── PUT /api/meetings/templates/[templateId] ────────────────────────
 
@@ -45,6 +46,19 @@ export const PUT = withHandler(async (req: NextRequest, ctx?: { params: Promise<
 
   const body = updateTemplateSchema.parse(await req.json());
 
+  const updateFields: Record<string, unknown> = {};
+  if (body.name !== undefined) updateFields.name = body.name;
+  if (body.description !== undefined) updateFields.description = body.description;
+  if (body.defaultDuration !== undefined) updateFields.defaultDuration = body.defaultDuration;
+  if (body.agendaSkeleton !== undefined) updateFields.agendaSkeleton = body.agendaSkeleton;
+  if (body.preMeetingChecklist !== undefined) updateFields.preMeetingChecklist = body.preMeetingChecklist;
+  if (body.cascadeConfig !== undefined) updateFields.cascadeConfig = body.cascadeConfig;
+  if (body.meetingSettings !== undefined) updateFields.meetingSettings = body.meetingSettings;
+
+  if (Object.keys(updateFields).length === 0) {
+    throw new BadRequestError("No fields to update.");
+  }
+
   await connectDB();
 
   const template = await MeetingTemplate.findOneAndUpdate(
@@ -52,8 +66,8 @@ export const PUT = withHandler(async (req: NextRequest, ctx?: { params: Promise<
       _id: new mongoose.Types.ObjectId(templateId),
       userId: new mongoose.Types.ObjectId(userId),
     },
-    { $set: body },
-    { new: true },
+    { $set: updateFields },
+    { new: true, runValidators: true },
   ).lean();
 
   if (!template) {

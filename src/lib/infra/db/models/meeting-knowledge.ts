@@ -1,10 +1,7 @@
 import mongoose, { Schema, Document, Model, Types } from "mongoose";
 
-export type KnowledgeNodeType =
-  | "topic"
-  | "decision"
-  | "person_expertise"
-  | "action_evolution";
+export const KNOWLEDGE_NODE_TYPES = ["topic", "decision", "person_expertise", "action_evolution"] as const;
+export type KnowledgeNodeType = (typeof KNOWLEDGE_NODE_TYPES)[number];
 
 export interface IKnowledgeEntry {
   meetingId: string;
@@ -47,7 +44,7 @@ const meetingKnowledgeSchema = new Schema<IMeetingKnowledgeDocument>(
     userId: { type: Schema.Types.ObjectId, ref: "User", required: true },
     nodeType: {
       type: String,
-      enum: ["topic", "decision", "person_expertise", "action_evolution"],
+      enum: KNOWLEDGE_NODE_TYPES,
       required: true,
     },
     key: { type: String, required: true, trim: true, lowercase: true },
