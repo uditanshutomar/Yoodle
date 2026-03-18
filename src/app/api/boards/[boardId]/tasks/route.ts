@@ -3,13 +3,13 @@ import mongoose from "mongoose";
 import { z } from "zod";
 import { nanoid } from "nanoid";
 import { withHandler } from "@/lib/infra/api/with-handler";
-import { successResponse, badRequest } from "@/lib/infra/api/response";
-import { NotFoundError } from "@/lib/infra/api/errors";
+import { successResponse } from "@/lib/infra/api/response";
+import { BadRequestError } from "@/lib/infra/api/errors";
 import { getUserIdFromRequest } from "@/lib/infra/auth/middleware";
 import { checkRateLimit } from "@/lib/infra/api/rate-limit";
 import connectDB from "@/lib/infra/db/client";
-import Board from "@/lib/infra/db/models/board";
 import Task from "@/lib/infra/db/models/task";
+import { findBoardWithAccess, verifyEditAccess } from "@/lib/board/helpers";
 
 /* ─── Validation ─── */
 
@@ -33,21 +33,9 @@ export const GET = withHandler(async (req: NextRequest, context) => {
   await checkRateLimit(req, "general");
   const userId = await getUserIdFromRequest(req);
   const { boardId } = await context!.params;
-
-  if (!mongoose.Types.ObjectId.isValid(boardId)) {
-    return badRequest("Invalid board ID");
-  }
-
   await connectDB();
 
-  const userOid = new mongoose.Types.ObjectId(userId);
-
-  // Verify board access
-  const board = await Board.findOne({
-    _id: new mongoose.Types.ObjectId(boardId),
-    $or: [{ ownerId: userOid }, { "members.userId": userOid }],
-  }).lean();
-  if (!board) throw new NotFoundError("Board not found");
+  const board = await findBoardWithAccess(boardId, userId);
 
   // Parse query filters
   const url = new URL(req.url);
@@ -55,7 +43,7 @@ export const GET = withHandler(async (req: NextRequest, context) => {
   const assigneeId = url.searchParams.get("assigneeId");
   const priority = url.searchParams.get("priority");
 
-  const filter: Record<string, unknown> = { boardId: new mongoose.Types.ObjectId(boardId) };
+  const filter: Record<string, unknown> = { boardId: board._id };
   if (columnId) filter.columnId = columnId;
   if (assigneeId) filter.assigneeId = new mongoose.Types.ObjectId(assigneeId);
   if (priority) filter.priority = priority;
@@ -74,39 +62,25 @@ export const POST = withHandler(async (req: NextRequest, context) => {
   await checkRateLimit(req, "general");
   const userId = await getUserIdFromRequest(req);
   const { boardId } = await context!.params;
-
-  if (!mongoose.Types.ObjectId.isValid(boardId)) {
-    return badRequest("Invalid board ID");
-  }
-
   const body = createTaskSchema.parse(await req.json());
   await connectDB();
 
   const userOid = new mongoose.Types.ObjectId(userId);
-  const boardOid = new mongoose.Types.ObjectId(boardId);
-
-  // Verify board access + editor role
-  const board = await Board.findOne({
-    _id: boardOid,
-    $or: [{ ownerId: userOid }, { "members.userId": userOid }],
-  }).lean();
-  if (!board) throw new NotFoundError("Board not found");
-
-  const member = board.members.find((m) => m.userId.toString() === userId);
-  if (member && member.role === "viewer") return badRequest("Viewers cannot create tasks");
+  const board = await findBoardWithAccess(boardId, userId);
+  verifyEditAccess(board, userId);
 
   // Validate columnId exists
   const column = board.columns.find((c) => c.id === body.columnId);
-  if (!column) return badRequest("Invalid columnId");
+  if (!column) throw new BadRequestError("Invalid columnId");
 
   // Calculate position (append to end of column)
-  const lastTask = await Task.findOne({ boardId: boardOid, columnId: body.columnId })
+  const lastTask = await Task.findOne({ boardId: board._id, columnId: body.columnId })
     .sort({ position: -1 })
     .lean();
   const position = lastTask ? lastTask.position + 1024 : 1024;
 
   const task = await Task.create({
-    boardId: boardOid,
+    boardId: board._id,
     columnId: body.columnId,
     position,
     title: body.title,

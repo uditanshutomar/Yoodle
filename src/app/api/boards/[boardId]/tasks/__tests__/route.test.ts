@@ -84,10 +84,10 @@ describe("GET /api/boards/[boardId]/tasks", () => {
     expect(body.data).toHaveLength(1);
   });
 
-  it("returns 400 for invalid board ID", async () => {
+  it("returns 404 for invalid board ID", async () => {
     const res = await GET(createRequest("GET"), makeContext("bad-id"));
     const body = await res.json();
-    expect(res.status).toBe(400);
+    expect(res.status).toBe(404);
     expect(body.success).toBe(false);
   });
 });
@@ -115,13 +115,13 @@ describe("POST /api/boards/[boardId]/tasks", () => {
     expect(body.success).toBe(true);
   });
 
-  it("returns 400 for invalid board ID", async () => {
+  it("returns 404 for invalid board ID", async () => {
     const res = await POST(
       createRequest("POST", undefined, { title: "New Task", columnId: "col-1" }),
       makeContext("bad-id"),
     );
     const body = await res.json();
-    expect(res.status).toBe(400);
+    expect(res.status).toBe(404);
     expect(body.success).toBe(false);
   });
 
@@ -138,7 +138,7 @@ describe("POST /api/boards/[boardId]/tasks", () => {
       makeContext(VALID_BOARD_ID),
     );
     const body = await res.json();
-    expect(res.status).toBe(400);
+    expect(res.status).toBe(403);
     expect(body.success).toBe(false);
     expect(body.error.message).toContain("Viewers");
   });

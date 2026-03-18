@@ -92,19 +92,20 @@ describe("GET /api/boards/[boardId]/tasks/[taskId]/comments", () => {
     expect(body.data[0].content).toBe("Great work!");
   });
 
-  it("returns 400 for invalid board ID", async () => {
+  it("returns 404 for invalid board ID", async () => {
     const res = await GET(createRequest("GET"), makeContext("bad-id", VALID_TASK_ID));
     const body = await res.json();
 
-    expect(res.status).toBe(400);
+    expect(res.status).toBe(404);
     expect(body.success).toBe(false);
   });
 
-  it("returns 400 for invalid task ID", async () => {
+  it("returns 404 for invalid task ID", async () => {
+    mockBoardFindOne.mockReturnValue({ lean: vi.fn().mockResolvedValue(boardDoc) });
     const res = await GET(createRequest("GET"), makeContext(VALID_BOARD_ID, "bad-id"));
     const body = await res.json();
 
-    expect(res.status).toBe(400);
+    expect(res.status).toBe(404);
     expect(body.success).toBe(false);
   });
 });
@@ -134,14 +135,14 @@ describe("POST /api/boards/[boardId]/tasks/[taskId]/comments", () => {
     expect(body.data.content).toBe("Looks good!");
   });
 
-  it("returns 400 for invalid IDs", async () => {
+  it("returns 404 for invalid IDs", async () => {
     const res = await POST(
       createRequest("POST", { content: "Hello" }),
       makeContext("bad-id", "bad-id"),
     );
     const body = await res.json();
 
-    expect(res.status).toBe(400);
+    expect(res.status).toBe(404);
     expect(body.success).toBe(false);
   });
 

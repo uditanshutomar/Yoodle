@@ -2,14 +2,14 @@ import { NextRequest } from "next/server";
 import mongoose from "mongoose";
 import { z } from "zod";
 import { withHandler } from "@/lib/infra/api/with-handler";
-import { successResponse, badRequest } from "@/lib/infra/api/response";
-import { NotFoundError } from "@/lib/infra/api/errors";
+import { successResponse } from "@/lib/infra/api/response";
+import { BadRequestError, NotFoundError } from "@/lib/infra/api/errors";
 import { getUserIdFromRequest } from "@/lib/infra/auth/middleware";
 import { checkRateLimit } from "@/lib/infra/api/rate-limit";
 import connectDB from "@/lib/infra/db/client";
-import Board from "@/lib/infra/db/models/board";
 import Task from "@/lib/infra/db/models/task";
 import TaskComment from "@/lib/infra/db/models/task-comment";
+import { findBoardWithAccess, verifyEditAccess } from "@/lib/board/helpers";
 
 /* ─── Validation ─── */
 
@@ -42,24 +42,17 @@ export const GET = withHandler(async (req: NextRequest, context) => {
   await checkRateLimit(req, "general");
   const userId = await getUserIdFromRequest(req);
   const { boardId, taskId } = await context!.params;
-
-  if (!mongoose.Types.ObjectId.isValid(boardId) || !mongoose.Types.ObjectId.isValid(taskId)) {
-    return badRequest("Invalid board or task ID");
-  }
-
   await connectDB();
 
-  const userOid = new mongoose.Types.ObjectId(userId);
+  const board = await findBoardWithAccess(boardId, userId);
 
-  const board = await Board.findOne({
-    _id: new mongoose.Types.ObjectId(boardId),
-    $or: [{ ownerId: userOid }, { "members.userId": userOid }],
-  }).lean();
-  if (!board) throw new NotFoundError("Board not found");
+  if (!mongoose.Types.ObjectId.isValid(taskId)) {
+    throw new NotFoundError("Task not found");
+  }
 
   const task = await Task.findOne({
     _id: new mongoose.Types.ObjectId(taskId),
-    boardId: new mongoose.Types.ObjectId(boardId),
+    boardId: board._id,
   }).lean();
   if (!task) throw new NotFoundError("Task not found");
 
@@ -72,29 +65,21 @@ export const PATCH = withHandler(async (req: NextRequest, context) => {
   await checkRateLimit(req, "general");
   const userId = await getUserIdFromRequest(req);
   const { boardId, taskId } = await context!.params;
-
-  if (!mongoose.Types.ObjectId.isValid(boardId) || !mongoose.Types.ObjectId.isValid(taskId)) {
-    return badRequest("Invalid board or task ID");
-  }
-
   const body = updateTaskSchema.parse(await req.json());
   await connectDB();
 
+  if (!mongoose.Types.ObjectId.isValid(taskId)) {
+    throw new NotFoundError("Task not found");
+  }
+
   const userOid = new mongoose.Types.ObjectId(userId);
-
-  const board = await Board.findOne({
-    _id: new mongoose.Types.ObjectId(boardId),
-    $or: [{ ownerId: userOid }, { "members.userId": userOid }],
-  }).lean();
-  if (!board) throw new NotFoundError("Board not found");
-
-  const member = board.members.find((m) => m.userId.toString() === userId);
-  if (member && member.role === "viewer") return badRequest("Viewers cannot edit tasks");
+  const board = await findBoardWithAccess(boardId, userId);
+  verifyEditAccess(board, userId);
 
   // Validate columnId exists on this board
   if (body.columnId !== undefined) {
     const colExists = board.columns.some((c) => c.id === body.columnId);
-    if (!colExists) return badRequest(`Invalid column ID: ${body.columnId}`);
+    if (!colExists) throw new BadRequestError(`Invalid column ID: ${body.columnId}`);
   }
 
   const updates: Record<string, unknown> = {};
@@ -131,7 +116,7 @@ export const PATCH = withHandler(async (req: NextRequest, context) => {
   // Log activity for key field changes
   const task = await Task.findOne({
     _id: new mongoose.Types.ObjectId(taskId),
-    boardId: new mongoose.Types.ObjectId(boardId),
+    boardId: board._id,
   }).lean();
   if (!task) throw new NotFoundError("Task not found");
 
@@ -168,27 +153,18 @@ export const DELETE = withHandler(async (req: NextRequest, context) => {
   await checkRateLimit(req, "general");
   const userId = await getUserIdFromRequest(req);
   const { boardId, taskId } = await context!.params;
-
-  if (!mongoose.Types.ObjectId.isValid(boardId) || !mongoose.Types.ObjectId.isValid(taskId)) {
-    return badRequest("Invalid board or task ID");
-  }
-
   await connectDB();
 
-  const userOid = new mongoose.Types.ObjectId(userId);
+  if (!mongoose.Types.ObjectId.isValid(taskId)) {
+    throw new NotFoundError("Task not found");
+  }
 
-  const board = await Board.findOne({
-    _id: new mongoose.Types.ObjectId(boardId),
-    $or: [{ ownerId: userOid }, { "members.userId": userOid }],
-  }).lean();
-  if (!board) throw new NotFoundError("Board not found");
-
-  const member = board.members.find((m) => m.userId.toString() === userId);
-  if (member && member.role === "viewer") return badRequest("Viewers cannot delete tasks");
+  const board = await findBoardWithAccess(boardId, userId);
+  verifyEditAccess(board, userId);
 
   const deleted = await Task.findOneAndDelete({
     _id: new mongoose.Types.ObjectId(taskId),
-    boardId: new mongoose.Types.ObjectId(boardId),
+    boardId: board._id,
   });
 
   if (!deleted) throw new NotFoundError("Task not found");

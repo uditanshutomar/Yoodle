@@ -82,13 +82,13 @@ describe("POST /api/boards/[boardId]/tasks/reorder", () => {
     expect(mockTaskBulkWrite).toHaveBeenCalledTimes(1);
   });
 
-  it("returns 400 for invalid board ID", async () => {
+  it("returns 404 for invalid board ID", async () => {
     const res = await POST(
       createRequest({ tasks: [] }),
       makeContext("bad-id"),
     );
     const body = await res.json();
-    expect(res.status).toBe(400);
+    expect(res.status).toBe(404);
     expect(body.success).toBe(false);
   });
 
@@ -109,7 +109,7 @@ describe("POST /api/boards/[boardId]/tasks/reorder", () => {
       makeContext(VALID_BOARD_ID),
     );
     const body = await res.json();
-    expect(res.status).toBe(400);
+    expect(res.status).toBe(403);
     expect(body.success).toBe(false);
     expect(body.error.message).toContain("Viewers");
   });

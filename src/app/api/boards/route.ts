@@ -2,9 +2,10 @@ import { NextRequest } from "next/server";
 import mongoose from "mongoose";
 import { z } from "zod";
 import { withHandler } from "@/lib/infra/api/with-handler";
-import { successResponse, badRequest } from "@/lib/infra/api/response";
+import { successResponse } from "@/lib/infra/api/response";
 import { getUserIdFromRequest } from "@/lib/infra/auth/middleware";
 import { checkRateLimit } from "@/lib/infra/api/rate-limit";
+import { BadRequestError, ConflictError } from "@/lib/infra/api/errors";
 import connectDB from "@/lib/infra/db/client";
 import Board from "@/lib/infra/db/models/board";
 import { generateDefaultColumns, generateDefaultLabels } from "@/lib/board/helpers";
@@ -53,15 +54,15 @@ export const POST = withHandler(async (req: NextRequest) => {
   // Personal boards: limit 1 per user
   if (body.scope === "personal") {
     const existing = await Board.findOne({ ownerId: userOid, scope: "personal" }).select("_id").lean();
-    if (existing) return badRequest("You already have a personal board");
+    if (existing) throw new ConflictError("You already have a personal board");
   }
 
   // Conversation boards: require valid conversationId
   if (body.scope === "conversation" && !body.conversationId) {
-    return badRequest("conversationId required for conversation boards");
+    throw new BadRequestError("conversationId required for conversation boards");
   }
   if (body.conversationId && !mongoose.Types.ObjectId.isValid(body.conversationId)) {
-    return badRequest("Invalid conversationId format");
+    throw new BadRequestError("Invalid conversationId format");
   }
 
   const board = await Board.create({

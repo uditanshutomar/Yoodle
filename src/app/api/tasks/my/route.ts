@@ -20,8 +20,7 @@ export const GET = withHandler(async (req: NextRequest) => {
   const limit = parseInt(searchParams.get("limit") || "50", 10);
 
   // Build match filter
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const matchFilter: Record<string, any> = {
+  const matchFilter: Record<string, unknown> = {
     $or: [{ assigneeId: userOid }, { creatorId: userOid }],
     completedAt: null,
   };

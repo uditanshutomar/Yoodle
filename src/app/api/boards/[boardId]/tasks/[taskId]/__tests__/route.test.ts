@@ -94,10 +94,10 @@ describe("GET /api/boards/[boardId]/tasks/[taskId]", () => {
     expect(body.data.title).toBe("Test Task");
   });
 
-  it("returns 400 for invalid IDs", async () => {
+  it("returns 404 for invalid IDs", async () => {
     const res = await GET(createRequest("GET"), makeContext("bad-id", "bad-id"));
     const body = await res.json();
-    expect(res.status).toBe(400);
+    expect(res.status).toBe(404);
     expect(body.success).toBe(false);
   });
 });
@@ -121,13 +121,13 @@ describe("PATCH /api/boards/[boardId]/tasks/[taskId]", () => {
     expect(body.data.title).toBe("Updated Task");
   });
 
-  it("returns 400 for invalid IDs", async () => {
+  it("returns 404 for invalid IDs", async () => {
     const res = await PATCH(
       createRequest("PATCH", { title: "Updated" }),
       makeContext("bad-id", "bad-id"),
     );
     const body = await res.json();
-    expect(res.status).toBe(400);
+    expect(res.status).toBe(404);
     expect(body.success).toBe(false);
   });
 });
@@ -149,13 +149,13 @@ describe("DELETE /api/boards/[boardId]/tasks/[taskId]", () => {
     expect(body.data.deleted).toBe(true);
   });
 
-  it("returns 400 for invalid IDs", async () => {
+  it("returns 404 for invalid IDs", async () => {
     const res = await DELETE(
       createRequest("DELETE"),
       makeContext("bad-id", "bad-id"),
     );
     const body = await res.json();
-    expect(res.status).toBe(400);
+    expect(res.status).toBe(404);
     expect(body.success).toBe(false);
   });
 });

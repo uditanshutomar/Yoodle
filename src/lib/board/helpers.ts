@@ -1,5 +1,6 @@
 import mongoose from "mongoose";
 import Board, { IBoardDocument } from "@/lib/infra/db/models/board";
+import { NotFoundError, ForbiddenError } from "@/lib/infra/api/errors";
 import { nanoid } from "nanoid";
 
 export function generateDefaultColumns() {
@@ -39,4 +40,35 @@ export async function getOrCreatePersonalBoard(
   }
 
   return board;
+}
+
+/**
+ * Find a board by ID and verify the user has access (owner or member).
+ * Throws NotFoundError if the board doesn't exist or user lacks access.
+ */
+export async function findBoardWithAccess(boardId: string, userId: string) {
+  if (!mongoose.Types.ObjectId.isValid(boardId)) {
+    throw new NotFoundError("Board not found");
+  }
+  const userOid = new mongoose.Types.ObjectId(userId);
+  const board = await Board.findOne({
+    _id: new mongoose.Types.ObjectId(boardId),
+    $or: [{ ownerId: userOid }, { "members.userId": userOid }],
+  }).lean();
+  if (!board) throw new NotFoundError("Board not found");
+  return board;
+}
+
+/**
+ * Verify the user has edit access (not a viewer) on the given board.
+ * Throws ForbiddenError if the user is a viewer.
+ */
+export function verifyEditAccess(
+  board: { members: Array<{ userId: { toString(): string }; role: string }> },
+  userId: string,
+): void {
+  const member = board.members.find((m) => m.userId.toString() === userId);
+  if (member && member.role === "viewer") {
+    throw new ForbiddenError("Viewers cannot perform this action");
+  }
 }

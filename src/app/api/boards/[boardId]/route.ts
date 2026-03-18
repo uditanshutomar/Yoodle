@@ -2,14 +2,15 @@ import { NextRequest } from "next/server";
 import mongoose from "mongoose";
 import { z } from "zod";
 import { withHandler } from "@/lib/infra/api/with-handler";
-import { successResponse, errorResponse } from "@/lib/infra/api/response";
-import { NotFoundError } from "@/lib/infra/api/errors";
+import { successResponse } from "@/lib/infra/api/response";
+import { ForbiddenError } from "@/lib/infra/api/errors";
 import { getUserIdFromRequest } from "@/lib/infra/auth/middleware";
 import { checkRateLimit } from "@/lib/infra/api/rate-limit";
 import connectDB from "@/lib/infra/db/client";
 import Board from "@/lib/infra/db/models/board";
 import Task from "@/lib/infra/db/models/task";
 import TaskComment from "@/lib/infra/db/models/task-comment";
+import { findBoardWithAccess, verifyEditAccess } from "@/lib/board/helpers";
 
 /* ─── Validation ─── */
 
@@ -38,21 +39,6 @@ const updateBoardSchema = z.object({
     .optional(),
 });
 
-/* ─── Helper: find board + verify access ─── */
-
-async function findBoardWithAccess(boardId: string, userId: string) {
-  if (!mongoose.Types.ObjectId.isValid(boardId)) {
-    throw new NotFoundError("Board not found");
-  }
-  const userOid = new mongoose.Types.ObjectId(userId);
-  const board = await Board.findOne({
-    _id: new mongoose.Types.ObjectId(boardId),
-    $or: [{ ownerId: userOid }, { "members.userId": userOid }],
-  }).lean();
-  if (!board) throw new NotFoundError("Board not found");
-  return board;
-}
-
 /* ─── GET /api/boards/[boardId] ─── */
 
 export const GET = withHandler(async (req: NextRequest, context) => {
@@ -75,13 +61,7 @@ export const PATCH = withHandler(async (req: NextRequest, context) => {
   await connectDB();
 
   const board = await findBoardWithAccess(boardId, userId);
-  const isOwner = board.ownerId.toString() === userId;
-  const member = board.members.find(
-    (m) => m.userId.toString() === userId,
-  );
-  if (!isOwner && (!member || (member.role !== "owner" && member.role !== "editor"))) {
-    return errorResponse("FORBIDDEN", "Insufficient permissions", 403);
-  }
+  verifyEditAccess(board, userId);
 
   const updates: Record<string, unknown> = {};
   if (body.title !== undefined) updates.title = body.title;
@@ -103,14 +83,16 @@ export const DELETE = withHandler(async (req: NextRequest, context) => {
 
   const board = await findBoardWithAccess(boardId, userId);
   if (board.ownerId.toString() !== userId) {
-    return errorResponse("FORBIDDEN", "Only the board owner can delete it", 403);
+    throw new ForbiddenError("Only the board owner can delete it");
   }
 
-  // Cascade: delete all tasks and their comments, then the board
+  // Cascade: delete all tasks and their comments in parallel, then the board
   const taskIds = await Task.find({ boardId: new mongoose.Types.ObjectId(boardId) }).distinct("_id");
   if (taskIds.length > 0) {
-    await TaskComment.deleteMany({ taskId: { $in: taskIds } });
-    await Task.deleteMany({ boardId: new mongoose.Types.ObjectId(boardId) });
+    await Promise.all([
+      TaskComment.deleteMany({ taskId: { $in: taskIds } }),
+      Task.deleteMany({ boardId: new mongoose.Types.ObjectId(boardId) }),
+    ]);
   }
   await Board.findByIdAndDelete(boardId);
   return successResponse({ deleted: true });
