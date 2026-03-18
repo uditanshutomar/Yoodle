@@ -24,7 +24,7 @@ export function getRedisClient(): Redis {
   });
 
   redis.on("error", (err) => {
-    logger.error({ err: err.message }, "Connection error");
+    logger.error({ err }, "Connection error");
   });
 
   redis.on("connect", () => {
@@ -56,7 +56,8 @@ export async function isRedisAvailable(): Promise<boolean> {
     const client = getRedisClient();
     const pong = await client.ping();
     return pong === "PONG";
-  } catch {
+  } catch (err) {
+    logger.warn({ err }, "Redis availability check failed");
     return false;
   }
 }

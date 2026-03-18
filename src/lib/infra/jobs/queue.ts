@@ -1,4 +1,7 @@
 import { Queue } from "bullmq";
+import { createLogger } from "@/lib/infra/logger";
+
+const logger = createLogger("jobs:queue");
 
 // -- Connection options -------------------------------------------------------
 
@@ -63,7 +66,17 @@ export function getQueue(name: string): Queue {
  * Redis connections held by BullMQ.
  */
 export async function closeAllQueues(): Promise<void> {
-  const closePromises = Array.from(queues.values()).map((q) => q.close());
-  await Promise.allSettled(closePromises);
+  const entries = Array.from(queues.entries());
+  const results = await Promise.allSettled(
+    entries.map(([, q]) => q.close()),
+  );
+  for (let i = 0; i < results.length; i++) {
+    if (results[i].status === "rejected") {
+      logger.error(
+        { err: (results[i] as PromiseRejectedResult).reason, queue: entries[i][0] },
+        "Failed to close queue during shutdown",
+      );
+    }
+  }
   queues.clear();
 }
