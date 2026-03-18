@@ -1,8 +1,9 @@
 import { NextRequest } from "next/server";
 import { withHandler } from "@/lib/infra/api/with-handler";
-import { successResponse, errorResponse } from "@/lib/infra/api/response";
+import { successResponse } from "@/lib/infra/api/response";
 import { checkRateLimit } from "@/lib/infra/api/rate-limit";
 import { getUserIdFromRequest } from "@/lib/infra/auth/middleware";
+import { NotFoundError, ForbiddenError } from "@/lib/infra/api/errors";
 import connectDB from "@/lib/infra/db/client";
 import { buildMeetingFilter } from "@/lib/meetings/helpers";
 
@@ -31,14 +32,14 @@ export const GET = withHandler(async (req: NextRequest, context) => {
   }).select("_id").lean();
 
   if (!meeting) {
-    return errorResponse("FORBIDDEN", "Not a participant in this meeting", 403);
+    throw new ForbiddenError("Not a participant in this meeting.");
   }
 
   const MeetingAnalytics = (await import("@/lib/infra/db/models/meeting-analytics")).default;
-  const analytics = await MeetingAnalytics.findOne({ meetingId }).lean();
+  const analytics = await MeetingAnalytics.findOne({ meetingId: meeting._id }).lean();
 
   if (!analytics) {
-    return errorResponse("NOT_FOUND", "No analytics available", 404);
+    throw new NotFoundError("No analytics available for this meeting.");
   }
 
   return successResponse(analytics);

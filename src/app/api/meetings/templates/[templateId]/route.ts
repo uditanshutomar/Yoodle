@@ -2,12 +2,12 @@ import { NextRequest } from "next/server";
 import { z } from "zod";
 import mongoose from "mongoose";
 import { withHandler } from "@/lib/infra/api/with-handler";
-import { successResponse, errorResponse } from "@/lib/infra/api/response";
+import { successResponse } from "@/lib/infra/api/response";
 import { getUserIdFromRequest } from "@/lib/infra/auth/middleware";
 import { checkRateLimit } from "@/lib/infra/api/rate-limit";
 import connectDB from "@/lib/infra/db/client";
 import MeetingTemplate from "@/lib/infra/db/models/meeting-template";
-import { BadRequestError } from "@/lib/infra/api/errors";
+import { BadRequestError, NotFoundError } from "@/lib/infra/api/errors";
 
 // ── PUT /api/meetings/templates/[templateId] ────────────────────────
 
@@ -41,7 +41,7 @@ export const PUT = withHandler(async (req: NextRequest, ctx?: { params: Promise<
   const { templateId } = await ctx!.params;
 
   if (!mongoose.Types.ObjectId.isValid(templateId)) {
-    return errorResponse("VALIDATION_ERROR", "Invalid template ID", 400);
+    throw new BadRequestError("Invalid template ID");
   }
 
   const body = updateTemplateSchema.parse(await req.json());
@@ -71,7 +71,7 @@ export const PUT = withHandler(async (req: NextRequest, ctx?: { params: Promise<
   ).lean();
 
   if (!template) {
-    return errorResponse("NOT_FOUND", "Template not found", 404);
+    throw new NotFoundError("Template not found");
   }
 
   return successResponse(template);
@@ -85,7 +85,7 @@ export const DELETE = withHandler(async (req: NextRequest, ctx?: { params: Promi
   const { templateId } = await ctx!.params;
 
   if (!mongoose.Types.ObjectId.isValid(templateId)) {
-    return errorResponse("VALIDATION_ERROR", "Invalid template ID", 400);
+    throw new BadRequestError("Invalid template ID");
   }
 
   await connectDB();
@@ -96,7 +96,7 @@ export const DELETE = withHandler(async (req: NextRequest, ctx?: { params: Promi
   });
 
   if (result.deletedCount === 0) {
-    return errorResponse("NOT_FOUND", "Template not found", 404);
+    throw new NotFoundError("Template not found");
   }
 
   return successResponse({ deleted: true });

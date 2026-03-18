@@ -2,11 +2,12 @@ import { NextRequest } from "next/server";
 import { z } from "zod";
 import mongoose from "mongoose";
 import { withHandler } from "@/lib/infra/api/with-handler";
-import { successResponse, errorResponse } from "@/lib/infra/api/response";
+import { successResponse } from "@/lib/infra/api/response";
 import { getUserIdFromRequest } from "@/lib/infra/auth/middleware";
 import { checkRateLimit } from "@/lib/infra/api/rate-limit";
 import connectDB from "@/lib/infra/db/client";
 import MeetingTemplate from "@/lib/infra/db/models/meeting-template";
+import { ConflictError } from "@/lib/infra/api/errors";
 
 // ── GET /api/meetings/templates ─────────────────────────────────────
 
@@ -72,11 +73,7 @@ export const POST = withHandler(async (req: NextRequest) => {
   }).lean();
 
   if (existing) {
-    return errorResponse(
-      "DUPLICATE_TEMPLATE",
-      `A template named "${body.name}" already exists`,
-      409,
-    );
+    throw new ConflictError(`A template named "${body.name}" already exists`);
   }
 
   const template = await MeetingTemplate.create({

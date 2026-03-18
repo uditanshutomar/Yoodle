@@ -39,6 +39,9 @@ async function ensureMeetingConversation(meetingId: string, meeting: any) {
 
     const hostId = meeting.hostId?._id || meeting.hostId;
 
+    // Check if conversation already exists before upserting
+    const existingConv = await Conversation.findOne({ meetingId: new mongoose.Types.ObjectId(meetingId) }).select("_id").lean();
+
     const conv = await Conversation.findOneAndUpdate(
       { meetingId: new mongoose.Types.ObjectId(meetingId) },
       {
@@ -52,29 +55,32 @@ async function ensureMeetingConversation(meetingId: string, meeting: any) {
       { upsert: true, new: true },
     );
 
-    const msg = await DirectMessage.create({
-      conversationId: conv._id,
-      senderId: hostId,
-      senderType: "user",
-      content: "Meeting started — this group chat was created automatically.",
-      type: "system",
-    });
+    // Only post the "Meeting started" system message when the conversation is newly created
+    if (!existingConv) {
+      const msg = await DirectMessage.create({
+        conversationId: conv._id,
+        senderId: hostId,
+        senderType: "user",
+        content: "Meeting started — this group chat was created automatically.",
+        type: "system",
+      });
 
-    await Conversation.updateOne(
-      { _id: conv._id },
-      {
-        $set: {
-          lastMessageAt: msg.createdAt,
-          lastMessagePreview: msg.content,
-          lastMessageSenderId: msg.senderId,
+      await Conversation.updateOne(
+        { _id: conv._id },
+        {
+          $set: {
+            lastMessageAt: msg.createdAt,
+            lastMessagePreview: msg.content,
+            lastMessageSenderId: msg.senderId,
+          },
         },
-      },
-    );
+      );
 
-    try {
-      const redis = getRedisClient();
-      await redis.publish(`chat:${conv._id}`, JSON.stringify({ type: "message", message: msg }));
-    } catch (err) { chatLog.warn({ err }, "Redis publish failed"); }
+      try {
+        const redis = getRedisClient();
+        await redis.publish(`chat:${conv._id}`, JSON.stringify({ type: "message", message: msg }));
+      } catch (err) { chatLog.warn({ err }, "Redis publish failed"); }
+    }
   } catch (err) {
     chatLog.warn({ err, meetingId }, "failed to create meeting conversation");
   }
@@ -92,8 +98,8 @@ function getHostUserId(meeting: { hostId: unknown }): string {
     return hostId._id.toString();
   }
 
-  chatLog.warn({ hostId: typeof hostId === 'object' ? JSON.stringify(hostId) : String(hostId) }, "Unable to resolve hostId to string");
-  return "";
+  chatLog.error({ hostId: typeof hostId === 'object' ? JSON.stringify(hostId) : String(hostId) }, "Unable to resolve hostId to string");
+  throw new Error("Unable to resolve meeting host ID");
 }
 
 function buildRoomSession(
@@ -248,12 +254,27 @@ export const POST = withHandler(async (req: NextRequest, context) => {
   }
 
   // ── 2. Rejoin (participant exists with status left/invited). ────
+  // Include $expr capacity guard so rejoins also respect maxParticipants.
   const rejoined = await Meeting.findOneAndUpdate(
     {
       ...filter,
       status: { $nin: ["ended", "cancelled"] },
       participants: {
         $elemMatch: { userId: userObjectId, status: { $ne: "joined" } },
+      },
+      $expr: {
+        $lt: [
+          {
+            $size: {
+              $filter: {
+                input: "$participants",
+                as: "p",
+                cond: { $eq: ["$$p.status", "joined"] },
+              },
+            },
+          },
+          "$settings.maxParticipants",
+        ],
       },
     },
     {

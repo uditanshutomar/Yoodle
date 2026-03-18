@@ -9,8 +9,11 @@ import { BadRequestError, NotFoundError, ForbiddenError } from "@/lib/infra/api/
 import connectDB from "@/lib/infra/db/client";
 import Meeting from "@/lib/infra/db/models/meeting";
 import { deleteEvent } from "@/lib/google/calendar";
+import { createLogger } from "@/lib/infra/logger";
 import "@/lib/infra/db/models/user"; // register User schema for .populate("hostId")
 import { buildMeetingFilter } from "@/lib/meetings/helpers";
+
+const log = createLogger("meetings:detail");
 
 // ── Validation ──────────────────────────────────────────────────────
 
@@ -221,9 +224,8 @@ export const DELETE = withHandler(async (req: NextRequest, context) => {
   if (result.calendarEventId) {
     try {
       await deleteEvent(userId, result.calendarEventId);
-    } catch {
-      // Calendar cleanup is best-effort — don't fail the meeting cancellation
-      // The event may already have been deleted externally
+    } catch (err) {
+      log.warn({ err, meetingId: result._id.toString(), calendarEventId: result.calendarEventId }, "Failed to delete calendar event on meeting cancellation");
     }
   }
 

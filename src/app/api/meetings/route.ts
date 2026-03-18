@@ -2,9 +2,10 @@ import { NextRequest } from "next/server";
 import { z } from "zod";
 import mongoose from "mongoose";
 import { withHandler } from "@/lib/infra/api/with-handler";
-import { successResponse, errorResponse } from "@/lib/infra/api/response";
+import { successResponse } from "@/lib/infra/api/response";
 import { checkRateLimit } from "@/lib/infra/api/rate-limit";
 import { getUserIdFromRequest } from "@/lib/infra/auth/middleware";
+import { BadRequestError, NotFoundError } from "@/lib/infra/api/errors";
 import connectDB from "@/lib/infra/db/client";
 import Meeting from "@/lib/infra/db/models/meeting";
 import "@/lib/infra/db/models/user"; // register User schema for .populate("hostId")
@@ -126,7 +127,7 @@ export const POST = withHandler(async (req: NextRequest) => {
 
   if (templateId) {
     if (!mongoose.Types.ObjectId.isValid(templateId)) {
-      return errorResponse("INVALID_TEMPLATE", "Invalid template ID", 400);
+      throw new BadRequestError("Invalid template ID");
     }
     const MeetingTemplate = (await import("@/lib/infra/db/models/meeting-template")).default;
     const template = await MeetingTemplate.findOne({
@@ -135,7 +136,7 @@ export const POST = withHandler(async (req: NextRequest) => {
     }).lean();
 
     if (!template) {
-      return errorResponse("TEMPLATE_NOT_FOUND", "Meeting template not found", 404);
+      throw new NotFoundError("Meeting template not found");
     }
 
     templateObjId = new mongoose.Types.ObjectId(templateId);
@@ -151,10 +152,8 @@ export const POST = withHandler(async (req: NextRequest) => {
 
   // Enforce max participants from feature flags
   if (settings?.maxParticipants && settings.maxParticipants > features.maxParticipantsPerRoom) {
-    return errorResponse(
-      "PARTICIPANT_LIMIT",
-      `Maximum ${features.maxParticipantsPerRoom} participants allowed on ${features.edition} edition`,
-      400,
+    throw new BadRequestError(
+      `Maximum ${features.maxParticipantsPerRoom} participants allowed on ${features.edition} edition`
     );
   }
 

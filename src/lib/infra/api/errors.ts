@@ -43,6 +43,13 @@ export class NotFoundError extends AppError {
   }
 }
 
+export class ConflictError extends AppError {
+  constructor(message = "Conflict", details?: unknown) {
+    super(message, "CONFLICT", 409, details);
+    this.name = "ConflictError";
+  }
+}
+
 export class RateLimitError extends AppError {
   constructor(
     public readonly retryAfter?: number,

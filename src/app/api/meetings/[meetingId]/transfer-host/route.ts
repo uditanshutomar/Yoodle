@@ -58,8 +58,20 @@ export const POST = withHandler(async (req: NextRequest, context) => {
         },
       },
     },
-    { $set: { hostId: new mongoose.Types.ObjectId(body.newHostUserId) } },
-    { new: true },
+    {
+      $set: {
+        hostId: new mongoose.Types.ObjectId(body.newHostUserId),
+        "participants.$[oldHost].role": "participant",
+        "participants.$[newHost].role": "host",
+      },
+    },
+    {
+      new: true,
+      arrayFilters: [
+        { "oldHost.userId": new mongoose.Types.ObjectId(userId) },
+        { "newHost.userId": new mongoose.Types.ObjectId(body.newHostUserId) },
+      ],
+    },
   );
 
   if (!result) {

@@ -1,8 +1,9 @@
 import { NextRequest } from "next/server";
+import mongoose from "mongoose";
 import { withHandler } from "@/lib/infra/api/with-handler";
-import { errorResponse } from "@/lib/infra/api/response";
 import { checkRateLimit } from "@/lib/infra/api/rate-limit";
 import { getUserIdFromRequest } from "@/lib/infra/auth/middleware";
+import { NotFoundError, BadRequestError } from "@/lib/infra/api/errors";
 import { getRedisClient } from "@/lib/infra/redis/client";
 import connectDB from "@/lib/infra/db/client";
 import { buildMeetingFilter } from "@/lib/meetings/helpers";
@@ -18,20 +19,21 @@ export const GET = withHandler(async (req: NextRequest, context) => {
   await connectDB();
   const Meeting = (await import("@/lib/infra/db/models/meeting")).default;
   const filter = buildMeetingFilter(meetingId);
+  const userObjectId = new mongoose.Types.ObjectId(userId);
   const meeting = await Meeting.findOne({
     ...filter,
     $or: [
-      { hostId: userId },
-      { "participants.userId": userId },
+      { hostId: userObjectId },
+      { "participants.userId": userObjectId },
     ],
   }).lean();
 
   if (!meeting) {
-    return errorResponse("NOT_FOUND", "Meeting not found", 404);
+    throw new NotFoundError("Meeting not found or you are not a participant.");
   }
 
   if (meeting.status !== "live") {
-    return errorResponse("BAD_REQUEST", "Meeting is not live", 400);
+    throw new BadRequestError("Meeting is not live.");
   }
 
   const encoder = new TextEncoder();
@@ -52,7 +54,7 @@ export const GET = withHandler(async (req: NextRequest, context) => {
             ),
           );
           controller.close();
-        } catch { /* controller may already be closed */ }
+        } catch (e) { if (!(e instanceof TypeError)) log.warn({ err: e, meetingId }, "Unexpected error closing SSE controller"); }
         return;
       }
 
@@ -65,7 +67,7 @@ export const GET = withHandler(async (req: NextRequest, context) => {
             ),
           );
           controller.close();
-        } catch { /* controller may already be closed */ }
+        } catch (e) { if (!(e instanceof TypeError)) log.warn({ err: e, meetingId }, "Unexpected error closing SSE controller"); }
       });
 
       sub.on("message", (_channel: string, message: string) => {
@@ -97,7 +99,7 @@ export const GET = withHandler(async (req: NextRequest, context) => {
         }
         try {
           controller.close();
-        } catch { /* controller may already be closed */ }
+        } catch (e) { if (!(e instanceof TypeError)) log.warn({ err: e, meetingId }, "Unexpected error closing SSE controller"); }
       });
     },
   });

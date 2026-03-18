@@ -179,7 +179,7 @@ describe("POST /api/meetings/templates", () => {
 
     expect(response.status).toBe(409);
     expect(body.success).toBe(false);
-    expect(body.error.code).toBe("DUPLICATE_TEMPLATE");
+    expect(body.error.code).toBe("CONFLICT");
   });
 
   it("returns 400 for invalid defaultDuration (below minimum)", async () => {

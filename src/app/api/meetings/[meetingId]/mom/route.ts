@@ -187,7 +187,7 @@ export const POST = withHandler(
       mom = JSON.parse(cleaned);
     } catch (parseErr) {
       log.error({ err: parseErr, responseText: responseText.slice(0, 500) }, "Failed to parse Gemini MoM response");
-      throw new Error("Failed to parse AI-generated MoM. Please try again.");
+      throw new BadRequestError("Failed to parse AI-generated meeting minutes. Please try again.");
     }
 
     // Save MoM to the meeting document

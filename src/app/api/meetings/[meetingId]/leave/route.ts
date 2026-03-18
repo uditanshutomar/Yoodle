@@ -350,5 +350,9 @@ export const POST = withHandler(async (req: NextRequest, context) => {
     .populate("participants.userId", "name email displayName avatarUrl")
     .lean();
 
+  if (!populated) {
+    throw new NotFoundError("Meeting was removed after leave.");
+  }
+
   return successResponse({ meeting: populated });
 });

@@ -323,7 +323,7 @@ describe("POST /api/meetings", () => {
 
     expect(response.status).toBe(400);
     expect(body.success).toBe(false);
-    expect(body.error.code).toBe("PARTICIPANT_LIMIT");
+    expect(body.error.code).toBe("BAD_REQUEST");
   });
 
   it("accepts valid settings within the feature flag limit", async () => {
