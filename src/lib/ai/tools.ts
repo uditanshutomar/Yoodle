@@ -2949,7 +2949,7 @@ export async function executeWorkspaceTool(
           if (!mongoose.Types.ObjectId.isValid(meetingId)) {
             return { success: false, summary: "Invalid meeting ID." };
           }
-          const meetingDoc = await Meeting.findById(meetingId).select("participants").lean();
+          const meetingDoc = await Meeting.findById(meetingId).select("participants title").lean();
           if (!meetingDoc) return { success: false, summary: "Meeting not found." };
           const isParticipant = meetingDoc.participants?.some(
             (p: { userId: { toString(): string } }) => p.userId.toString() === userId
@@ -2958,7 +2958,28 @@ export async function executeWorkspaceTool(
 
           const analytics = await MeetingAnalytics.findOne({ meetingId: new mongoose.Types.ObjectId(meetingId) }).lean();
           if (!analytics) return { success: true, summary: "No analytics available for this meeting yet.", data: null };
-          return { success: true, summary: `Analytics for meeting ${meetingId}`, data: analytics };
+          const analyticsAny = analytics as unknown as Record<string, unknown>;
+          return {
+            success: true,
+            summary: `Analytics for meeting ${meetingId}`,
+            data: {
+              card: {
+                type: "meeting_analytics" as const,
+                meetingTitle: meetingDoc.title || "Meeting",
+                score: (analyticsAny.meetingScore as number) ?? 0,
+                scoreBreakdown: {
+                  engagement: (analyticsAny.engagementScore as number) ?? 0,
+                  actionability: (analyticsAny.actionabilityScore as number) ?? 0,
+                  timeManagement: (analyticsAny.timeManagementScore as number) ?? 0,
+                },
+                speakerStats: ((analyticsAny.speakerStats as Array<{ name: string; talkTimePercent: number }>) || []).map((s) => ({
+                  name: s.name,
+                  talkPercent: s.talkTimePercent,
+                })),
+                highlights: ((analyticsAny.highlights as string[]) || []),
+              },
+            },
+          };
         }
 
         // Aggregate trends
@@ -2998,12 +3019,16 @@ export async function executeWorkspaceTool(
           success: true,
           summary: `Meeting trends (${timeRange}): ${userMeetings.length} meetings, avg score ${avgScore ?? "N/A"}`,
           data: {
-            timeRange,
-            totalMeetings: userMeetings.length,
-            avgScore,
-            totalDecisions,
-            totalActionItems,
-            analyticsCount: analyticsRecords.length,
+            card: {
+              type: "data_summary" as const,
+              title: `Meeting Trends (${timeRange})`,
+              items: [
+                { label: "Total Meetings", value: String(userMeetings.length) },
+                { label: "Avg Score", value: avgScore !== null ? String(avgScore) : "N/A" },
+                { label: "Total Decisions", value: String(totalDecisions) },
+                { label: "Total Action Items", value: String(totalActionItems) },
+              ],
+            },
           },
         };
       }
