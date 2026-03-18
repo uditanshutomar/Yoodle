@@ -4,19 +4,24 @@ import { withHandler } from "@/lib/infra/api/with-handler";
 import { successResponse } from "@/lib/infra/api/response";
 import { checkRateLimit } from "@/lib/infra/api/rate-limit";
 import { getUserIdFromRequest } from "@/lib/infra/auth/middleware";
-import { BadRequestError, ForbiddenError } from "@/lib/infra/api/errors";
+import { BadRequestError, ForbiddenError, NotFoundError } from "@/lib/infra/api/errors";
 import connectDB from "@/lib/infra/db/client";
 import Transcript from "@/lib/infra/db/models/transcript";
 import Meeting from "@/lib/infra/db/models/meeting";
+import User from "@/lib/infra/db/models/user";
 import mongoose from "mongoose";
 import { getSTTProvider } from "@/lib/stt";
 
 async function verifyMeetingParticipant(userId: string, meetingId: string): Promise<boolean> {
-  const meeting = await Meeting.findById(meetingId).select("hostId participants").lean();
+  const meeting = await Meeting.findById(meetingId).select("hostId participants status").lean();
   if (!meeting) return false;
+  // Only allow active meetings
+  if (!["scheduled", "live"].includes(meeting.status)) return false;
   return (
     meeting.hostId.toString() === userId ||
-    meeting.participants.some((p: { userId: { toString: () => string } }) => p.userId.toString() === userId)
+    meeting.participants.some((p: { userId: { toString: () => string }; status?: string }) =>
+      p.userId.toString() === userId && (!p.status || p.status === "joined")
+    )
   );
 }
 
@@ -40,25 +45,15 @@ export const POST = withHandler(async (req: NextRequest) => {
   const formData = await req.formData();
   const audioFile = formData.get("audio") as File | null;
   const meetingId = formData.get("meetingId") as string | null;
-  const speakerName = formData.get("speakerName") as string | null;
-  const speakerId = formData.get("speakerId") as string | null;
   const timestamp = formData.get("timestamp") as string | null;
 
-  if (!audioFile || !meetingId || !speakerName || !speakerId) {
-    throw new BadRequestError("Missing required fields: audio, meetingId, speakerName, speakerId");
+  if (!audioFile || !meetingId) {
+    throw new BadRequestError("Missing required fields: audio, meetingId");
   }
 
   // Validate meetingId before using as ObjectId
   if (!mongoose.Types.ObjectId.isValid(meetingId)) {
     throw new BadRequestError("Invalid meeting ID.");
-  }
-
-  // Validate speakerName length and speakerId format
-  if (speakerName.length > 200) {
-    throw new BadRequestError("Speaker name is too long (max 200 characters).");
-  }
-  if (!mongoose.Types.ObjectId.isValid(speakerId)) {
-    throw new BadRequestError("Invalid speaker ID format.");
   }
 
   // Validate audio file size (max 25 MB for a single chunk)
@@ -72,6 +67,10 @@ export const POST = withHandler(async (req: NextRequest) => {
     throw new ForbiddenError("You are not a participant in this meeting.");
   }
 
+  // Resolve speaker identity server-side — never trust client-supplied speakerId/speakerName
+  const callerUser = await User.findById(userId).select("name displayName").lean();
+  const resolvedSpeakerName = callerUser?.displayName || callerUser?.name || "Unknown";
+
   // Get the configured STT provider and transcribe
   const provider = await getSTTProvider();
   const audioBuffer = Buffer.from(await audioFile.arrayBuffer());
@@ -82,7 +81,7 @@ export const POST = withHandler(async (req: NextRequest) => {
     return successResponse({ text: "", stored: false });
   }
 
-  // Store in MongoDB
+  // Store in MongoDB — use authenticated userId as speakerId
   await Transcript.findOneAndUpdate(
     { meetingId: new mongoose.Types.ObjectId(meetingId) },
     {
@@ -90,8 +89,8 @@ export const POST = withHandler(async (req: NextRequest) => {
         segments: {
           $each: [
             {
-              speaker: speakerName,
-              speakerId,
+              speaker: resolvedSpeakerName,
+              speakerId: userId,
               text,
               timestamp: timestamp && !isNaN(Number(timestamp)) ? parseInt(timestamp, 10) : Date.now(),
             },

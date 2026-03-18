@@ -119,16 +119,17 @@ describe("GET /api/health", () => {
     expect(body.services.redis).toBe("disconnected");
   });
 
-  it("returns 503 with status 'unhealthy' when connectDB throws", async () => {
+  it("returns 503 with database 'error' when connectDB throws (redis still checked independently)", async () => {
     mockedConnectDB.mockRejectedValue(new Error("Connection refused"));
 
     const response = await GET();
     const body = await response.json();
 
     expect(response.status).toBe(503);
-    expect(body.status).toBe("unhealthy");
+    expect(body.status).toBe("degraded");
     expect(body.services.database).toBe("error");
-    expect(body.services.redis).toBe("error");
+    // Redis is checked independently via Promise.allSettled — not masked by DB failure
+    expect(body.services.redis).toBe("connected");
   });
 
   it("calls connectDB and isRedisAvailable in parallel", async () => {

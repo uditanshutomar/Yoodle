@@ -65,6 +65,11 @@ export const POST = withHandler(async (req: NextRequest) => {
     throw new NotFoundError("Meeting not found.");
   }
 
+  // ── Meeting must be active ──────────────────────────────────────
+  if (!["scheduled", "live"].includes(meeting.status)) {
+    throw new ForbiddenError("Meeting is not active.");
+  }
+
   // ── Verify caller is a participant ─────────────────────────────
   const isParticipant =
     meeting.hostId.toString() === userId ||

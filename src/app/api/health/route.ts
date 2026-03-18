@@ -20,20 +20,32 @@ export async function GET() {
   const start = Date.now();
 
   try {
-    // Check MongoDB and Redis in parallel
-    const [mongoose, redisOk] = await Promise.all([
+    // Check MongoDB and Redis independently — allSettled prevents one failure
+    // from masking the other's status in the response.
+    const [dbResult, redisResult] = await Promise.allSettled([
       connectDB(),
       isRedisAvailable(),
     ]);
 
-    const dbState = mongoose.connection.readyState;
-    const dbConnected = dbState === 1; // 1 = connected
+    let dbConnected = false;
+    if (dbResult.status === "fulfilled") {
+      dbConnected = dbResult.value.connection.readyState === 1;
+    } else {
+      log.error({ err: dbResult.reason }, "health check: database probe failed");
+    }
+
+    let redisOk = false;
+    if (redisResult.status === "fulfilled") {
+      redisOk = redisResult.value === true;
+    } else {
+      log.error({ err: redisResult.reason }, "health check: redis probe failed");
+    }
 
     const latency = Date.now() - start;
 
     const services = {
-      database: dbConnected ? "connected" : "disconnected",
-      redis: redisOk ? "connected" : "disconnected",
+      database: dbResult.status === "rejected" ? "error" : dbConnected ? "connected" : "disconnected",
+      redis: redisResult.status === "rejected" ? "error" : redisOk ? "connected" : "disconnected",
     };
 
     // Determine overall status

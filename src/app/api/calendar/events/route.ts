@@ -11,6 +11,12 @@ import { hasGoogleAccess } from "@/lib/google/client";
 import connectDB from "@/lib/infra/db/client";
 import User from "@/lib/infra/db/models/user";
 
+// ── Helpers ──────────────────────────────────────────────────────────
+
+async function requireGoogleAccess(userId: string): Promise<void> {
+  await requireGoogleAccess(userId);
+}
+
 // ── Validation ──────────────────────────────────────────────────────
 
 const querySchema = z.object({
@@ -61,13 +67,7 @@ export const GET = withHandler(async (req: NextRequest) => {
   await checkRateLimit(req, "calendar");
   const userId = await getUserIdFromRequest(req);
 
-  // Check if user has Google access
-  const hasAccess = await hasGoogleAccess(userId);
-  if (!hasAccess) {
-    throw new ForbiddenError(
-      "Google Calendar not connected. Connect your Google account in Settings.",
-    );
-  }
+  await requireGoogleAccess(userId);
 
   const searchParams = req.nextUrl.searchParams;
   const { timeMin, timeMax, maxResults } = querySchema.parse({
@@ -105,12 +105,7 @@ export const POST = withHandler(async (req: NextRequest) => {
   await checkRateLimit(req, "calendar");
   const userId = await getUserIdFromRequest(req);
 
-  const hasAccess = await hasGoogleAccess(userId);
-  if (!hasAccess) {
-    throw new ForbiddenError(
-      "Google Calendar not connected. Connect your Google account in Settings.",
-    );
-  }
+  await requireGoogleAccess(userId);
 
   const body = createEventSchema.parse(await req.json());
 
@@ -150,12 +145,7 @@ export const PATCH = withHandler(async (req: NextRequest) => {
   await checkRateLimit(req, "calendar");
   const userId = await getUserIdFromRequest(req);
 
-  const hasAccess = await hasGoogleAccess(userId);
-  if (!hasAccess) {
-    throw new ForbiddenError(
-      "Google Calendar not connected. Connect your Google account in Settings.",
-    );
-  }
+  await requireGoogleAccess(userId);
 
   const body = updateEventSchema.parse(await req.json());
   const { eventId, ...updates } = body;
@@ -174,16 +164,11 @@ export const DELETE = withHandler(async (req: NextRequest) => {
   await checkRateLimit(req, "calendar");
   const userId = await getUserIdFromRequest(req);
 
-  const hasAccess = await hasGoogleAccess(userId);
-  if (!hasAccess) {
-    throw new ForbiddenError(
-      "Google Calendar not connected. Connect your Google account in Settings.",
-    );
-  }
+  await requireGoogleAccess(userId);
 
   const eventId = req.nextUrl.searchParams.get("eventId");
-  if (!eventId) {
-    throw new BadRequestError("eventId query parameter is required.");
+  if (!eventId || eventId.length > 200) {
+    throw new BadRequestError("eventId query parameter is required and must be ≤200 characters.");
   }
 
   await deleteEvent(userId, eventId);
