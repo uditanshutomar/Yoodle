@@ -14,6 +14,11 @@ interface MeetingData {
   code: string;
   status: string;
   participants: { userId: string; status: string }[];
+  artifacts?: {
+    momDocUrl?: string;
+    presentationUrl?: string;
+    folderUrl?: string;
+  };
 }
 
 export default function MeetingLobbyPage() {
@@ -198,12 +203,60 @@ export default function MeetingLobbyPage() {
   }
 
   return (
-    <PreJoinLobby
-      meetingId={meetingId}
-      meetingTitle={meeting.title}
-      meetingCode={meeting.code}
-      participantCount={meeting.participants.filter((p) => p.status === "joined").length}
-      onJoin={submitJoin}
-    />
+    <div>
+      {/* Post-Meeting Artifacts */}
+      {meeting.status === "ended" && meeting.artifacts && (
+        Object.values(meeting.artifacts).some(Boolean) && (
+          <div className="rounded-2xl border-2 border-[var(--border-strong)] bg-[var(--surface)] p-4 space-y-3 mb-4">
+            <h3
+              className="text-sm font-bold text-[var(--text-primary)]"
+              style={{ fontFamily: "var(--font-heading)" }}
+            >
+              Meeting Artifacts
+            </h3>
+            <div className="flex flex-wrap gap-2">
+              {meeting.artifacts.momDocUrl && (
+                <a
+                  href={meeting.artifacts.momDocUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[var(--surface-hover)] border border-[var(--border)] text-xs font-medium text-[var(--text-primary)] hover:border-[#FFE600] transition-colors"
+                >
+                  📄 Meeting Notes
+                </a>
+              )}
+              {meeting.artifacts.presentationUrl && (
+                <a
+                  href={meeting.artifacts.presentationUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[var(--surface-hover)] border border-[var(--border)] text-xs font-medium text-[var(--text-primary)] hover:border-[#FFE600] transition-colors"
+                >
+                  📊 Slides
+                </a>
+              )}
+              {meeting.artifacts.folderUrl && (
+                <a
+                  href={meeting.artifacts.folderUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[var(--surface-hover)] border border-[var(--border)] text-xs font-medium text-[var(--text-primary)] hover:border-[#FFE600] transition-colors"
+                >
+                  📁 Drive Folder
+                </a>
+              )}
+            </div>
+          </div>
+        )
+      )}
+
+      <PreJoinLobby
+        meetingId={meetingId}
+        meetingTitle={meeting.title}
+        meetingCode={meeting.code}
+        participantCount={(meeting.participants || []).filter((p) => p.status === "joined").length}
+        onJoin={submitJoin}
+      />
+    </div>
   );
 }
