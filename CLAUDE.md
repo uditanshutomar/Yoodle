@@ -2,22 +2,25 @@
 
 ## Project Overview
 
-Yoodle is a Next.js App Router application for meetings, collaboration, and AI-powered workspace management. It integrates Google Workspace APIs (Gmail, Calendar, Drive, Sheets, Slides, Docs), LiveKit for real-time communication, Deepgram for speech-to-text, and Gemini for AI.
+Yoodle is a Next.js App Router application for meetings, collaboration, and AI-powered workspace management. It integrates Google Workspace APIs (Gmail, Calendar, Drive, Sheets, Slides, Docs), LiveKit for real-time communication, Deepgram for speech-to-text, and Gemini for AI. The AI assistant is called "Yoodler".
 
 ## Tech Stack
 
-- **Framework:** Next.js 15 (App Router)
+- **Framework:** Next.js 16 (App Router, Turbopack)
+- **UI:** React 19.2
 - **Language:** TypeScript (strict mode)
-- **Database:** MongoDB via Mongoose
+- **Database:** MongoDB via Mongoose 9.3
 - **Cache/Pub-Sub:** Redis (ioredis)
-- **Testing:** Vitest (`npx vitest run`)
+- **AI SDK:** `@google/genai` (unified Google GenAI SDK — `@google/generative-ai` is deprecated, do not use)
+- **Default Gemini model:** `gemini-3.1-pro-preview`
+- **Testing:** Vitest 4.1 (`npx vitest run`)
 - **Build:** `npx next build`
 - **Linting:** ESLint with React Compiler rules (no ref access during render)
 
 ## Commands
 
 ```bash
-npx vitest run          # Run all tests (763 tests, ~7s)
+npx vitest run          # Run all tests (905 tests, ~9s)
 npx next build          # Production build with TypeScript + ESLint checks
 npx next dev            # Development server
 ```
@@ -46,6 +49,7 @@ npx next dev            # Development server
 - `authenticateRequest(req)` — full auth check including user blacklist/ban status
 - Google OAuth tokens in `user.googleTokens` — auto-refreshed via `getGoogleClientForUser()`
 - JWT secret in `process.env.JWT_SECRET`, OAuth credentials in `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET`
+- Refresh tokens use a separate `JWT_REFRESH_SECRET` (not the same as `JWT_SECRET`)
 
 ### MongoDB
 
@@ -61,13 +65,36 @@ npx next dev            # Development server
 - `CircuitBreakerOpenError` is excluded from retries (retrying an open breaker is pointless)
 - Helper: `getGoogleServices(userId)` returns all authenticated API clients
 
+### Gemini AI SDK
+
+- Uses `@google/genai` SDK (unified Google GenAI SDK — do **not** use the deprecated `@google/generative-ai`)
+- Singleton client via `getClient()` from `src/lib/ai/gemini.ts`
+- Model name via `getModelName()` (defaults to `gemini-3.1-pro-preview`)
+- Streaming: `ai.models.generateContentStream({ model, contents, config })`
+- Non-streaming: `ai.models.generateContent({ model, contents })`
+- Response text: `result.text` (getter, not method)
+- Function calling types: `Type` (not `SchemaType`), `FunctionCallingConfigMode`, `Tool`
+
 ### External Services
 
-- **Circuit breakers** in `src/lib/infra/circuit-breaker.ts` for Google (5 failures / 60s), Deepgram (3 / 30s), LiveKit (3 / 45s)
+- **Circuit breakers** in `src/lib/infra/circuit-breaker.ts` for Google (5 failures / 60s), Deepgram (3 / 30s), LiveKit (3 / 45s), Gemini (5 failures / 60s)
 - Half-open state allows one probe request at a time (`probeInFlight` guard prevents probe storms)
 - **Retry utility** in `src/lib/utils/retry.ts` — `withRetry()` and `isTransientError()`
 - `isTransientError()` checks `error.status`, `error.response.status`, `error.code`, and message heuristics
 - **Note:** Circuit breaker state is in-memory — not shared across serverless instances
+
+### Redis Caching
+
+- `getCached<T>(key)`, `setCache(key, value, ttlSeconds)`, `invalidateCache(key)` from `src/lib/infra/redis/cache.ts`
+- All cache operations are non-fatal (try/catch, fall through to DB)
+- Current cached endpoints: session (60s), profile (60s), conversations (15s), unread count (10s)
+- Cache invalidation on writes (messages invalidate conversations + unread for all participants)
+
+### Shared Redis Pub/Sub
+
+- `sharedSubscriber` from `src/lib/infra/redis/pubsub.ts`
+- Single Redis connection for all SSE subscribers (instead of one per client)
+- In-process fan-out with reference counting per channel
 
 ### Client-Side Hooks
 
@@ -102,6 +129,16 @@ npx next dev            # Development server
 - `features.isCloud`, `features.ghostRooms`, `features.liveCaptions`, `features.maxParticipantsPerRoom`, etc.
 - Community edition is free/self-hostable; cloud adds premium features
 
+### Server-Only Guards
+
+- Critical server modules import `"server-only"` to prevent accidental client-side imports
+- Guarded modules: `db/client.ts`, `auth/jwt.ts`, `auth/middleware.ts`, `ai/gemini.ts`
+- Tests must mock `vi.mock("server-only", () => ({}))` when importing these modules
+
+### Next.js Proxy
+
+- Next.js 16 renamed `middleware.ts` to `proxy.ts`. The function export is `proxy` (not `middleware`).
+
 ### Durable Job Queues (BullMQ)
 
 - Infrastructure: `src/lib/infra/jobs/` — queue factory, connection, workers, types
@@ -117,8 +154,8 @@ npx next dev            # Development server
 
 ### Environment Variables
 
-- **Required:** `MONGODB_URI`, `REDIS_URL`, `JWT_SECRET`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GEMINI_API_KEY`
-- **Optional:** `DEEPGRAM_API_KEY`, `LIVEKIT_*`, `SENTRY_DSN`, `CRON_SECRET`, `LOG_LEVEL`
+- **Required:** `MONGODB_URI`, `REDIS_URL`, `JWT_SECRET`, `JWT_REFRESH_SECRET`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GEMINI_API_KEY`
+- **Optional:** `DEEPGRAM_API_KEY`, `LIVEKIT_*`, `SENTRY_DSN`, `CRON_SECRET`, `LOG_LEVEL`, `HEALTH_DETAIL_SECRET`
 - **Edition:** `YOODLE_EDITION` (`community` | `cloud`)
 - See `.env.example` for full list
 
@@ -129,6 +166,8 @@ src/app/api/          # API routes (Next.js App Router)
 src/lib/google/       # Google Workspace integrations (gmail, calendar, drive, sheets, slides, docs)
 src/lib/ai/           # AI tools, Gemini streaming, workflows
 src/lib/infra/        # DB models, Redis, auth, logging, circuit breaker, rate limiting, BullMQ jobs
+src/lib/infra/redis/  # Redis cache, pub/sub, client
+src/lib/board/        # Board/task cross-domain AI tools
 src/lib/transport/    # LiveKit transport layer
 src/hooks/            # Client-side React hooks
 src/components/       # React components
@@ -140,6 +179,8 @@ src/components/       # React components
 - Use `vi.mock()` for module mocking, `vi.fn()` for function mocks
 - Mock chain pattern for Mongoose: `{ select: vi.fn().mockReturnThis(), lean: vi.fn() }`
 - Always mock `@/lib/infra/db/client`, `@/lib/infra/api/rate-limit`, `@/lib/infra/auth/middleware`
+- Always mock `server-only` when testing server modules: `vi.mock('server-only', () => ({}))`
+- Mock `@/lib/infra/redis/cache` with `getCached`, `setCache`, `invalidateCache`
 
 ## Participant Status Types
 
@@ -151,6 +192,10 @@ src/components/       # React components
 - Avatar URLs must be HTTPS-only (Zod `.refine()`)
 - Email not included in `.populate()` selects (PII leak prevention)
 - OAuth state deserialized with Zod schema (not raw `JSON.parse`)
+- OAuth state schema uses `.strict()` (not `.passthrough()`)
 - `Promise.allSettled` for batch operations where partial failure is acceptable
 - AI tool args get runtime type coercion (Gemini sends wrong types)
 - AI memory capped at 200 per user with LRU eviction
+- Health endpoint service details gated behind `HEALTH_DETAIL_SECRET` header
+- Recording speakerId validated against meeting participants
+- `server-only` guards prevent accidental client-side import of secrets

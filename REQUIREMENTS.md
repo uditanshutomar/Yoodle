@@ -1,89 +1,113 @@
 # Yoodle — Product Requirements
 
 ## Vision
-A virtual meeting app (like Google Meet) built for the Gen Z workforce. Fun, AI-native, and collaborative.
+A virtual meeting and collaboration app built for the Gen Z workforce. Fun, AI-native, and deeply integrated with Google Workspace.
 
 ## Core Features
 
-### 1. Video & Audio Calling
-- HD video calls (1:1 and group)
+### 1. Video & Audio Calling (Rooms)
+- HD video calls (1:1 and group) via LiveKit
 - Audio-only mode
 - Screen sharing
 - Real-time reactions & emoji overlays
 - **Floating circles** (not boxes) for video tiles — Gen Z scribbled/doodled UI
 - **Voice activity detection** — speaker's circle grows when they speak
 - **Speaker metadata** — name + timestamp saved per speech segment for transcript attribution
-- **Google Integration API** — calendar, Gmail, Drive access for personal agent
+- **Live captions** — real-time speech-to-text via Deepgram during calls
+- **Meeting Blueprints** — pre-configured room templates (standup, brainstorm, retro, etc.)
 
 ### 2. Meeting Intelligence
 - Meeting recording (video + audio)
-- Auto-generated transcripts (11 Labs)
-- AI-generated minutes of meeting
+- Auto-generated transcripts (Deepgram speech-to-text)
+- AI-generated minutes of meeting (Gemini)
 - Action item extraction
+- Post-meeting cascade pipeline (BullMQ durable jobs: transcript, summary, action items)
 
-### 3. Shared Virtual Work Environments
-- Shared cloud workspaces powered by Vultr VMs
-- Login-based audit trail (who did what)
-- Shared AI codespace (GitHub integration)
-- Anyone can prompt or change code — "Group Videcode"
-- One VM per team, shared subscriptions & tools
-- Better LLM context (everyone on same machine)
+### 3. Task Board (The Board)
+- Kanban board with drag-and-drop columns (To Do, In Progress, Done, etc.)
+- **AI-powered subtask generation** — Gemini breaks tasks into actionable subtasks
+- List and board view toggle
+- Task assignment and due dates
+- Integration with meeting action items (auto-created tasks)
 
-### 4. AI Assistant Mascot (Doodle Poodle)
-Powered by Gemini API. Has access to files, mails, tasks, messages.
+### 4. Calendar Integration
+- **Google Calendar two-way sync** — create, update, and delete events
+- **Conflict detection** — warns when scheduling over existing events
+- **Smart scheduling** — AI analyzes availability across participants' calendars
+- Calendar sync runs as a durable BullMQ job (`calendar-sync` queue)
+
+### 5. Pulse Analytics
+- **Meeting pattern analysis** — frequency, duration, attendance trends
+- **Team health metrics** — collaboration scores, engagement indicators
+- **Pattern alerts** — AI-detected anomalies (e.g., meeting overload, declining participation)
+- Stats grid with visual indicators
+
+### 6. AI Assistant Mascot (Yoodler)
+Powered by Gemini API. Has access to files, mails, tasks, messages, and calendar.
 - **Personalized per user** — each person's agent is different (trained on their data)
 - **Private during calls** — each person only sees their OWN agent on screen (not others' agents)
-- **MCP integration** — Model Context Protocol for personal agent tool access
+- **AI Memory** — per-user memory (capped at 200 entries with LRU eviction), remembers context across sessions
+- **Proactive insights** — surfaces relevant information before you ask
+- **Cross-domain tools** — can read/write Gmail, Drive, Sheets, Slides, Docs, Calendar
 
 #### Capabilities:
 1. **Meeting Prep** — Gives you a zest of what you're supposed to do, reminds you what to say in meetings
 2. **Smart Scheduling** — Analyzes estimated task time, finds suitable slots from concerned people's calendars
-3. **Location Sharing** — For remote workers. Know if a colleague or community member is nearby (coworking spaces, cafes). Work together, make new friends
+3. **Location Sharing** — For remote workers. Know if a colleague or community member is nearby (coworking spaces, cafes)
 4. **Mundane Task Automation** — Saves files in correct places, follows naming norms, handles the boring stuff
 5. **Memory** — Remembers non-trivial nice-to-have things you'd otherwise forget
 6. **Plan Summarizer** — Summarizes plans and sends to AI to proofread
+7. **Google Workspace Integration** — Read and compose emails, create docs/sheets/slides, search Drive
 
-### 5. Ghost Rooms
+### 7. Ghost Rooms
 - Everything vanishes after the session (for brainstorming & first-time meetings)
 - No data persisted by default
 - Data downloadable only when ALL participants agree
 - Perfect for sensitive discussions and creative brainstorming
 
+### 8. Messaging & Conversations
+- Persistent chat threads between users
+- Real-time message delivery via LiveKit data channels
+- Cross-tab coordination with broadcast polling (only visible tab polls)
+- Unread message counts
+
 ## Sponsor Tech Stack
 
-| Sponsor        | Usage                                         |
-|----------------|-----------------------------------------------|
-| **Gemini API** | AI assistant, transcription, summarization, proofreading, task analysis |
-| **11 Labs**    | Voice synthesis, meeting transcription, audio processing |
-| **MongoDB Atlas** | Database — users, meetings, messages, files, audit logs |
-| **Vultr**      | Cloud infrastructure — VMs for shared workspaces, app hosting |
+| Sponsor            | Usage                                                                 |
+|--------------------|-----------------------------------------------------------------------|
+| **Gemini API**     | AI assistant, summarization, proofreading, task analysis, subtask generation, proactive insights |
+| **Deepgram**       | Speech-to-text, meeting transcription, live captions                  |
+| **MongoDB Atlas**  | Database — users, meetings, messages, tasks, AI memory, audit logs    |
+| **LiveKit**        | Real-time media — video/audio transport, data channels, recording     |
 
 ## Architecture Overview
 
 ### Frontend
-- Next.js 15 (App Router)
-- TypeScript + Tailwind CSS
+- Next.js 16 (App Router)
+- TypeScript + Tailwind CSS 4
 - Framer Motion (animations)
-- WebRTC (video/audio)
-- Socket.io client (real-time)
+- LiveKit client SDK (video/audio/data)
 
 ### Backend
-- Next.js API routes on the web app
-- Separate always-on backend service for WebSocket/realtime, terminal proxying, and background jobs
+- Next.js API routes (all server logic runs within Next.js)
 - MongoDB Atlas (via Mongoose)
-- WebRTC signaling server
+- Redis (caching, pub-sub, rate limiting via sliding window)
+- BullMQ (durable job queues: recording processing, post-meeting cascade, calendar sync)
 - Gemini API integration
-- 11 Labs API integration
-
-### Infrastructure (Vultr)
-- App server VM
-- Shared workspace VMs (per-team)
-- TURN/STUN servers for WebRTC
+- Deepgram API integration
+- Google Workspace APIs (Gmail, Calendar, Drive, Sheets, Slides, Docs)
 
 ### Real-time
-- Socket.io for signaling, chat, presence
-- WebRTC for peer-to-peer video/audio
-- MediaRecorder API for recording
+- LiveKit for all media transport (video, audio, screen share)
+- LiveKit data channels for real-time signaling and presence
+- LiveKit SDK-native reconnect policy with exponential backoff
+
+### Infrastructure Patterns
+- Circuit breakers for external services (Google, Deepgram, LiveKit)
+- Retry with exponential backoff and jitter for transient errors
+- Rate limiting per route group (auth, ai, voice, meetings, calendar, general)
+- Feature flags by edition (community vs cloud)
+- Structured logging with namespace prefixes
 
 ## User Personas
 - Gen Z remote workers

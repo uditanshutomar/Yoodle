@@ -1,45 +1,59 @@
 # Yoodle
 
-A modern video conferencing and collaboration platform built for Gen Z, featuring AI-powered meeting assistance, ephemeral brainstorming rooms, shared cloud workspaces, and deep Google Workspace integration.
+A modern video conferencing and collaboration platform built for Gen Z, featuring an AI-powered assistant (Yoodler), ephemeral brainstorming rooms, Kanban task boards, analytics, and deep Google Workspace integration.
 
 https://yoodle.vercel.app/
 
 ## Features
 
 ### Crystal Calls
-Real-time video and audio conferencing powered by LiveKit. Supports screen sharing, in-meeting chat, emoji reactions, hand raise, voice activity detection, recording with tab audio capture, and configurable room settings (waiting room, mute on join, max participants). All real-time signaling runs over LiveKit data channels — no separate server needed.
+Real-time video and audio conferencing powered by LiveKit. Supports screen sharing, in-meeting chat, emoji reactions, hand raise, voice activity detection, recording with tab audio capture, and configurable room settings (waiting room, mute on join, max participants). All real-time signaling runs over LiveKit data channels.
 
-### Doodle AI Assistant
-An integrated AI assistant powered by Google Gemini that generates meeting prep notes, auto-summarizes meetings into structured minutes (key points, decisions, action items), assists with writing and proofreading, and manages tasks. Doodle maintains per-user memory and supports agent-to-agent collaboration.
+### Yoodler (AI Assistant)
+An integrated AI assistant powered by Google Gemini that generates meeting prep briefings, auto-summarizes meetings into structured minutes (key points, decisions, action items), assists with writing and proofreading, and manages tasks across the platform. Yoodler maintains per-user memory with LRU eviction (capped at 200 per user) and delivers proactive insights based on your calendar, meetings, and activity patterns.
 
 ### Ghost Rooms
 Ephemeral brainstorming spaces that auto-delete after a configurable TTL. Participants can capture notes and messages during the session and vote to save the room before it expires.
 
 ### Ship Together (Workspaces)
-Team collaboration spaces with provisioned cloud VMs via Vultr. Includes a browser-based SSH terminal (xterm + SSH2), member role management (owner, admin, member), and auto-shutdown settings to control costs.
+Team collaboration spaces for organizing projects, sharing resources, and coordinating work. Includes member role management (owner, admin, member) and integrated communication channels.
+
+### The Board
+Kanban task board with drag-and-drop columns, AI-powered subtask generation, and cross-domain integration. Tasks can be linked to meetings, conversations, and calendar events.
+
+### Pulse Analytics
+Meeting pattern analysis and team health metrics. Includes stats grids, pattern alerts, and insights into collaboration trends across your organization.
+
+### Calendar Integration
+Full Google Calendar sync with conflict detection, meeting prep briefings, and proactive scheduling suggestions powered by Yoodler.
 
 ### Recordings & Transcription
-Record meetings with automatic AI transcription featuring speaker identification. Tab audio capture ensures system audio is recorded alongside microphone input. Generates structured meeting minutes with summaries, decisions, and action items. Recordings are stored directly in each user's Google Drive.
+Record meetings with automatic AI transcription via Deepgram featuring speaker identification. Tab audio capture ensures system audio is recorded alongside microphone input. Generates structured meeting minutes with summaries, decisions, and action items. Recordings are stored directly in each user's Google Drive.
+
+### AI Memory
+Per-user memory system with LRU eviction that allows Yoodler to remember context across conversations, provide personalized suggestions, and deliver proactive insights based on accumulated knowledge.
 
 ### Google Workspace Integration
-Full read/write access to Gmail, Google Calendar, Drive, Docs, Sheets, Tasks, and Contacts through the Doodle AI assistant.
+Full read/write access to Gmail, Google Calendar, Drive, Docs, Sheets, Slides, Tasks, and Contacts through the Yoodler AI assistant.
 
 ## Tech Stack
 
 | Layer | Technology |
 |-------|-----------|
-| Framework | Next.js 15 (App Router, React 19) |
+| Framework | Next.js 16 (App Router, Turbopack, React 19.2) |
 | Language | TypeScript 5 |
 | Database | MongoDB (Mongoose) |
+| Cache/Pub-Sub | Redis (ioredis) |
 | Real-time | LiveKit (media + data channels) |
 | Auth | JWT + Google OAuth 2.0 |
-| AI | Google Gemini 2.0 Flash |
+| AI | Google Gemini (`@google/genai` SDK) |
+| Speech-to-text | Deepgram |
+| Job Queues | BullMQ (durable, Redis-backed) |
 | Styling | Tailwind CSS 4 |
 | UI | Radix UI, Framer Motion, Lucide Icons |
 | Email | Resend |
-| Cloud/VMs | Vultr Cloud Computing |
 | Storage | Google Drive (per-user recordings) |
-| Terminal | SSH2 + xterm |
+| Monitoring | Sentry |
 | Validation | Zod |
 | Testing | Vitest, Playwright |
 
@@ -47,8 +61,9 @@ Full read/write access to Gmail, Google Calendar, Drive, Docs, Sheets, Tasks, an
 
 ### Prerequisites
 
-- Node.js 18+
+- Node.js 20+
 - MongoDB instance
+- Redis instance
 - LiveKit server (cloud or self-hosted)
 - Google Gemini API key
 
@@ -67,13 +82,17 @@ Create a `.env.local` file in the project root. See `.env.example` for the full 
 ```env
 # Database (required)
 MONGODB_URI=mongodb://localhost:27017/yoodle
+REDIS_URL=redis://localhost:6379
 
 # Authentication (required)
 JWT_SECRET=your-jwt-secret-minimum-64-characters-long
-JWT_REFRESH_SECRET=your-jwt-refresh-secret-here
 
 # Application (required)
 NEXT_PUBLIC_APP_URL=http://localhost:3000
+
+# Google OAuth (required)
+GOOGLE_CLIENT_ID=your-google-client-id
+GOOGLE_CLIENT_SECRET=your-google-client-secret
 
 # LiveKit (required for video calls)
 LIVEKIT_URL=ws://localhost:7880
@@ -84,12 +103,17 @@ NEXT_PUBLIC_LIVEKIT_URL=ws://localhost:7880
 # AI (required)
 GEMINI_API_KEY=your-gemini-api-key
 
-# Google OAuth (optional)
-GOOGLE_CLIENT_ID=your-google-client-id
-GOOGLE_CLIENT_SECRET=your-google-client-secret
+# Speech-to-text (optional)
+DEEPGRAM_API_KEY=your-deepgram-api-key
+
+# Monitoring (optional)
+SENTRY_DSN=your-sentry-dsn
 
 # Email (optional - falls back to console logging)
 RESEND_API_KEY=your-resend-api-key
+
+# Edition (optional - community or cloud)
+YOODLE_EDITION=community
 ```
 
 ### Running the App
@@ -116,54 +140,45 @@ The web app starts at [http://localhost:3000](http://localhost:3000).
 ```
 src/
 ├── app/
-│   ├── (auth)/                 # Login, signup, verify routes
+│   ├── (auth)/                 # Login, signup, verify
 │   ├── (app)/                  # Protected app routes
-│   │   ├── dashboard/          # Main dashboard
-│   │   ├── meetings/           # Meeting list, creation, and room
-│   │   ├── workspaces/         # Workspace management
+│   │   ├── dashboard/          # Main dashboard (The Desk)
+│   │   ├── meetings/           # Rooms hub + meeting room
+│   │   ├── messages/           # Direct messages + AI agent chat
+│   │   ├── board/              # Kanban task board
+│   │   ├── analytics/          # Pulse analytics
 │   │   ├── ghost-rooms/        # Ephemeral brainstorm rooms
-│   │   ├── ai/                 # AI chat interface
+│   │   ├── admin/              # Admin panel
 │   │   └── settings/           # User settings
 │   └── api/                    # API routes
-│       ├── auth/               # Auth endpoints
-│       ├── meetings/           # Meeting CRUD + waiting room
-│       ├── recordings/         # Recording management
-│       ├── transcription/      # AI transcription
-│       ├── workspaces/         # Workspace + VM management
-│       ├── ghost-rooms/        # Ghost room endpoints
-│       ├── ai/                 # AI chat, summarize, meeting-prep
-│       └── health/             # Health check
 ├── components/
-│   ├── meeting/                # Video call UI (bubbles, grid, chat, controls)
-│   ├── dashboard/              # Dashboard panels and meeting history
-│   ├── workspace/              # Workspace and VM components
+│   ├── meeting/                # Video call UI
+│   ├── dashboard/              # Dashboard widgets
+│   ├── board/                  # Kanban board components
+│   ├── chat/                   # Chat/messaging components
 │   ├── ghost/                  # Ghost room components
 │   ├── ai/                     # AI assistant components
+│   ├── pulse/                  # Analytics components
 │   ├── layout/                 # Sidebar, topbar
 │   └── ui/                     # Reusable UI primitives
 ├── hooks/                      # Custom React hooks
 ├── lib/
-│   ├── auth/                   # JWT, Google OAuth
-│   ├── db/                     # MongoDB connection and Mongoose models
-│   ├── ai/                     # Gemini integration and prompts
-│   ├── livekit/                # LiveKit data channel messages
-│   ├── transport/              # Room transport abstraction (LiveKit)
+│   ├── ai/                     # Gemini integration, tools, prompts
+│   ├── board/                  # Cross-domain AI board tools
+│   ├── chat/                   # Agent processor, message transform
 │   ├── google/                 # Google Workspace API clients
-│   ├── vultr/                  # Vultr VM provisioning
-│   └── utils/                  # ID generation, validation, API helpers
-├── providers/                  # React context providers
-├── types/                      # TypeScript type definitions
-└── middleware.ts               # Edge middleware for auth protection
+│   ├── infra/                  # DB, Redis, auth, logging, jobs, circuit breaker
+│   ├── transport/              # LiveKit transport
+│   └── features/               # Feature flags
+└── proxy.ts                    # Next.js 16 proxy (auth middleware)
 ```
 
 ## API Overview
 
 ### Authentication
-- `POST /api/auth/signup` - Register a new user
-- `POST /api/auth/login` - Email/password login
-- `POST /api/auth/verify` - Verify email or magic link
-- `POST /api/auth/refresh` - Refresh JWT token
+- `GET /api/auth/google` - Initiate Google OAuth flow
 - `GET /api/auth/google/callback` - Google OAuth callback
+- `POST /api/auth/refresh` - Refresh JWT token
 
 ### Meetings
 - `GET /api/meetings` - List meetings
@@ -181,16 +196,26 @@ src/
 - `POST /api/recordings/upload` - Upload recording to Google Drive
 - `POST /api/transcription` - Process transcription with AI
 
-### Workspaces
-- `GET /api/workspaces` - List workspaces
-- `POST /api/workspaces` - Create workspace with VM
-- `GET /api/workspaces/[id]` - Get workspace details
-- `POST /api/workspaces/[id]/vm` - Manage workspace VM
+### Board (Tasks)
+- `GET /api/boards` - List boards
+- `POST /api/boards` - Create a board
+- `GET /api/boards/[id]` - Get board details
+- `GET /api/tasks/my` - Get current user's tasks
+
+### Conversations
+- `GET /api/conversations` - List conversations
+- `POST /api/conversations` - Create a conversation
+- `GET /api/conversations/[id]` - Get conversation details
+
+### Calendar
+- `GET /api/calendar` - Get calendar events
+- `POST /api/calendar/sync` - Sync with Google Calendar
 
 ### AI
-- `POST /api/ai/chat` - Chat with Doodle assistant
-- `POST /api/ai/summarize` - Generate meeting minutes
-- `POST /api/ai/meeting-prep` - Generate meeting prep notes
+- `POST /api/ai/chat` - Chat with Yoodler assistant
+- `POST /api/ai/briefing` - Generate meeting briefing
+- `POST /api/ai/action/[type]` - Execute AI actions (summarize, extract tasks, etc.)
+- `GET /api/cron/proactive` - Proactive insights cron job
 
 ### Other
 - `GET /api/users/me` - Current user profile
