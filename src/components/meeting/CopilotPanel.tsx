@@ -138,7 +138,7 @@ export default function CopilotPanel({ isOpen, onClose, meetingId, onNewMessage 
       <div className="flex items-center justify-between px-4 py-3 border-b-2 border-[var(--border-strong)]">
         <div className="flex items-center gap-2">
           <Sparkles size={16} className="text-[#A855F7]" />
-          <span className="font-bold text-sm" style={{ fontFamily: "var(--font-heading)" }}>Copilot</span>
+          <span className="font-bold text-sm" style={{ fontFamily: "var(--font-heading)" }}>Yoodler Live</span>
           {showRetry ? (
             <span className="flex items-center gap-1 text-[10px] text-[#FF6B6B]"><WifiOff size={10} /> Disconnected</span>
           ) : connected ? (

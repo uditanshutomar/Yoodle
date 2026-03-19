@@ -278,9 +278,9 @@ export default function MeetingControls({
           />
         </ControlButton>
 
-        {/* Copilot toggle */}
+        {/* Yoodler Live toggle */}
         {onToggleCopilot && (
-          <ControlButton onClick={onToggleCopilot} active={isCopilotOpen} label="Copilot" badge={!isCopilotOpen && (unreadCopilotCount ?? 0) > 0}>
+          <ControlButton onClick={onToggleCopilot} active={isCopilotOpen} label="Yoodler Live" badge={!isCopilotOpen && (unreadCopilotCount ?? 0) > 0}>
             <Sparkles size={18} className={isCopilotOpen ? "text-[#A855F7]" : ""} />
           </ControlButton>
         )}
