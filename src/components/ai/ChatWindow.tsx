@@ -85,10 +85,10 @@ export default function ChatWindow({
           </motion.div>
           <div>
             <h3 className="text-sm font-bold text-[var(--text-primary)]" style={{ fontFamily: "var(--font-heading)" }}>
-              Doodle Poodle
+              Yoodler
             </h3>
             <p className="text-[10px] text-[var(--text-secondary)]" style={{ fontFamily: "var(--font-body)" }}>
-              {isStreaming ? "Typing…" : "Your AI meeting buddy"}
+              {isStreaming ? "Typing…" : "Your AI workspace companion"}
             </p>
           </div>
         </div>
@@ -169,7 +169,7 @@ export default function ChatWindow({
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && handleSend()}
-            placeholder="Ask Doodle Poodle anything…"
+            placeholder="Ask Yoodler anything…"
             disabled={isStreaming}
             className="flex-1 px-4 py-2.5 text-sm border-2 border-[var(--border)] rounded-xl bg-[var(--surface)] focus:border-[#FFE600] focus:outline-none transition-colors disabled:opacity-50"
             style={{ fontFamily: "var(--font-body)" }}

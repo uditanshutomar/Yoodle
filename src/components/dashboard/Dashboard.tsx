@@ -321,7 +321,7 @@ export default function Dashboard() {
                             transition={{ delay: 0.3, type: "spring", stiffness: 200, damping: 25 }}
                             role="button"
                             tabIndex={0}
-                            aria-label="Open AI assistant - Doodle Poodle"
+                            aria-label="Open Yoodler"
                             className="flex-1 rounded-2xl border-2 border-[var(--border-strong)] bg-[var(--surface)] shadow-[4px_4px_0_var(--border-strong)] overflow-hidden cursor-pointer hover:shadow-[2px_2px_0_var(--border-strong)] hover:translate-x-[2px] hover:translate-y-[2px] transition-all"
                             onClick={() => aiDrawer.open()}
                             onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); aiDrawer.open(); } }}
@@ -333,9 +333,9 @@ export default function Dashboard() {
                                     </div>
                                     <div>
                                         <span className="text-sm font-bold text-[var(--text-primary)] block" style={{ fontFamily: "var(--font-heading)" }}>
-                                            Doodle Poodle
+                                            Yoodler
                                         </span>
-                                        <span className="text-[10px] text-[var(--text-muted)]">Your AI meeting buddy</span>
+                                        <span className="text-[10px] text-[var(--text-muted)]">Your AI workspace companion</span>
                                     </div>
                                     <span className="text-[10px] text-[var(--text-muted)] ml-auto font-medium" style={{ fontFamily: "var(--font-heading)" }}>⌘J &rarr;</span>
                                 </div>

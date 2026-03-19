@@ -92,8 +92,8 @@ function AIDrawerFAB({ onClick, isOpen, insightCount }: { onClick: () => void; i
         transition={{ type: "spring", stiffness: 300, damping: 20 }}
         style={{ position: "absolute", bottom: 24, right: 24 }}
         className="pointer-events-auto flex h-16 w-16 items-center justify-center rounded-full bg-[#FFE600] border-2 border-[var(--border-strong)] shadow-[3px_3px_0_var(--border-strong)] cursor-grab active:cursor-grabbing overflow-hidden"
-        title="Ask Doodle (⌘J) — drag me anywhere!"
-        aria-label={`Open AI assistant${insightCount > 0 ? `, ${insightCount} new insight${insightCount > 1 ? "s" : ""}` : ""}`}
+        title="Ask Yoodler (⌘J) — drag me anywhere!"
+        aria-label={`Open Yoodler${insightCount > 0 ? `, ${insightCount} new insight${insightCount > 1 ? "s" : ""}` : ""}`}
       >
         <Image src={mascotSrc} alt="Yoodle" width={56} height={56} className="mix-blend-multiply pointer-events-none select-none object-cover" draggable={false} />
         {insightCount > 0 && (
@@ -142,7 +142,7 @@ function AIDrawerPanel({ isOpen, onClose }: { isOpen: boolean; onClose: () => vo
           />
           <motion.aside
             role="dialog"
-            aria-label="AI Assistant"
+            aria-label="Yoodler"
             aria-modal="true"
             className="fixed top-0 right-0 z-50 h-full w-full sm:w-[400px] lg:w-[400px] bg-[var(--background)] border-l-2 border-[var(--border)] shadow-[-4px_0_20px_rgba(0,0,0,0.1)] flex flex-col"
             initial={{ x: "100%" }}
