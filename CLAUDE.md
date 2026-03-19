@@ -20,7 +20,7 @@ Yoodle is a Next.js App Router application for meetings, collaboration, and AI-p
 ## Commands
 
 ```bash
-npx vitest run          # Run all tests (905 tests, ~9s)
+npx vitest run          # Run all tests (896 tests, ~9s)
 npx next build          # Production build with TypeScript + ESLint checks
 npx next dev            # Development server
 ```

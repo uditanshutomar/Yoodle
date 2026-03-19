@@ -27,8 +27,8 @@ const ALLOWED_ACTION_TYPES = new Set([
   "summarize_conversation", "search_messages", "generate_standup",
   "conversation_insights", "translate_message", "suggest_mentions",
   "create_tasks_from_meeting",
-  // Workflows, batch, scheduled
-  "start_workflow", "list_workflows", "batch_action", "schedule_action",
+  // Batch, scheduled
+  "batch_action", "schedule_action",
 ]);
 
 const confirmSchema = z.object({

@@ -97,7 +97,7 @@ export default function MessageBubble({
   return (
     <div
       role="article"
-      aria-label={`Message from ${isAgent ? `${senderDisplayName}'s Doodle` : senderDisplayName}`}
+      aria-label={`Message from ${isAgent ? `${senderDisplayName}'s Yoodler` : senderDisplayName}`}
       className={`group flex flex-col ${isOwn ? "items-end" : "items-start"} ${showSender ? "mt-4" : "mt-0.5"}`}
     >
       {/* Sender info */}
@@ -117,7 +117,7 @@ export default function MessageBubble({
               fontFamily: "var(--font-heading)",
             }}
           >
-            {isAgent ? `${senderDisplayName}'s Doodle 🤖` : senderDisplayName}
+            {isAgent ? `${senderDisplayName}'s Yoodler 🤖` : senderDisplayName}
           </span>
         </div>
       )}

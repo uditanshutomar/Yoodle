@@ -506,7 +506,7 @@ export default function ChatThread({
                 style={{ fontFamily: "var(--font-body)" }}
               >
                 {entry.isAgent
-                  ? `${entry.name}'s Doodle is thinking`
+                  ? `${entry.name}'s Yoodler is thinking`
                   : `${entry.name} is typing`}
               </span>
               <span className="flex gap-0.5">

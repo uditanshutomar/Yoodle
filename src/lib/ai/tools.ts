@@ -974,7 +974,7 @@ export const WORKSPACE_TOOLS: Tool = {
           actionType: {
             type: Type.STRING,
             description:
-              "The tool that would be called: 'send_email', 'reply_to_email', 'create_yoodle_meeting', 'create_calendar_event', 'update_calendar_event', 'delete_calendar_event', 'create_board_task', 'update_board_task', 'move_board_task', 'assign_board_task', 'delete_board_task', 'create_task_from_meeting', 'create_task_from_email', 'create_task_from_chat', 'schedule_meeting_for_task', 'link_doc_to_task', 'link_meeting_to_task', 'generate_subtasks', 'append_to_doc', 'find_replace_in_doc', 'write_sheet', 'append_to_sheet', 'clear_sheet_range', 'start_workflow', 'generate_meeting_slides', 'prepare_meeting_brief'.",
+              "The tool that would be called: 'send_email', 'reply_to_email', 'create_yoodle_meeting', 'create_calendar_event', 'update_calendar_event', 'delete_calendar_event', 'create_board_task', 'update_board_task', 'move_board_task', 'assign_board_task', 'delete_board_task', 'create_task_from_meeting', 'create_task_from_email', 'create_task_from_chat', 'schedule_meeting_for_task', 'link_doc_to_task', 'link_meeting_to_task', 'generate_subtasks', 'append_to_doc', 'find_replace_in_doc', 'write_sheet', 'append_to_sheet', 'clear_sheet_range', 'generate_meeting_slides', 'prepare_meeting_brief'.",
           },
           args: {
             type: Type.OBJECT,
