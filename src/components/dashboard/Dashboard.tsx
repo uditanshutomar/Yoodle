@@ -44,6 +44,10 @@ const ActionItemTracker = dynamic(() => import("./ActionItemTracker"), {
         <div className="rounded-2xl border-2 border-[var(--border-strong)] bg-[var(--surface)] h-[120px] animate-pulse shadow-[4px_4px_0_var(--border-strong)]" />
     ),
 });
+
+const MeetingTrendsCard = dynamic(() => import("./MeetingTrendsCard"), {
+    ssr: false,
+});
 import { useAuth } from "@/hooks/useAuth";
 import { usePendingActions } from "@/hooks/usePendingActions";
 import { useRouter } from "next/navigation";
@@ -74,12 +78,18 @@ export default function Dashboard() {
                 headers: { "Content-Type": "application/json" },
                 credentials: "include",
                 body: JSON.stringify({ mode: "social" }),
-            }).catch(() => {});
+            }).catch((err) => {
+                console.error("[Dashboard] Failed to persist default mode:", err);
+                defaultModeSentRef.current = false; // Allow retry on next render
+            });
         }
     }, [userMode, user]);
 
+    const modeRef = useRef(mode);
+    useEffect(() => { modeRef.current = mode; }, [mode]);
+
     const handleModeChange = useCallback((newMode: "lockin" | "invisible" | "social") => {
-        const prevMode = mode;
+        const prevMode = modeRef.current;
         setMode(newMode);
         fetch("/api/users/me", {
             method: "PATCH",
@@ -87,12 +97,15 @@ export default function Dashboard() {
             credentials: "include",
             body: JSON.stringify({ mode: newMode }),
         })
-            .then(() => refreshSession())
-            .catch(() => {
-                // Rollback on failure
+            .then((res) => {
+                if (!res.ok) throw new Error(`Mode update failed: ${res.status}`);
+                return refreshSession();
+            })
+            .catch((err) => {
+                console.error("[Dashboard] handleModeChange failed:", err);
                 setMode(prevMode);
             });
-    }, [refreshSession, mode]);
+    }, [refreshSession]);
 
     const [joinCode, setJoinCode] = useState("");
     const [greeting, setGreeting] = useState("");
@@ -290,6 +303,15 @@ export default function Dashboard() {
                             transition={{ delay: 0.28, type: "spring", stiffness: 200, damping: 25 }}
                         >
                             <ActionItemTracker />
+                        </motion.div>
+
+                        {/* Meeting Trends */}
+                        <motion.div
+                            initial={{ y: 20, opacity: 0 }}
+                            animate={{ y: 0, opacity: 1 }}
+                            transition={{ delay: 0.29, type: "spring", stiffness: 200, damping: 25 }}
+                        >
+                            <MeetingTrendsCard />
                         </motion.div>
 
                         {/* AI Briefing Card */}
