@@ -2,6 +2,7 @@
 
 import { useState, useCallback, useEffect, useMemo } from "react";
 import { useAuth } from "./useAuth";
+import { useBroadcastPoll } from "./useBroadcastPoll";
 
 // ── Types ────────────────────────────────────────────────────────────────
 
@@ -35,97 +36,78 @@ export function useConversations() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // ── Fetch conversations ──────────────────────────────────────────────
+  // ── Fetch conversations (used by both initial load and mutations) ─────
 
-  const refresh = useCallback(async (signal?: AbortSignal) => {
-    try {
-      const res = await fetch("/api/conversations", {
-        credentials: "include",
-        signal,
-      });
-      if (!res.ok) {
-        setError(`Failed to load conversations (${res.status})`);
-        return;
-      }
-
-      const json = await res.json();
-      if (json.success && Array.isArray(json.data)) {
-        setConversations(json.data);
-        setError(null);
-      }
-    } catch (err) {
-      if (err instanceof DOMException && err.name === "AbortError") return;
-      setError("Failed to load conversations");
+  const fetchConversations = useCallback(async (): Promise<ConversationInfo[]> => {
+    const res = await fetch("/api/conversations", {
+      credentials: "include",
+    });
+    if (!res.ok) {
+      throw new Error(`Failed to load conversations (${res.status})`);
     }
+    const json = await res.json();
+    if (json.success && Array.isArray(json.data)) {
+      return json.data;
+    }
+    throw new Error("Invalid response");
   }, []);
 
-  // ── Initial load + polling with tab coordination ────────────────────
+  // ── Handle incoming data from poll or broadcast ───────────────────────
+
+  const handleData = useCallback((data: ConversationInfo[]) => {
+    setConversations(data);
+    setError(null);
+  }, []);
+
+  // ── Polling with tab coordination via useBroadcastPoll ────────────────
+
+  useBroadcastPoll(
+    "yoodle:conversations",
+    fetchConversations,
+    handleData,
+    10_000,
+    !!user,
+  );
+
+  // ── Initial load (show loading spinner on first mount) ────────────────
 
   useEffect(() => {
     if (!user) return;
 
-    const controller = new AbortController();
+    let cancelled = false;
 
     const load = async () => {
       setLoading(true);
-      await refresh(controller.signal);
-      if (!controller.signal.aborted) setLoading(false);
+      try {
+        const data = await fetchConversations();
+        if (!cancelled) {
+          setConversations(data);
+          setError(null);
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setError(err instanceof Error ? err.message : "Failed to load conversations");
+        }
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
     };
 
     load();
+    return () => { cancelled = true; };
+  }, [user, fetchConversations]);
 
-    // BroadcastChannel: coordinate polling across tabs
-    let channel: BroadcastChannel | null = null;
-    if (typeof BroadcastChannel !== "undefined") {
-      try {
-        channel = new BroadcastChannel("yoodle:conversations");
-        channel.onmessage = (event: MessageEvent) => {
-          if (event.data?.type === "yoodle:conversations" && Array.isArray(event.data.payload)) {
-            setConversations(event.data.payload);
-            setError(null);
-          }
-        };
-      } catch {
-        channel = null;
-      }
+  // ── Imperative refresh (for use after mutations) ──────────────────────
+
+  const refresh = useCallback(async () => {
+    try {
+      const data = await fetchConversations();
+      setConversations(data);
+      setError(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to load conversations");
     }
-
-    // Fetch + broadcast wrapper used by the interval
-    const pollAndBroadcast = async () => {
-      if (document.visibilityState === "hidden") return;
-      try {
-        const res = await fetch("/api/conversations", {
-          credentials: "include",
-          signal: controller.signal,
-        });
-        if (!res.ok) return;
-        const json = await res.json();
-        if (json.success && Array.isArray(json.data)) {
-          setConversations(json.data);
-          setError(null);
-          try { channel?.postMessage({ type: "yoodle:conversations", payload: json.data }); } catch { /* closed */ }
-        }
-      } catch (err) {
-        if (err instanceof DOMException && err.name === "AbortError") return;
-      }
-    };
-
-    const interval = setInterval(pollAndBroadcast, 10_000);
-
-    const handleVisibility = () => {
-      if (document.visibilityState === "visible") {
-        pollAndBroadcast();
-      }
-    };
-    document.addEventListener("visibilitychange", handleVisibility);
-
-    return () => {
-      controller.abort();
-      clearInterval(interval);
-      document.removeEventListener("visibilitychange", handleVisibility);
-      try { channel?.close(); } catch { /* already closed */ }
-    };
-  }, [user, refresh]);
+  }, [fetchConversations]);
 
   // ── Total unread ─────────────────────────────────────────────────────
 

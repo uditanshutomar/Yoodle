@@ -17,13 +17,10 @@ export async function withRetry<T>(
     retryOn = () => true,
   } = options;
 
-  let lastError: unknown;
-
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
     try {
       return await fn();
     } catch (error) {
-      lastError = error;
       if (attempt === maxRetries || !retryOn(error)) {
         throw error;
       }
@@ -33,7 +30,8 @@ export async function withRetry<T>(
     }
   }
 
-  throw lastError;
+  // Unreachable — the loop always returns or throws; satisfies TypeScript control-flow analysis
+  throw new Error("withRetry: unexpected control flow");
 }
 
 /**
@@ -55,6 +53,12 @@ export function isTransientError(error: unknown): boolean {
   if (status !== undefined) {
     // 429 Too Many Requests, 500 Internal Server Error, 502 Bad Gateway, 503 Service Unavailable
     return status === 429 || status === 500 || status === 502 || status === 503;
+  }
+
+  // Check error.code (GaxiosError, Node.js system errors use `code` for network-level failures)
+  const code = typeof err.code === "string" ? err.code.toLowerCase() : "";
+  if (code === "econnreset" || code === "econnrefused" || code === "etimedout" || code === "epipe") {
+    return true;
   }
 
   // Fallback: check error message for network-level failures

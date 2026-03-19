@@ -71,8 +71,11 @@ export class DeepgramSTTProvider implements STTProvider {
 
     // 120s timeout — transcription of large audio files can take a while,
     // but we don't want to hang indefinitely if Deepgram is unresponsive.
-    const response = await deepgramBreaker.execute(() =>
-      fetch(
+    // The response.ok check is inside the breaker callback so HTTP errors
+    // (e.g. 503) correctly trip the circuit breaker — fetch() alone only
+    // rejects on network-level failures, not HTTP error status codes.
+    const data: DeepgramResponse = await deepgramBreaker.execute(async () => {
+      const response = await fetch(
         `${DEEPGRAM_BASE_URL}/listen?${params.toString()}`,
         {
           method: "POST",
@@ -82,21 +85,21 @@ export class DeepgramSTTProvider implements STTProvider {
           },
           body: new Uint8Array(buffer),
           signal: AbortSignal.timeout(120_000),
-        }
-      )
-    );
-
-    if (!response.ok) {
-      // Log full error server-side; throw generic message to avoid leaking
-      // Deepgram API details or internal configuration to the client.
-      const errorBody = await response.text();
-      console.error(`Deepgram STT failed (${response.status}):`, errorBody);
-      throw new Error(
-        `Speech-to-text service error (status ${response.status}).`
+        },
       );
-    }
 
-    const data: DeepgramResponse = await response.json();
+      if (!response.ok) {
+        // Log full error server-side; throw generic message to avoid leaking
+        // Deepgram API details or internal configuration to the client.
+        const errorBody = await response.text();
+        console.error(`Deepgram STT failed (${response.status}):`, errorBody);
+        throw new Error(
+          `Speech-to-text service error (status ${response.status}).`,
+        );
+      }
+
+      return response.json();
+    });
     const channel = data.results?.channels?.[0];
     const alternative = channel?.alternatives?.[0];
 

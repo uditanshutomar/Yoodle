@@ -4,9 +4,9 @@
 
 ---
 
-## 1. Google API Retry Wrappers
+## 1. ✅ Google API Retry Wrappers — IMPLEMENTED
 
-**Complexity:** Low | **Impact:** High reliability | **Estimated Time:** 1–2 days
+**Complexity:** Low | **Impact:** High reliability | **Status:** Complete
 
 ### Problem
 
@@ -116,9 +116,9 @@ Each needs a corresponding worker file in `src/lib/infra/jobs/workers/`.
 
 ---
 
-## 3. Circuit Breaker Patterns
+## 3. ✅ Circuit Breaker Patterns — IMPLEMENTED
 
-**Complexity:** Medium | **Impact:** Prevents cascading failures | **Estimated Time:** 3–4 days
+**Complexity:** Medium | **Impact:** Prevents cascading failures | **Status:** Complete
 
 ### Problem
 
@@ -189,9 +189,9 @@ export const livekitBreaker = new CircuitBreaker("livekit", 2, 45_000);
 
 ---
 
-## 4. LiveKit Reconnect
+## 4. ✅ LiveKit Reconnect — IMPLEMENTED
 
-**Complexity:** Medium | **Impact:** Meeting stability | **Estimated Time:** 2–3 days
+**Complexity:** Medium | **Impact:** Meeting stability | **Status:** Complete
 
 ### Problem
 
@@ -245,9 +245,9 @@ if (state === ConnectionState.Disconnected && this.shouldReconnect) {
 
 ---
 
-## 5. BroadcastChannel Tab Coordination
+## 5. ✅ BroadcastChannel Tab Coordination — IMPLEMENTED
 
-**Complexity:** Medium | **Impact:** ~66% server load reduction per extra tab | **Estimated Time:** 2–3 days
+**Complexity:** Medium | **Impact:** ~66% server load reduction per extra tab | **Status:** Complete
 
 ### Problem
 

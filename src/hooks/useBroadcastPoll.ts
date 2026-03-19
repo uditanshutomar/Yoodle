@@ -40,12 +40,14 @@ export function useBroadcastPoll<T>(
     if (!enabled) return;
 
     let channel: BroadcastChannel | null = null;
+    let disposed = false;
 
     // Set up BroadcastChannel if supported
     if (typeof BroadcastChannel !== "undefined") {
       try {
         channel = new BroadcastChannel(channelName);
         channel.onmessage = (event: MessageEvent) => {
+          if (disposed) return;
           if (event.data?.type === channelName && event.data.payload !== undefined) {
             onDataRef.current(event.data.payload as T);
           }
@@ -61,6 +63,8 @@ export function useBroadcastPoll<T>(
 
       try {
         const data = await fetchFnRef.current();
+        // Guard: effect may have been cleaned up while fetch was in flight
+        if (disposed) return;
         onDataRef.current(data);
         // Broadcast to sibling tabs
         try {
@@ -88,6 +92,7 @@ export function useBroadcastPoll<T>(
     document.addEventListener("visibilitychange", handleVisibility);
 
     return () => {
+      disposed = true;
       clearInterval(interval);
       document.removeEventListener("visibilitychange", handleVisibility);
       try {

@@ -35,12 +35,17 @@ npx next dev            # Development server
 ### Error Classes
 
 - `BadRequestError`, `NotFoundError`, `ForbiddenError`, `ConflictError`, `AppError` from `@/lib/infra/api/errors`
+- `UnauthorizedError` — for 401 responses (invalid/expired JWT)
+- `RateLimitError` — for 429 responses (rate limit exceeded)
 - Always prefer specific error classes over bare `throw new Error()`
 
 ### Authentication
 
-- `getUserIdFromRequest(req)` — extracts and validates JWT, returns userId string
+- **Two-layer auth:** JWT session token (cookie-based) + Google OAuth tokens (per-user, stored in DB)
+- `getUserIdFromRequest(req)` — extracts and validates JWT from cookie, returns userId string
+- `authenticateRequest(req)` — full auth check including user blacklist/ban status
 - Google OAuth tokens in `user.googleTokens` — auto-refreshed via `getGoogleClientForUser()`
+- JWT secret in `process.env.JWT_SECRET`, OAuth credentials in `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET`
 
 ### MongoDB
 
@@ -51,21 +56,26 @@ npx next dev            # Development server
 ### Google APIs
 
 - All Google API calls are wrapped with `withGoogleRetry()` from `src/lib/google/retry-wrapper.ts`
+- Composition order: retry wraps breaker — each individual attempt is circuit-broken, so N failures (not N × retries) opens the breaker
 - Provides retry (3 attempts, exponential backoff, jitter) for transient errors (429, 500, 502, 503)
-- Integrated with circuit breaker — opens after 5 failures, resets in 60s
+- `CircuitBreakerOpenError` is excluded from retries (retrying an open breaker is pointless)
 - Helper: `getGoogleServices(userId)` returns all authenticated API clients
 
 ### External Services
 
-- **Circuit breakers** in `src/lib/infra/circuit-breaker.ts` for Google, Deepgram, LiveKit
+- **Circuit breakers** in `src/lib/infra/circuit-breaker.ts` for Google (5 failures / 60s), Deepgram (3 / 30s), LiveKit (3 / 45s)
+- Half-open state allows one probe request at a time (`probeInFlight` guard prevents probe storms)
 - **Retry utility** in `src/lib/utils/retry.ts` — `withRetry()` and `isTransientError()`
+- `isTransientError()` checks `error.status`, `error.response.status`, `error.code`, and message heuristics
+- **Note:** Circuit breaker state is in-memory — not shared across serverless instances
 
 ### Client-Side Hooks
 
-- Polling hooks use `useBroadcastPoll` for cross-tab coordination (only visible tab polls)
+- Polling hooks use `useBroadcastPoll` for cross-tab coordination (only visible tab polls): `useConversations`, `useTotalUnread`, `useInsightCount`
+- `useBroadcastPoll` has a `disposed` guard to prevent state updates after unmount
 - `document.visibilityState === "hidden"` guard on all polling intervals
 - React Compiler is active — **never assign ref.current during render**, only in effects/handlers
-- LiveKit transport has built-in reconnect policy with exponential backoff
+- LiveKit transport uses SDK-native `reconnectPolicy` with exponential backoff (1s → 16s, max 5 attempts)
 
 ### Pagination
 

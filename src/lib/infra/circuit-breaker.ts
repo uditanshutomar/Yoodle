@@ -18,6 +18,7 @@ export class CircuitBreaker {
   private state: CircuitState = "closed";
   private failureCount = 0;
   private lastFailureTime = 0;
+  private probeInFlight = false;
   private readonly name: string;
   private readonly failureThreshold: number;
   private readonly resetTimeoutMs: number;
@@ -43,7 +44,12 @@ export class CircuitBreaker {
   async execute<T>(fn: () => Promise<T>): Promise<T> {
     if (this.state === "open") {
       if (Date.now() - this.lastFailureTime > this.resetTimeoutMs) {
+        // Only allow one probe request at a time in half-open state
+        if (this.probeInFlight) {
+          throw new CircuitBreakerOpenError(this.name, this.resetTimeoutMs);
+        }
         this.state = "half-open";
+        this.probeInFlight = true;
         log.info({ breaker: this.name }, "Circuit breaker half-open — allowing probe request");
       } else {
         throw new CircuitBreakerOpenError(this.name, this.resetTimeoutMs);
@@ -53,14 +59,12 @@ export class CircuitBreaker {
     try {
       const result = await fn();
 
-      // Success — reset on half-open, decrement on closed
+      // Success — reset on half-open, leave closed state alone
       if (this.state === "half-open") {
         log.info({ breaker: this.name }, "Circuit breaker closing — probe request succeeded");
         this.state = "closed";
         this.failureCount = 0;
-      } else if (this.failureCount > 0) {
-        // Gradual recovery: reduce failure count on success
-        this.failureCount = Math.max(0, this.failureCount - 1);
+        this.probeInFlight = false;
       }
 
       return result;
@@ -69,6 +73,7 @@ export class CircuitBreaker {
 
       if (this.state === "half-open") {
         this.state = "open";
+        this.probeInFlight = false;
         log.warn({ breaker: this.name }, "Circuit breaker reopened — probe request failed");
       }
 
@@ -94,6 +99,7 @@ export class CircuitBreaker {
     this.state = "closed";
     this.failureCount = 0;
     this.lastFailureTime = 0;
+    this.probeInFlight = false;
   }
 }
 

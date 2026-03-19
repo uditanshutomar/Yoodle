@@ -13,13 +13,13 @@ export interface ToolCall {
   /** For propose_action: the pending action data for inline accept/deny */
   pendingAction?: {
     actionId: string;
-    actionType: string;
-    actionArgs: Record<string, unknown>;
-    actionSummary: string;
+    type: string;
+    args: Record<string, unknown>;
+    summary: string;
   };
 }
 
-export interface ChatMessage {
+export interface AIChatMessage {
   id: string;
   role: "user" | "assistant";
   content: string;
@@ -28,23 +28,30 @@ export interface ChatMessage {
   cards?: CardData[];
 }
 
-const STORAGE_KEY = "yoodle-ai-chat-messages";
-const SESSIONS_KEY = "ai-chat-sessions";
+const STORAGE_KEY_PREFIX = "yoodle-ai-chat-messages";
+const SESSIONS_KEY_PREFIX = "ai-chat-sessions";
 const MAX_SESSIONS = 3;
+
+function storageKey(userId?: string) {
+  return userId ? `${STORAGE_KEY_PREFIX}:${userId}` : STORAGE_KEY_PREFIX;
+}
+function sessionsKey(userId?: string) {
+  return userId ? `${SESSIONS_KEY_PREFIX}:${userId}` : SESSIONS_KEY_PREFIX;
+}
 
 export interface ChatSession {
   id: string;
-  messages: ChatMessage[];
+  messages: AIChatMessage[];
   label?: string;
   createdAt: number;
 }
 
-function loadPersistedMessages(): ChatMessage[] {
+function loadPersistedMessages(userId?: string): AIChatMessage[] {
   if (typeof window === "undefined") return [];
   try {
-    const raw = sessionStorage.getItem(STORAGE_KEY);
+    const raw = sessionStorage.getItem(storageKey(userId));
     if (!raw) return [];
-    const parsed = JSON.parse(raw) as ChatMessage[];
+    const parsed = JSON.parse(raw) as AIChatMessage[];
     // Only keep messages from the last 24 hours
     const cutoff = Date.now() - 24 * 60 * 60 * 1000;
     return parsed.filter((m) => m.timestamp > cutoff);
@@ -53,10 +60,10 @@ function loadPersistedMessages(): ChatMessage[] {
   }
 }
 
-function persistMessages(messages: ChatMessage[]) {
+function persistMessages(messages: AIChatMessage[], userId?: string) {
   if (typeof window === "undefined") return;
   try {
-    sessionStorage.setItem(STORAGE_KEY, JSON.stringify(messages));
+    sessionStorage.setItem(storageKey(userId), JSON.stringify(messages));
   } catch {
     // Storage full or unavailable — silently ignore
   }
@@ -64,22 +71,27 @@ function persistMessages(messages: ChatMessage[]) {
 
 export function useAIChat() {
   const { user } = useAuth();
-  const [messages, setMessages] = useState<ChatMessage[]>(loadPersistedMessages);
+  const userId = user?.id;
+  const [messages, setMessages] = useState<AIChatMessage[]>(() => loadPersistedMessages(userId));
   const [isStreaming, setIsStreaming] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
-  const messagesRef = useRef<ChatMessage[]>([]);
+  const messagesRef = useRef<AIChatMessage[]>([]);
   const isStreamingRef = useRef(false);
 
   const [sessions, setSessions] = useState<ChatSession[]>(() => {
     if (typeof window === "undefined") return [];
     try {
-      const stored = sessionStorage.getItem(SESSIONS_KEY);
+      const stored = sessionStorage.getItem(sessionsKey(userId));
       return stored ? JSON.parse(stored) : [];
     } catch { return []; }
   });
   const [activeSessionId, setActiveSessionId] = useState<string>(() =>
     typeof window !== "undefined" ? crypto.randomUUID() : "default"
   );
+  const activeSessionIdRef = useRef(activeSessionId);
+  useEffect(() => { activeSessionIdRef.current = activeSessionId; }, [activeSessionId]);
+  const userIdRef = useRef(userId);
+  useEffect(() => { userIdRef.current = userId; }, [userId]);
 
   // Pending action detection callback
   const onPendingActionRef = useRef<((data: Record<string, unknown>) => void) | null>(null);
@@ -92,25 +104,32 @@ export function useAIChat() {
   useEffect(() => { messagesRef.current = messages; }, [messages]);
   useEffect(() => { isStreamingRef.current = isStreaming; }, [isStreaming]);
 
+  // Reload messages when user changes (prevents data leakage between users)
+  useEffect(() => {
+    setMessages(loadPersistedMessages(userId));
+  }, [userId]);
+
   // Persist messages whenever they change (skip during streaming for perf)
   useEffect(() => {
     if (!isStreaming && messages.length > 0) {
-      persistMessages(messages);
+      persistMessages(messages, userId);
     }
-  }, [messages, isStreaming]);
+  }, [messages, isStreaming, userId]);
 
   const sendMessage = useCallback(
     async (content: string) => {
       if (!user || !content.trim() || isStreamingRef.current) return;
+      // Set ref immediately to prevent double-sends before state updates
+      isStreamingRef.current = true;
 
-      const userMsg: ChatMessage = {
+      const userMsg: AIChatMessage = {
         id: `user-${Date.now()}`,
         role: "user",
         content: content.trim(),
         timestamp: Date.now(),
       };
 
-      const assistantMsg: ChatMessage = {
+      const assistantMsg: AIChatMessage = {
         id: `assistant-${Date.now()}`,
         role: "assistant",
         content: "",
@@ -188,8 +207,10 @@ export function useAIChat() {
 
               if (parsed.error) {
                 // Server-side error (Gemini failure, missing config, etc.)
-                // Throw to the outer catch so it displays an error message
-                throw new Error(parsed.error as string);
+                // Include retryable hint so the catch block can display appropriate message
+                const err = new Error(parsed.error as string);
+                (err as Error & { retryable?: boolean }).retryable = !!parsed.retryable;
+                throw err;
               } else if (parsed.text) {
                 // Text chunk — append to message content
                 accumulated += parsed.text as string;
@@ -240,9 +261,9 @@ export function useAIChat() {
                         ? {
                             pendingAction: {
                               actionId: paData.actionId as string,
-                              actionType: paData.actionType as string,
-                              actionArgs: (paData.args || {}) as Record<string, unknown>,
-                              actionSummary: paData.summary as string,
+                              type: paData.actionType as string,
+                              args: (paData.args || {}) as Record<string, unknown>,
+                              summary: paData.summary as string,
                             },
                           }
                         : {}),
@@ -307,10 +328,14 @@ export function useAIChat() {
         }
       } catch (error) {
         if ((error as Error).name !== "AbortError") {
+          const isRetryable = (error as Error & { retryable?: boolean }).retryable;
+          const errorContent = isRetryable
+            ? "The AI service is temporarily busy. Please try again in a moment."
+            : (error as Error).message || "Sorry, something went wrong. Try again!";
           setMessages((prev) =>
             prev.map((m) =>
               m.id === assistantMsg.id
-                ? { ...m, content: "Sorry, something went wrong. Try again!" }
+                ? { ...m, content: errorContent }
                 : m
             )
           );
@@ -334,21 +359,27 @@ export function useAIChat() {
   }, []);
 
   const clearMessages = useCallback(() => {
-    if (messages.length > 0) {
+    // Read from refs to avoid stale closure — clearMessages was closing over
+    // messages/activeSessionId state, meaning rapid calls or calls during
+    // streaming would capture outdated values.
+    const currentMessages = messagesRef.current;
+    const currentSessionId = activeSessionIdRef.current;
+
+    if (currentMessages.length > 0) {
       setSessions((prev) => {
         const newSession: ChatSession = {
-          id: activeSessionId,
-          messages,
-          createdAt: messages[0]?.timestamp ?? Date.now(),
+          id: currentSessionId,
+          messages: currentMessages,
+          createdAt: currentMessages[0]?.timestamp ?? Date.now(),
         };
-        const updated = [newSession, ...prev.filter((s) => s.id !== activeSessionId)].slice(0, MAX_SESSIONS);
-        try { sessionStorage.setItem(SESSIONS_KEY, JSON.stringify(updated)); } catch { /* quota */ }
+        const updated = [newSession, ...prev.filter((s) => s.id !== currentSessionId)].slice(0, MAX_SESSIONS);
+        try { sessionStorage.setItem(sessionsKey(userIdRef.current), JSON.stringify(updated)); } catch { /* quota */ }
         return updated;
       });
     }
     setMessages([]);
     setActiveSessionId(typeof window !== "undefined" ? crypto.randomUUID() : "default");
-  }, [messages, activeSessionId]);
+  }, []);
 
   const switchSession = useCallback((sessionId: string) => {
     const session = sessions.find((s) => s.id === sessionId);
@@ -368,7 +399,7 @@ export function useAIChat() {
       if (!res.ok) return;
       const data = await res.json();
       if (data.success && data.data?.briefing) {
-        const briefingMsg: ChatMessage = {
+        const briefingMsg: AIChatMessage = {
           id: `briefing-${Date.now()}`,
           role: "assistant",
           content: data.data.briefing,
@@ -386,15 +417,29 @@ export function useAIChat() {
     }
   }, []);
 
-  // Fetch briefing on mount and every 15 minutes
+  // Fetch briefing on mount and every 15 minutes (skip when tab is hidden)
   useEffect(() => {
     if (!user) return;
     const controller = new AbortController();
     fetchBriefing(controller.signal);
-    const interval = setInterval(() => fetchBriefing(controller.signal), 15 * 60 * 1000);
+
+    const interval = setInterval(() => {
+      if (document.visibilityState === "hidden") return;
+      fetchBriefing(controller.signal);
+    }, 15 * 60 * 1000);
+
+    // Re-fetch when tab becomes visible after being hidden
+    const handleVisibility = () => {
+      if (document.visibilityState === "visible") {
+        fetchBriefing(controller.signal);
+      }
+    };
+    document.addEventListener("visibilitychange", handleVisibility);
+
     return () => {
       controller.abort();
       clearInterval(interval);
+      document.removeEventListener("visibilitychange", handleVisibility);
     };
   }, [user, fetchBriefing]);
 

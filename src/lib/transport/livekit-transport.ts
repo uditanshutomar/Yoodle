@@ -109,9 +109,6 @@ export class LiveKitTransport implements RoomTransport {
   participantCount = 1;
   connectionState: ConnectionState = "disconnected";
 
-  private reconnectAttempts = 0;
-  private maxReconnectAttempts = 5;
-  private reconnecting = false;
   private intentionalDisconnect = false;
 
   constructor(livekitUrl: string, token: string) {
@@ -122,8 +119,9 @@ export class LiveKitTransport implements RoomTransport {
       dynacast: true,
       reconnectPolicy: {
         nextRetryDelayInMs: (context) => {
+          const MAX_ATTEMPTS = 5;
           // Exponential backoff: 1s, 2s, 4s, 8s, 16s (capped at 16s)
-          if (context.retryCount >= this.maxReconnectAttempts) return null; // stop retrying
+          if (context.retryCount >= MAX_ATTEMPTS) return null; // stop retrying
           return Math.min(1000 * Math.pow(2, context.retryCount), 16_000);
         },
       },
@@ -139,6 +137,7 @@ export class LiveKitTransport implements RoomTransport {
     localStream: MediaStream,
     user: TransportRoomUser,
   ): Promise<void> {
+    this.intentionalDisconnect = false;
     this.connectionState = "connecting";
 
     try {
@@ -171,11 +170,12 @@ export class LiveKitTransport implements RoomTransport {
 
   leave(): void {
     this.intentionalDisconnect = true;
-    this.room.removeAllListeners();
+    // Disconnect but keep room listeners intact so the instance can be
+    // re-joined later without becoming permanently deaf.
     this.room.disconnect();
     this.connectionState = "disconnected";
     this.participantCount = 0;
-    // Clear callback arrays to release references and prevent stale callbacks
+    // Clear our own callback arrays to release references and prevent stale callbacks
     this.joinedCallbacks = [];
     this.leftCallbacks = [];
     this.streamCallbacks = [];
@@ -367,26 +367,13 @@ export class LiveKitTransport implements RoomTransport {
         const mapped = mapConnectionState(state);
         this.connectionState = mapped;
 
-        if (state === LKConnectionState.Connected) {
-          // Reset reconnect counter on successful connection
-          this.reconnectAttempts = 0;
-          this.reconnecting = false;
-        } else if (
-          state === LKConnectionState.Reconnecting
-        ) {
-          this.reconnecting = true;
-          this.reconnectAttempts++;
-          console.log(
-            `[livekit-transport] Reconnecting (attempt ${this.reconnectAttempts}/${this.maxReconnectAttempts})`,
-          );
+        if (state === LKConnectionState.Reconnecting) {
+          console.log("[livekit-transport] Reconnecting…");
         } else if (
           state === LKConnectionState.Disconnected &&
           !this.intentionalDisconnect
         ) {
-          // Unexpected disconnect — log it
-          console.warn(
-            `[livekit-transport] Unexpected disconnect after ${this.reconnectAttempts} reconnect attempts`,
-          );
+          console.warn("[livekit-transport] Unexpected disconnect");
         }
 
         this.safeInvoke(this.connectionStateCallbacks, this.connectionState);
