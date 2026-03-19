@@ -42,6 +42,11 @@ export class CircuitBreaker {
    * Throws `CircuitBreakerOpenError` if the circuit is open.
    */
   async execute<T>(fn: () => Promise<T>): Promise<T> {
+    // Block concurrent requests while a half-open probe is in flight
+    if (this.state === "half-open" && this.probeInFlight) {
+      throw new CircuitBreakerOpenError(this.name, this.resetTimeoutMs);
+    }
+
     if (this.state === "open") {
       if (Date.now() - this.lastFailureTime > this.resetTimeoutMs) {
         // Only allow one probe request at a time in half-open state
