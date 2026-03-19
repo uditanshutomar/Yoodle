@@ -1,4 +1,5 @@
 import { getGoogleServices } from "./client";
+import { withGoogleRetry } from "./retry-wrapper";
 import { calendar_v3 } from "googleapis";
 import { createLogger } from "@/lib/infra/logger";
 
@@ -45,14 +46,16 @@ export async function listEvents(
 ): Promise<CalendarEvent[]> {
   const { calendar } = await getGoogleServices(userId);
 
-  const res = await calendar.events.list({
-    calendarId: options.calendarId || "primary",
-    timeMin: options.timeMin || new Date().toISOString(),
-    timeMax: options.timeMax,
-    maxResults: options.maxResults || 20,
-    singleEvents: true,
-    orderBy: "startTime",
-  });
+  const res = await withGoogleRetry(() =>
+    calendar.events.list({
+      calendarId: options.calendarId || "primary",
+      timeMin: options.timeMin || new Date().toISOString(),
+      timeMax: options.timeMax,
+      maxResults: options.maxResults || 20,
+      singleEvents: true,
+      orderBy: "startTime",
+    })
+  );
 
   return (res.data.items || []).map(formatEvent);
 }
@@ -71,31 +74,33 @@ export async function createEvent(
   // Detect all-day events: either explicitly flagged or date-only strings (YYYY-MM-DD)
   const isAllDay = options.allDay || (/^\d{4}-\d{2}-\d{2}$/.test(options.start) && /^\d{4}-\d{2}-\d{2}$/.test(options.end));
 
-  const res = await calendar.events.insert({
-    calendarId: "primary",
-    conferenceDataVersion: options.addMeetLink ? 1 : 0,
-    requestBody: {
-      summary: options.title,
-      description: options.description,
-      location: options.location,
-      start: isAllDay
-        ? { date: options.start }
-        : { dateTime: options.start, timeZone },
-      end: isAllDay
-        ? { date: options.end }
-        : { dateTime: options.end, timeZone },
-      attendees: options.attendees?.map((email) => ({ email })),
-      recurrence: options.recurrence,
-      conferenceData: options.addMeetLink
-        ? {
-            createRequest: {
-              requestId: `yoodle-${Date.now()}`,
-              conferenceSolutionKey: { type: "hangoutsMeet" },
-            },
-          }
-        : undefined,
-    },
-  });
+  const res = await withGoogleRetry(() =>
+    calendar.events.insert({
+      calendarId: "primary",
+      conferenceDataVersion: options.addMeetLink ? 1 : 0,
+      requestBody: {
+        summary: options.title,
+        description: options.description,
+        location: options.location,
+        start: isAllDay
+          ? { date: options.start }
+          : { dateTime: options.start, timeZone },
+        end: isAllDay
+          ? { date: options.end }
+          : { dateTime: options.end, timeZone },
+        attendees: options.attendees?.map((email) => ({ email })),
+        recurrence: options.recurrence,
+        conferenceData: options.addMeetLink
+          ? {
+              createRequest: {
+                requestId: `yoodle-${Date.now()}`,
+                conferenceSolutionKey: { type: "hangoutsMeet" },
+              },
+            }
+          : undefined,
+      },
+    })
+  );
 
   return formatEvent(res.data);
 }
@@ -126,11 +131,13 @@ export async function updateEvent(
     requestBody.attendees = updates.attendees.map((email) => ({ email }));
   }
 
-  const res = await calendar.events.patch({
-    calendarId: "primary",
-    eventId,
-    requestBody,
-  });
+  const res = await withGoogleRetry(() =>
+    calendar.events.patch({
+      calendarId: "primary",
+      eventId,
+      requestBody,
+    })
+  );
 
   return formatEvent(res.data);
 }
@@ -146,10 +153,12 @@ export async function getEvent(
   try {
     const { calendar } = await getGoogleServices(userId);
 
-    const res = await calendar.events.get({
-      calendarId: "primary",
-      eventId,
-    });
+    const res = await withGoogleRetry(() =>
+      calendar.events.get({
+        calendarId: "primary",
+        eventId,
+      })
+    );
 
     return formatEvent(res.data);
   } catch (err: unknown) {
@@ -172,10 +181,12 @@ export async function deleteEvent(
 ): Promise<void> {
   const { calendar } = await getGoogleServices(userId);
 
-  await calendar.events.delete({
-    calendarId: "primary",
-    eventId,
-  });
+  await withGoogleRetry(() =>
+    calendar.events.delete({
+      calendarId: "primary",
+      eventId,
+    })
+  );
 }
 
 function formatEvent(event: calendar_v3.Schema$Event): CalendarEvent {

@@ -1,4 +1,5 @@
 import { getGoogleServices } from "./client";
+import { withGoogleRetry } from "./retry-wrapper";
 import { createLogger } from "@/lib/infra/logger";
 
 const log = createLogger("google:slides");
@@ -27,16 +28,20 @@ export async function createPresentation(
 ): Promise<PresentationInfo> {
   const { slides, drive } = await getGoogleServices(userId);
 
-  const res = await slides.presentations.create({
-    requestBody: { title },
-  });
+  const res = await withGoogleRetry(() =>
+    slides.presentations.create({
+      requestBody: { title },
+    })
+  );
 
   const presentationId = res.data.presentationId || "";
 
-  const fileRes = await drive.files.get({
-    fileId: presentationId,
-    fields: "webViewLink",
-  });
+  const fileRes = await withGoogleRetry(() =>
+    drive.files.get({
+      fileId: presentationId,
+      fields: "webViewLink",
+    })
+  );
 
   return {
     presentationId,
@@ -63,24 +68,28 @@ export async function addSlide(
   const slideId = `slide_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 
   // Step 1: Create the slide
-  await slides.presentations.batchUpdate({
-    presentationId,
-    requestBody: {
-      requests: [
-        {
-          createSlide: {
-            objectId: slideId,
-            slideLayoutReference: {
-              predefinedLayout: "TITLE_AND_BODY",
+  await withGoogleRetry(() =>
+    slides.presentations.batchUpdate({
+      presentationId,
+      requestBody: {
+        requests: [
+          {
+            createSlide: {
+              objectId: slideId,
+              slideLayoutReference: {
+                predefinedLayout: "TITLE_AND_BODY",
+              },
             },
           },
-        },
-      ],
-    },
-  });
+        ],
+      },
+    })
+  );
 
   // Step 2: Get the slide to find placeholder element IDs
-  const pres = await slides.presentations.get({ presentationId });
+  const pres = await withGoogleRetry(() =>
+    slides.presentations.get({ presentationId })
+  );
   const slide = pres.data.slides?.find((s) => s.objectId === slideId);
 
   if (!slide?.pageElements) {
@@ -127,10 +136,12 @@ export async function addSlide(
   }
 
   if (textRequests.length > 0) {
-    await slides.presentations.batchUpdate({
-      presentationId,
-      requestBody: { requests: textRequests },
-    });
+    await withGoogleRetry(() =>
+      slides.presentations.batchUpdate({
+        presentationId,
+        requestBody: { requests: textRequests },
+      })
+    );
   }
 }
 

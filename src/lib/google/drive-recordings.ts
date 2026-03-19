@@ -1,6 +1,6 @@
 import { Readable } from "stream";
 import { getGoogleServices } from "./client";
-import { withRetry, isTransientError } from "@/lib/utils/retry";
+import { withGoogleRetry } from "./retry-wrapper";
 import { createLogger } from "@/lib/infra/logger";
 
 const log = createLogger("google:drive-recordings");
@@ -33,11 +33,14 @@ async function ensureYoodleFolder(userId: string): Promise<string> {
   const { drive } = await getGoogleServices(userId);
 
   // Search for existing folder
-  const search = await drive.files.list({
-    q: `name = '${YOODLE_FOLDER_NAME}' and mimeType = 'application/vnd.google-apps.folder' and trashed = false`,
-    fields: "files(id)",
-    pageSize: 1,
-  });
+  const escapedFolderName = YOODLE_FOLDER_NAME.replace(/\\/g, "\\\\").replace(/'/g, "\\'");
+  const search = await withGoogleRetry(() =>
+    drive.files.list({
+      q: `name = '${escapedFolderName}' and mimeType = 'application/vnd.google-apps.folder' and trashed = false`,
+      fields: "files(id)",
+      pageSize: 1,
+    })
+  );
 
   if (search.data.files && search.data.files.length > 0) {
     const folderId = search.data.files[0].id!;
@@ -46,13 +49,15 @@ async function ensureYoodleFolder(userId: string): Promise<string> {
   }
 
   // Create the folder
-  const folder = await drive.files.create({
-    requestBody: {
-      name: YOODLE_FOLDER_NAME,
-      mimeType: "application/vnd.google-apps.folder",
-    },
-    fields: "id",
-  });
+  const folder = await withGoogleRetry(() =>
+    drive.files.create({
+      requestBody: {
+        name: YOODLE_FOLDER_NAME,
+        mimeType: "application/vnd.google-apps.folder",
+      },
+      fields: "id",
+    })
+  );
 
   const folderId = folder.data.id!;
   setFolderCache(userId, folderId);
@@ -72,34 +77,38 @@ async function ensureMeetingFolder(
 
   const now = new Date();
   const datePart = now.toISOString().slice(0, 10);
-  const timePart = now.toTimeString().slice(0, 5).replace(":", "-");
   const safeName = meetingTitle
     ? meetingTitle.replace(/[^a-zA-Z0-9 _-]/g, "").replace(/\s+/g, "_")
     : "Meeting";
-  const folderName = `${safeName}_${datePart}_${timePart}`;
+  const meetingSuffix = meetingId.slice(-6);
+  const folderName = `${safeName}_${datePart}_${meetingSuffix}`;
 
   // Check if the meeting sub-folder already exists
   const escapedMeetingSuffix = meetingId.slice(-6).replace(/\\/g, "\\\\").replace(/'/g, "\\'");
   const escapedParentId = parentId.replace(/\\/g, "\\\\").replace(/'/g, "\\'");
-  const search = await drive.files.list({
-    q: `name contains '${escapedMeetingSuffix}' and '${escapedParentId}' in parents and mimeType = 'application/vnd.google-apps.folder' and trashed = false`,
-    fields: "files(id)",
-    pageSize: 1,
-  });
+  const search = await withGoogleRetry(() =>
+    drive.files.list({
+      q: `name contains '${escapedMeetingSuffix}' and '${escapedParentId}' in parents and mimeType = 'application/vnd.google-apps.folder' and trashed = false`,
+      fields: "files(id)",
+      pageSize: 1,
+    })
+  );
 
   if (search.data.files && search.data.files.length > 0) {
     return search.data.files[0].id!;
   }
 
   // Create it
-  const folder = await drive.files.create({
-    requestBody: {
-      name: folderName,
-      mimeType: "application/vnd.google-apps.folder",
-      parents: [parentId],
-    },
-    fields: "id",
-  });
+  const folder = await withGoogleRetry(() =>
+    drive.files.create({
+      requestBody: {
+        name: folderName,
+        mimeType: "application/vnd.google-apps.folder",
+        parents: [parentId],
+      },
+      fields: "id",
+    })
+  );
 
   return folder.data.id!;
 }
@@ -135,8 +144,8 @@ export async function uploadRecordingToDrive(
 
   const { drive } = await getGoogleServices(userId);
 
-  const res = await withRetry(
-    () => drive.files.create({
+  const res = await withGoogleRetry(() =>
+    drive.files.create({
       requestBody: {
         name: options.fileName,
         mimeType: options.mimeType,
@@ -147,8 +156,7 @@ export async function uploadRecordingToDrive(
         body: Readable.from(options.buffer),
       },
       fields: "id, name, mimeType, size, createdTime, webViewLink, webContentLink",
-    }),
-    { retryOn: isTransientError }
+    })
   );
 
   return {
@@ -177,11 +185,13 @@ export async function listMeetingRecordings(
 
     const escapedSuffix = meetingId.slice(-6).replace(/\\/g, "\\\\").replace(/'/g, "\\'");
     const escapedParent = parentId.replace(/\\/g, "\\\\").replace(/'/g, "\\'");
-    const search = await drive.files.list({
-      q: `name contains '${escapedSuffix}' and '${escapedParent}' in parents and mimeType = 'application/vnd.google-apps.folder' and trashed = false`,
-      fields: "files(id)",
-      pageSize: 1,
-    });
+    const search = await withGoogleRetry(() =>
+      drive.files.list({
+        q: `name contains '${escapedSuffix}' and '${escapedParent}' in parents and mimeType = 'application/vnd.google-apps.folder' and trashed = false`,
+        fields: "files(id)",
+        pageSize: 1,
+      })
+    );
 
     if (!search.data.files || search.data.files.length === 0) {
       return [];
@@ -191,13 +201,15 @@ export async function listMeetingRecordings(
 
     // List video/audio files in the meeting folder
     const escapedFolderId = folderId.replace(/\\/g, "\\\\").replace(/'/g, "\\'");
-    const files = await drive.files.list({
-      q: `'${escapedFolderId}' in parents and trashed = false and (mimeType contains 'video/' or mimeType contains 'audio/')`,
-      fields:
-        "files(id, name, mimeType, size, createdTime, webViewLink, webContentLink)",
-      orderBy: "createdTime desc",
-      pageSize: 50,
-    });
+    const files = await withGoogleRetry(() =>
+      drive.files.list({
+        q: `'${escapedFolderId}' in parents and trashed = false and (mimeType contains 'video/' or mimeType contains 'audio/')`,
+        fields:
+          "files(id, name, mimeType, size, createdTime, webViewLink, webContentLink)",
+        orderBy: "createdTime desc",
+        pageSize: 50,
+      })
+    );
 
     return (files.data.files || []).map((f) => ({
       fileId: f.id!,
@@ -209,8 +221,13 @@ export async function listMeetingRecordings(
       webContentLink: f.webContentLink || undefined,
     }));
   } catch (err) {
+    const code = (err as { code?: number }).code;
+    if (code === 404 || code === 403) {
+      // Folder not found or not accessible — no recordings available
+      return [];
+    }
     log.error({ err, meetingId }, "Failed to list meeting recordings");
-    return [];
+    throw err;
   }
 }
 

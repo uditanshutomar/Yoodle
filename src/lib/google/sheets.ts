@@ -1,4 +1,5 @@
 import { getGoogleServices } from "./client";
+import { withGoogleRetry } from "./retry-wrapper";
 
 export interface SheetData {
   spreadsheetId: string;
@@ -28,9 +29,9 @@ export async function readSheet(
   // Use allSettled so a non-critical failure (e.g. drive metadata) doesn't
   // prevent returning the actual sheet data.
   const [dataResult, metaResult, fileResult] = await Promise.allSettled([
-    sheets.spreadsheets.values.get({ spreadsheetId, range }),
-    sheets.spreadsheets.get({ spreadsheetId, fields: "properties.title" }),
-    drive.files.get({ fileId: spreadsheetId, fields: "webViewLink" }),
+    withGoogleRetry(() => sheets.spreadsheets.values.get({ spreadsheetId, range })),
+    withGoogleRetry(() => sheets.spreadsheets.get({ spreadsheetId, fields: "properties.title" })),
+    withGoogleRetry(() => drive.files.get({ fileId: spreadsheetId, fields: "webViewLink" })),
   ]);
 
   // The data fetch is essential — re-throw if it failed
@@ -58,12 +59,14 @@ export async function writeSheet(
 ): Promise<{ updatedCells: number }> {
   const { sheets } = await getGoogleServices(userId);
 
-  const res = await sheets.spreadsheets.values.update({
-    spreadsheetId,
-    range,
-    valueInputOption: "RAW",
-    requestBody: { values },
-  });
+  const res = await withGoogleRetry(() =>
+    sheets.spreadsheets.values.update({
+      spreadsheetId,
+      range,
+      valueInputOption: "RAW",
+      requestBody: { values },
+    })
+  );
 
   return { updatedCells: res.data.updatedCells || 0 };
 }
@@ -79,13 +82,15 @@ export async function appendToSheet(
 ): Promise<{ updatedRows: number }> {
   const { sheets } = await getGoogleServices(userId);
 
-  const res = await sheets.spreadsheets.values.append({
-    spreadsheetId,
-    range,
-    valueInputOption: "RAW",
-    insertDataOption: "INSERT_ROWS",
-    requestBody: { values },
-  });
+  const res = await withGoogleRetry(() =>
+    sheets.spreadsheets.values.append({
+      spreadsheetId,
+      range,
+      valueInputOption: "RAW",
+      insertDataOption: "INSERT_ROWS",
+      requestBody: { values },
+    })
+  );
 
   return { updatedRows: res.data.updates?.updatedRows || 0 };
 }
@@ -99,12 +104,14 @@ export async function createSpreadsheet(
 ): Promise<SpreadsheetInfo> {
   const { sheets } = await getGoogleServices(userId);
 
-  const res = await sheets.spreadsheets.create({
-    requestBody: {
-      properties: { title },
-    },
-    fields: "spreadsheetId,properties.title,sheets.properties,spreadsheetUrl",
-  });
+  const res = await withGoogleRetry(() =>
+    sheets.spreadsheets.create({
+      requestBody: {
+        properties: { title },
+      },
+      fields: "spreadsheetId,properties.title,sheets.properties,spreadsheetUrl",
+    })
+  );
 
   return {
     spreadsheetId: res.data.spreadsheetId || "",
@@ -127,8 +134,10 @@ export async function clearSheetRange(
 ): Promise<void> {
   const { sheets } = await getGoogleServices(userId);
 
-  await sheets.spreadsheets.values.clear({
-    spreadsheetId,
-    range,
-  });
+  await withGoogleRetry(() =>
+    sheets.spreadsheets.values.clear({
+      spreadsheetId,
+      range,
+    })
+  );
 }

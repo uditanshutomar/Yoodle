@@ -1,5 +1,6 @@
 import { gmail_v1 } from "googleapis";
 import { getGoogleServices } from "./client";
+import { withGoogleRetry } from "./retry-wrapper";
 import { createLogger } from "@/lib/infra/logger";
 
 const log = createLogger("google:gmail");
@@ -37,12 +38,14 @@ export async function listEmails(
 ): Promise<EmailMessage[]> {
   const { gmail } = await getGoogleServices(userId);
 
-  const res = await gmail.users.messages.list({
-    userId: "me",
-    maxResults: options.maxResults || 10,
-    q: options.query,
-    labelIds: options.labelIds,
-  });
+  const res = await withGoogleRetry(() =>
+    gmail.users.messages.list({
+      userId: "me",
+      maxResults: options.maxResults || 10,
+      q: options.query,
+      labelIds: options.labelIds,
+    })
+  );
 
   if (!res.data.messages) return [];
 
@@ -77,11 +80,13 @@ async function getEmailDetails(
   gmail: gmail_v1.Gmail,
   messageId: string
 ): Promise<EmailMessage | null> {
-  const res = await gmail.users.messages.get({
-    userId: "me",
-    id: messageId,
-    format: "full",
-  });
+  const res = await withGoogleRetry(() =>
+    gmail.users.messages.get({
+      userId: "me",
+      id: messageId,
+      format: "full",
+    })
+  );
 
   const msg = res.data;
   if (!msg) return null;
@@ -175,13 +180,15 @@ export async function sendEmail(
   const encodedMessage = Buffer.from(messageParts)
     .toString("base64url");
 
-  const res = await gmail.users.messages.send({
-    userId: "me",
-    requestBody: {
-      raw: encodedMessage,
-      threadId: options.threadId,
-    },
-  });
+  const res = await withGoogleRetry(() =>
+    gmail.users.messages.send({
+      userId: "me",
+      requestBody: {
+        raw: encodedMessage,
+        threadId: options.threadId,
+      },
+    })
+  );
 
   return {
     messageId: res.data.id!,
@@ -206,10 +213,12 @@ export async function searchEmails(
 export async function getUnreadCount(userId: string): Promise<number> {
   const { gmail } = await getGoogleServices(userId);
 
-  const res = await gmail.users.labels.get({
-    userId: "me",
-    id: "INBOX",
-  });
+  const res = await withGoogleRetry(() =>
+    gmail.users.labels.get({
+      userId: "me",
+      id: "INBOX",
+    })
+  );
 
   return res.data.messagesUnread || 0;
 }
@@ -239,12 +248,14 @@ export async function replyToEmail(
   const { gmail } = await getGoogleServices(userId);
 
   // Fetch original message headers
-  const res = await gmail.users.messages.get({
-    userId: "me",
-    id: messageId,
-    format: "metadata",
-    metadataHeaders: ["Message-ID", "References", "Subject", "From", "Reply-To"],
-  });
+  const res = await withGoogleRetry(() =>
+    gmail.users.messages.get({
+      userId: "me",
+      id: messageId,
+      format: "metadata",
+      metadataHeaders: ["Message-ID", "References", "Subject", "From", "Reply-To"],
+    })
+  );
 
   const headers = res.data.payload?.headers || [];
   const getHeader = (name: string) =>
@@ -285,13 +296,15 @@ export async function replyToEmail(
 
   const encodedMessage = Buffer.from(messageParts).toString("base64url");
 
-  const sendRes = await gmail.users.messages.send({
-    userId: "me",
-    requestBody: {
-      raw: encodedMessage,
-      threadId,
-    },
-  });
+  const sendRes = await withGoogleRetry(() =>
+    gmail.users.messages.send({
+      userId: "me",
+      requestBody: {
+        raw: encodedMessage,
+        threadId,
+      },
+    })
+  );
 
   return {
     messageId: sendRes.data.id!,
@@ -310,12 +323,14 @@ export async function modifyEmailLabels(
 ): Promise<void> {
   const { gmail } = await getGoogleServices(userId);
 
-  await gmail.users.messages.modify({
-    userId: "me",
-    id: messageId,
-    requestBody: {
-      addLabelIds: addLabels,
-      removeLabelIds: removeLabels,
-    },
-  });
+  await withGoogleRetry(() =>
+    gmail.users.messages.modify({
+      userId: "me",
+      id: messageId,
+      requestBody: {
+        addLabelIds: addLabels,
+        removeLabelIds: removeLabels,
+      },
+    })
+  );
 }

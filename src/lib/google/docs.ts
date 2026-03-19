@@ -1,4 +1,5 @@
 import { getGoogleServices } from "./client";
+import { withGoogleRetry } from "./retry-wrapper";
 
 export interface DocContent {
   documentId: string;
@@ -18,8 +19,8 @@ export async function getDocContent(
   const { docs, drive } = await getGoogleServices(userId);
 
   const [docRes, fileRes] = await Promise.all([
-    docs.documents.get({ documentId }),
-    drive.files.get({ fileId: documentId, fields: "webViewLink" }),
+    withGoogleRetry(() => docs.documents.get({ documentId })),
+    withGoogleRetry(() => drive.files.get({ fileId: documentId, fields: "webViewLink" })),
   ]);
 
   const doc = docRes.data;
@@ -47,19 +48,21 @@ export async function appendToDoc(
   // Use endOfSegmentLocation to atomically insert at the end of the doc body.
   // This avoids the TOCTOU race condition where the doc could be modified between
   // fetching the end index and issuing the insert request.
-  await docs.documents.batchUpdate({
-    documentId,
-    requestBody: {
-      requests: [
-        {
-          insertText: {
-            endOfSegmentLocation: { segmentId: "" },
-            text: "\n" + text,
+  await withGoogleRetry(() =>
+    docs.documents.batchUpdate({
+      documentId,
+      requestBody: {
+        requests: [
+          {
+            insertText: {
+              endOfSegmentLocation: { segmentId: "" },
+              text: "\n" + text,
+            },
           },
-        },
-      ],
-    },
-  });
+        ],
+      },
+    })
+  );
 
   return { documentId };
 }
@@ -76,22 +79,24 @@ export async function findAndReplaceInDoc(
 ): Promise<{ occurrences: number }> {
   const { docs } = await getGoogleServices(userId);
 
-  const res = await docs.documents.batchUpdate({
-    documentId,
-    requestBody: {
-      requests: [
-        {
-          replaceAllText: {
-            containsText: {
-              text: find,
-              matchCase,
+  const res = await withGoogleRetry(() =>
+    docs.documents.batchUpdate({
+      documentId,
+      requestBody: {
+        requests: [
+          {
+            replaceAllText: {
+              containsText: {
+                text: find,
+                matchCase,
+              },
+              replaceText: replace,
             },
-            replaceText: replace,
           },
-        },
-      ],
-    },
-  });
+        ],
+      },
+    })
+  );
 
   const occurrences =
     res.data.replies?.[0]?.replaceAllText?.occurrencesChanged || 0;

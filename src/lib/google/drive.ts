@@ -1,4 +1,5 @@
 import { getGoogleServices } from "./client";
+import { withGoogleRetry } from "./retry-wrapper";
 import { drive_v3 } from "googleapis";
 
 export interface DriveFile {
@@ -44,12 +45,14 @@ export async function listFiles(
     queryParts.push(`(name contains '${escaped}' or fullText contains '${escaped}')`);
   }
 
-  const res = await drive.files.list({
-    pageSize: options.maxResults || 20,
-    q: queryParts.join(" and "),
-    orderBy: options.orderBy || "modifiedTime desc",
-    fields: "files(id, name, mimeType, webViewLink, createdTime, modifiedTime, size, owners, shared)",
-  });
+  const res = await withGoogleRetry(() =>
+    drive.files.list({
+      pageSize: options.maxResults || 20,
+      q: queryParts.join(" and "),
+      orderBy: options.orderBy || "modifiedTime desc",
+      fields: "files(id, name, mimeType, webViewLink, createdTime, modifiedTime, size, owners, shared)",
+    })
+  );
 
   return (res.data.files || []).map(formatFile);
 }
@@ -100,7 +103,7 @@ async function createFile(
     };
   }
 
-  const res = await drive.files.create(requestParams);
+  const res = await withGoogleRetry(() => drive.files.create(requestParams));
   return formatFile(res.data);
 }
 
@@ -146,24 +149,28 @@ export async function getOrCreateRootMeetingFolder(
 ): Promise<DriveFile> {
   const { drive } = await getGoogleServices(userId);
 
-  const res = await drive.files.list({
-    q: `name = 'Yoodle Meetings' and mimeType = '${FOLDER_MIME}' and trashed = false`,
-    fields: "files(id, name, mimeType, webViewLink, createdTime, modifiedTime, size, owners, shared)",
-    pageSize: 1,
-  });
+  const res = await withGoogleRetry(() =>
+    drive.files.list({
+      q: `name = 'Yoodle Meetings' and mimeType = '${FOLDER_MIME}' and trashed = false`,
+      fields: "files(id, name, mimeType, webViewLink, createdTime, modifiedTime, size, owners, shared)",
+      pageSize: 1,
+    })
+  );
 
   const existing = res.data.files?.[0];
   if (existing) {
     return formatFile(existing);
   }
 
-  const created = await drive.files.create({
-    requestBody: {
-      name: "Yoodle Meetings",
-      mimeType: FOLDER_MIME,
-    },
-    fields: "id, name, mimeType, webViewLink, createdTime, modifiedTime",
-  });
+  const created = await withGoogleRetry(() =>
+    drive.files.create({
+      requestBody: {
+        name: "Yoodle Meetings",
+        mimeType: FOLDER_MIME,
+      },
+      fields: "id, name, mimeType, webViewLink, createdTime, modifiedTime",
+    })
+  );
 
   return formatFile(created.data);
 }
@@ -197,25 +204,29 @@ export async function getOrCreateMeetingFolder(
   const monthName = `${year}-${month}`;
 
   // Search for month folder under root
-  const monthRes = await drive.files.list({
-    q: `name = '${monthName}' and mimeType = '${FOLDER_MIME}' and '${root.id}' in parents and trashed = false`,
-    fields: "files(id, name, mimeType, webViewLink, createdTime, modifiedTime, size, owners, shared)",
-    pageSize: 1,
-  });
+  const monthRes = await withGoogleRetry(() =>
+    drive.files.list({
+      q: `name = '${monthName}' and mimeType = '${FOLDER_MIME}' and '${root.id}' in parents and trashed = false`,
+      fields: "files(id, name, mimeType, webViewLink, createdTime, modifiedTime, size, owners, shared)",
+      pageSize: 1,
+    })
+  );
 
   let monthFolder: DriveFile;
   const existingMonth = monthRes.data.files?.[0];
   if (existingMonth) {
     monthFolder = formatFile(existingMonth);
   } else {
-    const createdMonth = await drive.files.create({
-      requestBody: {
-        name: monthName,
-        mimeType: FOLDER_MIME,
-        parents: [root.id],
-      },
-      fields: "id, name, mimeType, webViewLink, createdTime, modifiedTime",
-    });
+    const createdMonth = await withGoogleRetry(() =>
+      drive.files.create({
+        requestBody: {
+          name: monthName,
+          mimeType: FOLDER_MIME,
+          parents: [root.id],
+        },
+        fields: "id, name, mimeType, webViewLink, createdTime, modifiedTime",
+      })
+    );
     monthFolder = formatFile(createdMonth.data);
   }
 
@@ -223,24 +234,28 @@ export async function getOrCreateMeetingFolder(
   const safeName = sanitizeFolderName(meetingTitle);
   const escapedName = safeName.replace(/\\/g, "\\\\").replace(/'/g, "\\'");
   const escapedMonthId = monthFolder.id.replace(/\\/g, "\\\\").replace(/'/g, "\\'");
-  const existingMeeting = await drive.files.list({
-    q: `name = '${escapedName}' and mimeType = '${FOLDER_MIME}' and '${escapedMonthId}' in parents and trashed = false`,
-    fields: "files(id, name, mimeType, webViewLink, createdTime, modifiedTime, size, owners, shared)",
-    pageSize: 1,
-  });
+  const existingMeeting = await withGoogleRetry(() =>
+    drive.files.list({
+      q: `name = '${escapedName}' and mimeType = '${FOLDER_MIME}' and '${escapedMonthId}' in parents and trashed = false`,
+      fields: "files(id, name, mimeType, webViewLink, createdTime, modifiedTime, size, owners, shared)",
+      pageSize: 1,
+    })
+  );
 
   if (existingMeeting.data.files?.[0]) {
     return formatFile(existingMeeting.data.files[0]);
   }
 
-  const createdMeeting = await drive.files.create({
-    requestBody: {
-      name: safeName,
-      mimeType: FOLDER_MIME,
-      parents: [monthFolder.id],
-    },
-    fields: "id, name, mimeType, webViewLink, createdTime, modifiedTime",
-  });
+  const createdMeeting = await withGoogleRetry(() =>
+    drive.files.create({
+      requestBody: {
+        name: safeName,
+        mimeType: FOLDER_MIME,
+        parents: [monthFolder.id],
+      },
+      fields: "id, name, mimeType, webViewLink, createdTime, modifiedTime",
+    })
+  );
 
   return formatFile(createdMeeting.data);
 }
