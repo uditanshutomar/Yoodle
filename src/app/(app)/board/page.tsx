@@ -1,31 +1,27 @@
 "use client";
 
-import { motion } from "framer-motion";
-import { Kanban } from "lucide-react";
+import dynamic from "next/dynamic";
 
-export default function BoardPage() {
-  return (
-    <motion.div
-      className="flex flex-1 flex-col items-center justify-center py-24"
-      initial={{ opacity: 0, y: 12 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.4 }}
-    >
-      <div className="flex h-16 w-16 items-center justify-center rounded-xl border-2 border-[var(--border-strong)] bg-[#FFE600]/20 shadow-[4px_4px_0_var(--border-strong)]">
-        <Kanban size={32} className="text-[var(--text-primary)]" />
+const BoardPage = dynamic(() => import("@/components/board/BoardPage"), {
+  ssr: false,
+  loading: () => (
+    <div className="space-y-6">
+      <div>
+        <div className="h-10 w-48 rounded-lg bg-[var(--surface-hover)] animate-pulse" />
+        <div className="h-4 w-80 rounded-lg bg-[var(--surface-hover)] animate-pulse mt-2" />
       </div>
-      <h1
-        className="mt-6 text-3xl font-black text-[var(--text-primary)]"
-        style={{ fontFamily: "var(--font-heading)" }}
-      >
-        The Board
-      </h1>
-      <p
-        className="mt-2 text-[var(--text-secondary)]"
-        style={{ fontFamily: "var(--font-body)" }}
-      >
-        Smart Kanban coming soon
-      </p>
-    </motion.div>
-  );
+      <div className="flex gap-4 overflow-hidden">
+        {[1, 2, 3].map((i) => (
+          <div
+            key={i}
+            className="flex-1 min-w-[240px] rounded-2xl border-2 border-[var(--border-strong)] bg-[var(--surface)] shadow-[4px_4px_0_var(--border-strong)] h-[400px] animate-pulse"
+          />
+        ))}
+      </div>
+    </div>
+  ),
+});
+
+export default function Page() {
+  return <BoardPage />;
 }
