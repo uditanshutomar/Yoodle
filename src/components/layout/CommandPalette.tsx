@@ -226,7 +226,7 @@ export default function CommandPalette() {
             </Dialog.Overlay>
             <Dialog.Content asChild onOpenAutoFocus={(e) => e.preventDefault()}>
               <motion.div
-                className="fixed left-1/2 top-[15%] z-[200] w-full max-w-lg -translate-x-1/2 rounded-2xl border-2 border-[var(--border-strong)] bg-[var(--surface)] shadow-[4px_4px_0_var(--border-strong)] outline-none"
+                className="fixed left-1/2 top-[15%] z-[201] w-full max-w-lg -translate-x-1/2 rounded-2xl border-2 border-[var(--border-strong)] bg-[var(--surface)] shadow-[4px_4px_0_var(--border-strong)] outline-none"
                 initial={{ opacity: 0, y: -10, scale: 0.97 }}
                 animate={{ opacity: 1, y: 0, scale: 1 }}
                 exit={{ opacity: 0, y: -10, scale: 0.97 }}
@@ -241,16 +241,17 @@ export default function CommandPalette() {
                     type="text"
                     value={query}
                     onChange={(e) => setQuery(e.target.value)}
-                    placeholder="Search across meetings, messages, tasks, and more..."
+                    placeholder="Search across meetings, messages, tasks, and more…"
                     className="flex-1 bg-transparent text-sm text-[var(--text-primary)] placeholder:text-[var(--text-muted)] outline-none"
                     style={{ fontFamily: "var(--font-body)" }}
                   />
                   {query && (
                     <button
                       onClick={() => setQuery("")}
-                      className="shrink-0 rounded-md p-0.5 text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors cursor-pointer"
+                      className="shrink-0 rounded-md p-0.5 text-[var(--text-muted)] hover:text-[var(--text-primary)] focus-visible:ring-2 focus-visible:ring-[#FFE600] focus-visible:outline-none transition-colors cursor-pointer"
+                      aria-label="Clear search"
                     >
-                      <X size={14} />
+                      <X size={14} aria-hidden="true" />
                     </button>
                   )}
                 </div>
@@ -259,6 +260,7 @@ export default function CommandPalette() {
                 <div
                   ref={listRef}
                   className="max-h-[360px] overflow-y-auto px-2 py-2"
+                  style={{ overscrollBehavior: "contain" }}
                 >
                   {/* Loading state */}
                   {loading && (
@@ -301,7 +303,7 @@ export default function CommandPalette() {
                               <button
                                 key={q}
                                 onClick={() => setQuery(q)}
-                                className="rounded-lg border border-[var(--border)] bg-[var(--surface-hover)] px-2.5 py-1 text-xs text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:border-[var(--border-strong)] transition-colors cursor-pointer"
+                                className="rounded-lg border border-[var(--border)] bg-[var(--surface-hover)] px-2.5 py-1 text-xs text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:border-[var(--border-strong)] focus-visible:ring-2 focus-visible:ring-[#FFE600] focus-visible:outline-none transition-colors cursor-pointer"
                                 style={{ fontFamily: "var(--font-body)" }}
                               >
                                 {q}
@@ -355,7 +357,7 @@ export default function CommandPalette() {
                                   setOpen(false);
                                   router.push(getHref(item));
                                 }}
-                                className={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left transition-colors cursor-pointer ${
+                                className={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left transition-colors cursor-pointer focus-visible:ring-2 focus-visible:ring-[#FFE600] focus-visible:outline-none ${
                                   isSelected
                                     ? "bg-[#FFE600]/20"
                                     : "hover:bg-[var(--surface-hover)]"
@@ -368,7 +370,7 @@ export default function CommandPalette() {
                                       : "bg-[var(--surface-hover)] text-[var(--text-secondary)]"
                                   }`}
                                 >
-                                  <Icon size={16} />
+                                  <Icon size={16} aria-hidden="true" />
                                 </div>
                                 <span
                                   className="truncate text-sm text-[var(--text-primary)]"

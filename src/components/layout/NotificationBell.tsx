@@ -82,12 +82,12 @@ function NotificationRow({
   return (
     <button
       onClick={() => onAction(notification)}
-      className={`flex w-full items-start gap-3 rounded-xl px-3 py-3 text-left transition-colors hover:bg-[var(--surface-hover)] cursor-pointer ${rowBg}`}
+      className={`flex w-full items-start gap-3 rounded-xl px-3 py-3 text-left transition-colors hover:bg-[var(--surface-hover)] focus-visible:ring-2 focus-visible:ring-[#FFE600] focus-visible:outline-none cursor-pointer ${rowBg}`}
     >
       <div
         className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${iconContainerClass}`}
       >
-        <Icon size={16} />
+        <Icon size={16} aria-hidden="true" />
       </div>
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2">
@@ -141,7 +141,7 @@ export default function NotificationBell() {
           className="relative rounded-xl p-2 text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-hover)] transition-colors cursor-pointer"
           aria-label="Notifications"
         >
-          <Bell size={20} />
+          <Bell size={20} aria-hidden="true" />
           <AnimatePresence>
             {badgeLabel && (
               <motion.span
@@ -179,7 +179,7 @@ export default function NotificationBell() {
               {unreadCount > 0 && (
                 <button
                   onClick={markAllRead}
-                  className="flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-bold text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)] transition-colors cursor-pointer"
+                  className="flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-bold text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)] focus-visible:ring-2 focus-visible:ring-[#FFE600] focus-visible:outline-none transition-colors cursor-pointer"
                   style={{ fontFamily: "var(--font-heading)" }}
                 >
                   <CheckCheck size={14} />
@@ -189,7 +189,7 @@ export default function NotificationBell() {
             </div>
 
             {/* Body */}
-            <div className="flex-1 overflow-y-auto p-2">
+            <div className="flex-1 overflow-y-auto p-2" style={{ overscrollBehavior: "contain" }}>
               {loading ? (
                 <div className="space-y-2 p-2">
                   {Array.from({ length: 4 }).map((_, i) => (
@@ -204,7 +204,7 @@ export default function NotificationBell() {
                 </div>
               ) : notifications.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-10 text-[var(--text-muted)]">
-                  <Bell size={32} className="mb-2 opacity-40" />
+                  <Bell size={32} className="mb-2 opacity-40" aria-hidden="true" />
                   <p
                     className="text-sm"
                     style={{ fontFamily: "var(--font-body)" }}

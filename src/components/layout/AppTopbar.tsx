@@ -31,11 +31,12 @@ export default function AppTopbar({ onMenuToggle, menuOpen }: AppTopbarProps) {
         <CommandPalette />
         <button
           onClick={() => document.dispatchEvent(new KeyboardEvent("keydown", { key: "k", metaKey: true }))}
-          className="flex items-center gap-2 rounded-xl border-2 border-[var(--border)] bg-[var(--surface)] py-2 px-3 text-[var(--text-muted)] cursor-pointer hover:bg-[var(--surface-hover)] transition-colors"
+          className="flex items-center gap-2 rounded-xl border-2 border-[var(--border)] bg-[var(--surface)] py-2 px-3 text-[var(--text-muted)] cursor-pointer hover:bg-[var(--surface-hover)] focus-visible:ring-2 focus-visible:ring-[#FFE600] focus-visible:outline-none transition-colors"
+          aria-label="Open search (⌘K)"
         >
-          <Search size={16} />
+          <Search size={16} aria-hidden="true" />
           <span className="hidden text-sm sm:inline" style={{ fontFamily: "var(--font-body)" }}>Search</span>
-          <kbd className="ml-auto rounded-md border border-[var(--border)] bg-[var(--surface-hover)] px-1.5 py-0.5 text-[10px] font-bold text-[var(--text-muted)]" style={{ fontFamily: "var(--font-heading)" }}>⌘K</kbd>
+          <kbd className="ml-auto rounded-md border border-[var(--border)] bg-[var(--surface-hover)] px-1.5 py-0.5 text-[10px] font-bold text-[var(--text-muted)]" style={{ fontFamily: "var(--font-heading)" }}>⌘&nbsp;K</kbd>
         </button>
       </div>
 
