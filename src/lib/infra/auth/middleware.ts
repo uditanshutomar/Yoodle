@@ -1,3 +1,4 @@
+import "server-only";
 import { NextRequest } from "next/server";
 import { verifyAccessToken } from "@/lib/infra/auth/jwt";
 import { tokenIsBlacklisted } from "@/lib/infra/redis/cache";

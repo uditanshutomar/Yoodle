@@ -3,7 +3,7 @@ import { z } from "zod";
 import { withHandler } from "@/lib/infra/api/with-handler";
 import { checkRateLimit } from "@/lib/infra/api/rate-limit";
 import { getUserIdFromRequest } from "@/lib/infra/auth/middleware";
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import { GoogleGenAI } from "@google/genai";
 import { SYSTEM_PROMPTS } from "@/lib/ai/prompts";
 import { successResponse } from "@/lib/infra/api/response";
 import { AppError } from "@/lib/infra/api/errors";
@@ -30,10 +30,7 @@ export const POST = withHandler(async (req: NextRequest) => {
     throw new AppError("AI not configured", "CONFIGURATION_ERROR", 500);
   }
 
-  const genAI = new GoogleGenerativeAI(apiKey);
-  const model = genAI.getGenerativeModel({
-    model: process.env.GEMINI_MODEL || "gemini-2.0-flash",
-  });
+  const ai = new GoogleGenAI({ apiKey });
 
   const prompt = `Original action type: ${body.actionType}
 Original args: ${JSON.stringify(body.args, null, 2)}
@@ -48,15 +45,23 @@ Return the revised action as JSON with these fields:
   "summary": "... revised one-line summary ..."
 }`;
 
-  const result = await model.generateContent({
-    contents: [{ role: "user", parts: [{ text: prompt }] }],
-    systemInstruction: {
-      role: "user",
-      parts: [{ text: SYSTEM_PROMPTS.REVISE_ACTION }],
-    },
-  });
+  const result = await Promise.race([
+    ai.models.generateContent({
+      model: process.env.GEMINI_MODEL || "gemini-3.1-pro-preview",
+      contents: [{ role: "user", parts: [{ text: prompt }] }],
+      config: {
+        systemInstruction: {
+          role: "user",
+          parts: [{ text: SYSTEM_PROMPTS.REVISE_ACTION }],
+        },
+      },
+    }),
+    new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error("Gemini request timed out")), 30_000)
+    ),
+  ]);
 
-  const responseText = result.response.text().trim();
+  const responseText = (result.text ?? "").trim();
 
   // Extract the first balanced JSON object from the response
   let parsed: { actionType: string; args: Record<string, unknown>; summary: string };

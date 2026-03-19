@@ -12,7 +12,7 @@ import { createLogger } from "@/lib/infra/logger";
 const oauthStateSchema = z.object({
   nonce: z.string().optional(),
   redirect: z.string().optional(),
-}).passthrough();
+}).strict();
 
 const log = createLogger("api:auth-google-callback");
 

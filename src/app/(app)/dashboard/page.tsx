@@ -1,11 +1,5 @@
-"use client";
-
-import dynamic from "next/dynamic";
-
-const DeskPage = dynamic(() => import("@/components/desk/DeskPage"), {
-  ssr: false,
-});
+import DashboardClient from "./DashboardClient";
 
 export default function DashboardPage() {
-  return <DeskPage />;
+  return <DashboardClient />;
 }

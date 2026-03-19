@@ -310,7 +310,7 @@ export default function MeetingRoomPage() {
   );
 
   // ── Build full participants list ─────────────────────────────────────
-  const participants: RoomParticipant[] = [
+  const participants = useMemo<RoomParticipant[]>(() => [
     {
       id: localUser.id,
       name: localUser.name,
@@ -322,7 +322,7 @@ export default function MeetingRoomPage() {
       isHandRaised,
     },
     ...effectiveRemoteParticipants,
-  ];
+  ], [localUser, isVideoEnabled, isAudioEnabled, isScreenSharing, isHandRaised, effectiveRemoteParticipants]);
 
   const activeScreenShare = participants.some((p) => p.isScreenSharing);
 

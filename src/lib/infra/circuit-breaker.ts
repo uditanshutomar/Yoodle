@@ -142,3 +142,9 @@ export const livekitBreaker = new CircuitBreaker("livekit", {
   failureThreshold: 3,
   resetTimeoutMs: 45_000,
 });
+
+/** Gemini generative AI API */
+export const geminiBreaker = new CircuitBreaker("gemini", {
+  failureThreshold: 5,
+  resetTimeoutMs: 60_000,
+});

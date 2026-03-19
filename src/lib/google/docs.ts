@@ -105,9 +105,22 @@ export async function findAndReplaceInDoc(
 
 // ── Helpers ──────────────────────────────────────────────────────────
 
+/** A structural element from the Google Docs API body content */
+interface DocsStructuralElement {
+  paragraph?: {
+    elements?: { textRun?: { content?: string | null } }[];
+  } | null;
+  table?: {
+    tableRows?: {
+      tableCells?: {
+        content?: DocsStructuralElement[];
+      }[];
+    }[] | null;
+  } | null;
+}
+
 /** Extract plain text from Google Docs structural elements */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function extractPlainText(content: any[]): string {
+function extractPlainText(content: DocsStructuralElement[]): string {
   let text = "";
   for (const element of content) {
     if (element.paragraph?.elements) {

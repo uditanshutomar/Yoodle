@@ -1,4 +1,5 @@
 import { getGoogleServices } from "./client";
+import { withGoogleRetry } from "./retry-wrapper";
 import { people_v1 } from "googleapis";
 
 export interface Contact {
@@ -20,11 +21,11 @@ async function listContacts(
   const { people } = await getGoogleServices(userId);
 
   if (options.query) {
-    const res = await people.people.searchContacts({
+    const res = await withGoogleRetry(() => people.people.searchContacts({
       query: options.query,
       readMask: "names,emailAddresses,phoneNumbers,organizations,photos",
       pageSize: options.maxResults || 20,
-    });
+    }));
 
     return (res.data.results || [])
       .map((r) => r.person)
@@ -32,12 +33,12 @@ async function listContacts(
       .map(formatContact);
   }
 
-  const res = await people.people.connections.list({
+  const res = await withGoogleRetry(() => people.people.connections.list({
     resourceName: "people/me",
     pageSize: options.maxResults || 50,
     personFields: "names,emailAddresses,phoneNumbers,organizations,photos",
     sortOrder: "LAST_MODIFIED_DESCENDING",
-  });
+  }));
 
   return (res.data.connections || []).map(formatContact);
 }

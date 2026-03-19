@@ -1,26 +1,33 @@
-import { GoogleGenerativeAI, GenerativeModel, Content, Part, GenerateContentRequest } from "@google/generative-ai";
+import "server-only";
+import { GoogleGenAI, Content, Part } from "@google/genai";
 import { SYSTEM_PROMPTS } from "./prompts";
 import { WORKSPACE_TOOLS, TOOL_CONFIG, executeWorkspaceTool } from "./tools";
 import { createLogger } from "@/lib/infra/logger";
+import { geminiBreaker } from "@/lib/infra/circuit-breaker";
 
 const log = createLogger("ai:gemini");
 
 // ── Singleton Gemini client ─────────────────────────────────────────
 
-let genAI: GoogleGenerativeAI | null = null;
+let genAI: GoogleGenAI | null = null;
 
-function getClient(): GoogleGenerativeAI {
+function initClient(): GoogleGenAI {
   if (!genAI) {
     const apiKey = process.env.GEMINI_API_KEY;
     if (!apiKey) throw new Error("GEMINI_API_KEY not configured");
-    genAI = new GoogleGenerativeAI(apiKey);
+    genAI = new GoogleGenAI({ apiKey });
   }
   return genAI;
 }
 
-export function getModel(modelName?: string): GenerativeModel {
-  const model = modelName || process.env.GEMINI_MODEL || "gemini-2.0-flash";
-  return getClient().getGenerativeModel({ model });
+/** Returns the singleton GoogleGenAI client instance */
+export function getClient(): GoogleGenAI {
+  return initClient();
+}
+
+/** Returns the configured model name string */
+export function getModelName(modelName?: string): string {
+  return modelName || process.env.GEMINI_MODEL || "gemini-3.1-pro-preview";
 }
 
 // ── User context type shared by chat functions ─────────────────────
@@ -81,7 +88,8 @@ export async function* streamChatWithAssistant(
   userContext?: AssistantUserContext,
   options?: StreamOptions
 ): AsyncGenerator<StreamEvent> {
-  const model = getModel();
+  const ai = getClient();
+  const model = getModelName();
   const systemInstruction = buildSystemInstruction(userContext);
   const enableTools = options?.enableTools && options?.userId;
 
@@ -91,18 +99,6 @@ export async function* streamChatWithAssistant(
     parts: [{ text: msg.content }],
   }));
 
-  const requestConfig: GenerateContentRequest = {
-    contents,
-    systemInstruction: {
-      role: "user" as const,
-      parts: [{ text: systemInstruction }],
-    },
-    ...(enableTools && {
-      tools: [WORKSPACE_TOOLS],
-      toolConfig: TOOL_CONFIG,
-    }),
-  };
-
   // Function calling loop — max 5 rounds to prevent infinite loops
   const MAX_TOOL_ROUNDS = 5;
   const STREAM_TIMEOUT_MS = 90_000; // 90s per streaming round
@@ -110,7 +106,19 @@ export async function* streamChatWithAssistant(
 
   for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
     const result = await Promise.race([
-      model.generateContentStream(requestConfig),
+      geminiBreaker.execute(() =>
+        ai.models.generateContentStream({
+          model,
+          contents,
+          config: {
+            systemInstruction,
+            ...(enableTools && {
+              tools: [WORKSPACE_TOOLS],
+              toolConfig: TOOL_CONFIG,
+            }),
+          },
+        }),
+      ),
       new Promise<never>((_, reject) =>
         setTimeout(() => reject(new Error("Gemini streaming timed out")), STREAM_TIMEOUT_MS)
       ),
@@ -118,9 +126,9 @@ export async function* streamChatWithAssistant(
 
     const responseParts: Part[] = [];
 
-    for await (const chunk of result.stream) {
+    for await (const chunk of result) {
       // Yield text chunks as they arrive
-      const text = chunk.text();
+      const text = chunk.text;
       if (text) {
         yield text;
       }
@@ -151,7 +159,7 @@ export async function* streamChatWithAssistant(
 
     for (const part of functionCalls) {
       const fc = part.functionCall!;
-      const functionName = fc.name;
+      const functionName = fc.name ?? "unknown";
       const args = (fc.args || {}) as Record<string, unknown>;
 
       // Notify client that a tool is being called
@@ -207,13 +215,21 @@ export async function* streamChatWithAssistant(
       log.warn("tool calling loop reached max rounds, forcing final text response");
       // Do one final generation so Gemini can summarize the tool results as text
       const finalResult = await Promise.race([
-        model.generateContentStream(requestConfig),
+        geminiBreaker.execute(() =>
+          ai.models.generateContentStream({
+            model,
+            contents,
+            config: {
+              systemInstruction,
+            },
+          }),
+        ),
         new Promise<never>((_, reject) =>
           setTimeout(() => reject(new Error("Final Gemini round timed out")), STREAM_TIMEOUT_MS)
         ),
       ]);
-      for await (const chunk of finalResult.stream) {
-        const text = chunk.text();
+      for await (const chunk of finalResult) {
+        const text = chunk.text;
         if (text) yield text;
       }
       break;

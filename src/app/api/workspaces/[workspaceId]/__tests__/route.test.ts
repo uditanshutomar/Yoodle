@@ -27,11 +27,13 @@ vi.mock("@/lib/infra/auth/middleware", () => ({
 
 const mockFindById = vi.fn();
 const mockFindByIdAndDelete = vi.fn();
+const mockFindOneAndUpdate = vi.fn();
 
 vi.mock("@/lib/infra/db/models/workspace", () => ({
   default: {
     findById: (...args: unknown[]) => mockFindById(...args),
     findByIdAndDelete: (...args: unknown[]) => mockFindByIdAndDelete(...args),
+    findOneAndUpdate: (...args: unknown[]) => mockFindOneAndUpdate(...args),
   },
 }));
 
@@ -110,7 +112,10 @@ describe("PATCH /api/workspaces/[workspaceId]", () => {
 
   it("updates workspace name", async () => {
     const ws = makeWorkspace();
-    mockFindById.mockResolvedValue(ws);
+    // findWorkspaceOrThrow calls Workspace.findById(id).lean()
+    mockFindById.mockReturnValue({ lean: vi.fn().mockResolvedValue(ws) });
+    const updatedWs = { ...ws, name: "Updated Name" };
+    mockFindOneAndUpdate.mockResolvedValue(updatedWs);
 
     const res = await PATCH(
       createRequest("PATCH", { name: "Updated Name" }),
@@ -120,12 +125,16 @@ describe("PATCH /api/workspaces/[workspaceId]", () => {
 
     expect(res.status).toBe(200);
     expect(body.success).toBe(true);
-    expect(ws.save).toHaveBeenCalled();
-    expect(ws.name).toBe("Updated Name");
+    expect(mockFindOneAndUpdate).toHaveBeenCalledWith(
+      { _id: TEST_WORKSPACE_ID },
+      { $set: { name: "Updated Name" } },
+      { new: true, runValidators: true },
+    );
   });
 
   it("returns 404 for non-existent workspace", async () => {
-    mockFindById.mockResolvedValue(null);
+    // findWorkspaceOrThrow calls Workspace.findById(id).lean() — returns null → 404
+    mockFindById.mockReturnValue({ lean: vi.fn().mockResolvedValue(null) });
 
     const res = await PATCH(
       createRequest("PATCH", { name: "Updated" }),

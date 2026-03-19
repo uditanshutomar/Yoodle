@@ -7,6 +7,9 @@ import { BadRequestError, NotFoundError } from "@/lib/infra/api/errors";
 import connectDB from "@/lib/infra/db/client";
 import User from "@/lib/infra/db/models/user";
 import { successResponse } from "@/lib/infra/api/response";
+import { getCached, setCache, invalidateCache } from "@/lib/infra/redis/cache";
+
+const PROFILE_CACHE_TTL = 60; // seconds
 
 /**
  * GET /api/users/me
@@ -15,6 +18,13 @@ import { successResponse } from "@/lib/infra/api/response";
 export const GET = withHandler(async (req: NextRequest) => {
   await checkRateLimit(req, "general");
   const userId = await getUserIdFromRequest(req);
+
+  // Check cache first
+  const cacheKey = `user:profile:${userId}`;
+  const cached = await getCached<Record<string, unknown>>(cacheKey);
+  if (cached) {
+    return successResponse(cached);
+  }
 
   await connectDB();
 
@@ -26,7 +36,7 @@ export const GET = withHandler(async (req: NextRequest) => {
     throw new NotFoundError("User not found.");
   }
 
-  return successResponse({
+  const data = {
     id: user._id.toString(),
     email: user.email,
     name: user.name,
@@ -39,7 +49,11 @@ export const GET = withHandler(async (req: NextRequest) => {
     lastSeenAt: user.lastSeenAt,
     createdAt: user.createdAt,
     updatedAt: user.updatedAt,
-  });
+  };
+
+  await setCache(cacheKey, data, PROFILE_CACHE_TTL);
+
+  return successResponse(data);
 });
 
 const updateProfileSchema = z.object({
@@ -178,6 +192,12 @@ export const PATCH = withHandler(async (req: NextRequest) => {
   if (!updatedUser) {
     throw new NotFoundError("User not found.");
   }
+
+  // Invalidate cached profile and session data after update
+  await Promise.all([
+    invalidateCache(`user:profile:${userId}`),
+    invalidateCache(`user:session:${userId}`),
+  ]);
 
   return successResponse({
     id: updatedUser._id.toString(),

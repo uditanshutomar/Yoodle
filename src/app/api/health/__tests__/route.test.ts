@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 // ── Mock dependencies before importing the route ──────────────────
 
@@ -47,25 +47,52 @@ const { GET } = await import("../route");
 const mockedConnectDB = vi.mocked(connectDB);
 const mockedIsRedisAvailable = vi.mocked(isRedisAvailable);
 
+const TEST_SECRET = "test-health-secret";
+
+/** Build a bare Request (no detail header) */
+function makeRequest(): Request {
+  return new Request("http://localhost/api/health");
+}
+
+/** Build a Request that includes the x-health-detail-secret header */
+function makeDetailRequest(): Request {
+  return new Request("http://localhost/api/health", {
+    headers: { "x-health-detail-secret": TEST_SECRET },
+  });
+}
+
 describe("GET /api/health", () => {
+  const originalEnv = process.env.HEALTH_DETAIL_SECRET;
+
   beforeEach(() => {
     vi.clearAllMocks();
     // Reset defaults: DB connected, Redis available
     mockConnection.readyState = 1;
     mockedConnectDB.mockResolvedValue({ connection: mockConnection } as never);
     mockedIsRedisAvailable.mockResolvedValue(true);
+    // Set the detail secret so tests that need services can provide the header
+    process.env.HEALTH_DETAIL_SECRET = TEST_SECRET;
+  });
+
+  afterEach(() => {
+    // Restore original env value
+    if (originalEnv === undefined) {
+      delete process.env.HEALTH_DETAIL_SECRET;
+    } else {
+      process.env.HEALTH_DETAIL_SECRET = originalEnv;
+    }
   });
 
   it("returns 200 with status 'healthy' when DB and Redis are connected", async () => {
-    const response = await GET();
+    const response = await GET(makeRequest());
     const body = await response.json();
 
     expect(response.status).toBe(200);
     expect(body.status).toBe("healthy");
   });
 
-  it("returns service status fields for database and redis", async () => {
-    const response = await GET();
+  it("returns service status fields for database and redis when detail secret is provided", async () => {
+    const response = await GET(makeDetailRequest());
     const body = await response.json();
 
     expect(body.services).toBeDefined();
@@ -73,8 +100,16 @@ describe("GET /api/health", () => {
     expect(body.services.redis).toBe("connected");
   });
 
+  it("omits services from response when no detail secret is provided", async () => {
+    delete process.env.HEALTH_DETAIL_SECRET;
+    const response = await GET(makeRequest());
+    const body = await response.json();
+
+    expect(body.services).toBeUndefined();
+  });
+
   it("returns timestamp and latency fields", async () => {
-    const response = await GET();
+    const response = await GET(makeRequest());
     const body = await response.json();
 
     expect(body.timestamp).toBeDefined();
@@ -86,7 +121,7 @@ describe("GET /api/health", () => {
   it("returns 503 with status 'degraded' when DB is disconnected", async () => {
     mockConnection.readyState = 0; // 0 = disconnected
 
-    const response = await GET();
+    const response = await GET(makeDetailRequest());
     const body = await response.json();
 
     expect(response.status).toBe(503);
@@ -98,7 +133,7 @@ describe("GET /api/health", () => {
   it("returns 503 with status 'degraded' when Redis is disconnected", async () => {
     mockedIsRedisAvailable.mockResolvedValue(false);
 
-    const response = await GET();
+    const response = await GET(makeDetailRequest());
     const body = await response.json();
 
     expect(response.status).toBe(503);
@@ -111,7 +146,7 @@ describe("GET /api/health", () => {
     mockConnection.readyState = 0;
     mockedIsRedisAvailable.mockResolvedValue(false);
 
-    const response = await GET();
+    const response = await GET(makeDetailRequest());
     const body = await response.json();
 
     expect(response.status).toBe(503);
@@ -123,7 +158,7 @@ describe("GET /api/health", () => {
   it("returns 503 with database 'error' when connectDB throws (redis still checked independently)", async () => {
     mockedConnectDB.mockRejectedValue(new Error("Connection refused"));
 
-    const response = await GET();
+    const response = await GET(makeDetailRequest());
     const body = await response.json();
 
     expect(response.status).toBe(503);
@@ -134,7 +169,7 @@ describe("GET /api/health", () => {
   });
 
   it("calls connectDB and isRedisAvailable in parallel", async () => {
-    await GET();
+    await GET(makeRequest());
 
     expect(mockedConnectDB).toHaveBeenCalledTimes(1);
     expect(mockedIsRedisAvailable).toHaveBeenCalledTimes(1);

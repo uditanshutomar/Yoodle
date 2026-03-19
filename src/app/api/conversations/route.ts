@@ -10,6 +10,9 @@ import connectDB from "@/lib/infra/db/client";
 import Conversation, { buildDmPairKey } from "@/lib/infra/db/models/conversation";
 import DirectMessage from "@/lib/infra/db/models/direct-message";
 import User from "@/lib/infra/db/models/user";
+import { getCached, setCache } from "@/lib/infra/redis/cache";
+
+const CONVERSATIONS_CACHE_TTL = 15; // seconds — short TTL since conversations update frequently
 
 // ─── Validation ────────────────────────────────────────────────────────
 
@@ -39,6 +42,14 @@ const createConversationSchema = z.discriminatedUnion("type", [
 export const GET = withHandler(async (req: NextRequest) => {
   await checkRateLimit(req, "general");
   const userId = await getUserIdFromRequest(req);
+
+  // Check cache first
+  const cacheKey = `user:conversations:${userId}`;
+  const cached = await getCached<unknown[]>(cacheKey);
+  if (cached) {
+    return successResponse(cached);
+  }
+
   await connectDB();
 
   const userOid = new mongoose.Types.ObjectId(userId);
@@ -108,6 +119,8 @@ export const GET = withHandler(async (req: NextRequest) => {
     createdAt: conv.createdAt?.toISOString(),
     updatedAt: conv.updatedAt?.toISOString(),
   }));
+
+  await setCache(cacheKey, result, CONVERSATIONS_CACHE_TTL);
 
   return successResponse(result);
 });

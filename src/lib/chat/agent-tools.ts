@@ -494,10 +494,12 @@ async function fetchEmails(userId: string): Promise<string> {
     // Use listEmails which fetches full details — the agent only needs subject/from/snippet
     // but the current API doesn't support metadata-only mode, so we just limit to 8 and
     // use snippet (already included) instead of full body to keep the prompt small
-    const [emails, unreadCount] = await Promise.all([
+    const [emailsResult, unreadResult] = await Promise.allSettled([
       listEmails(userId, { maxResults: 8, labelIds: ["INBOX"] }),
       getUnreadCount(userId),
     ]);
+    const emails = emailsResult.status === "fulfilled" ? emailsResult.value : [];
+    const unreadCount = unreadResult.status === "fulfilled" ? unreadResult.value : 0;
 
     if (emails.length === 0) {
       return `Emails: Inbox empty. ${unreadCount} unread.`;

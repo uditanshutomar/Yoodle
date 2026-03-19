@@ -5,7 +5,7 @@ import { getUserIdFromRequest } from "@/lib/infra/auth/middleware";
 import { buildWorkspaceContext, WorkspaceSnapshot } from "@/lib/google/workspace-context";
 import { hasGoogleAccess } from "@/lib/google/client";
 import { createLogger } from "@/lib/infra/logger";
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import { GoogleGenAI } from "@google/genai";
 import { SYSTEM_PROMPTS } from "@/lib/ai/prompts";
 import { successResponse } from "@/lib/infra/api/response";
 import { AppError } from "@/lib/infra/api/errors";
@@ -100,25 +100,25 @@ export const POST = withHandler(async (req: NextRequest) => {
     throw new AppError("AI not configured", "CONFIGURATION_ERROR", 500);
   }
 
-  const genAI = new GoogleGenerativeAI(apiKey);
-  const model = genAI.getGenerativeModel({
-    model: process.env.GEMINI_MODEL || "gemini-2.0-flash",
-  });
+  const ai = new GoogleGenAI({ apiKey });
 
-  const result = await model.generateContent({
+  const result = await ai.models.generateContent({
+    model: process.env.GEMINI_MODEL || "gemini-3.1-pro-preview",
     contents: [
       {
         role: "user",
         parts: [{ text: `Generate a briefing based on this workspace data:\n${contextString}` }],
       },
     ],
-    systemInstruction: {
-      role: "user",
-      parts: [{ text: SYSTEM_PROMPTS.BRIEFING }],
+    config: {
+      systemInstruction: {
+        role: "user",
+        parts: [{ text: SYSTEM_PROMPTS.BRIEFING }],
+      },
     },
   });
 
-  const briefingText = result.response.text();
+  const briefingText = result.text ?? "";
 
   // Always update the snapshot cache — prevents repeated Gemini calls
   // when data changed but Gemini says "NO_UPDATE"

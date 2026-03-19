@@ -46,24 +46,29 @@ export const PATCH = withHandler(async (req: NextRequest, context) => {
 
   validateWorkspaceId(workspaceId);
 
-  // Need a Mongoose document (not .lean()) for .save() which runs validators
-  const workspace = await Workspace.findById(workspaceId);
-  if (!workspace) throw new NotFoundError("Workspace not found.");
+  // Verify admin access before updating
+  const existing = await findWorkspaceOrThrow(workspaceId);
+  verifyWorkspaceAdminAccess(existing, userId, "update the workspace");
 
-  verifyWorkspaceAdminAccess(workspace, userId, "update the workspace");
-
-  if (body.name && typeof body.name === "string") workspace.name = body.name.trim();
+  // Build atomic $set payload from validated body
+  const $set: Record<string, unknown> = {};
+  if (body.name && typeof body.name === "string") $set.name = body.name.trim();
   if (body.description !== undefined) {
-    workspace.description = typeof body.description === "string" ? body.description.trim() : "";
+    $set.description = typeof body.description === "string" ? body.description.trim() : "";
   }
   if (body.settings) {
     if (body.settings.autoShutdown !== undefined)
-      workspace.settings.autoShutdown = body.settings.autoShutdown;
+      $set["settings.autoShutdown"] = body.settings.autoShutdown;
     if (body.settings.shutdownAfterMinutes !== undefined)
-      workspace.settings.shutdownAfterMinutes = body.settings.shutdownAfterMinutes;
+      $set["settings.shutdownAfterMinutes"] = body.settings.shutdownAfterMinutes;
   }
 
-  await workspace.save();
+  const workspace = await Workspace.findOneAndUpdate(
+    { _id: workspaceId },
+    { $set },
+    { new: true, runValidators: true },
+  );
+  if (!workspace) throw new NotFoundError("Workspace not found.");
   return successResponse(workspace);
 });
 

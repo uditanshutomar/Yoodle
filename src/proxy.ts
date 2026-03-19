@@ -2,12 +2,12 @@ import { NextRequest, NextResponse } from "next/server";
 import { jwtVerify } from "jose";
 
 /**
- * Next.js Edge Middleware
+ * Next.js Proxy (formerly Edge Middleware — renamed in Next.js 16)
  *
  * Protects all /(app)/* routes by requiring a valid access token cookie.
  * Allows all other routes (landing page, auth pages, API routes) through.
  *
- * Note: Token blacklist checks cannot run in Edge middleware (no Redis access).
+ * Note: Token blacklist checks cannot run in the proxy layer (no Redis access).
  * The API-layer authenticateRequest() in src/lib/infra/auth/middleware.ts handles
  * blacklist validation for all API routes. For page routes, tokens are short-lived
  * (15 min) which limits the window after logout.
@@ -66,7 +66,7 @@ function applySecurityHeaders(response: NextResponse): NextResponse {
   return response;
 }
 
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   // Only protect app routes - let everything else through

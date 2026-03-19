@@ -16,7 +16,7 @@ const log = createLogger("api:health");
  * requests are rejected. Monitoring should alert immediately on
  * redis: "disconnected".
  */
-export async function GET() {
+export async function GET(req: Request) {
   const start = Date.now();
 
   try {
@@ -55,15 +55,24 @@ export async function GET() {
     const status = allHealthy ? "healthy" : "degraded";
     const httpStatus = allHealthy ? 200 : 503;
 
-    return NextResponse.json(
-      {
-        status,
-        timestamp: new Date().toISOString(),
-        latency,
-        services,
-      },
-      { status: httpStatus },
-    );
+    // Only expose service details when the caller provides the detail secret
+    // or in development mode — prevents leaking internal service names publicly.
+    const detailSecret = process.env.HEALTH_DETAIL_SECRET;
+    const reqSecret = req.headers.get("x-health-detail-secret");
+    const isDev = process.env.NODE_ENV === "development";
+    const showDetails =
+      isDev || (detailSecret && reqSecret && detailSecret === reqSecret);
+
+    const body: Record<string, unknown> = {
+      status,
+      timestamp: new Date().toISOString(),
+      latency,
+    };
+    if (showDetails) {
+      body.services = services;
+    }
+
+    return NextResponse.json(body, { status: httpStatus });
   } catch (error) {
     const latency = Date.now() - start;
     log.error({ err: error }, "health check failed");
@@ -73,10 +82,6 @@ export async function GET() {
         status: "unhealthy",
         timestamp: new Date().toISOString(),
         latency,
-        services: {
-          database: "error",
-          redis: "error",
-        },
       },
       { status: 503 },
     );

@@ -54,9 +54,10 @@ describe("POST /api/cron/proactive", () => {
     const body = await res.json();
 
     expect(res.status).toBe(200);
-    expect(body.ok).toBe(true);
-    expect(body.summary).toHaveLength(9);
-    expect(body.summary.every((s: { status: string }) => s.status === "fulfilled")).toBe(true);
+    expect(body.success).toBe(true);
+    expect(body.data.ok).toBe(true);
+    expect(body.data.summary).toHaveLength(9);
+    expect(body.data.summary.every((s: { status: string }) => s.status === "fulfilled")).toBe(true);
   });
 
   it("accepts Authorization Bearer token", async () => {
@@ -64,31 +65,38 @@ describe("POST /api/cron/proactive", () => {
     const body = await res.json();
 
     expect(res.status).toBe(200);
-    expect(body.ok).toBe(true);
+    expect(body.success).toBe(true);
+    expect(body.data.ok).toBe(true);
   });
 
-  it("returns 401 with invalid secret", async () => {
+  it("returns 403 with invalid secret", async () => {
     const res = await POST(createRequest({ "x-cron-secret": "wrong-secret" }));
+    const body = await res.json();
 
-    expect(res.status).toBe(401);
-    const text = await res.text();
-    expect(text).toBe("Unauthorized");
+    expect(res.status).toBe(403);
+    expect(body.success).toBe(false);
+    expect(body.error.code).toBe("FORBIDDEN");
+    expect(body.error.message).toBe("Unauthorized");
   });
 
-  it("returns 401 with missing secret header", async () => {
+  it("returns 403 with missing secret header", async () => {
     const res = await POST(createRequest());
+    const body = await res.json();
 
-    expect(res.status).toBe(401);
+    expect(res.status).toBe(403);
+    expect(body.success).toBe(false);
+    expect(body.error.code).toBe("FORBIDDEN");
   });
 
   it("returns 500 when CRON_SECRET env var is not configured", async () => {
     vi.stubEnv("CRON_SECRET", "");
 
     const res = await POST(createRequest({ "x-cron-secret": "any" }));
+    const body = await res.json();
 
     expect(res.status).toBe(500);
-    const text = await res.text();
-    expect(text).toBe("Server misconfigured");
+    expect(body.success).toBe(false);
+    expect(body.error.code).toBe("INTERNAL_ERROR");
   });
 
   it("reports individual trigger failures in summary", async () => {
@@ -99,18 +107,19 @@ describe("POST /api/cron/proactive", () => {
     const body = await res.json();
 
     expect(res.status).toBe(200);
-    expect(body.ok).toBe(true);
+    expect(body.success).toBe(true);
+    expect(body.data.ok).toBe(true);
 
-    const meetingPrep = body.summary.find((s: { trigger: string }) => s.trigger === "meetingPrep");
+    const meetingPrep = body.data.summary.find((s: { trigger: string }) => s.trigger === "meetingPrep");
     expect(meetingPrep.status).toBe("rejected");
     expect(meetingPrep.error).toBe("DB timeout");
 
-    const staleTasks = body.summary.find((s: { trigger: string }) => s.trigger === "staleTasks");
+    const staleTasks = body.data.summary.find((s: { trigger: string }) => s.trigger === "staleTasks");
     expect(staleTasks.status).toBe("rejected");
     expect(staleTasks.error).toBe("Connection refused");
 
     // Other triggers should still be fulfilled
-    const deadlines = body.summary.find((s: { trigger: string }) => s.trigger === "deadlineReminders");
+    const deadlines = body.data.summary.find((s: { trigger: string }) => s.trigger === "deadlineReminders");
     expect(deadlines.status).toBe("fulfilled");
   });
 

@@ -1,5 +1,8 @@
 import { describe, it, expect, vi } from "vitest";
 
+// Mock server-only before importing modules that use it
+vi.mock("server-only", () => ({}));
+
 // Mock heavy dependencies so importing agent-processor doesn't trigger
 // Mongoose / Redis / Google API connections at test time.
 vi.mock("@/lib/infra/db/mongodb", () => ({}));

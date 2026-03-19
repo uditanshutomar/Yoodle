@@ -25,6 +25,9 @@ vi.mock("@/lib/infra/auth/jwt", () => ({
 
 vi.mock("@/lib/infra/redis/cache", () => ({
   tokenBlacklist: vi.fn().mockResolvedValue(undefined),
+  getCached: vi.fn().mockResolvedValue(null),
+  setCache: vi.fn().mockResolvedValue(undefined),
+  invalidateCache: vi.fn().mockResolvedValue(undefined),
 }));
 
 const mockFindById = vi.fn();

@@ -1,13 +1,15 @@
+import dynamic from "next/dynamic";
 import Navbar from "@/components/Navbar";
 import Hero from "@/components/Hero";
-import Features from "@/components/Features";
-import AIAssistant from "@/components/AIAssistant";
-import Pricing from "@/components/Pricing";
-import OpenSource from "@/components/OpenSource";
-import HowItWorks from "@/components/HowItWorks";
-import CTA from "@/components/CTA";
-import Footer from "@/components/Footer";
 import CursorGlow from "@/components/CursorGlow";
+
+const Features = dynamic(() => import("@/components/Features"));
+const AIAssistant = dynamic(() => import("@/components/AIAssistant"));
+const Pricing = dynamic(() => import("@/components/Pricing"));
+const OpenSource = dynamic(() => import("@/components/OpenSource"));
+const HowItWorks = dynamic(() => import("@/components/HowItWorks"));
+const CTA = dynamic(() => import("@/components/CTA"));
+const Footer = dynamic(() => import("@/components/Footer"));
 
 export default function Home() {
   return (

@@ -98,7 +98,7 @@ export const GET = withHandler(async (req: NextRequest) => {
     .sort({ scheduledAt: -1, createdAt: -1 })
     .skip(offset)
     .limit(limit)
-    .populate("hostId", "name email displayName avatarUrl")
+    .populate("hostId", "name displayName avatarUrl")
     .lean();
 
   return successResponse(meetings);
@@ -214,7 +214,7 @@ export const POST = withHandler(async (req: NextRequest) => {
   }
 
   // Populate host info before returning
-  await meeting.populate("hostId", "name email displayName avatarUrl");
+  await meeting.populate("hostId", "name displayName avatarUrl");
 
   return successResponse(meeting, 201);
 });

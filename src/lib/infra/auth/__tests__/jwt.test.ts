@@ -1,11 +1,15 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
-// Set JWT_SECRET before importing the module
+vi.mock("server-only", () => ({}));
+
+// Set JWT_SECRET and JWT_REFRESH_SECRET before importing the module
 const MOCK_SECRET = "test-jwt-secret-at-least-32-chars-long";
+const MOCK_REFRESH_SECRET = "test-jwt-refresh-secret-at-least-32-chars";
 
 describe("JWT utilities", () => {
   beforeEach(() => {
     vi.stubEnv("JWT_SECRET", MOCK_SECRET);
+    vi.stubEnv("JWT_REFRESH_SECRET", MOCK_REFRESH_SECRET);
   });
 
   afterEach(() => {
@@ -32,13 +36,15 @@ describe("JWT utilities", () => {
   it("rejects an access token when verified as refresh", async () => {
     const { signAccessToken, verifyRefreshToken } = await import("../jwt");
     const token = await signAccessToken("user-123");
-    await expect(verifyRefreshToken(token)).rejects.toThrow("Invalid token type");
+    // Different secrets means signature verification fails before type check
+    await expect(verifyRefreshToken(token)).rejects.toThrow();
   });
 
   it("rejects a refresh token when verified as access", async () => {
     const { signRefreshToken, verifyAccessToken } = await import("../jwt");
     const token = await signRefreshToken("user-123");
-    await expect(verifyAccessToken(token)).rejects.toThrow("Invalid token type");
+    // Different secrets means signature verification fails before type check
+    await expect(verifyAccessToken(token)).rejects.toThrow();
   });
 
   it("rejects a tampered token", async () => {
@@ -63,5 +69,11 @@ describe("JWT utilities", () => {
     vi.stubEnv("JWT_SECRET", "");
     delete process.env.JWT_SECRET;
     await expect(signAccessToken("user-123")).rejects.toThrow("JWT_SECRET");
+  });
+
+  it("throws when JWT_REFRESH_SECRET is not set", async () => {
+    const { signRefreshToken } = await import("../jwt");
+    delete process.env.JWT_REFRESH_SECRET;
+    await expect(signRefreshToken("user-123")).rejects.toThrow("JWT_REFRESH_SECRET");
   });
 });

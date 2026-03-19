@@ -23,14 +23,12 @@ vi.mock("@/lib/ai/prompts", () => ({
 }));
 
 const mockGenerateContent = vi.fn();
-vi.mock("@google/generative-ai", () => {
+vi.mock("@google/genai", () => {
   return {
-    GoogleGenerativeAI: class {
-      getGenerativeModel() {
-        return {
-          generateContent: (...args: unknown[]) => mockGenerateContent(...args),
-        };
-      }
+    GoogleGenAI: class {
+      models = {
+        generateContent: (...args: unknown[]) => mockGenerateContent(...args),
+      };
     },
   };
 });
@@ -69,7 +67,7 @@ describe("POST /api/ai/action/revise", () => {
       summary: "Create a task to fix the bug, assigned to bob",
     });
     mockGenerateContent.mockResolvedValue({
-      response: { text: () => revisedJson },
+      text: revisedJson,
     });
 
     const res = await POST(createRequest(validBody), {
@@ -87,7 +85,7 @@ describe("POST /api/ai/action/revise", () => {
   it("extracts JSON from markdown-wrapped response", async () => {
     const wrappedResponse = '```json\n{"actionType":"create_task","args":{"title":"Fix bug","assignee":"bob"},"summary":"revised"}\n```';
     mockGenerateContent.mockResolvedValue({
-      response: { text: () => wrappedResponse },
+      text: wrappedResponse,
     });
 
     const res = await POST(createRequest(validBody), {
@@ -175,7 +173,7 @@ describe("POST /api/ai/action/revise", () => {
 
   it("returns 500 when AI returns unparseable response", async () => {
     mockGenerateContent.mockResolvedValue({
-      response: { text: () => "This is not JSON at all" },
+      text: "This is not JSON at all",
     });
 
     const res = await POST(createRequest(validBody), {
@@ -194,7 +192,7 @@ describe("POST /api/ai/action/revise", () => {
       summary: "",
     });
     mockGenerateContent.mockResolvedValue({
-      response: { text: () => partialJson },
+      text: partialJson,
     });
 
     const res = await POST(createRequest(validBody), {

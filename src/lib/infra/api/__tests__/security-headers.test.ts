@@ -27,7 +27,7 @@ describe("Security Headers in Middleware", () => {
 
   it("applies security headers to unprotected routes", async () => {
     // Dynamic import to pick up mocks
-    const { middleware } = await import("@/middleware");
+    const { proxy: middleware } = await import("@/proxy");
 
     const req = new Request("http://localhost:3000/login", {
       method: "GET",
@@ -43,7 +43,7 @@ describe("Security Headers in Middleware", () => {
   });
 
   it("sets X-Frame-Options to SAMEORIGIN", async () => {
-    const { middleware } = await import("@/middleware");
+    const { proxy: middleware } = await import("@/proxy");
 
     const req = new Request("http://localhost:3000/", {
       method: "GET",
@@ -56,7 +56,7 @@ describe("Security Headers in Middleware", () => {
   });
 
   it("sets X-Content-Type-Options to nosniff", async () => {
-    const { middleware } = await import("@/middleware");
+    const { proxy: middleware } = await import("@/proxy");
 
     const req = new Request("http://localhost:3000/", {
       method: "GET",
@@ -69,7 +69,7 @@ describe("Security Headers in Middleware", () => {
   });
 
   it("sets HSTS with includeSubDomains and preload", async () => {
-    const { middleware } = await import("@/middleware");
+    const { proxy: middleware } = await import("@/proxy");
 
     const req = new Request("http://localhost:3000/", {
       method: "GET",
@@ -85,7 +85,7 @@ describe("Security Headers in Middleware", () => {
   });
 
   it("applies security headers to authenticated route responses", async () => {
-    const { middleware } = await import("@/middleware");
+    const { proxy: middleware } = await import("@/proxy");
 
     mockedJwtVerify.mockResolvedValue({
       payload: { userId: "user-123", type: "access" },
@@ -106,7 +106,7 @@ describe("Security Headers in Middleware", () => {
   });
 
   it("applies security headers to redirect responses (unauthenticated)", async () => {
-    const { middleware } = await import("@/middleware");
+    const { proxy: middleware } = await import("@/proxy");
 
     // Use Object.create to avoid the read-only `url` getter issue
     const baseReq = new Request("http://localhost:3000/dashboard", {

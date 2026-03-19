@@ -39,10 +39,10 @@ async function ensureMeetingConversation(meetingId: string, meeting: any) {
 
     const hostId = meeting.hostId?._id || meeting.hostId;
 
-    // Check if conversation already exists before upserting
-    const existingConv = await Conversation.findOne({ meetingId: new mongoose.Types.ObjectId(meetingId) }).select("_id").lean();
-
-    const conv = await Conversation.findOneAndUpdate(
+    // Atomically find-or-create the conversation. Use includeResultMetadata
+    // so we can tell whether a new document was inserted (avoids TOCTOU race
+    // where two concurrent callers both think the conversation is new).
+    const result = await Conversation.findOneAndUpdate(
       { meetingId: new mongoose.Types.ObjectId(meetingId) },
       {
         $setOnInsert: {
@@ -52,11 +52,14 @@ async function ensureMeetingConversation(meetingId: string, meeting: any) {
           createdBy: hostId,
         },
       },
-      { upsert: true, new: true },
+      { upsert: true, new: true, includeResultMetadata: true },
     );
 
+    const conv = result.value;
+    const wasNewlyCreated = !result.lastErrorObject?.updatedExisting;
+
     // Only post the "Meeting started" system message when the conversation is newly created
-    if (!existingConv) {
+    if (wasNewlyCreated && conv) {
       const msg = await DirectMessage.create({
         conversationId: conv._id,
         senderId: hostId,
@@ -189,8 +192,8 @@ export const POST = withHandler(async (req: NextRequest, context) => {
     ...filter,
     participants: { $elemMatch: { userId: userObjectId, status: "joined" } },
   })
-    .populate("hostId", "name email displayName avatarUrl")
-    .populate("participants.userId", "name email displayName avatarUrl")
+    .populate("hostId", "name displayName avatarUrl")
+    .populate("participants.userId", "name displayName avatarUrl")
     .lean();
 
   if (alreadyJoined) {
@@ -301,8 +304,8 @@ export const POST = withHandler(async (req: NextRequest, context) => {
     }
 
     const updated = await Meeting.findById(rejoined._id)
-      .populate("hostId", "name email displayName avatarUrl")
-      .populate("participants.userId", "name email displayName avatarUrl")
+      .populate("hostId", "name displayName avatarUrl")
+      .populate("participants.userId", "name displayName avatarUrl")
       .lean();
 
     if (!updated) {
@@ -385,8 +388,8 @@ export const POST = withHandler(async (req: NextRequest, context) => {
   }
 
   const populated = await Meeting.findById(joined._id)
-    .populate("hostId", "name email displayName avatarUrl")
-    .populate("participants.userId", "name email displayName avatarUrl")
+    .populate("hostId", "name displayName avatarUrl")
+    .populate("participants.userId", "name displayName avatarUrl")
     .lean();
 
   if (!populated) {

@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { getUserIdFromRequest } from "@/lib/infra/auth/middleware";
 import { checkRateLimit } from "@/lib/infra/api/rate-limit";
-import { getRedisClient } from "@/lib/infra/redis/client";
+import { sharedSubscriber } from "@/lib/infra/redis/pubsub";
 import connectDB from "@/lib/infra/db/client";
 import Conversation from "@/lib/infra/db/models/conversation";
 import mongoose from "mongoose";
@@ -39,100 +39,91 @@ export async function GET(
       });
     }
 
-    // Create a dedicated Redis subscriber connection for this SSE stream
-    // Track subscriber so we can clean up on any failure path
-    let subscriber;
+    // Subscribe via the shared Redis subscriber (single connection for all SSE clients)
+    let unsubscribe: (() => Promise<void>) | undefined;
     try {
-      subscriber = getRedisClient().duplicate();
-      await subscriber.subscribe(`chat:${id}`);
+      // We need to wire the handler inside ReadableStream.start(), so we
+      // subscribe here and store the unsubscribe handle for cleanup.
+      // The handler will be attached after the stream controller is available.
+      let enqueueMessage: ((channel: string, message: string) => void) | null = null;
+
+      unsubscribe = await sharedSubscriber.subscribe(`chat:${id}`, (channel, message) => {
+        if (enqueueMessage) {
+          enqueueMessage(channel, message);
+        }
+      });
+
+      const encoder = new TextEncoder();
+      const stream = new ReadableStream({
+        start(controller) {
+          // Send heartbeat every 15s to keep the connection alive
+          const heartbeat = setInterval(() => {
+            try {
+              controller.enqueue(encoder.encode(": heartbeat\n\n"));
+            } catch (err) {
+              log.debug({ err, conversationId: id }, "Heartbeat failed — stream likely closed");
+              clearInterval(heartbeat);
+            }
+          }, 15000);
+
+          // Wire up the message handler now that the controller is available
+          enqueueMessage = (_channel: string, message: string) => {
+            try {
+              const parsed = JSON.parse(message);
+              const eventType = parsed.type || "message";
+
+              // For "message" events, unwrap the data envelope so the
+              // client receives the ChatMsg directly
+              const payload =
+                eventType === "message" && parsed.data
+                  ? JSON.stringify(parsed.data)
+                  : message;
+
+              controller.enqueue(
+                encoder.encode(`event: ${eventType}\ndata: ${payload}\n\n`),
+              );
+            } catch (parseErr) {
+              log.warn({ err: parseErr, message: message.slice(0, 200) }, "Failed to parse Redis SSE message as JSON");
+              try {
+                controller.enqueue(encoder.encode(`data: ${message}\n\n`));
+              } catch {
+                // Stream closed — nothing more we can do
+              }
+            }
+          };
+
+          // Clean up when the client disconnects
+          req.signal.addEventListener("abort", () => {
+            clearInterval(heartbeat);
+            enqueueMessage = null;
+            unsubscribe?.().catch(() => {});
+            try {
+              controller.close();
+            } catch {
+              // Already closed
+            }
+          });
+        },
+      });
+
+      return new Response(stream, {
+        headers: {
+          "Content-Type": "text/event-stream",
+          "Cache-Control": "no-cache, no-transform",
+          Connection: "keep-alive",
+          "X-Accel-Buffering": "no", // Prevent Nginx/reverse proxy buffering
+        },
+      });
     } catch (err) {
-      if (subscriber) {
-        subscriber.quit().catch(() => {});
+      if (unsubscribe) {
+        await unsubscribe().catch(() => {});
       }
-      log.error({ err, conversationId: id }, "Failed to create Redis subscriber for SSE stream");
+      log.error({ err, conversationId: id }, "Failed to subscribe to Redis for SSE stream");
       return new Response(
         JSON.stringify({ error: "Service temporarily unavailable" }),
         { status: 503 },
       );
     }
-
-    const encoder = new TextEncoder();
-    const stream = new ReadableStream({
-      start(controller) {
-        // Send heartbeat every 15s to keep the connection alive
-        const heartbeat = setInterval(() => {
-          try {
-            controller.enqueue(encoder.encode(": heartbeat\n\n"));
-          } catch (err) {
-            log.debug({ err, conversationId: id }, "Heartbeat failed — stream likely closed");
-            clearInterval(heartbeat);
-          }
-        }, 15000);
-
-        // Forward Redis messages as typed SSE events
-        const messageHandler = (_channel: string, message: string) => {
-          try {
-            const parsed = JSON.parse(message);
-            const eventType = parsed.type || "message";
-
-            // For "message" events, unwrap the data envelope so the
-            // client receives the ChatMsg directly
-            const payload =
-              eventType === "message" && parsed.data
-                ? JSON.stringify(parsed.data)
-                : message;
-
-            controller.enqueue(
-              encoder.encode(`event: ${eventType}\ndata: ${payload}\n\n`),
-            );
-          } catch (parseErr) {
-            log.warn({ err: parseErr, message: message.slice(0, 200) }, "Failed to parse Redis SSE message as JSON");
-            try {
-              controller.enqueue(encoder.encode(`data: ${message}\n\n`));
-            } catch {
-              // Stream closed — nothing more we can do
-            }
-          }
-        };
-        subscriber.on("message", messageHandler);
-
-        // Handle Redis subscriber errors to prevent unhandled "error" events
-        subscriber.on("error", (err) => {
-          log.warn({ err, conversationId: id }, "Redis subscriber error on SSE stream");
-          clearInterval(heartbeat);
-          try { controller.close(); } catch { /* Already closed */ }
-        });
-
-        // Handle Redis connection close — subscriber may drop without "error"
-        subscriber.on("close", () => {
-          log.warn({ conversationId: id }, "Redis subscriber closed on SSE stream");
-          clearInterval(heartbeat);
-          try { controller.close(); } catch { /* Already closed */ }
-        });
-
-        // Clean up when the client disconnects
-        req.signal.addEventListener("abort", () => {
-          clearInterval(heartbeat);
-          subscriber.off("message", messageHandler);
-          subscriber.unsubscribe().catch(() => {});
-          subscriber.quit().catch(() => {});
-          try {
-            controller.close();
-          } catch {
-            // Already closed
-          }
-        });
-      },
-    });
-
-    return new Response(stream, {
-      headers: {
-        "Content-Type": "text/event-stream",
-        "Cache-Control": "no-cache, no-transform",
-        Connection: "keep-alive",
-        "X-Accel-Buffering": "no", // Prevent Nginx/reverse proxy buffering
-      },
-    });
   } catch (err) {
     // getUserIdFromRequest throws UnauthorizedError for auth failures;
     // anything else (DB down, Redis error, etc.) is a server error.

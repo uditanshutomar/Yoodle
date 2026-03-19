@@ -251,7 +251,7 @@ export async function executeMeetingCascade(
   // Load meeting
   const meeting = await Meeting.findById(meetingId)
     .select("-ghostMessages -ghostNotes")
-    .populate("participants.userId", "email displayName")
+    .populate("participants.userId", "email displayName") // email needed for follow-up email delivery
     .lean();
 
   if (!meeting) {

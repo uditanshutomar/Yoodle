@@ -10,6 +10,7 @@ import connectDB from "@/lib/infra/db/client";
 import Conversation from "@/lib/infra/db/models/conversation";
 import DirectMessage from "@/lib/infra/db/models/direct-message";
 import { getRedisClient } from "@/lib/infra/redis/client";
+import { invalidateCache } from "@/lib/infra/redis/cache";
 import { toClientMessage } from "@/lib/chat/message-transform";
 import { createLogger } from "@/lib/infra/logger";
 
@@ -176,6 +177,21 @@ export const POST = withHandler(async (req: NextRequest, context) => {
   }
 
   const clientMessage = toClientMessage(populated);
+
+  // Invalidate conversations list and unread count caches for all participants
+  // so their next poll picks up the new message. Non-fatal if Redis is down.
+  try {
+    const invalidations = conversation.participants.map((p: { userId: mongoose.Types.ObjectId }) => {
+      const pid = p.userId.toString();
+      return Promise.all([
+        invalidateCache(`user:conversations:${pid}`),
+        invalidateCache(`user:unread:${pid}`),
+      ]);
+    });
+    await Promise.all(invalidations);
+  } catch (err) {
+    log.warn({ err, conversationId: id }, "Failed to invalidate conversation caches after message");
+  }
 
   // Publish to Redis for real-time delivery (non-fatal if Redis is down)
   try {

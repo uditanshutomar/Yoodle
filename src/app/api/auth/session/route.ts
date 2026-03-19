@@ -7,6 +7,9 @@ import { performLogout } from "@/lib/infra/auth/logout";
 import { NotFoundError } from "@/lib/infra/api/errors";
 import connectDB from "@/lib/infra/db/client";
 import User from "@/lib/infra/db/models/user";
+import { getCached, setCache } from "@/lib/infra/redis/cache";
+
+const SESSION_CACHE_TTL = 60; // seconds
 
 /**
  * GET /api/auth/session
@@ -15,6 +18,13 @@ import User from "@/lib/infra/db/models/user";
 export const GET = withHandler(async (req: NextRequest) => {
   await checkRateLimit(req, "session");
   const userId = await getUserIdFromRequest(req);
+
+  // Check cache first
+  const cacheKey = `user:session:${userId}`;
+  const cached = await getCached<Record<string, unknown>>(cacheKey);
+  if (cached) {
+    return successResponse(cached);
+  }
 
   await connectDB();
 
@@ -26,7 +36,7 @@ export const GET = withHandler(async (req: NextRequest) => {
     throw new NotFoundError("User not found.");
   }
 
-  return successResponse({
+  const data = {
     id: user._id.toString(),
     email: user.email,
     name: user.name,
@@ -40,7 +50,11 @@ export const GET = withHandler(async (req: NextRequest) => {
     lastSeenAt: user.lastSeenAt,
     createdAt: user.createdAt,
     updatedAt: user.updatedAt,
-  });
+  };
+
+  await setCache(cacheKey, data, SESSION_CACHE_TTL);
+
+  return successResponse(data);
 });
 
 /**

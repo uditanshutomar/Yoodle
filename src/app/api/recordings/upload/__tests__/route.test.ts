@@ -287,7 +287,7 @@ describe("POST /api/recordings/upload", () => {
 
   it("stores speech segments when provided", async () => {
     const segments = [
-      { speakerName: "Alice", speakerId: "a1", startTime: 0, endTime: 5 },
+      { speakerName: "Alice", speakerId: TEST_USER_ID, startTime: 0, endTime: 5 },
     ];
     mockFindOneAndUpdate.mockResolvedValue({});
 

@@ -33,7 +33,7 @@ export const GET = withHandler(async (req: NextRequest, context) => {
   await connectDB();
 
   const workspace = await Workspace.findById(workspaceId)
-    .populate("members.userId", "name email displayName")
+    .populate("members.userId", "name displayName")
     .lean();
 
   if (!workspace) throw new NotFoundError("Workspace not found.");

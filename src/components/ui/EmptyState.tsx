@@ -1,6 +1,6 @@
 "use client";
 
-import { motion } from "framer-motion";
+import { m } from "framer-motion";
 import { YoodleMascotSmall } from "../YoodleMascot";
 import Button from "./Button";
 import type { LucideIcon } from "lucide-react";
@@ -18,14 +18,14 @@ interface EmptyStateProps {
 
 export default function EmptyState({ title, description, action, className = "" }: EmptyStateProps) {
   return (
-    <motion.div
+    <m.div
       className={`flex flex-col items-center justify-center py-12 px-6 text-center ${className}`}
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.5 }}
     >
       {/* Mascot with bounce */}
-      <motion.div
+      <m.div
         animate={{ y: [0, -6, 0] }}
         transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
         className="mb-4"
@@ -33,7 +33,7 @@ export default function EmptyState({ title, description, action, className = "" 
         <div className="flex h-20 w-20 items-center justify-center rounded-full bg-[#FFE600]/20 border-2 border-dashed border-[var(--border)]">
           <YoodleMascotSmall className="h-12 w-12" />
         </div>
-      </motion.div>
+      </m.div>
 
       <h3
         className="text-lg font-bold text-[var(--text-primary)] mb-1"
@@ -58,6 +58,6 @@ export default function EmptyState({ title, description, action, className = "" 
           {action.label}
         </Button>
       )}
-    </motion.div>
+    </m.div>
   );
 }

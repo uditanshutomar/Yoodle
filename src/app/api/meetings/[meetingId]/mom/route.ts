@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import mongoose from "mongoose";
 import { z } from "zod";
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import { GoogleGenAI } from "@google/genai";
 import { withHandler } from "@/lib/infra/api/with-handler";
 import { successResponse } from "@/lib/infra/api/response";
 import { checkRateLimit } from "@/lib/infra/api/rate-limit";
@@ -140,21 +140,19 @@ export const POST = withHandler(
     const apiKey = process.env.GEMINI_API_KEY;
     if (!apiKey) throw new BadRequestError("Meeting minutes generation is not available. Please contact your administrator.");
 
-    const genAI = new GoogleGenerativeAI(apiKey);
-    const model = genAI.getGenerativeModel({
-      model: process.env.GEMINI_MODEL || "gemini-2.0-flash",
-    });
+    const ai = new GoogleGenAI({ apiKey });
 
     const result = await Promise.race([
-      model.generateContent(
-        `${MOM_PROMPT}\n\nMeeting title: "${meeting.title}"\n\nTranscript:\n${transcriptText}`
-      ),
+      ai.models.generateContent({
+        model: process.env.GEMINI_MODEL || "gemini-3.1-pro-preview",
+        contents: `${MOM_PROMPT}\n\nMeeting title: "${meeting.title}"\n\nTranscript:\n${transcriptText}`,
+      }),
       new Promise<never>((_, reject) =>
         setTimeout(() => reject(new Error("MoM generation timed out")), 120_000)
       ),
     ]);
 
-    const responseText = result.response.text();
+    const responseText = result.text ?? "";
 
     // Parse and validate the JSON response
     const momResponseSchema = z.object({

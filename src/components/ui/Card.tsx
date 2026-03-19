@@ -1,6 +1,6 @@
 "use client";
 
-import { motion } from "framer-motion";
+import { m } from "framer-motion";
 
 interface CardProps {
   children: React.ReactNode;
@@ -29,7 +29,7 @@ export default function Card({ children, className = "", hover = false, onClick 
 
   if (hover) {
     return (
-      <motion.div
+      <m.div
         className={base}
         whileHover={{
           y: -4,
@@ -41,7 +41,7 @@ export default function Card({ children, className = "", hover = false, onClick 
         {...interactiveProps}
       >
         {children}
-      </motion.div>
+      </m.div>
     );
   }
 

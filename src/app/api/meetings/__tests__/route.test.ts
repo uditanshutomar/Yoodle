@@ -202,7 +202,7 @@ describe("GET /api/meetings", () => {
 
     expect(mockMeetingChain.populate).toHaveBeenCalledWith(
       "hostId",
-      "name email displayName avatarUrl",
+      "name displayName avatarUrl",
     );
   });
 

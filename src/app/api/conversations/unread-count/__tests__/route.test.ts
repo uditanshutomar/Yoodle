@@ -18,21 +18,10 @@ vi.mock("@/lib/infra/auth/middleware", () => ({
   getUserIdFromRequest: (...args: unknown[]) => mockedGetUserId(...args),
 }));
 
-const mockConvFindChain = {
-  sort: vi.fn().mockReturnThis(),
-  limit: vi.fn().mockReturnThis(),
-  lean: vi.fn(),
-};
+const mockAggregate = vi.fn();
 vi.mock("@/lib/infra/db/models/conversation", () => ({
   default: {
-    find: vi.fn(() => mockConvFindChain),
-  },
-}));
-
-const mockCountDocuments = vi.fn();
-vi.mock("@/lib/infra/db/models/direct-message", () => ({
-  default: {
-    countDocuments: (...args: unknown[]) => mockCountDocuments(...args),
+    aggregate: (...args: unknown[]) => mockAggregate(...args),
   },
 }));
 
@@ -49,26 +38,22 @@ describe("GET /api/conversations/unread-count", () => {
   beforeEach(() => vi.clearAllMocks());
 
   it("returns total unread count across conversations", async () => {
-    mockConvFindChain.lean.mockResolvedValue([
-      {
-        _id: "conv1",
-        participants: [
-          { userId: { toString: () => TEST_USER_ID }, lastReadAt: new Date("2024-01-01") },
-        ],
-      },
-      {
-        _id: "conv2",
-        participants: [
-          { userId: { toString: () => TEST_USER_ID }, lastReadAt: new Date("2024-01-01") },
-        ],
-      },
-    ]);
-    mockCountDocuments.mockResolvedValueOnce(3).mockResolvedValueOnce(5);
+    mockAggregate.mockResolvedValue([{ _id: null, totalUnread: 8 }]);
 
     const res = await GET(createRequest());
     const body = await res.json();
     expect(res.status).toBe(200);
     expect(body.success).toBe(true);
     expect(body.data.totalUnread).toBe(8);
+    expect(mockAggregate).toHaveBeenCalledOnce();
+  });
+
+  it("returns 0 when no conversations exist", async () => {
+    mockAggregate.mockResolvedValue([]);
+
+    const res = await GET(createRequest());
+    const body = await res.json();
+    expect(res.status).toBe(200);
+    expect(body.data.totalUnread).toBe(0);
   });
 });

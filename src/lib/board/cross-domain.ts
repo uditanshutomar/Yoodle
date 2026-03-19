@@ -144,8 +144,8 @@ export async function scheduleMeetingForTask(userId: string, args: Record<string
   if (!isValidObjectId(args.taskId)) return { success: false, summary: "Invalid task ID." };
   // Verify access and fetch task with populated fields in one query (avoids re-fetch)
   const taskDoc = await Task.findById(args.taskId as string)
-    .populate("assigneeId", "email displayName")
-    .populate("collaborators", "email displayName");
+    .populate("assigneeId", "displayName")
+    .populate("collaborators", "displayName");
   if (!taskDoc) return { success: false, summary: "Task not found." };
   const board = await Board.findOne({
     _id: taskDoc.boardId,
@@ -284,15 +284,20 @@ export async function generateSubtasks(userId: string, args: Record<string, unkn
   }).select("_id").lean();
   if (!boardAccess) return { success: false, summary: "Task not found or access denied." };
   const count = Math.min(Math.max((args.count as number) || 5, 3), 10);
-  const { GoogleGenerativeAI } = await import("@google/generative-ai");
+  const { GoogleGenAI } = await import("@google/genai");
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) return { success: false, summary: "AI not configured." };
-  const genAI = new GoogleGenerativeAI(apiKey);
-  const model = genAI.getGenerativeModel({ model: process.env.GEMINI_MODEL || "gemini-2.0-flash" });
-  const result = await model.generateContent({
-    contents: [{ role: "user", parts: [{ text: `Break down this task into ${count} concrete, actionable subtasks. Return ONLY a JSON array of strings, no explanation.\n\nTask: "${task.title}"\n${task.description ? `Description: ${task.description}` : ""}\n\nExample output: ["Subtask 1", "Subtask 2", "Subtask 3"]` }] }],
-  });
-  const text = result.response.text().trim();
+  const ai = new GoogleGenAI({ apiKey });
+  const result = await Promise.race([
+    ai.models.generateContent({
+      model: process.env.GEMINI_MODEL || "gemini-3.1-pro-preview",
+      contents: [{ role: "user", parts: [{ text: `Break down this task into ${count} concrete, actionable subtasks. Return ONLY a JSON array of strings, no explanation.\n\nTask: "${task.title}"\n${task.description ? `Description: ${task.description}` : ""}\n\nExample output: ["Subtask 1", "Subtask 2", "Subtask 3"]` }] }],
+    }),
+    new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error("Gemini request timed out")), 30_000)
+    ),
+  ]);
+  const text = (result.text ?? "").trim();
   let subtasks: string[];
   try {
     const match = text.match(/\[[\s\S]*\]/);
@@ -311,7 +316,7 @@ export async function getTaskContext(userId: string, args: Record<string, unknow
   if (!isValidObjectId(args.taskId)) return { success: false, summary: "Invalid task ID." };
   // Fetch task with populated fields in one query (avoids verifyTaskAccess + re-fetch)
   const task = await Task.findById(args.taskId as string)
-    .populate("assigneeId", "displayName name email")
+    .populate("assigneeId", "displayName name")
     .populate("collaborators", "displayName name")
     .populate("boardId", "title")
     .lean();

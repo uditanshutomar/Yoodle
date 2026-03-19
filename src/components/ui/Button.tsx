@@ -1,6 +1,6 @@
 "use client";
 
-import { motion } from "framer-motion";
+import { m } from "framer-motion";
 import { Loader2, type LucideIcon } from "lucide-react";
 import Link from "next/link";
 import { forwardRef } from "react";
@@ -78,7 +78,7 @@ const Button = forwardRef<HTMLButtonElement, ButtonBaseProps>(
 
     if (href && !disabled) {
       return (
-        <motion.div
+        <m.div
           whileHover={{ scale: 1.03, y: -1 }}
           whileTap={{ scale: 0.97 }}
         >
@@ -89,12 +89,12 @@ const Button = forwardRef<HTMLButtonElement, ButtonBaseProps>(
           >
             {content}
           </Link>
-        </motion.div>
+        </m.div>
       );
     }
 
     return (
-      <motion.button
+      <m.button
         ref={ref}
         type={type}
         disabled={disabled || loading}
@@ -105,7 +105,7 @@ const Button = forwardRef<HTMLButtonElement, ButtonBaseProps>(
         style={{ fontFamily: "var(--font-heading)" }}
       >
         {content}
-      </motion.button>
+      </m.button>
     );
   }
 );

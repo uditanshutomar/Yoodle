@@ -9,6 +9,39 @@ function hashToken(token: string): string {
 
 const logger = createLogger("redis-cache");
 
+// ─── Generic Cache Utilities ────────────────────────────────────────────
+
+/** Get a cached value, parsing it as JSON. Returns null on miss or error. */
+export async function getCached<T>(key: string): Promise<T | null> {
+  try {
+    const client = getRedisClient();
+    const cached = await client.get(key);
+    return cached ? JSON.parse(cached) : null;
+  } catch {
+    return null; // Cache miss on error — fall through to DB
+  }
+}
+
+/** Set a cached value with TTL in seconds. Non-fatal on error. */
+export async function setCache(key: string, value: unknown, ttlSeconds: number): Promise<void> {
+  try {
+    const client = getRedisClient();
+    await client.set(key, JSON.stringify(value), "EX", ttlSeconds);
+  } catch {
+    // Non-fatal — cache write failure shouldn't break the request
+  }
+}
+
+/** Invalidate a cached key. Non-fatal on error. */
+export async function invalidateCache(key: string): Promise<void> {
+  try {
+    const client = getRedisClient();
+    await client.del(key);
+  } catch {
+    // Non-fatal
+  }
+}
+
 // ─── Waiting Room ──────────────────────────────────────────────────
 
 const ADMISSION_KEY = (roomId: string, userId: string) =>

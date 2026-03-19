@@ -146,13 +146,34 @@ export const POST = withHandler(async (req: NextRequest) => {
     try {
       const parsed = JSON.parse(speechSegmentsRaw);
       const segments = speechSegmentsSchema.parse(parsed);
-      if (segments.length > 0) {
+
+      // Validate speakerIds: each must be the authenticated user or a known participant
+      const knownParticipantIds = new Set<string>([
+        meeting.hostId.toString(),
+        ...meeting.participants.map(
+          (p: { userId: { toString: () => string } }) => p.userId.toString(),
+        ),
+      ]);
+      const invalidSpeakers = segments.filter(
+        (seg) => !knownParticipantIds.has(seg.speakerId),
+      );
+      if (invalidSpeakers.length > 0) {
+        log.warn(
+          { meetingId, invalidCount: invalidSpeakers.length },
+          "speech segments contain speakerIds not in meeting participants — dropping invalid segments",
+        );
+      }
+      const validSegments = segments.filter((seg) =>
+        knownParticipantIds.has(seg.speakerId),
+      );
+
+      if (validSegments.length > 0) {
         await Transcript.findOneAndUpdate(
           { meetingId },
           {
             $push: {
               segments: {
-                $each: segments.map((seg) => ({
+                $each: validSegments.map((seg) => ({
                   speakerName: seg.speakerName,
                   speakerId: seg.speakerId,
                   text: "",

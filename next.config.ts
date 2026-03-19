@@ -15,8 +15,8 @@ const appHost = (() => {
 
 /**
  * Security headers for static assets and pre-rendered pages (applied via Next.js config).
- * Dynamic routes also get these from middleware.ts applySecurityHeaders().
- * Keep the two in sync — if you change values here, update middleware.ts too.
+ * Dynamic routes also get these from proxy.ts applySecurityHeaders().
+ * Keep the two in sync — if you change values here, update proxy.ts too.
  */
 const securityHeaders = [
   // Prevent clickjacking — only allow same-origin framing

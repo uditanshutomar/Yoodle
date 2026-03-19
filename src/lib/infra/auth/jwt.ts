@@ -1,3 +1,4 @@
+import "server-only";
 import { SignJWT, jwtVerify, JWTPayload } from "jose";
 
 interface TokenPayload extends JWTPayload {
@@ -13,6 +14,14 @@ function getJwtSecret(): Uint8Array {
   return new TextEncoder().encode(secret);
 }
 
+function getRefreshSecret(): Uint8Array {
+  const secret = process.env.JWT_REFRESH_SECRET;
+  if (!secret) {
+    throw new Error("JWT_REFRESH_SECRET is not defined in environment variables.");
+  }
+  return new TextEncoder().encode(secret);
+}
+
 // ── Shared Helpers ──────────────────────────────────────────────────
 
 const JWT_ISSUER = "yoodle";
@@ -23,7 +32,7 @@ async function signToken(
   type: "access" | "refresh",
   expiry: string,
 ): Promise<string> {
-  const secret = getJwtSecret();
+  const secret = type === "refresh" ? getRefreshSecret() : getJwtSecret();
   return new SignJWT({ userId, type } as TokenPayload)
     .setProtectedHeader({ alg: "HS256" })
     .setIssuedAt()
@@ -37,7 +46,7 @@ async function verifyToken(
   token: string,
   expectedType: "access" | "refresh",
 ): Promise<{ userId: string }> {
-  const secret = getJwtSecret();
+  const secret = expectedType === "refresh" ? getRefreshSecret() : getJwtSecret();
   const { payload } = await jwtVerify(token, secret, {
     issuer: JWT_ISSUER,
     audience: JWT_AUDIENCE,

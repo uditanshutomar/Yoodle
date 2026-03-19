@@ -160,8 +160,8 @@ export const POST = withHandler(async (req: NextRequest, context) => {
 
   // Fetch final state with populated fields
   const populated = await Meeting.findById(result._id)
-    .populate("hostId", "name email displayName avatarUrl")
-    .populate("participants.userId", "name email displayName avatarUrl")
+    .populate("hostId", "name displayName avatarUrl")
+    .populate("participants.userId", "name displayName avatarUrl")
     .lean();
 
   if (!populated) {

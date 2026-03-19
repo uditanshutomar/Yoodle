@@ -30,18 +30,13 @@ vi.mock("@/lib/infra/db/models/conversation", () => ({
   },
 }));
 
-const mockSubscriber = {
-  subscribe: vi.fn().mockResolvedValue(undefined),
-  on: vi.fn(),
-  off: vi.fn(),
-  unsubscribe: vi.fn().mockResolvedValue(undefined),
-  quit: vi.fn().mockResolvedValue(undefined),
-};
-
-vi.mock("@/lib/infra/redis/client", () => ({
-  getRedisClient: vi.fn(() => ({
-    duplicate: vi.fn(() => mockSubscriber),
-  })),
+// Mock the shared pub/sub subscriber used by the SSE route
+const mockUnsubscribe = vi.fn().mockResolvedValue(undefined);
+const mockSubscribe = vi.fn().mockResolvedValue(mockUnsubscribe);
+vi.mock("@/lib/infra/redis/pubsub", () => ({
+  sharedSubscriber: {
+    subscribe: (...args: unknown[]) => mockSubscribe(...args),
+  },
 }));
 
 // ── Import route after all mocks ─────────────────────────────────
@@ -72,7 +67,7 @@ describe("GET /api/conversations/[id]/stream", () => {
         lean: vi.fn().mockResolvedValue({ _id: TEST_CONV_ID }),
       }),
     });
-    mockSubscriber.subscribe.mockResolvedValue(undefined);
+    mockSubscribe.mockResolvedValue(mockUnsubscribe);
   });
 
   it("returns SSE response with correct headers for valid auth + conversation", async () => {
@@ -95,8 +90,10 @@ describe("GET /api/conversations/[id]/stream", () => {
   it("sets up Redis subscription on the correct channel", async () => {
     await GET(createRequest(), createContext());
 
-    expect(mockSubscriber.subscribe).toHaveBeenCalledWith(`chat:${TEST_CONV_ID}`);
-    expect(mockSubscriber.on).toHaveBeenCalledWith("message", expect.any(Function));
+    expect(mockSubscribe).toHaveBeenCalledWith(
+      `chat:${TEST_CONV_ID}`,
+      expect.any(Function),
+    );
   });
 
   it("returns 401 when user is not authenticated", async () => {
@@ -134,7 +131,7 @@ describe("GET /api/conversations/[id]/stream", () => {
   });
 
   it("returns 503 when Redis subscriber creation fails", async () => {
-    mockSubscriber.subscribe.mockRejectedValue(new Error("Redis connection failed"));
+    mockSubscribe.mockRejectedValue(new Error("Redis connection failed"));
 
     const res = await GET(createRequest(), createContext());
     const body = await res.json();

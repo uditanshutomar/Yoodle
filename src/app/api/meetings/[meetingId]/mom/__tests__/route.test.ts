@@ -82,22 +82,20 @@ vi.mock("@/lib/infra/db/models/transcript", () => ({
 
 // Mock Gemini AI
 const mockGenerateContent = vi.fn().mockResolvedValue({
-  response: {
-    text: () => JSON.stringify({
-      summary: "Discussed Q2 roadmap",
-      keyDecisions: ["Finalize Q2 goals"],
-      discussionPoints: ["Roadmap discussion"],
-      actionItems: [{ task: "Draft Q2 plan", assignee: "Alice", dueDate: "Next week" }],
-      nextSteps: ["Follow-up meeting"],
-    }),
-  },
+  text: JSON.stringify({
+    summary: "Discussed Q2 roadmap",
+    keyDecisions: ["Finalize Q2 goals"],
+    discussionPoints: ["Roadmap discussion"],
+    actionItems: [{ task: "Draft Q2 plan", assignee: "Alice", dueDate: "Next week" }],
+    nextSteps: ["Follow-up meeting"],
+  }),
 });
 
-vi.mock("@google/generative-ai", () => ({
-  GoogleGenerativeAI: class {
-    getGenerativeModel() {
-      return { generateContent: mockGenerateContent };
-    }
+vi.mock("@google/genai", () => ({
+  GoogleGenAI: class {
+    models = {
+      generateContent: mockGenerateContent,
+    };
   },
 }));
 

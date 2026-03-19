@@ -43,16 +43,14 @@ vi.mock("@/lib/ai/prompts", () => ({
 
 // Mock Gemini AI
 const mockGenerateContent = vi.fn().mockResolvedValue({
-  response: {
-    text: () => "Here is your morning briefing: 3 unread emails, 1 meeting in 30 min.",
-  },
+  text: "Here is your morning briefing: 3 unread emails, 1 meeting in 30 min.",
 });
 
-vi.mock("@google/generative-ai", () => ({
-  GoogleGenerativeAI: class {
-    getGenerativeModel() {
-      return { generateContent: mockGenerateContent };
-    }
+vi.mock("@google/genai", () => ({
+  GoogleGenAI: class {
+    models = {
+      generateContent: mockGenerateContent,
+    };
   },
 }));
 
@@ -114,9 +112,7 @@ describe("POST /api/ai/briefing", () => {
     });
     mockHasGoogleAccess.mockResolvedValue(true);
     mockGenerateContent.mockResolvedValue({
-      response: {
-        text: () => "Here is your briefing: 3 unread emails, 1 meeting.",
-      },
+      text: "Here is your briefing: 3 unread emails, 1 meeting.",
     });
   });
 
@@ -148,7 +144,7 @@ describe("POST /api/ai/briefing", () => {
     expect(mockGenerateContent).toHaveBeenCalledTimes(1);
     const callArg = mockGenerateContent.mock.calls[0][0];
     expect(callArg.contents[0].parts[0].text).toContain("3 unread emails");
-    expect(callArg.systemInstruction.parts[0].text).toBe("You are a briefing assistant.");
+    expect(callArg.config.systemInstruction.parts[0].text).toBe("You are a briefing assistant.");
   });
 
   // ── No Google access ───────────────────────────────────────────
@@ -259,7 +255,7 @@ describe("POST /api/ai/briefing", () => {
     mockedGetUserId.mockResolvedValue(cacheTestUserId);
 
     mockGenerateContent.mockResolvedValueOnce({
-      response: { text: () => "NO_UPDATE" },
+      text: "NO_UPDATE",
     });
 
     const req = createPostRequest();

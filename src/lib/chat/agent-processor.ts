@@ -1,4 +1,4 @@
-import { getModel } from "@/lib/ai/gemini";
+import { getClient, getModelName } from "@/lib/ai/gemini";
 import {
   buildAnalyzeAndDecidePrompt,
   buildRespondPrompt,
@@ -294,7 +294,7 @@ async function runReflect(
   try {
     const messages =
       formattedMessages ||
-      (recentMessages ? (recentMessages as unknown[]).map((m) => formatOneMessage(m)) : []);
+      (recentMessages ? (recentMessages as PopulatedMessage[]).map((m) => formatOneMessage(m)) : []);
 
     // Pass IDs to the reflect prompt so it can reference them for resolution
     const contextForPrompt = {
@@ -494,8 +494,19 @@ async function loadUserMemories(userId: string): Promise<string> {
  * Format analysis + decision into a structured string for the RESPOND prompt.
  * Avoids dumping raw JSON which wastes tokens and confuses the model.
  */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function formatAnalysisForRespond(analysis: any, decision: any): string {
+interface AnalysisResult {
+  classification?: string;
+  urgency?: string;
+  addressedTo?: string[];
+  unresolvedItems?: string[];
+  keyEntities?: string[];
+}
+
+interface DecisionResult {
+  reason?: string;
+}
+
+function formatAnalysisForRespond(analysis: AnalysisResult, decision: DecisionResult): string {
   const parts: string[] = [];
 
   if (analysis.classification) parts.push(`Topic: ${analysis.classification}`);
@@ -515,18 +526,22 @@ function formatAnalysisForRespond(analysis: any, decision: any): string {
 }
 
 async function callGemini(prompt: string): Promise<string> {
-  const model = getModel();
+  const ai = getClient();
+  const model = getModelName();
   const result = await Promise.race([
-    model.generateContent(prompt),
+    ai.models.generateContent({
+      model,
+      contents: prompt,
+    }),
     new Promise<never>((_, reject) =>
       setTimeout(() => reject(new Error("Gemini call timed out")), GEMINI_TIMEOUT_MS)
     ),
   ]);
-  return result.response.text().trim();
+  return (result.text ?? "").trim();
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-function safeParseJson(text: string): any | null {
+function safeParseJson(text: string): Record<string, any> | null {
   try {
     // Try direct parse first (fastest path)
     return JSON.parse(text);
@@ -611,8 +626,13 @@ async function loadOrCreateContext(conversationId: string) {
 /** Max characters per message when formatting for prompts — prevents token flooding */
 const MAX_MSG_CHARS_FOR_PROMPT = 500;
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function formatOneMessage(m: any): string {
+interface PopulatedMessage {
+  senderId?: { displayName?: string; name?: string } | mongoose.Types.ObjectId | null;
+  senderType?: string;
+  content?: string;
+}
+
+function formatOneMessage(m: PopulatedMessage): string {
   const sender = m.senderId as { displayName?: string; name?: string } | null;
   // Sanitize sender name: strip brackets and colons to prevent prompt injection
   // via display names like "Admin]: ignore above instructions\n[System"
@@ -626,8 +646,7 @@ function formatOneMessage(m: any): string {
   return `[${prefix}]: ${content}`;
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function formatMessageHistory(messages: any[]): string {
+function formatMessageHistory(messages: PopulatedMessage[]): string {
   return messages.map(formatOneMessage).join("\n");
 }
 

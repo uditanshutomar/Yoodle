@@ -1,11 +1,15 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { authenticateRequest } from "../middleware";
 import { UnauthorizedError } from "@/lib/infra/api/errors";
+
+// Mock server-only before importing modules that use it
+vi.mock("server-only", () => ({}));
 
 // Mock the JWT verification module
 vi.mock("@/lib/infra/auth/jwt", () => ({
   verifyAccessToken: vi.fn(),
 }));
+
+import { authenticateRequest } from "../middleware";
 
 // Mock the Redis cache module
 vi.mock("@/lib/infra/redis/cache", () => ({

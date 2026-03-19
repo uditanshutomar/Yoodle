@@ -6,11 +6,13 @@ import AppSidebar from "@/components/layout/AppSidebar";
 import AppTopbar from "@/components/layout/AppTopbar";
 import MobileTabBar from "@/components/layout/MobileTabBar";
 import { AIDrawerProvider } from "@/components/ai/AIDrawer";
+import { MotionProvider } from "@/components/ui/MotionProvider";
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   return (
+    <MotionProvider>
     <AIDrawerProvider>
       <div className="flex h-screen bg-background">
         {/* Desktop sidebar */}
@@ -60,5 +62,6 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       </div>
       <MobileTabBar />
     </AIDrawerProvider>
+    </MotionProvider>
   );
 }

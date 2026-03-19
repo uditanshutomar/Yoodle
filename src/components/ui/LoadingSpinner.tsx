@@ -1,6 +1,6 @@
 "use client";
 
-import { motion } from "framer-motion";
+import { m } from "framer-motion";
 
 interface LoadingSpinnerProps {
   size?: "sm" | "md" | "lg";
@@ -18,14 +18,14 @@ export default function LoadingSpinner({ size = "md", className = "" }: LoadingS
 
   return (
     <div className={`flex flex-col items-center gap-3 ${className}`}>
-      <motion.div
+      <m.div
         className={`${s.container} relative`}
         animate={{ rotate: 360 }}
         transition={{ duration: 1.5, repeat: Infinity, ease: "linear" }}
       >
         {/* Outer doodle spiral */}
         <svg viewBox="0 0 50 50" fill="none" className="h-full w-full">
-          <motion.circle
+          <m.circle
             cx="25"
             cy="25"
             r="20"
@@ -35,7 +35,7 @@ export default function LoadingSpinner({ size = "md", className = "" }: LoadingS
             strokeDasharray="80 40"
             fill="none"
           />
-          <motion.circle
+          <m.circle
             cx="25"
             cy="25"
             r="12"
@@ -49,7 +49,7 @@ export default function LoadingSpinner({ size = "md", className = "" }: LoadingS
             transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
           />
           {/* Center dot */}
-          <motion.circle
+          <m.circle
             cx="25"
             cy="25"
             r="3"
@@ -58,7 +58,7 @@ export default function LoadingSpinner({ size = "md", className = "" }: LoadingS
             transition={{ duration: 0.8, repeat: Infinity }}
           />
         </svg>
-      </motion.div>
+      </m.div>
     </div>
   );
 }
