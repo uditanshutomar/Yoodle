@@ -102,6 +102,19 @@ npx next dev            # Development server
 - `features.isCloud`, `features.ghostRooms`, `features.liveCaptions`, `features.maxParticipantsPerRoom`, etc.
 - Community edition is free/self-hostable; cloud adds premium features
 
+### Durable Job Queues (BullMQ)
+
+- Infrastructure: `src/lib/infra/jobs/` — queue factory, connection, workers, types
+- **Queue names** (`QUEUE_NAMES` in `queue.ts`): `recording-process`, `post-meeting-cascade`, `calendar-sync`
+- **Producers**: API routes enqueue jobs via `getQueue(QUEUE_NAMES.X).add(name, payload, { jobId })`
+- **Workers**: Started in-process via `instrumentation.ts` → `startWorkers()` (nodejs runtime only)
+- **Payloads**: Typed in `types.ts` — must be JSON-serializable (no ObjectId/Date/Buffer)
+- **Retry**: 3 attempts, exponential backoff (1s, 2s, 4s). Use `UnrecoverableError` for non-retryable failures (e.g., 401/403)
+- **Idempotency**: Workers check DB for existing artifacts before creating (e.g., check for "Meeting ended." message before inserting)
+- **Graceful shutdown**: `closeAllWorkers()` + `closeAllQueues()` on SIGTERM/SIGINT — no `process.exit()` (let Next.js handle exit)
+- **Type safety**: `getQueue()` accepts `QueueName` (union of known queue names), not arbitrary strings
+- **Adding a new queue**: (1) add name to `QUEUE_NAMES`, (2) add payload type to `types.ts`, (3) create processor in `workers/`, (4) register worker in `start-workers.ts`
+
 ### Environment Variables
 
 - **Required:** `MONGODB_URI`, `REDIS_URL`, `JWT_SECRET`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GEMINI_API_KEY`
@@ -115,7 +128,7 @@ npx next dev            # Development server
 src/app/api/          # API routes (Next.js App Router)
 src/lib/google/       # Google Workspace integrations (gmail, calendar, drive, sheets, slides, docs)
 src/lib/ai/           # AI tools, Gemini streaming, workflows
-src/lib/infra/        # DB models, Redis, auth, logging, circuit breaker, rate limiting
+src/lib/infra/        # DB models, Redis, auth, logging, circuit breaker, rate limiting, BullMQ jobs
 src/lib/transport/    # LiveKit transport layer
 src/hooks/            # Client-side React hooks
 src/components/       # React components
