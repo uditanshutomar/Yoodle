@@ -54,8 +54,8 @@ export default function BoardPage() {
       } else {
         setBoardId(null);
       }
-    } catch {
-      if (isMountedRef.current) setError("Failed to load boards");
+    } catch (err) {
+      if (isMountedRef.current) setError(err instanceof Error ? err.message : "Failed to load boards");
     } finally {
       if (isMountedRef.current) setLoading(false);
     }

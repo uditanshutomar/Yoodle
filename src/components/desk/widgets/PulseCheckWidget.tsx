@@ -35,9 +35,13 @@ export default function PulseCheckWidget() {
       const json = await res.json();
       if (!mountedRef.current) return;
 
-      const d = json?.data ?? json;
+      const d = json?.data;
+      if (!d || typeof d.totalMeetings !== "number") {
+        setError("Unexpected data format");
+        return;
+      }
       setData({
-        totalMeetings: d.totalMeetings ?? 0,
+        totalMeetings: d.totalMeetings,
         avgScore: d.avgScore ?? 0,
         totalDecisions: d.totalDecisions ?? 0,
         totalActionItems: d.totalActionItems ?? 0,

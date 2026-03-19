@@ -32,7 +32,7 @@ export default function UpNextWidget() {
         if (!mountedRef.current) return;
 
         const list =
-          json?.data?.meetings ?? json?.meetings ?? [];
+          Array.isArray(json?.data) ? json.data : json?.data?.meetings ?? json?.meetings ?? [];
         setMeetings(list);
         setError(null);
       } catch (err) {

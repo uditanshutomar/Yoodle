@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import Link from "next/link";
-import { MessageCircle } from "lucide-react";
+import { MessageCircle, RefreshCw } from "lucide-react";
 
 interface Conversation {
   _id: string;
@@ -15,40 +15,46 @@ interface Conversation {
 export default function BuzzWidget() {
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const mountedRef = useRef(true);
+  const controllerRef = useRef<AbortController | null>(null);
+
+  const fetchConversations = useCallback(async () => {
+    controllerRef.current?.abort();
+    const controller = new AbortController();
+    controllerRef.current = controller;
+
+    setLoading(true);
+    setError(null);
+
+    try {
+      const res = await fetch("/api/conversations", {
+        credentials: "include",
+        signal: controller.signal,
+      });
+      if (!res.ok) throw new Error(`Failed (${res.status})`);
+      const json = await res.json();
+      if (!mountedRef.current) return;
+
+      const list = json?.data ?? json?.conversations ?? [];
+      setConversations(Array.isArray(list) ? list.slice(0, 3) : []);
+    } catch (err) {
+      if (!mountedRef.current) return;
+      if (err instanceof DOMException && err.name === "AbortError") return;
+      setError(err instanceof Error ? err.message : "Failed to load");
+    } finally {
+      if (mountedRef.current) setLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
     mountedRef.current = true;
-    const controller = new AbortController();
-
-    async function fetchConversations() {
-      try {
-        const res = await fetch("/api/conversations", {
-          credentials: "include",
-          signal: controller.signal,
-        });
-        if (!res.ok) throw new Error(`Failed (${res.status})`);
-        const json = await res.json();
-        if (!mountedRef.current) return;
-
-        const list = json?.data ?? json?.conversations ?? [];
-        setConversations(Array.isArray(list) ? list.slice(0, 3) : []);
-      } catch (err) {
-        if (!mountedRef.current) return;
-        if (err instanceof DOMException && err.name === "AbortError") return;
-        // Silently fail — widget is non-critical
-      } finally {
-        if (mountedRef.current) setLoading(false);
-      }
-    }
-
     fetchConversations();
-
     return () => {
       mountedRef.current = false;
-      controller.abort();
+      controllerRef.current?.abort();
     };
-  }, []);
+  }, [fetchConversations]);
 
   if (loading) {
     return (
@@ -59,6 +65,27 @@ export default function BuzzWidget() {
             className="h-10 animate-pulse rounded-xl bg-[var(--surface-hover)]"
           />
         ))}
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex flex-col items-center gap-2 py-4 text-center">
+        <p
+          className="text-xs text-[#FF6B6B]"
+          style={{ fontFamily: "var(--font-body)" }}
+        >
+          {error}
+        </p>
+        <button
+          onClick={fetchConversations}
+          className="flex items-center gap-1 rounded-lg border border-[var(--border)] px-3 py-1 text-xs font-bold text-[var(--text-secondary)] hover:border-[#FFE600] transition-colors"
+          style={{ fontFamily: "var(--font-heading)" }}
+        >
+          <RefreshCw size={12} aria-hidden="true" />
+          Retry
+        </button>
       </div>
     );
   }

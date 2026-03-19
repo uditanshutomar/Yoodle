@@ -38,7 +38,7 @@ export default function AppSidebar({ mobile }: AppSidebarProps) {
   const wsRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    fetchWorkspaces().catch(() => {});
+    fetchWorkspaces().catch((err) => console.warn("[AppSidebar] Failed to fetch workspaces:", err));
   }, [fetchWorkspaces]);
 
   // Derive selected workspace: use explicit selection if valid, otherwise first workspace
@@ -180,8 +180,7 @@ export default function AppSidebar({ mobile }: AppSidebarProps) {
   return (
     <aside
       className="hidden lg:flex lg:flex-col lg:w-64 lg:shrink-0 h-screen bg-[var(--surface)] border-r-2 border-[var(--border)] sticky top-0"
-      role="navigation"
-      aria-label="Main navigation"
+      aria-label="Application sidebar"
     >
       {sidebarContent}
     </aside>

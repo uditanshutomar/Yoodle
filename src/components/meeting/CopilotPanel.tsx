@@ -147,7 +147,7 @@ export default function CopilotPanel({ isOpen, onClose, meetingId, onNewMessage 
             <span className="flex items-center gap-1 text-[10px] text-yellow-500"><WifiOff size={10} /> Connecting…</span>
           )}
         </div>
-        <button onClick={onClose} className="rounded-lg p-1 hover:bg-[var(--surface)] transition-colors"><X size={16} /></button>
+        <button onClick={onClose} aria-label="Close Yoodler Live" className="rounded-lg p-1 hover:bg-[var(--surface)] transition-colors"><X size={16} /></button>
       </div>
       <div ref={scrollRef} className="flex-1 overflow-y-auto px-3 py-3 space-y-3">
         {showRetry && (

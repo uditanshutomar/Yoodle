@@ -56,7 +56,12 @@ export default function PulsePage() {
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const json = await res.json();
       if (!controller.signal.aborted) {
-        setData(json.data || null);
+        const d = json?.data;
+        if (d && typeof d.totalMeetings === "number") {
+          setData(d);
+        } else {
+          setError("Unexpected data format");
+        }
       }
     } catch (err) {
       if (err instanceof DOMException && err.name === "AbortError") return;

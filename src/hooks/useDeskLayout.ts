@@ -10,6 +10,12 @@ import {
 const STORAGE_KEY = "yoodle:desk-layout";
 const DEBOUNCE_MS = 400;
 
+function isValidItem(item: unknown): item is LayoutItem {
+  if (typeof item !== "object" || item === null) return false;
+  const o = item as Record<string, unknown>;
+  return typeof o.i === "string" && typeof o.x === "number" && typeof o.y === "number" && typeof o.w === "number" && typeof o.h === "number";
+}
+
 function loadLayout(): LayoutItem[] {
   if (typeof window === "undefined") return DEFAULT_LAYOUT;
   try {
@@ -17,8 +23,10 @@ function loadLayout(): LayoutItem[] {
     if (!raw) return DEFAULT_LAYOUT;
     const parsed = JSON.parse(raw) as LayoutItem[];
     if (!Array.isArray(parsed) || parsed.length === 0) return DEFAULT_LAYOUT;
+    if (!parsed.every(isValidItem)) return DEFAULT_LAYOUT;
     return parsed;
-  } catch {
+  } catch (err) {
+    console.warn("[useDeskLayout] Failed to parse saved layout:", err);
     return DEFAULT_LAYOUT;
   }
 }
@@ -26,8 +34,8 @@ function loadLayout(): LayoutItem[] {
 function persistLayout(layout: LayoutItem[]) {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(layout));
-  } catch {
-    // Storage full or unavailable — silently ignore
+  } catch (err) {
+    console.warn("[useDeskLayout] Failed to persist layout:", err);
   }
 }
 

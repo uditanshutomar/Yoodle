@@ -3,7 +3,7 @@
 import { Sparkles } from "lucide-react";
 
 const SUGGESTIONS = [
-  "You have meetings today \u2014 check The Rundown",
+  "You have meetings today \u2014 check your Rooms",
   "3 stickies are overdue on The Board",
   "Your Vibe Check trend is improving \ud83d\udcc8",
 ];

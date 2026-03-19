@@ -206,7 +206,10 @@ export default function MeetingsPage() {
   useEffect(() => {
     if (!user) return;
     fetch("/api/ghost-rooms", { credentials: "include" })
-      .then((r) => r.json())
+      .then((r) => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        return r.json();
+      })
       .then((data) => {
         if (data.success && data.data) setGhostRooms(data.data);
       })
@@ -227,6 +230,7 @@ export default function MeetingsPage() {
         credentials: "include",
         body: JSON.stringify({ title: "Quick Meeting", type: "regular", settings: { allowRecording: false, allowScreenShare: true, waitingRoom: false, muteOnJoin: false } }),
       });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
       if (data.success && data.data) {
         const id = data.data._id || data.data.id;
@@ -249,6 +253,7 @@ export default function MeetingsPage() {
         credentials: "include",
         body: JSON.stringify({ title: "Ghost Room" }),
       });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
       if (data.success && data.data) {
         router.push(`/ghost-rooms/${data.data.roomId}`);
@@ -268,7 +273,7 @@ export default function MeetingsPage() {
   };
 
   // Split meetings into upcoming (scheduled/live) and past (ended/cancelled)
-  const [now] = useState(() => Date.now());
+  const now = Date.now();
   const TWENTY_FOUR_HOURS = 24 * 60 * 60 * 1000;
   const upcoming = meetings.filter((m) => m.status === "scheduled" || m.status === "live");
   const past = meetings.filter((m) => {

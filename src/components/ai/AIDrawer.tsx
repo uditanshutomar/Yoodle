@@ -73,12 +73,10 @@ function AIDrawerFAB({ onClick, isOpen, insightCount }: { onClick: () => void; i
   const isDragging = useRef(false);
   const [dragging, setDragging] = useState(false);
 
-  if (isOpen) return null;
-
   return (
     <div ref={constraintsRef} className="fixed inset-0 z-50 pointer-events-none">
       <motion.button
-        drag
+        drag={!isOpen}
         dragConstraints={constraintsRef}
         dragElastic={0.1}
         dragMomentum={false}
@@ -86,12 +84,12 @@ function AIDrawerFAB({ onClick, isOpen, insightCount }: { onClick: () => void; i
         onDragEnd={() => { setDragging(false); setTimeout(() => { isDragging.current = false; }, 0); }}
         onClick={() => { if (!isDragging.current) onClick(); }}
         initial={{ scale: 0, x: 0, y: 0 }}
-        animate={{ scale: dragging ? 2 : 1 }}
+        animate={{ scale: isOpen ? 0 : (dragging ? 2 : 1), opacity: isOpen ? 0 : 1 }}
         whileHover={{ scale: dragging ? 2 : 1.1, rotate: dragging ? 0 : -5 }}
         whileTap={{ scale: dragging ? 2 : 0.95 }}
         transition={{ type: "spring", stiffness: 300, damping: 20 }}
         style={{ position: "absolute", bottom: 24, right: 24 }}
-        className="pointer-events-auto flex h-16 w-16 items-center justify-center rounded-full bg-[#FFE600] border-2 border-[var(--border-strong)] shadow-[3px_3px_0_var(--border-strong)] cursor-grab active:cursor-grabbing overflow-hidden"
+        className={`pointer-events-auto flex h-16 w-16 items-center justify-center rounded-full bg-[#FFE600] border-2 border-[var(--border-strong)] shadow-[3px_3px_0_var(--border-strong)] cursor-grab active:cursor-grabbing overflow-hidden ${isOpen ? "pointer-events-none" : ""}`}
         title="Ask Yoodler (⌘J) — drag me anywhere!"
         aria-label={`Open Yoodler${insightCount > 0 ? `, ${insightCount} new insight${insightCount > 1 ? "s" : ""}` : ""}`}
       >
