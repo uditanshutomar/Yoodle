@@ -20,6 +20,7 @@ import {
   isLiveKitConfigured,
 } from "@/lib/livekit/config";
 import { createLogger } from "@/lib/infra/logger";
+import { livekitBreaker, CircuitBreakerOpenError } from "@/lib/infra/circuit-breaker";
 
 const log = createLogger("api:livekit-token");
 
@@ -94,7 +95,9 @@ export const POST = withHandler(async (req: NextRequest) => {
   );
 
   try {
-    const rooms = await roomService.listRooms([livekitRoomId]);
+    const rooms = await livekitBreaker.execute(() =>
+      roomService.listRooms([livekitRoomId])
+    );
     if (rooms.length > 0 && rooms[0].numParticipants >= maxParticipants) {
       throw new ForbiddenError(
         `Meeting is full (${maxParticipants} participants).`,
@@ -103,11 +106,15 @@ export const POST = withHandler(async (req: NextRequest) => {
   } catch (err) {
     // If it's our own ForbiddenError, re-throw
     if (err instanceof ForbiddenError) throw err;
-    // Network error only — log at error level, allow join (fail open for availability)
-    log.error(
-      { err, livekitRoomId, maxParticipants },
-      "LiveKit RoomService unreachable; capacity check skipped",
-    );
+    // Circuit breaker open or network error — log and fail open for availability
+    if (err instanceof CircuitBreakerOpenError) {
+      log.warn({ livekitRoomId }, "LiveKit circuit breaker open; capacity check skipped");
+    } else {
+      log.error(
+        { err, livekitRoomId, maxParticipants },
+        "LiveKit RoomService unreachable; capacity check skipped",
+      );
+    }
   }
 
   // ── Issue token ────────────────────────────────────────────────

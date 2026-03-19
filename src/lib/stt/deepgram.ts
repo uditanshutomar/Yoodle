@@ -1,4 +1,5 @@
 import type { STTProvider, TranscriptResult, TranscriptSegment } from "./types";
+import { deepgramBreaker } from "@/lib/infra/circuit-breaker";
 
 const DEEPGRAM_BASE_URL = "https://api.deepgram.com/v1";
 
@@ -68,16 +69,21 @@ export class DeepgramSTTProvider implements STTProvider {
       params.set("language", options.language);
     }
 
-    const response = await fetch(
-      `${DEEPGRAM_BASE_URL}/listen?${params.toString()}`,
-      {
-        method: "POST",
-        headers: {
-          Authorization: `Token ${apiKey}`,
-          "Content-Type": "audio/webm",
-        },
-        body: new Uint8Array(buffer),
-      }
+    // 120s timeout — transcription of large audio files can take a while,
+    // but we don't want to hang indefinitely if Deepgram is unresponsive.
+    const response = await deepgramBreaker.execute(() =>
+      fetch(
+        `${DEEPGRAM_BASE_URL}/listen?${params.toString()}`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Token ${apiKey}`,
+            "Content-Type": "audio/webm",
+          },
+          body: new Uint8Array(buffer),
+          signal: AbortSignal.timeout(120_000),
+        }
+      )
     );
 
     if (!response.ok) {
