@@ -12,6 +12,8 @@ import DirectMessage from "@/lib/infra/db/models/direct-message";
 import { getRedisClient } from "@/lib/infra/redis/client";
 import { invalidateCache } from "@/lib/infra/redis/cache";
 import { toClientMessage } from "@/lib/chat/message-transform";
+import { publishNotification } from "@/lib/notifications/publish";
+import User from "@/lib/infra/db/models/user";
 import { createLogger } from "@/lib/infra/logger";
 
 const log = createLogger("api:conversations:messages");
@@ -202,6 +204,39 @@ export const POST = withHandler(async (req: NextRequest, context) => {
     );
   } catch (err) {
     log.warn({ err, conversationId: id }, "Failed to publish message to Redis");
+  }
+
+  // Detect @mentions and send notifications (non-blocking)
+  const mentionRegex = /@(\w+)/g;
+  const mentions = [...(content || "").matchAll(mentionRegex)];
+  if (mentions.length > 0) {
+    Promise.resolve().then(async () => {
+      try {
+        const mentionNames = mentions.map((m) => m[1]);
+        const mentionedUsers = await User.find({
+          $or: mentionNames.flatMap((n) => [
+            { name: { $regex: new RegExp(`^${n}$`, "i") } },
+            { displayName: { $regex: new RegExp(`^${n}$`, "i") } },
+          ]),
+        }).select("_id name").lean();
+
+        for (const mentioned of mentionedUsers) {
+          if (mentioned._id.toString() !== userId) {
+            await publishNotification({
+              userId: mentioned._id.toString(),
+              type: "mention",
+              title: "You were mentioned in a message",
+              body: (content || "").slice(0, 120),
+              sourceType: "message",
+              sourceId: id,
+              priority: "urgent",
+            });
+          }
+        }
+      } catch {
+        // Non-critical — notification failure shouldn't break message send
+      }
+    });
   }
 
   // Fire-and-forget: trigger agent responses (including the sender's own agent)

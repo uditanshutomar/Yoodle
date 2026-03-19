@@ -12,6 +12,7 @@ import "@/lib/infra/db/models/user"; // register User schema for .populate("host
 import { generateMeetingCode } from "@/lib/utils/id";
 import { features } from "@/lib/features/flags";
 import { createEvent } from "@/lib/google/calendar";
+import { publishNotificationToMany } from "@/lib/notifications/publish";
 import { createLogger } from "@/lib/infra/logger";
 
 const log = createLogger("meetings:create");
@@ -211,6 +212,22 @@ export const POST = withHandler(async (req: NextRequest) => {
     } catch (calErr) {
       log.warn({ err: calErr, meetingId: meeting._id }, "failed to create calendar event for meeting");
     }
+  }
+
+  // Notify invited participants (non-blocking)
+  const invitedUserIds = (meeting.participants || [])
+    .map((p: any) => p.userId?.toString())
+    .filter((pid: string | undefined): pid is string => !!pid && pid !== userId);
+
+  if (invitedUserIds.length > 0) {
+    publishNotificationToMany(invitedUserIds, {
+      type: "meeting_invite",
+      title: `Invited to: ${meeting.title}`,
+      body: "You've been invited to a meeting",
+      sourceType: "meeting",
+      sourceId: meeting._id.toString(),
+      priority: "urgent",
+    }).catch(() => {}); // Fire-and-forget
   }
 
   // Populate host info before returning
