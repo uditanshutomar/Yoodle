@@ -7,13 +7,14 @@ import Image from "next/image";
 import { MeetingRecord } from "./meetingsData";
 import { Loader2, ExternalLink, Download, Play, Pause, Video, Check } from "lucide-react";
 
-type Tab = "overview" | "mom" | "transcript" | "recording";
+type Tab = "overview" | "mom" | "transcript" | "recording" | "analytics";
 
 const TAB_ICONS: Record<Tab, React.ReactNode> = {
     overview: <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#EC4899" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2" /><rect x="8" y="2" width="8" height="4" rx="1" ry="1" /></svg>,
     mom: <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#F59E0B" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" /><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" /></svg>,
     transcript: <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#3B82F6" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" /></svg>,
     recording: <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#EF4444" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polygon points="5 3 19 12 5 21 5 3" /></svg>,
+    analytics: <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#8B5CF6" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="20" x2="18" y2="10" /><line x1="12" y1="20" x2="12" y2="4" /><line x1="6" y1="20" x2="6" y2="14" /></svg>,
 };
 
 const TABS: { key: Tab; label: string }[] = [
@@ -21,10 +22,11 @@ const TABS: { key: Tab; label: string }[] = [
     { key: "mom", label: "MoM" },
     { key: "transcript", label: "Transcript" },
     { key: "recording", label: "Recording" },
+    { key: "analytics", label: "Analytics" },
 ];
 
 interface TranscriptSegment {
-    speaker: string;
+    speakerName: string;
     speakerId?: string;
     text: string;
     timestamp: number;
@@ -65,6 +67,10 @@ export default function MeetingDetail({
     const [generatingMom, setGeneratingMom] = useState(false);
     const [momError, setMomError] = useState("");
 
+    // Analytics state
+    const [analyticsData, setAnalyticsData] = useState<Record<string, unknown> | null>(null);
+    const [loadingAnalytics, setLoadingAnalytics] = useState(false);
+
     // Feedback toasts
     const [toast, setToast] = useState("");
     const toastTimerRef = useRef<NodeJS.Timeout>(undefined);
@@ -81,35 +87,42 @@ export default function MeetingDetail({
 
     // Fetch transcript and recordings from real APIs
     useEffect(() => {
-        let cancelled = false;
+        const controller = new AbortController();
+        const { signal } = controller;
 
         async function fetchTranscript() {
             try {
-                const res = await fetch(`/api/transcription?meetingId=${meeting.id}`, { credentials: "include" });
-                if (cancelled) return;
+                const res = await fetch(`/api/transcription?meetingId=${meeting.id}`, { credentials: "include", signal });
+                if (signal.aborted) return;
                 if (res.ok) {
                     const data = await res.json();
                     setTranscriptSegments(data.data?.segments || []);
+                } else {
+                    console.error("[MeetingDetail] Failed to fetch transcript:", res.status);
                 }
-            } catch {
-                // UI will show empty state
+            } catch (err) {
+                if (err instanceof DOMException && err.name === "AbortError") return;
+                console.error("[MeetingDetail] Transcript fetch error:", err);
             } finally {
-                if (!cancelled) setLoadingTranscript(false);
+                if (!signal.aborted) setLoadingTranscript(false);
             }
         }
 
         async function fetchRecordings() {
             try {
-                const res = await fetch(`/api/recordings/${meeting.id}`, { credentials: "include" });
-                if (cancelled) return;
+                const res = await fetch(`/api/recordings/${meeting.id}`, { credentials: "include", signal });
+                if (signal.aborted) return;
                 if (res.ok) {
                     const data = await res.json();
                     setRecordings(data.data?.recordings || []);
+                } else {
+                    console.error("[MeetingDetail] Failed to fetch recordings:", res.status);
                 }
-            } catch {
-                // UI will show empty state
+            } catch (err) {
+                if (err instanceof DOMException && err.name === "AbortError") return;
+                console.error("[MeetingDetail] Recordings fetch error:", err);
             } finally {
-                if (!cancelled) setLoadingRecordings(false);
+                if (!signal.aborted) setLoadingRecordings(false);
             }
         }
 
@@ -117,22 +130,41 @@ export default function MeetingDetail({
         async function fetchMom() {
             if (meeting.mom) return;
             try {
-                const res = await fetch(`/api/meetings/${meeting.id}/mom`, { credentials: "include" });
-                if (cancelled) return;
+                const res = await fetch(`/api/meetings/${meeting.id}/mom`, { credentials: "include", signal });
+                if (signal.aborted) return;
                 if (res.ok) {
                     const data = await res.json();
                     if (data.data?.mom) setMomData(data.data.mom);
                 }
-            } catch {
-                // silent
+            } catch (err) {
+                if (err instanceof DOMException && err.name === "AbortError") return;
+                console.error("[MeetingDetail] MoM fetch error:", err);
+            }
+        }
+
+        async function fetchAnalytics() {
+            setLoadingAnalytics(true);
+            try {
+                const res = await fetch(`/api/meetings/${meeting.id}/analytics`, { credentials: "include", signal });
+                if (signal.aborted) return;
+                if (res.ok) {
+                    const data = await res.json();
+                    if (data.data) setAnalyticsData(data.data);
+                }
+            } catch (err) {
+                if (err instanceof DOMException && err.name === "AbortError") return;
+                console.error("[MeetingDetail] Analytics fetch error:", err);
+            } finally {
+                if (!signal.aborted) setLoadingAnalytics(false);
             }
         }
 
         fetchTranscript();
         fetchRecordings();
         fetchMom();
+        fetchAnalytics();
 
-        return () => { cancelled = true; };
+        return () => { controller.abort(); };
     }, [meeting.id, meeting.mom]);
 
     const hasRealTranscript = transcriptSegments.length > 0;
@@ -174,6 +206,10 @@ export default function MeetingDetail({
                 method: "POST",
                 credentials: "include",
             });
+            if (!res.ok) {
+                setMomError(`Server error (${res.status}). Please try again.`);
+                return;
+            }
             const data = await res.json();
             if (data.success && data.data?.mom) {
                 setMomData(data.data.mom);
@@ -196,7 +232,7 @@ export default function MeetingDetail({
         }
         if (momData) {
             if (momData.keyDecisions?.length) parts.push("", "Key Decisions:", ...momData.keyDecisions.map((d) => `  • ${d}`));
-            if (momData.actionItems?.length) parts.push("", "Action Items:", ...momData.actionItems.map((a) => `  • ${a.task} (${a.owner}, ${a.due})`));
+            if (momData.actionItems?.length) parts.push("", "Action Items:", ...momData.actionItems.map((a) => `  • ${a.task} (${a.assignee}, ${a.dueDate})`));
         }
         try {
             await navigator.clipboard.writeText(parts.join("\n"));
@@ -209,7 +245,7 @@ export default function MeetingDetail({
     const handleDownloadTranscript = useCallback(() => {
         if (transcriptSegments.length === 0) return;
         const formatTs = (ts: number) => { const s = Math.floor(ts / 1000); return `${Math.floor(s / 60)}:${(s % 60).toString().padStart(2, "0")}`; };
-        const lines = transcriptSegments.map((seg) => `[${formatTs(seg.timestamp)}] ${seg.speaker}: ${seg.text}`);
+        const lines = transcriptSegments.map((seg) => `[${formatTs(seg.timestamp)}] ${seg.speakerName}: ${seg.text}`);
         const blob = new Blob([lines.join("\n")], { type: "text/plain" });
         const d = new Date();
         const safeName = meeting.title.replace(/[^a-zA-Z0-9 _-]/g, "").replace(/\s+/g, "_");
@@ -238,7 +274,7 @@ export default function MeetingDetail({
         if (momData) {
             if (momData.keyDecisions?.length) parts.push("", "🎯 Key Decisions:", ...momData.keyDecisions.map((d) => `  • ${d}`));
             if (momData.discussionPoints?.length) parts.push("", "💬 Discussion Points:", ...momData.discussionPoints.map((d) => `  • ${d}`));
-            if (momData.actionItems?.length) parts.push("", "✅ Action Items:", ...momData.actionItems.map((a) => `  • ${a.task} → ${a.owner} (${a.due})`));
+            if (momData.actionItems?.length) parts.push("", "✅ Action Items:", ...momData.actionItems.map((a) => `  • ${a.task} → ${a.assignee} (${a.dueDate})`));
             if (momData.nextSteps?.length) parts.push("", "➡️ Next Steps:", ...momData.nextSteps.map((s) => `  • ${s}`));
         }
         if (hasRealTranscript) {
@@ -356,7 +392,8 @@ export default function MeetingDetail({
                         {TABS.map((t) => {
                             const disabled = (t.key === "transcript" && !hasRealTranscript && !meeting.hasTranscript) ||
                                 (t.key === "recording" && !hasRealRecordings && !meeting.hasRecording) ||
-                                (t.key === "mom" && !momData);
+                                (t.key === "mom" && !momData) ||
+                                (t.key === "analytics" && !analyticsData);
                             return (
                                 <button
                                     key={t.key}
@@ -378,6 +415,9 @@ export default function MeetingDetail({
                                         <Loader2 size={10} className="animate-spin ml-1" />
                                     )}
                                     {t.key === "recording" && loadingRecordings && (
+                                        <Loader2 size={10} className="animate-spin ml-1" />
+                                    )}
+                                    {t.key === "analytics" && loadingAnalytics && (
                                         <Loader2 size={10} className="animate-spin ml-1" />
                                     )}
                                 </button>
@@ -412,6 +452,7 @@ export default function MeetingDetail({
                                     duration={meeting.duration}
                                 />
                             )}
+                            {tab === "analytics" && analyticsData && <AnalyticsTab key="analytics" data={analyticsData} />}
                         </AnimatePresence>
                     </div>
 
@@ -461,8 +502,8 @@ export default function MeetingDetail({
                                         <div key={i} className="rounded-lg border-[1.5px] border-[var(--border)] p-2.5">
                                             <p className="text-[11px] font-medium text-[var(--text-secondary)] leading-snug mb-1">{item.task}</p>
                                             <div className="flex items-center justify-between">
-                                                <span className="text-[9px] text-[var(--text-muted)] font-medium">{item.owner}</span>
-                                                <span className="text-[9px] text-[#F59E0B] font-bold">{item.due}</span>
+                                                <span className="text-[9px] text-[var(--text-muted)] font-medium">{item.assignee}</span>
+                                                <span className="text-[9px] text-[#F59E0B] font-bold">{item.dueDate}</span>
                                             </div>
                                         </div>
                                     ))}
@@ -493,7 +534,7 @@ export default function MeetingDetail({
 
 /* ═══ TAB COMPONENTS ═══ */
 
-function OverviewTab({ meeting, momData }: { meeting: MeetingRecord; momData?: { summary?: string; keyDecisions?: string[]; discussionPoints?: string[]; actionItems?: { task: string; owner: string; due: string }[]; nextSteps?: string[] } | null }) {
+function OverviewTab({ meeting, momData }: { meeting: MeetingRecord; momData?: { summary?: string; keyDecisions?: string[]; discussionPoints?: string[]; actionItems?: { task: string; assignee: string; dueDate: string }[]; nextSteps?: string[] } | null }) {
     const actionItemCount = momData?.actionItems?.length || meeting.mom?.actionItems?.length || 0;
     return (
         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}>
@@ -577,7 +618,7 @@ function OverviewTab({ meeting, momData }: { meeting: MeetingRecord; momData?: {
     );
 }
 
-function MoMTab({ mom }: { mom: { summary?: string; keyDecisions: string[]; discussionPoints: string[]; actionItems: { task: string; owner: string; due: string }[]; nextSteps: string[] } }) {
+function MoMTab({ mom }: { mom: { summary?: string; keyDecisions: string[]; discussionPoints: string[]; actionItems: { task: string; assignee: string; dueDate: string }[]; nextSteps: string[] } }) {
     return (
         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="space-y-5">
             {/* Key decisions */}
@@ -617,8 +658,8 @@ function MoMTab({ mom }: { mom: { summary?: string; keyDecisions: string[]; disc
                                 <span className="text-sm text-[var(--text-secondary)]">{item.task}</span>
                             </div>
                             <div className="flex items-center gap-3">
-                                <span className="text-[10px] font-medium text-[var(--text-secondary)]">{item.owner}</span>
-                                <span className="text-[10px] font-bold text-[#F59E0B] bg-[#F59E0B]/10 rounded-full px-2 py-0.5">{item.due}</span>
+                                <span className="text-[10px] font-medium text-[var(--text-secondary)]">{item.assignee}</span>
+                                <span className="text-[10px] font-bold text-[#F59E0B] bg-[#F59E0B]/10 rounded-full px-2 py-0.5">{item.dueDate}</span>
                             </div>
                         </div>
                     ))}
@@ -667,7 +708,7 @@ function RealTranscriptTab({
     const handleDownload = () => {
         if (segments.length === 0) return;
         const lines = segments.map(
-            (seg) => `[${formatTimestamp(seg.timestamp)}] ${seg.speaker}: ${seg.text}`
+            (seg) => `[${formatTimestamp(seg.timestamp)}] ${seg.speakerName}: ${seg.text}`
         );
         const blob = new Blob([lines.join("\n")], { type: "text/plain" });
         const url = URL.createObjectURL(blob);
@@ -685,7 +726,7 @@ function RealTranscriptTab({
     };
 
     const filtered = searchQuery
-        ? segments.filter((e) => e.text.toLowerCase().includes(searchQuery.toLowerCase()) || e.speaker.toLowerCase().includes(searchQuery.toLowerCase()))
+        ? segments.filter((e) => e.text.toLowerCase().includes(searchQuery.toLowerCase()) || e.speakerName.toLowerCase().includes(searchQuery.toLowerCase()))
         : segments;
 
     if (loading) {
@@ -751,7 +792,7 @@ function RealTranscriptTab({
                     >
                         <span className="flex-shrink-0 text-[10px] text-[var(--text-muted)] font-mono pt-0.5 w-10">{formatTimestamp(entry.timestamp)}</span>
                         <div className="flex-1">
-                            <span className="text-[11px] font-bold text-[var(--text-secondary)] mr-2" style={{ fontFamily: "var(--font-heading)" }}>{entry.speaker}</span>
+                            <span className="text-[11px] font-bold text-[var(--text-secondary)] mr-2" style={{ fontFamily: "var(--font-heading)" }}>{entry.speakerName}</span>
                             <span className="text-sm text-[var(--text-secondary)] leading-relaxed">{entry.text}</span>
                         </div>
                     </motion.div>
@@ -925,6 +966,90 @@ function RealRecordingTab({
                                 </div>
                             </a>
                         ))}
+                    </div>
+                </div>
+            )}
+        </motion.div>
+    );
+}
+
+function AnalyticsTab({ data }: { data: Record<string, unknown> }) {
+    const score = (data.meetingScore as number) || 0;
+    const breakdown = (data.scoreBreakdown as Record<string, number>) || {};
+    const speakers = (data.speakerStats as { name: string; talkTimePercent: number; wordCount: number }[]) || [];
+    const highlights = (data.highlights as { timestamp: number; type: string; text: string }[]) || [];
+    const decisions = (data.decisionCount as number) || 0;
+    const actionItems = (data.actionItemCount as number) || 0;
+    const completed = (data.actionItemsCompleted as number) || 0;
+    const scoreColor = score >= 70 ? "#22C55E" : score >= 40 ? "#F59E0B" : "#EF4444";
+
+    return (
+        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="space-y-6">
+            {/* Score ring */}
+            <div className="flex items-center gap-6">
+                <div className="relative h-20 w-20 flex-shrink-0">
+                    <svg viewBox="0 0 36 36" className="h-20 w-20 -rotate-90">
+                        <circle cx="18" cy="18" r="15.5" fill="none" stroke="var(--border)" strokeWidth="3" />
+                        <circle cx="18" cy="18" r="15.5" fill="none" stroke={scoreColor} strokeWidth="3" strokeDasharray={`${score} ${100 - score}`} strokeLinecap="round" />
+                    </svg>
+                    <span className="absolute inset-0 flex items-center justify-center text-lg font-black">{score}</span>
+                </div>
+                <div className="flex-1 space-y-2">
+                    {Object.entries(breakdown).map(([key, val]) => (
+                        <div key={key} className="flex items-center gap-2">
+                            <span className="text-xs text-[var(--text-secondary)] w-32 capitalize">{key.replace(/([A-Z])/g, " $1").trim()}</span>
+                            <div className="flex-1 h-2 bg-[var(--border)] rounded-full overflow-hidden">
+                                <div className="h-full bg-[#FFE600] rounded-full" style={{ width: `${val}%` }} />
+                            </div>
+                            <span className="text-xs font-medium w-8 text-right">{val}</span>
+                        </div>
+                    ))}
+                </div>
+            </div>
+
+            {/* Stats grid */}
+            <div className="grid grid-cols-3 gap-3">
+                {[{ label: "Decisions", value: decisions }, { label: "Action Items", value: actionItems }, { label: "Completed", value: completed }].map((s) => (
+                    <div key={s.label} className="rounded-xl border-2 border-[var(--border)] p-3 text-center">
+                        <div className="text-2xl font-black">{s.value}</div>
+                        <div className="text-xs text-[var(--text-secondary)]">{s.label}</div>
+                    </div>
+                ))}
+            </div>
+
+            {/* Speaker stats */}
+            {speakers.length > 0 && (
+                <div>
+                    <h4 className="text-sm font-bold mb-2">Speaker Breakdown</h4>
+                    <div className="space-y-2">
+                        {speakers.sort((a, b) => b.talkTimePercent - a.talkTimePercent).map((s) => (
+                            <div key={s.name} className="flex items-center gap-2">
+                                <span className="text-xs w-24 truncate">{s.name}</span>
+                                <div className="flex-1 h-3 bg-[var(--border)] rounded-full overflow-hidden">
+                                    <div className="h-full bg-[#06B6D4] rounded-full" style={{ width: `${s.talkTimePercent}%` }} />
+                                </div>
+                                <span className="text-xs font-medium w-12 text-right">{s.talkTimePercent}%</span>
+                                <span className="text-[10px] text-[var(--text-secondary)] w-16 text-right">{s.wordCount} words</span>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            )}
+
+            {/* Highlights */}
+            {highlights.length > 0 && (
+                <div>
+                    <h4 className="text-sm font-bold mb-2">Key Moments</h4>
+                    <div className="space-y-2">
+                        {highlights.map((h, i) => {
+                            const badgeColor = { decision: "#22C55E", disagreement: "#EF4444", commitment: "#3B82F6", key_point: "#F59E0B" }[h.type] || "#6B7280";
+                            return (
+                                <div key={i} className="flex gap-2 text-sm">
+                                    <span className="rounded-full px-2 py-0.5 text-[10px] font-medium text-white flex-shrink-0" style={{ backgroundColor: badgeColor }}>{h.type.replace("_", " ")}</span>
+                                    <span className="text-[var(--text-primary)]">{h.text}</span>
+                                </div>
+                            );
+                        })}
                     </div>
                 </div>
             )}
