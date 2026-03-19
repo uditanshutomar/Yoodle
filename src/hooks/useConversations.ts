@@ -51,7 +51,7 @@ export function useConversations() {
       const json = await res.json();
       if (json.success && Array.isArray(json.data)) {
         setConversations(json.data);
-        setError(null); // Clear error on success
+        setError(null);
       }
     } catch (err) {
       if (err instanceof DOMException && err.name === "AbortError") return;
@@ -59,7 +59,7 @@ export function useConversations() {
     }
   }, []);
 
-  // ── Initial load + polling ───────────────────────────────────────────
+  // ── Initial load + polling with tab coordination ────────────────────
 
   useEffect(() => {
     if (!user) return;
@@ -74,14 +74,56 @@ export function useConversations() {
 
     load();
 
-    const interval = setInterval(() => {
-      // Skip polling when tab is hidden to reduce server load
+    // BroadcastChannel: coordinate polling across tabs
+    let channel: BroadcastChannel | null = null;
+    if (typeof BroadcastChannel !== "undefined") {
+      try {
+        channel = new BroadcastChannel("yoodle:conversations");
+        channel.onmessage = (event: MessageEvent) => {
+          if (event.data?.type === "yoodle:conversations" && Array.isArray(event.data.payload)) {
+            setConversations(event.data.payload);
+            setError(null);
+          }
+        };
+      } catch {
+        channel = null;
+      }
+    }
+
+    // Fetch + broadcast wrapper used by the interval
+    const pollAndBroadcast = async () => {
       if (document.visibilityState === "hidden") return;
-      refresh(controller.signal);
-    }, 10_000);
+      try {
+        const res = await fetch("/api/conversations", {
+          credentials: "include",
+          signal: controller.signal,
+        });
+        if (!res.ok) return;
+        const json = await res.json();
+        if (json.success && Array.isArray(json.data)) {
+          setConversations(json.data);
+          setError(null);
+          try { channel?.postMessage({ type: "yoodle:conversations", payload: json.data }); } catch { /* closed */ }
+        }
+      } catch (err) {
+        if (err instanceof DOMException && err.name === "AbortError") return;
+      }
+    };
+
+    const interval = setInterval(pollAndBroadcast, 10_000);
+
+    const handleVisibility = () => {
+      if (document.visibilityState === "visible") {
+        pollAndBroadcast();
+      }
+    };
+    document.addEventListener("visibilitychange", handleVisibility);
+
     return () => {
       controller.abort();
       clearInterval(interval);
+      document.removeEventListener("visibilitychange", handleVisibility);
+      try { channel?.close(); } catch { /* already closed */ }
     };
   }, [user, refresh]);
 

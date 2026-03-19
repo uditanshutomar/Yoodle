@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useCallback } from "react";
+import { useBroadcastPoll } from "./useBroadcastPoll";
 
 export function useInsightCount(enabled: boolean) {
   const [count, setCount] = useState(0);
@@ -18,32 +19,20 @@ export function useInsightCount(enabled: boolean) {
     }
   }, []);
 
-  useEffect(() => {
-    if (!enabled) return;
+  const fetchCount = useCallback(async (): Promise<number> => {
+    const res = await fetch("/api/ai/insights/count", { credentials: "include" });
+    if (!res.ok) throw new Error("Failed to fetch insight count");
+    const data = await res.json();
+    return data.data?.count ?? 0;
+  }, []);
 
-    let cancelled = false;
-
-    const poll = async () => {
-      // Skip polling when tab is hidden to reduce server load
-      if (document.visibilityState === "hidden") return;
-      try {
-        const res = await fetch("/api/ai/insights/count", { credentials: "include" });
-        if (res.ok && !cancelled) {
-          const data = await res.json();
-          setCount(data.data?.count ?? 0);
-        }
-      } catch (err) {
-        console.debug("[useInsightCount] poll error:", err);
-      }
-    };
-
-    poll();
-    const interval = setInterval(poll, 60_000);
-    return () => {
-      cancelled = true;
-      clearInterval(interval);
-    };
-  }, [enabled]);
+  useBroadcastPoll(
+    "yoodle:insight-count",
+    fetchCount,
+    setCount,
+    60_000,
+    enabled,
+  );
 
   return { count, clearCount };
 }
