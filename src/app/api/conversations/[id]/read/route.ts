@@ -4,7 +4,7 @@ import { withHandler } from "@/lib/infra/api/with-handler";
 import { successResponse } from "@/lib/infra/api/response";
 import { checkRateLimit } from "@/lib/infra/api/rate-limit";
 import { getUserIdFromRequest } from "@/lib/infra/auth/middleware";
-import { BadRequestError, ForbiddenError, NotFoundError } from "@/lib/infra/api/errors";
+import { BadRequestError, NotFoundError } from "@/lib/infra/api/errors";
 import connectDB from "@/lib/infra/db/client";
 import Conversation from "@/lib/infra/db/models/conversation";
 import { getRedisClient } from "@/lib/infra/redis/client";
@@ -24,25 +24,19 @@ export const POST = withHandler(async (req: NextRequest, context) => {
 
   await connectDB();
 
-  // Verify user is a participant
-  const conversation = await Conversation.findById(id).select("participants").lean();
-  if (!conversation) {
-    throw new NotFoundError("Conversation not found.");
-  }
-
-  const isParticipant = conversation.participants.some(
-    (p) => p.userId.toString() === userId
-  );
-  if (!isParticipant) {
-    throw new ForbiddenError("You are not a participant in this conversation.");
-  }
-
-  // Mark as read
+  // Atomic: verify participant + mark as read in a single operation
   const readAt = new Date();
-  await Conversation.updateOne(
-    { _id: id, "participants.userId": new mongoose.Types.ObjectId(userId) },
+  const result = await Conversation.updateOne(
+    {
+      _id: new mongoose.Types.ObjectId(id),
+      "participants.userId": new mongoose.Types.ObjectId(userId),
+    },
     { $set: { "participants.$.lastReadAt": readAt } }
   );
+
+  if (result.matchedCount === 0) {
+    throw new NotFoundError("Conversation not found.");
+  }
 
   // Publish to Redis (non-fatal if Redis is down)
   try {
@@ -55,5 +49,5 @@ export const POST = withHandler(async (req: NextRequest, context) => {
     log.warn({ err, conversationId: id }, "Failed to publish read receipt to Redis");
   }
 
-  return successResponse({ success: true });
+  return successResponse({ readAt: readAt.toISOString() });
 });

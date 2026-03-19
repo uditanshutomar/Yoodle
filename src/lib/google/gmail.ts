@@ -1,5 +1,8 @@
 import { gmail_v1 } from "googleapis";
 import { getGoogleServices } from "./client";
+import { createLogger } from "@/lib/infra/logger";
+
+const log = createLogger("google:gmail");
 
 export interface EmailMessage {
   id: string;
@@ -51,10 +54,17 @@ export async function listEmails(
 
   for (let i = 0; i < messages.length; i += BATCH_SIZE) {
     const batch = messages.slice(i, i + BATCH_SIZE);
-    const results = await Promise.all(
+    const results = await Promise.allSettled(
       batch.map((msg) => getEmailDetails(gmail, msg.id!))
     );
-    emails.push(...results);
+    for (const result of results) {
+      if (result.status === "fulfilled") {
+        emails.push(result.value);
+      } else {
+        log.warn({ err: result.reason }, "Failed to fetch email details — skipping");
+        emails.push(null);
+      }
+    }
   }
 
   return emails.filter(Boolean) as EmailMessage[];

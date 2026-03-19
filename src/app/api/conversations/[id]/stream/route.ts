@@ -96,6 +96,20 @@ export async function GET(
         };
         subscriber.on("message", messageHandler);
 
+        // Handle Redis subscriber errors to prevent unhandled "error" events
+        subscriber.on("error", (err) => {
+          log.warn({ err, conversationId: id }, "Redis subscriber error on SSE stream");
+          clearInterval(heartbeat);
+          try { controller.close(); } catch { /* Already closed */ }
+        });
+
+        // Handle Redis connection close — subscriber may drop without "error"
+        subscriber.on("close", () => {
+          log.warn({ conversationId: id }, "Redis subscriber closed on SSE stream");
+          clearInterval(heartbeat);
+          try { controller.close(); } catch { /* Already closed */ }
+        });
+
         // Clean up when the client disconnects
         req.signal.addEventListener("abort", () => {
           clearInterval(heartbeat);
@@ -114,8 +128,9 @@ export async function GET(
     return new Response(stream, {
       headers: {
         "Content-Type": "text/event-stream",
-        "Cache-Control": "no-cache",
+        "Cache-Control": "no-cache, no-transform",
         Connection: "keep-alive",
+        "X-Accel-Buffering": "no", // Prevent Nginx/reverse proxy buffering
       },
     });
   } catch (err) {

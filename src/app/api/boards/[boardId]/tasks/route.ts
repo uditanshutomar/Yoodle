@@ -16,14 +16,15 @@ import { findBoardWithAccess, verifyEditAccess } from "@/lib/board/helpers";
 const createTaskSchema = z.object({
   title: z.string().min(1).max(500),
   description: z.string().max(10000).optional(),
-  columnId: z.string(),
+  columnId: z.string().max(50),
   priority: z.enum(["urgent", "high", "medium", "low", "none"]).optional(),
-  assigneeId: z.string().optional(),
-  labels: z.array(z.string()).optional(),
-  dueDate: z.string().refine((v) => !isNaN(Date.parse(v)), { message: "Invalid date" }).optional(),
-  startDate: z.string().refine((v) => !isNaN(Date.parse(v)), { message: "Invalid date" }).optional(),
+  assigneeId: z.string().refine((val) => mongoose.Types.ObjectId.isValid(val), { message: "Invalid assignee ID" }).optional(),
+  labels: z.array(z.string().max(100)).max(50).optional(),
+  dueDate: z.string().datetime({ message: "Invalid ISO date" }).optional(),
+  startDate: z.string().datetime({ message: "Invalid ISO date" }).optional(),
   subtasks: z
     .array(z.object({ title: z.string().min(1).max(500) }))
+    .max(100)
     .optional(),
 });
 
@@ -45,8 +46,19 @@ export const GET = withHandler(async (req: NextRequest, context) => {
 
   const filter: Record<string, unknown> = { boardId: board._id };
   if (columnId) filter.columnId = columnId;
-  if (assigneeId) filter.assigneeId = new mongoose.Types.ObjectId(assigneeId);
-  if (priority) filter.priority = priority;
+  if (assigneeId) {
+    if (!mongoose.Types.ObjectId.isValid(assigneeId)) {
+      throw new BadRequestError("Invalid assigneeId format.");
+    }
+    filter.assigneeId = new mongoose.Types.ObjectId(assigneeId);
+  }
+  const validPriorities = ["urgent", "high", "medium", "low", "none"];
+  if (priority) {
+    if (!validPriorities.includes(priority)) {
+      throw new BadRequestError("Invalid priority value.");
+    }
+    filter.priority = priority;
+  }
 
   const tasks = await Task.find(filter)
     .sort({ columnId: 1, position: 1 })

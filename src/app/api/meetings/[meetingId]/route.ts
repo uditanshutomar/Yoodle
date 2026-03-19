@@ -63,19 +63,21 @@ export const GET = withHandler(async (req: NextRequest, context) => {
 
   const filter = buildMeetingFilter(meetingId);
   const meeting = await Meeting.findOne(filter)
-    .populate("hostId", "name email displayName avatarUrl")
-    .populate("participants.userId", "name email displayName avatarUrl")
+    .populate("hostId", "name displayName avatarUrl")
+    .populate("participants.userId", "name displayName avatarUrl")
     .lean();
 
   if (!meeting) {
     throw new NotFoundError("Meeting not found.");
   }
 
-  // Check if user is host or participant
+  // Check if user is host or an active participant (exclude left/denied users)
   const isHost = meeting.hostId._id?.toString() === userId ||
     (meeting.hostId as unknown as mongoose.Types.ObjectId).toString() === userId;
   const isParticipant = meeting.participants.some(
-    (p) => p.userId?.toString() === userId || p.userId?._id?.toString() === userId
+    (p) =>
+      (p.userId?.toString() === userId || p.userId?._id?.toString() === userId) &&
+      p.status !== "left"
   );
 
   if (isHost || isParticipant) {
@@ -83,14 +85,21 @@ export const GET = withHandler(async (req: NextRequest, context) => {
     return successResponse(meeting);
   }
 
-  // Non-participant: return limited info so the lobby/join page can render
+  // Non-participant: return limited info so the lobby/join page can render.
+  // Strip email from host to avoid leaking PII to non-participants.
+  const hostData = meeting.hostId as unknown as Record<string, unknown>;
   return successResponse({
     _id: meeting._id,
     title: meeting.title,
     code: meeting.code,
     status: meeting.status,
     type: meeting.type,
-    hostId: meeting.hostId,
+    hostId: {
+      _id: hostData._id,
+      name: hostData.name,
+      displayName: hostData.displayName,
+      avatarUrl: hostData.avatarUrl,
+    },
     settings: {
       waitingRoom: meeting.settings?.waitingRoom ?? false,
     },
@@ -162,8 +171,8 @@ export const PATCH = withHandler(async (req: NextRequest, context) => {
     { $set: updateFields },
     { new: true, runValidators: true }
   )
-    .populate("hostId", "name email displayName avatarUrl")
-    .populate("participants.userId", "name email displayName avatarUrl");
+    .populate("hostId", "name displayName avatarUrl")
+    .populate("participants.userId", "name displayName avatarUrl");
 
   if (!updatedMeeting) {
     // Determine the reason for failure

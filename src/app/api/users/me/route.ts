@@ -19,7 +19,7 @@ export const GET = withHandler(async (req: NextRequest) => {
   await connectDB();
 
   const user = await User.findById(userId)
-    .select("-magicLinkToken -magicLinkExpires -refreshTokenHash -__v")
+    .select("-magicLinkToken -magicLinkExpires -refreshTokenHash -googleTokens -__v")
     .lean();
 
   if (!user) {
@@ -56,6 +56,9 @@ const updateProfileSchema = z.object({
   avatarUrl: z
     .string()
     .url("Avatar URL must be a valid URL.")
+    .refine((u) => u.startsWith("https://"), {
+      message: "Avatar URL must use HTTPS.",
+    })
     .optional()
     .nullable(),
   mode: z.enum(["lockin", "invisible", "social"]).optional(),

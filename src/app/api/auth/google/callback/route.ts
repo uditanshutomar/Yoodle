@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 import { withHandler } from "@/lib/infra/api/with-handler";
 import { checkRateLimit } from "@/lib/infra/api/rate-limit";
 import bcrypt from "bcryptjs";
@@ -7,6 +8,11 @@ import User from "@/lib/infra/db/models/user";
 import { exchangeCodeForTokens, getGoogleUserProfile } from "@/lib/infra/auth/google";
 import { signAccessToken, signRefreshToken } from "@/lib/infra/auth/jwt";
 import { createLogger } from "@/lib/infra/logger";
+
+const oauthStateSchema = z.object({
+  nonce: z.string().optional(),
+  redirect: z.string().optional(),
+}).passthrough();
 
 const log = createLogger("api:auth-google-callback");
 
@@ -42,7 +48,7 @@ export const GET = withHandler(async (req: NextRequest) => {
     let redirectTo = "/dashboard";
     if (state) {
       try {
-        const stateObj = JSON.parse(decodeURIComponent(state));
+        const stateObj = oauthStateSchema.parse(JSON.parse(decodeURIComponent(state)));
         const storedNonce = req.cookies.get("yoodle-oauth-nonce")?.value;
 
         if (!storedNonce || !stateObj.nonce || storedNonce !== stateObj.nonce) {
@@ -131,27 +137,46 @@ export const GET = withHandler(async (req: NextRequest) => {
 
       await User.findByIdAndUpdate(user._id, { $set: updateData });
     } else {
-      // Create a new user from Google profile
+      // Create a new user from Google profile.
+      // Wrap in try/catch for E11000 duplicate key errors — two concurrent
+      // OAuth callbacks for the same new user can race past the findOne check.
       const baseDisplayName = profile.email
         .split("@")[0]
         .replace(/[^a-zA-Z0-9_]/g, "")
         .toLowerCase()
         .slice(0, 50);
 
-      user = await User.create({
-        email: profile.email.toLowerCase(),
-        name: profile.name,
-        displayName: baseDisplayName,
-        avatarUrl: profile.avatarUrl,
-        googleId: profile.googleId,
-        googleTokens: googleTokensData,
-        status: "online",
-        preferences: {
-          notifications: true,
-          ghostModeDefault: false,
-          theme: "auto",
-        },
-      });
+      try {
+        user = await User.create({
+          email: profile.email.toLowerCase(),
+          name: profile.name,
+          displayName: baseDisplayName,
+          avatarUrl: profile.avatarUrl,
+          googleId: profile.googleId,
+          googleTokens: googleTokensData,
+          status: "online",
+          preferences: {
+            notifications: true,
+            ghostModeDefault: false,
+            theme: "auto",
+          },
+        });
+      } catch (createErr) {
+        // Handle E11000 duplicate key race — the other concurrent request created the user first
+        if (createErr instanceof Error && "code" in createErr && (createErr as { code: number }).code === 11000) {
+          user = await User.findOne({
+            $or: [
+              { googleId: profile.googleId },
+              { email: profile.email.toLowerCase() },
+            ],
+          });
+          if (!user) throw createErr; // Shouldn't happen — rethrow if it does
+          // Update the race-winner's tokens with our fresh tokens
+          await User.findByIdAndUpdate(user._id, { $set: { googleTokens: googleTokensData, lastSeenAt: new Date() } });
+        } else {
+          throw createErr;
+        }
+      }
     }
 
     const userId = user._id.toString();
@@ -185,7 +210,7 @@ export const GET = withHandler(async (req: NextRequest) => {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       sameSite: "lax",
-      path: "/",
+      path: "/api/auth",
       maxAge: 7 * 24 * 60 * 60,
     });
 

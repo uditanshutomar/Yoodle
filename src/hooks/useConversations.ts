@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useMemo } from "react";
 import { useAuth } from "./useAuth";
 
 // ── Types ────────────────────────────────────────────────────────────────
@@ -33,6 +33,7 @@ export function useConversations() {
   const { user } = useAuth();
   const [conversations, setConversations] = useState<ConversationInfo[]>([]);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   // ── Fetch conversations ──────────────────────────────────────────────
 
@@ -42,15 +43,19 @@ export function useConversations() {
         credentials: "include",
         signal,
       });
-      if (!res.ok) return;
+      if (!res.ok) {
+        setError(`Failed to load conversations (${res.status})`);
+        return;
+      }
 
       const json = await res.json();
       if (json.success && Array.isArray(json.data)) {
         setConversations(json.data);
+        setError(null); // Clear error on success
       }
     } catch (err) {
       if (err instanceof DOMException && err.name === "AbortError") return;
-      // Silent fail
+      setError("Failed to load conversations");
     }
   }, []);
 
@@ -69,7 +74,11 @@ export function useConversations() {
 
     load();
 
-    const interval = setInterval(() => refresh(controller.signal), 10_000);
+    const interval = setInterval(() => {
+      // Skip polling when tab is hidden to reduce server load
+      if (document.visibilityState === "hidden") return;
+      refresh(controller.signal);
+    }, 10_000);
     return () => {
       controller.abort();
       clearInterval(interval);
@@ -78,9 +87,9 @@ export function useConversations() {
 
   // ── Total unread ─────────────────────────────────────────────────────
 
-  const totalUnread = conversations.reduce(
-    (sum, c) => sum + (c.unreadCount || 0),
-    0,
+  const totalUnread = useMemo(
+    () => conversations.reduce((sum, c) => sum + (c.unreadCount || 0), 0),
+    [conversations],
   );
 
   // ── Create DM ────────────────────────────────────────────────────────
@@ -97,7 +106,10 @@ export function useConversations() {
             recipientId: participantId,
           }),
         });
-        if (!res.ok) return null;
+        if (!res.ok) {
+          setError(`Failed to create conversation (${res.status})`);
+          return null;
+        }
 
         const json = await res.json();
         if (json.success && json.data?._id) {
@@ -105,7 +117,8 @@ export function useConversations() {
           return json.data._id as string;
         }
         return null;
-      } catch {
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Failed to create conversation");
         return null;
       }
     },
@@ -130,7 +143,10 @@ export function useConversations() {
             participantIds,
           }),
         });
-        if (!res.ok) return null;
+        if (!res.ok) {
+          setError(`Failed to create group (${res.status})`);
+          return null;
+        }
 
         const json = await res.json();
         if (json.success && json.data?._id) {
@@ -138,7 +154,8 @@ export function useConversations() {
           return json.data._id as string;
         }
         return null;
-      } catch {
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Failed to create group");
         return null;
       }
     },
@@ -148,6 +165,7 @@ export function useConversations() {
   return {
     conversations,
     loading,
+    error,
     totalUnread,
     createDM,
     createGroup,

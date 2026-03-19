@@ -5,9 +5,10 @@ import { withHandler } from "@/lib/infra/api/with-handler";
 import { successResponse } from "@/lib/infra/api/response";
 import { getUserIdFromRequest } from "@/lib/infra/auth/middleware";
 import { checkRateLimit } from "@/lib/infra/api/rate-limit";
-import { BadRequestError, ConflictError } from "@/lib/infra/api/errors";
+import { BadRequestError, ConflictError, ForbiddenError } from "@/lib/infra/api/errors";
 import connectDB from "@/lib/infra/db/client";
 import Board from "@/lib/infra/db/models/board";
+import Conversation from "@/lib/infra/db/models/conversation";
 import { generateDefaultColumns, generateDefaultLabels } from "@/lib/board/helpers";
 
 /* ─── Validation ─── */
@@ -57,26 +58,49 @@ export const POST = withHandler(async (req: NextRequest) => {
     if (existing) throw new ConflictError("You already have a personal board");
   }
 
-  // Conversation boards: require valid conversationId
+  // Conversation boards: require valid conversationId + verify membership
   if (body.scope === "conversation" && !body.conversationId) {
     throw new BadRequestError("conversationId required for conversation boards");
   }
   if (body.conversationId && !mongoose.Types.ObjectId.isValid(body.conversationId)) {
     throw new BadRequestError("Invalid conversationId format");
   }
+  if (body.scope === "conversation" && body.conversationId) {
+    const conv = await Conversation.findOne({
+      _id: new mongoose.Types.ObjectId(body.conversationId),
+      "participants.userId": userOid,
+    }).select("_id").lean();
+    if (!conv) {
+      throw new ForbiddenError("You are not a participant in this conversation.");
+    }
+  }
 
-  const board = await Board.create({
-    title: body.title,
-    description: body.description,
-    ownerId: userOid,
-    scope: body.scope,
-    conversationId: body.conversationId
-      ? new mongoose.Types.ObjectId(body.conversationId)
-      : undefined,
-    members: [{ userId: userOid, role: "owner", joinedAt: new Date() }],
-    columns: generateDefaultColumns(),
-    labels: generateDefaultLabels(),
-  });
+  let board;
+  try {
+    board = await Board.create({
+      title: body.title,
+      description: body.description,
+      ownerId: userOid,
+      scope: body.scope,
+      conversationId: body.conversationId
+        ? new mongoose.Types.ObjectId(body.conversationId)
+        : undefined,
+      members: [{ userId: userOid, role: "owner", joinedAt: new Date() }],
+      columns: generateDefaultColumns(),
+      labels: generateDefaultLabels(),
+    });
+  } catch (err) {
+    // Handle race condition: concurrent personal board creation triggers E11000
+    if (
+      body.scope === "personal" &&
+      err instanceof Error &&
+      "code" in err &&
+      (err as { code: number }).code === 11000
+    ) {
+      throw new ConflictError("You already have a personal board");
+    }
+    throw err;
+  }
 
   return successResponse(board, 201);
 });

@@ -105,9 +105,16 @@ export async function* streamChatWithAssistant(
 
   // Function calling loop — max 5 rounds to prevent infinite loops
   const MAX_TOOL_ROUNDS = 5;
+  const STREAM_TIMEOUT_MS = 90_000; // 90s per streaming round
+  const TOOL_TIMEOUT_MS = 30_000;   // 30s per tool execution
 
   for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
-    const result = await model.generateContentStream(requestConfig);
+    const result = await Promise.race([
+      model.generateContentStream(requestConfig),
+      new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error("Gemini streaming timed out")), STREAM_TIMEOUT_MS)
+      ),
+    ]);
 
     const responseParts: Part[] = [];
 
@@ -150,12 +157,22 @@ export async function* streamChatWithAssistant(
       // Notify client that a tool is being called
       yield { type: "tool_call", name: functionName, args };
 
-      // Execute the tool server-side
-      const toolResult = await executeWorkspaceTool(
-        options!.userId!,
-        functionName,
-        args
-      );
+      // Execute the tool server-side with a timeout
+      let toolResult;
+      try {
+        toolResult = await Promise.race([
+          executeWorkspaceTool(options!.userId!, functionName, args),
+          new Promise<never>((_, reject) =>
+            setTimeout(() => reject(new Error(`Tool ${functionName} timed out`)), TOOL_TIMEOUT_MS)
+          ),
+        ]);
+      } catch (toolErr) {
+        log.warn({ err: toolErr, functionName }, "Tool execution failed or timed out");
+        toolResult = {
+          success: false,
+          summary: `Tool ${functionName} failed: ${toolErr instanceof Error ? toolErr.message : "Unknown error"}`,
+        };
+      }
 
       // Notify client of the result
       yield {
@@ -189,7 +206,12 @@ export async function* streamChatWithAssistant(
     if (round === MAX_TOOL_ROUNDS - 1) {
       log.warn("tool calling loop reached max rounds, forcing final text response");
       // Do one final generation so Gemini can summarize the tool results as text
-      const finalResult = await model.generateContentStream(requestConfig);
+      const finalResult = await Promise.race([
+        model.generateContentStream(requestConfig),
+        new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error("Final Gemini round timed out")), STREAM_TIMEOUT_MS)
+        ),
+      ]);
       for await (const chunk of finalResult.stream) {
         const text = chunk.text();
         if (text) yield text;

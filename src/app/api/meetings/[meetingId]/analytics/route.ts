@@ -1,4 +1,5 @@
 import { NextRequest } from "next/server";
+import mongoose from "mongoose";
 import { withHandler } from "@/lib/infra/api/with-handler";
 import { successResponse } from "@/lib/infra/api/response";
 import { checkRateLimit } from "@/lib/infra/api/rate-limit";
@@ -23,11 +24,12 @@ export const GET = withHandler(async (req: NextRequest, context) => {
   // Verify the user is a participant or host of the meeting
   const Meeting = (await import("@/lib/infra/db/models/meeting")).default;
   const filter = buildMeetingFilter(meetingId);
+  const userOid = new mongoose.Types.ObjectId(userId);
   const meeting = await Meeting.findOne({
     ...filter,
     $or: [
-      { hostId: userId },
-      { "participants.userId": userId },
+      { hostId: userOid },
+      { "participants.userId": userOid },
     ],
   }).select("_id").lean();
 

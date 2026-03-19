@@ -1,4 +1,7 @@
 import { getGoogleServices } from "./client";
+import { createLogger } from "@/lib/infra/logger";
+
+const log = createLogger("google:slides");
 
 export interface PresentationInfo {
   presentationId: string;
@@ -11,7 +14,7 @@ export interface MomSlideData {
   date: string;
   summary: string;
   keyDecisions: string[];
-  actionItems: { task: string; owner: string; due: string }[];
+  actionItems: { task: string; assignee: string; dueDate: string }[];
   nextSteps: string[];
 }
 
@@ -80,7 +83,10 @@ export async function addSlide(
   const pres = await slides.presentations.get({ presentationId });
   const slide = pres.data.slides?.find((s) => s.objectId === slideId);
 
-  if (!slide?.pageElements) return;
+  if (!slide?.pageElements) {
+    log.warn({ presentationId, slideId }, "Slide created but no page elements found — text cannot be inserted");
+    return;
+  }
 
   let titleElementId: string | undefined;
   let bodyElementId: string | undefined;
@@ -139,41 +145,36 @@ export async function createMomPresentation(
   const presTitle = `${data.title} - MoM (${data.date})`;
   const presentation = await createPresentation(userId, presTitle);
 
-  // Slide 1: Summary
-  await addSlide(userId, presentation.presentationId, "Summary", data.summary);
+  // Build all slides — continue on individual slide failures so the
+  // presentation is still usable even if one slide fails to populate.
+  const slides: { title: string; body: string }[] = [
+    { title: "Summary", body: data.summary },
+    {
+      title: "Key Decisions",
+      body: data.keyDecisions.map((d, i) => `${i + 1}. ${d}`).join("\n"),
+    },
+    {
+      title: "Action Items",
+      body: data.actionItems
+        .map((item) => `• ${item.task} (Assignee: ${item.assignee}, Due: ${item.dueDate})`)
+        .join("\n"),
+    },
+    {
+      title: "Next Steps",
+      body: data.nextSteps.map((s, i) => `${i + 1}. ${s}`).join("\n"),
+    },
+  ];
 
-  // Slide 2: Key Decisions (numbered)
-  const decisionsBody = data.keyDecisions
-    .map((d, i) => `${i + 1}. ${d}`)
-    .join("\n");
-  await addSlide(
-    userId,
-    presentation.presentationId,
-    "Key Decisions",
-    decisionsBody
-  );
-
-  // Slide 3: Action Items (bulleted with owner/due)
-  const actionItemsBody = data.actionItems
-    .map((item) => `• ${item.task} (Owner: ${item.owner}, Due: ${item.due})`)
-    .join("\n");
-  await addSlide(
-    userId,
-    presentation.presentationId,
-    "Action Items",
-    actionItemsBody
-  );
-
-  // Slide 4: Next Steps (numbered)
-  const nextStepsBody = data.nextSteps
-    .map((s, i) => `${i + 1}. ${s}`)
-    .join("\n");
-  await addSlide(
-    userId,
-    presentation.presentationId,
-    "Next Steps",
-    nextStepsBody
-  );
+  for (const slide of slides) {
+    try {
+      await addSlide(userId, presentation.presentationId, slide.title, slide.body);
+    } catch (err) {
+      log.warn(
+        { err, presentationId: presentation.presentationId, slideTitle: slide.title },
+        "Failed to add MoM slide — continuing with remaining slides",
+      );
+    }
+  }
 
   return presentation;
 }

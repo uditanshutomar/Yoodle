@@ -25,18 +25,25 @@ export async function readSheet(
 ): Promise<SheetData> {
   const { sheets, drive } = await getGoogleServices(userId);
 
-  const [dataRes, metaRes, fileRes] = await Promise.all([
+  // Use allSettled so a non-critical failure (e.g. drive metadata) doesn't
+  // prevent returning the actual sheet data.
+  const [dataResult, metaResult, fileResult] = await Promise.allSettled([
     sheets.spreadsheets.values.get({ spreadsheetId, range }),
     sheets.spreadsheets.get({ spreadsheetId, fields: "properties.title" }),
     drive.files.get({ fileId: spreadsheetId, fields: "webViewLink" }),
   ]);
 
+  // The data fetch is essential — re-throw if it failed
+  if (dataResult.status === "rejected") throw dataResult.reason;
+
   return {
     spreadsheetId,
-    title: metaRes.data.properties?.title || "",
+    title: metaResult.status === "fulfilled" ? (metaResult.value.data.properties?.title || "") : "",
     sheetName: range,
-    values: (dataRes.data.values as string[][]) || [],
-    webViewLink: fileRes.data.webViewLink || `https://docs.google.com/spreadsheets/d/${spreadsheetId}/edit`,
+    values: (dataResult.value.data.values as string[][]) || [],
+    webViewLink: fileResult.status === "fulfilled"
+      ? (fileResult.value.data.webViewLink || `https://docs.google.com/spreadsheets/d/${spreadsheetId}/edit`)
+      : `https://docs.google.com/spreadsheets/d/${spreadsheetId}/edit`,
   };
 }
 
@@ -54,7 +61,7 @@ export async function writeSheet(
   const res = await sheets.spreadsheets.values.update({
     spreadsheetId,
     range,
-    valueInputOption: "USER_ENTERED",
+    valueInputOption: "RAW",
     requestBody: { values },
   });
 
@@ -75,7 +82,7 @@ export async function appendToSheet(
   const res = await sheets.spreadsheets.values.append({
     spreadsheetId,
     range,
-    valueInputOption: "USER_ENTERED",
+    valueInputOption: "RAW",
     insertDataOption: "INSERT_ROWS",
     requestBody: { values },
   });

@@ -1373,6 +1373,40 @@ export interface ToolResult {
   data?: unknown;
 }
 
+// ── Runtime type helpers for AI-provided args ────────────────────────
+// Gemini may send wrong types (number instead of string, string instead of
+// array, etc.). These helpers coerce safely instead of blindly casting.
+
+function asString(val: unknown, fallback = ""): string {
+  if (typeof val === "string") return val;
+  if (val === null || val === undefined) return fallback;
+  return String(val);
+}
+
+function asStringArray(val: unknown): string[] {
+  if (Array.isArray(val)) return val.map((v) => asString(v));
+  if (typeof val === "string") return [val]; // AI sometimes sends a single string instead of array
+  return [];
+}
+
+function asNumber(val: unknown, fallback: number): number {
+  if (typeof val === "number" && !isNaN(val)) return val;
+  if (typeof val === "string") { const n = Number(val); if (!isNaN(n)) return n; }
+  return fallback;
+}
+
+function asBoolean(val: unknown, fallback?: boolean): boolean | undefined {
+  if (typeof val === "boolean") return val;
+  if (val === "true") return true;
+  if (val === "false") return false;
+  return fallback;
+}
+
+function asStringArrayArray(val: unknown): string[][] {
+  if (!Array.isArray(val)) return [];
+  return val.map((row) => Array.isArray(row) ? row.map((v) => asString(v)) : [asString(row)]);
+}
+
 /**
  * Execute a workspace tool by name. Maps Gemini function calls to the
  * existing Google API functions in src/lib/google/.
@@ -1388,15 +1422,21 @@ export async function executeWorkspaceTool(
     switch (functionName) {
       // ── Gmail ────────────────────────────────────────────────
       case "send_email": {
+        const to = asStringArray(args.to);
+        const subject = asString(args.subject);
+        const body = asString(args.body);
+        if (to.length === 0 || !subject) {
+          return { success: false, summary: "Email requires at least one recipient and a subject." };
+        }
         const result = await sendEmail(userId, {
-          to: args.to as string[],
-          subject: args.subject as string,
-          body: args.body as string,
-          cc: args.cc as string[] | undefined,
-          bcc: args.bcc as string[] | undefined,
-          isHtml: args.isHtml as boolean | undefined,
+          to,
+          subject,
+          body,
+          cc: args.cc ? asStringArray(args.cc) : undefined,
+          bcc: args.bcc ? asStringArray(args.bcc) : undefined,
+          isHtml: asBoolean(args.isHtml),
         });
-        const recipients = (args.to as string[]).join(", ");
+        const recipients = to.join(", ");
         return {
           success: true,
           summary: `Email sent to ${recipients} with subject "${args.subject}"`,
@@ -1407,8 +1447,8 @@ export async function executeWorkspaceTool(
       case "search_emails": {
         const emails = await searchEmails(
           userId,
-          args.query as string,
-          (args.maxResults as number) || 10
+          asString(args.query),
+          asNumber(args.maxResults, 10)
         );
         return {
           success: true,
@@ -1426,7 +1466,7 @@ export async function executeWorkspaceTool(
 
       case "list_emails": {
         const emails = await listEmails(userId, {
-          maxResults: (args.maxResults as number) || 10,
+          maxResults: asNumber(args.maxResults, 10),
         });
         return {
           success: true,
@@ -1454,7 +1494,7 @@ export async function executeWorkspaceTool(
       case "mark_email_read": {
         await modifyEmailLabels(
           userId,
-          args.messageId as string,
+          asString(args.messageId),
           [],
           ["UNREAD"]
         );
@@ -1465,7 +1505,7 @@ export async function executeWorkspaceTool(
       }
 
       case "get_email": {
-        const email = await getEmail(userId, args.messageId as string);
+        const email = await getEmail(userId, asString(args.messageId));
         if (!email) {
           return {
             success: false,
@@ -1491,11 +1531,11 @@ export async function executeWorkspaceTool(
       case "reply_to_email": {
         const replyResult = await replyToEmail(
           userId,
-          args.messageId as string,
-          args.body as string,
+          asString(args.messageId),
+          asString(args.body),
           {
-            cc: args.cc as string[] | undefined,
-            bcc: args.bcc as string[] | undefined,
+            cc: args.cc ? asStringArray(args.cc) : undefined,
+            bcc: args.bcc ? asStringArray(args.bcc) : undefined,
           }
         );
         return {
@@ -1507,8 +1547,14 @@ export async function executeWorkspaceTool(
 
       // ── Calendar ─────────────────────────────────────────────
       case "create_calendar_event": {
+        const calTitle = asString(args.title);
+        const calStart = asString(args.start);
+        const calEnd = asString(args.end);
+        if (!calTitle || !calStart || !calEnd) {
+          return { success: false, summary: "Calendar event requires title, start, and end." };
+        }
         // Resolve timezone: prefer AI-provided, fallback to user's profile, then UTC
-        let tz = args.timeZone as string | undefined;
+        let tz = args.timeZone ? asString(args.timeZone) : undefined;
         if (!tz) {
           try {
             await connectDB();
@@ -1533,15 +1579,15 @@ export async function executeWorkspaceTool(
         } catch (err) { log.warn({ err, userId }, "Conflict check failed (best-effort)"); }
 
         const event = await createEvent(userId, {
-          title: args.title as string,
-          start: args.start as string,
-          end: args.end as string,
-          description: args.description as string | undefined,
-          attendees: args.attendees as string[] | undefined,
-          location: args.location as string | undefined,
-          addMeetLink: args.addMeetLink as boolean | undefined,
+          title: calTitle,
+          start: calStart,
+          end: calEnd,
+          description: args.description ? asString(args.description) : undefined,
+          attendees: args.attendees ? asStringArray(args.attendees) : undefined,
+          location: args.location ? asString(args.location) : undefined,
+          addMeetLink: asBoolean(args.addMeetLink),
           timeZone: tz,
-          recurrence: args.recurrence as string[] | undefined,
+          recurrence: args.recurrence ? asStringArray(args.recurrence) : undefined,
         });
         const attendeeEmails = (event.attendees ?? []).map((a) => a.email).filter(Boolean);
         const attendeeStr =
@@ -1564,9 +1610,9 @@ export async function executeWorkspaceTool(
 
       case "list_calendar_events": {
         const events = await listEvents(userId, {
-          maxResults: (args.maxResults as number) || 10,
-          timeMin: args.timeMin as string | undefined,
-          timeMax: args.timeMax as string | undefined,
+          maxResults: asNumber(args.maxResults, 10),
+          timeMin: args.timeMin ? asString(args.timeMin) : undefined,
+          timeMax: args.timeMax ? asString(args.timeMax) : undefined,
         });
         return {
           success: true,
@@ -1584,8 +1630,10 @@ export async function executeWorkspaceTool(
       }
 
       case "update_calendar_event": {
+        const updateEventId = asString(args.eventId);
+        if (!updateEventId) return { success: false, summary: "Event ID is required." };
         // Resolve timezone for update too
-        let updateTz = args.timeZone as string | undefined;
+        let updateTz = args.timeZone ? asString(args.timeZone) : undefined;
         if (!updateTz && (args.start || args.end)) {
           try {
             await connectDB();
@@ -1595,14 +1643,14 @@ export async function executeWorkspaceTool(
         }
         const updated = await updateEvent(
           userId,
-          args.eventId as string,
+          updateEventId,
           {
-            title: args.title as string | undefined,
-            start: args.start as string | undefined,
-            end: args.end as string | undefined,
-            description: args.description as string | undefined,
-            attendees: args.attendees as string[] | undefined,
-            location: args.location as string | undefined,
+            title: args.title ? asString(args.title) : undefined,
+            start: args.start ? asString(args.start) : undefined,
+            end: args.end ? asString(args.end) : undefined,
+            description: args.description ? asString(args.description) : undefined,
+            attendees: args.attendees ? asStringArray(args.attendees) : undefined,
+            location: args.location ? asString(args.location) : undefined,
             timeZone: updateTz,
           }
         );
@@ -1619,7 +1667,7 @@ export async function executeWorkspaceTool(
       }
 
       case "delete_calendar_event": {
-        await deleteEvent(userId, args.eventId as string);
+        await deleteEvent(userId, asString(args.eventId));
         return {
           success: true,
           summary: `Deleted calendar event ${args.eventId}`,
@@ -1898,8 +1946,8 @@ export async function executeWorkspaceTool(
       case "search_drive_files": {
         const files = await searchFiles(
           userId,
-          args.query as string,
-          (args.maxResults as number) || 10
+          asString(args.query),
+          asNumber(args.maxResults, 10)
         );
         return {
           success: true,
@@ -1916,8 +1964,8 @@ export async function executeWorkspaceTool(
 
       case "list_drive_files": {
         const files = await listFiles(userId, {
-          maxResults: (args.maxResults as number) || 10,
-          orderBy: (args.orderBy as string) || "modifiedTime desc",
+          maxResults: asNumber(args.maxResults, 10),
+          orderBy: args.orderBy ? asString(args.orderBy) : "modifiedTime desc",
         });
         return {
           success: true,
@@ -1933,7 +1981,7 @@ export async function executeWorkspaceTool(
       }
 
       case "create_google_doc": {
-        const doc = await createGoogleDoc(userId, args.title as string);
+        const doc = await createGoogleDoc(userId, asString(args.title, "Untitled Document"));
         return {
           success: true,
           summary: `Created Google Doc "${doc.name}"${doc.webViewLink ? ` — ${doc.webViewLink}` : ""}`,
@@ -1947,7 +1995,7 @@ export async function executeWorkspaceTool(
 
       // ── Docs ─────────────────────────────────────────────────
       case "read_doc": {
-        const docContent = await getDocContent(userId, args.documentId as string);
+        const docContent = await getDocContent(userId, asString(args.documentId));
         return {
           success: true,
           summary: `Read document "${docContent.title}" (${docContent.body.length} chars)`,
@@ -1961,7 +2009,7 @@ export async function executeWorkspaceTool(
       }
 
       case "append_to_doc": {
-        await appendToDoc(userId, args.documentId as string, args.text as string);
+        await appendToDoc(userId, asString(args.documentId), asString(args.text));
         return {
           success: true,
           summary: `Appended text to document ${args.documentId}`,
@@ -1972,10 +2020,10 @@ export async function executeWorkspaceTool(
       case "find_replace_in_doc": {
         const replaceResult = await findAndReplaceInDoc(
           userId,
-          args.documentId as string,
-          args.find as string,
-          args.replace as string,
-          args.matchCase === true
+          asString(args.documentId),
+          asString(args.find),
+          asString(args.replace),
+          asBoolean(args.matchCase, false) === true
         );
         return {
           success: true,
@@ -1986,10 +2034,10 @@ export async function executeWorkspaceTool(
 
       // ── Sheets ───────────────────────────────────────────────
       case "read_sheet": {
-        const range = (args.range as string) || "Sheet1";
+        const range = asString(args.range, "Sheet1");
         const sheetData = await readSheet(
           userId,
-          args.spreadsheetId as string,
+          asString(args.spreadsheetId),
           range
         );
         const rowCount = sheetData.values?.length || 0;
@@ -2003,9 +2051,9 @@ export async function executeWorkspaceTool(
       case "write_sheet": {
         const writeResult = await writeSheet(
           userId,
-          args.spreadsheetId as string,
-          args.range as string,
-          args.values as string[][]
+          asString(args.spreadsheetId),
+          asString(args.range),
+          asStringArrayArray(args.values)
         );
         return {
           success: true,
@@ -2017,9 +2065,9 @@ export async function executeWorkspaceTool(
       case "append_to_sheet": {
         const appendResult = await appendToSheet(
           userId,
-          args.spreadsheetId as string,
-          args.range as string,
-          args.values as string[][]
+          asString(args.spreadsheetId),
+          asString(args.range),
+          asStringArrayArray(args.values)
         );
         return {
           success: true,
@@ -2031,7 +2079,7 @@ export async function executeWorkspaceTool(
       case "create_spreadsheet": {
         const spreadsheet = await createSpreadsheet(
           userId,
-          args.title as string
+          asString(args.title, "Untitled Spreadsheet")
         );
         return {
           success: true,
@@ -2043,8 +2091,8 @@ export async function executeWorkspaceTool(
       case "clear_sheet_range": {
         await clearSheetRange(
           userId,
-          args.spreadsheetId as string,
-          args.range as string
+          asString(args.spreadsheetId),
+          asString(args.range)
         );
         return {
           success: true,
@@ -2056,8 +2104,8 @@ export async function executeWorkspaceTool(
       case "search_contacts": {
         const contacts = await searchContacts(
           userId,
-          args.query as string,
-          (args.maxResults as number) || 10
+          asString(args.query),
+          asNumber(args.maxResults, 10)
         );
         return {
           success: true,
@@ -2075,18 +2123,21 @@ export async function executeWorkspaceTool(
       case "save_memory": {
         await connectDB();
 
-        const category = args.category as string;
-        const content = args.content as string;
-        const confidence = args.confidence as number;
+        const category = asString(args.category, "context");
+        const content = asString(args.content);
+        const confidence = asNumber(args.confidence, 0.7);
 
         // Validate category against the schema's allowed values.
         // Must stay in sync with MEMORY_CATEGORIES in ai-memory.ts.
         const VALID_CATEGORIES = ["preference", "context", "task", "relationship", "habit"];
         const safeCategory = VALID_CATEGORIES.includes(category) ? category : "context";
 
-        // Validate content is non-empty before querying
+        // Validate content is non-empty and not excessively long
         if (!content || content.trim().length === 0) {
           return { success: false, summary: "Cannot save empty memory." };
+        }
+        if (content.length > 2000) {
+          return { success: false, summary: "Memory content too long (max 2000 characters)." };
         }
 
         // Dedup: check if a similar memory already exists
@@ -2107,6 +2158,17 @@ export async function executeWorkspaceTool(
             success: true,
             summary: `Updated memory: ${content}`,
           };
+        }
+
+        // Cap per-user memory count to prevent unbounded storage
+        const MAX_MEMORIES_PER_USER = 200;
+        const memoryCount = await AIMemory.countDocuments({ userId });
+        if (memoryCount >= MAX_MEMORIES_PER_USER) {
+          // Evict the oldest, lowest-confidence memory
+          await AIMemory.findOneAndDelete(
+            { userId },
+            { sort: { confidence: 1, updatedAt: 1 } },
+          );
         }
 
         await AIMemory.create({
@@ -2178,7 +2240,7 @@ export async function executeWorkspaceTool(
           },
         });
 
-        const baseUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.NEXT_PUBLIC_BASE_URL || process.env.NEXTAUTH_URL || "http://localhost:3000";
+        const baseUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000";
         const yoodleLink = `${baseUrl}/meetings/${code}/room`;
 
         // Optionally add to Google Calendar with Yoodle link (not Google Meet)
@@ -2299,7 +2361,7 @@ export async function executeWorkspaceTool(
         // If the meeting has a calendar event, update the description with the agenda link
         if (meetingDoc.calendarEventId) {
           try {
-            const baseUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.NEXT_PUBLIC_BASE_URL || process.env.NEXTAUTH_URL || "http://localhost:3000";
+            const baseUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000";
             const yoodleLink = `${baseUrl}/meetings/${meetingDoc.code}/room`;
             const updatedDesc = `Join Yoodle meeting: ${yoodleLink}\n\n📋 Meeting Agenda: ${doc.webViewLink}`;
             await updateEvent(userId, meetingDoc.calendarEventId, { description: updatedDesc });
@@ -2633,7 +2695,7 @@ export async function executeWorkspaceTool(
         await connectDB();
         const Board = (await import("@/lib/infra/db/models/board")).default;
         const meetingId = args.meetingId as string;
-        const actionItems = args.actionItems as { task: string; owner: string; due: string }[];
+        const actionItems = args.actionItems as { task: string; assignee: string; dueDate: string }[];
 
         // Verify user is a participant in this meeting
         if (mongoose.Types.ObjectId.isValid(meetingId)) {
@@ -2654,7 +2716,7 @@ export async function executeWorkspaceTool(
 
         const createdTasks = [];
         for (const item of actionItems) {
-          const dueDate = item.due && item.due !== "N/A" ? new Date(item.due) : undefined;
+          const dueDate = item.dueDate && item.dueDate !== "N/A" ? new Date(item.dueDate) : undefined;
           const task = await Task.create({
             title: item.task,
             boardId: board._id,
@@ -3219,13 +3281,13 @@ export async function executeWorkspaceTool(
         const mom = (meetingDoc as unknown as { mom?: Record<string, unknown> }).mom;
         if (!mom) return { success: false, summary: "This meeting does not have a MoM yet." };
 
-        const momActions = (mom.actionItems as { task: string; owner?: string; due?: string }[]) || [];
+        const momActions = (mom.actionItems as { task: string; assignee?: string; dueDate?: string }[]) || [];
         const slideData = {
           title: meetingDoc.title,
           date: meetingDoc.scheduledAt ? new Date(meetingDoc.scheduledAt).toLocaleDateString() : new Date().toLocaleDateString(),
           summary: (mom.summary as string) || "No summary available.",
           keyDecisions: (mom.keyDecisions as string[]) || [],
-          actionItems: momActions.map((a) => ({ task: a.task, owner: a.owner || "Unassigned", due: a.due || "TBD" })),
+          actionItems: momActions.map((a) => ({ task: a.task, assignee: a.assignee || "Unassigned", dueDate: a.dueDate || "TBD" })),
           nextSteps: (mom.nextSteps as string[]) || [],
         };
 

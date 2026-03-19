@@ -18,7 +18,7 @@ export const GET = withHandler(async (req: NextRequest, context) => {
   const { workspaceId } = await context!.params;
 
   const { searchParams } = new URL(req.url);
-  const limit = Math.min(parseInt(searchParams.get("limit") || "50", 10) || 50, 100);
+  const limit = Math.min(Math.max(parseInt(searchParams.get("limit") || "50", 10) || 50, 1), 100);
   const page = Math.max(parseInt(searchParams.get("page") || "1", 10) || 1, 1);
 
   await connectDB();

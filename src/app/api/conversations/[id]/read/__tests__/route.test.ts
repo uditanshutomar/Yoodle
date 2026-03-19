@@ -68,7 +68,7 @@ describe("POST /api/conversations/[id]/read", () => {
     const body = await res.json();
     expect(res.status).toBe(200);
     expect(body.success).toBe(true);
-    expect(body.data.success).toBe(true);
+    expect(body.data.readAt).toBeDefined();
     expect(mockUpdateOne).toHaveBeenCalled();
   });
 

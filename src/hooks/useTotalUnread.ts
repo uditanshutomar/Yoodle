@@ -17,6 +17,8 @@ export function useTotalUnread() {
     let active = true;
 
     const poll = async () => {
+      // Skip polling when tab is hidden to reduce server load
+      if (document.visibilityState === "hidden") return;
       try {
         const res = await fetch("/api/conversations/unread-count", {
           credentials: "include",
@@ -27,8 +29,9 @@ export function useTotalUnread() {
         if (json.success && typeof json.data?.totalUnread === "number") {
           if (active) setTotalUnread(json.data.totalUnread);
         }
-      } catch {
-        // Silent fail — badge will show stale count until next poll
+      } catch (err) {
+        // Badge will show stale count until next poll
+        console.debug("[useTotalUnread] poll error:", err);
       }
     };
 

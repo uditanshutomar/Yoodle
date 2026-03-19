@@ -4,6 +4,7 @@ import { withHandler } from "@/lib/infra/api/with-handler";
 import { successResponse } from "@/lib/infra/api/response";
 import { getUserIdFromRequest } from "@/lib/infra/auth/middleware";
 import { checkRateLimit } from "@/lib/infra/api/rate-limit";
+import { BadRequestError } from "@/lib/infra/api/errors";
 import connectDB from "@/lib/infra/db/client";
 import Task from "@/lib/infra/db/models/task";
 
@@ -17,7 +18,8 @@ export const GET = withHandler(async (req: NextRequest) => {
   const searchParams = req.nextUrl.searchParams;
   const dueDateMin = searchParams.get("dueDateMin");
   const dueDateMax = searchParams.get("dueDateMax");
-  const limit = parseInt(searchParams.get("limit") || "50", 10);
+  const rawLimit = parseInt(searchParams.get("limit") || "50", 10);
+  const limit = Math.max(1, Math.min(isNaN(rawLimit) ? 50 : rawLimit, 200));
 
   // Build match filter
   const matchFilter: Record<string, unknown> = {
@@ -27,8 +29,16 @@ export const GET = withHandler(async (req: NextRequest) => {
 
   if (dueDateMin || dueDateMax) {
     const dateFilter: Record<string, Date> = {};
-    if (dueDateMin) dateFilter.$gte = new Date(dueDateMin);
-    if (dueDateMax) dateFilter.$lte = new Date(dueDateMax);
+    if (dueDateMin) {
+      const d = new Date(dueDateMin);
+      if (isNaN(d.getTime())) throw new BadRequestError("Invalid dueDateMin value.");
+      dateFilter.$gte = d;
+    }
+    if (dueDateMax) {
+      const d = new Date(dueDateMax);
+      if (isNaN(d.getTime())) throw new BadRequestError("Invalid dueDateMax value.");
+      dateFilter.$lte = d;
+    }
     matchFilter.dueDate = dateFilter;
   }
 

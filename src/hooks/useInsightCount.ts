@@ -7,10 +7,14 @@ export function useInsightCount(enabled: boolean) {
 
   const clearCount = useCallback(async () => {
     try {
-      await fetch("/api/ai/insights/count", { method: "DELETE", credentials: "include" });
-      setCount(0);
-    } catch {
-      /* ignore */
+      const res = await fetch("/api/ai/insights/count", { method: "DELETE", credentials: "include" });
+      if (res.ok) {
+        setCount(0);
+      } else {
+        console.warn(`[useInsightCount] clearCount failed: ${res.status}`);
+      }
+    } catch (err) {
+      console.debug("[useInsightCount] clearCount error:", err);
     }
   }, []);
 
@@ -20,14 +24,16 @@ export function useInsightCount(enabled: boolean) {
     let cancelled = false;
 
     const poll = async () => {
+      // Skip polling when tab is hidden to reduce server load
+      if (document.visibilityState === "hidden") return;
       try {
         const res = await fetch("/api/ai/insights/count", { credentials: "include" });
         if (res.ok && !cancelled) {
           const data = await res.json();
-          setCount(data.count ?? 0);
+          setCount(data.data?.count ?? 0);
         }
-      } catch {
-        /* ignore */
+      } catch (err) {
+        console.debug("[useInsightCount] poll error:", err);
       }
     };
 
