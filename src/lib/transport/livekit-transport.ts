@@ -68,8 +68,19 @@ function buildScreenShareStream(p: RemoteParticipant): MediaStream | null {
   return stream.getTracks().length > 0 ? stream : null;
 }
 
+function safeParseMetadata(raw: string | undefined): Record<string, unknown> {
+  if (!raw) return {};
+  try {
+    const parsed = JSON.parse(raw);
+    return typeof parsed === "object" && parsed !== null ? parsed : {};
+  } catch (err) {
+    console.warn("[livekit-transport] Failed to parse participant metadata:", err);
+    return {};
+  }
+}
+
 function participantToUser(p: RemoteParticipant): TransportRoomUser {
-  const meta = JSON.parse(p.metadata || "{}") as Record<string, unknown>;
+  const meta = safeParseMetadata(p.metadata);
   return {
     id: p.identity,
     name: (meta.name as string) || p.identity,
@@ -98,12 +109,24 @@ export class LiveKitTransport implements RoomTransport {
   participantCount = 1;
   connectionState: ConnectionState = "disconnected";
 
+  private reconnectAttempts = 0;
+  private maxReconnectAttempts = 5;
+  private reconnecting = false;
+  private intentionalDisconnect = false;
+
   constructor(livekitUrl: string, token: string) {
     this.livekitUrl = livekitUrl;
     this.token = token;
     this.room = new Room({
       adaptiveStream: true,
       dynacast: true,
+      reconnectPolicy: {
+        nextRetryDelayInMs: (context) => {
+          // Exponential backoff: 1s, 2s, 4s, 8s, 16s (capped at 16s)
+          if (context.retryCount >= this.maxReconnectAttempts) return null; // stop retrying
+          return Math.min(1000 * Math.pow(2, context.retryCount), 16_000);
+        },
+      },
     });
 
     this.attachRoomListeners();
@@ -118,29 +141,36 @@ export class LiveKitTransport implements RoomTransport {
   ): Promise<void> {
     this.connectionState = "connecting";
 
-    await this.room.connect(this.livekitUrl, this.token, {
-      autoSubscribe: true,
-    });
-
-    // Set metadata so other participants can read our display info
-    await this.room.localParticipant.setMetadata(
-      JSON.stringify({ name: user.name, avatar: user.avatar }),
-    );
-
-    // Publish local tracks from the provided MediaStream
-    for (const track of localStream.getTracks()) {
-      const isVideo = track.kind === "video";
-      await this.room.localParticipant.publishTrack(track, {
-        name: isVideo ? "camera" : "microphone",
-        source: isVideo ? Track.Source.Camera : Track.Source.Microphone,
+    try {
+      await this.room.connect(this.livekitUrl, this.token, {
+        autoSubscribe: true,
       });
-    }
 
-    this.connectionState = "connected";
-    this.updateParticipantCount();
+      // Set metadata so other participants can read our display info
+      await this.room.localParticipant.setMetadata(
+        JSON.stringify({ name: user.name, avatar: user.avatar }),
+      );
+
+      // Publish local tracks from the provided MediaStream
+      for (const track of localStream.getTracks()) {
+        const isVideo = track.kind === "video";
+        await this.room.localParticipant.publishTrack(track, {
+          name: isVideo ? "camera" : "microphone",
+          source: isVideo ? Track.Source.Camera : Track.Source.Microphone,
+        });
+      }
+
+      this.connectionState = "connected";
+      this.updateParticipantCount();
+    } catch (err) {
+      this.room.disconnect();
+      this.connectionState = "disconnected";
+      throw err;
+    }
   }
 
   leave(): void {
+    this.intentionalDisconnect = true;
     this.room.removeAllListeners();
     this.room.disconnect();
     this.connectionState = "disconnected";
@@ -239,12 +269,13 @@ export class LiveKitTransport implements RoomTransport {
 
   async startScreenShare(stream: MediaStream): Promise<void> {
     const videoTrack = stream.getVideoTracks()[0];
-    if (videoTrack) {
-      await this.room.localParticipant.publishTrack(videoTrack, {
-        name: "screen",
-        source: Track.Source.ScreenShare,
-      });
+    if (!videoTrack) {
+      throw new Error("Cannot start screen share: provided MediaStream has no video track.");
     }
+    await this.room.localParticipant.publishTrack(videoTrack, {
+      name: "screen",
+      source: Track.Source.ScreenShare,
+    });
     const audioTrack = stream.getAudioTracks()[0];
     if (audioTrack) {
       await this.room.localParticipant.publishTrack(audioTrack, {
@@ -264,7 +295,7 @@ export class LiveKitTransport implements RoomTransport {
     );
     for (const pub of screenPubs) {
       if (pub.track) {
-        await local.unpublishTrack(pub.track.mediaStreamTrack);
+        await local.unpublishTrack(pub.track);
       }
     }
   }
@@ -312,6 +343,20 @@ export class LiveKitTransport implements RoomTransport {
 
   // ── Internal ────────────────────────────────────────────────────────
 
+  /** Invoke each callback in isolation so one failure doesn't break others. */
+  private safeInvoke<T extends unknown[]>(
+    callbacks: ((...args: T) => void)[],
+    ...args: T
+  ): void {
+    for (const cb of callbacks) {
+      try {
+        cb(...args);
+      } catch (err) {
+        console.error("[livekit-transport] Error in event callback:", err);
+      }
+    }
+  }
+
   private updateParticipantCount(): void {
     this.participantCount = this.room.remoteParticipants.size + 1;
   }
@@ -319,17 +364,41 @@ export class LiveKitTransport implements RoomTransport {
   private attachRoomListeners(): void {
     this.room
       .on(RoomEvent.ConnectionStateChanged, (state: LKConnectionState) => {
-        this.connectionState = mapConnectionState(state);
-        this.connectionStateCallbacks.forEach((cb) => cb(this.connectionState));
+        const mapped = mapConnectionState(state);
+        this.connectionState = mapped;
+
+        if (state === LKConnectionState.Connected) {
+          // Reset reconnect counter on successful connection
+          this.reconnectAttempts = 0;
+          this.reconnecting = false;
+        } else if (
+          state === LKConnectionState.Reconnecting
+        ) {
+          this.reconnecting = true;
+          this.reconnectAttempts++;
+          console.log(
+            `[livekit-transport] Reconnecting (attempt ${this.reconnectAttempts}/${this.maxReconnectAttempts})`,
+          );
+        } else if (
+          state === LKConnectionState.Disconnected &&
+          !this.intentionalDisconnect
+        ) {
+          // Unexpected disconnect — log it
+          console.warn(
+            `[livekit-transport] Unexpected disconnect after ${this.reconnectAttempts} reconnect attempts`,
+          );
+        }
+
+        this.safeInvoke(this.connectionStateCallbacks, this.connectionState);
       })
       .on(RoomEvent.ParticipantConnected, (p: RemoteParticipant) => {
         this.updateParticipantCount();
         const user = participantToUser(p);
-        this.joinedCallbacks.forEach((cb) => cb(user));
+        this.safeInvoke(this.joinedCallbacks, user);
       })
       .on(RoomEvent.ParticipantDisconnected, (p: RemoteParticipant) => {
         this.updateParticipantCount();
-        this.leftCallbacks.forEach((cb) => cb(p.identity));
+        this.safeInvoke(this.leftCallbacks, p.identity);
       })
       .on(
         RoomEvent.TrackSubscribed,
@@ -339,12 +408,10 @@ export class LiveKitTransport implements RoomTransport {
           participant: RemoteParticipant,
         ) => {
           const stream = buildStreamForParticipant(participant);
-          this.streamCallbacks.forEach((cb) =>
-            cb(participant.identity, stream),
-          );
+          this.safeInvoke(this.streamCallbacks, participant.identity, stream);
           // Also update participant media state (camera/mic enabled flags)
           const user = participantToUser(participant);
-          this.participantUpdatedCallbacks.forEach((cb) => cb(user));
+          this.safeInvoke(this.participantUpdatedCallbacks, user);
         },
       )
       .on(
@@ -355,12 +422,10 @@ export class LiveKitTransport implements RoomTransport {
           participant: RemoteParticipant,
         ) => {
           const stream = buildStreamForParticipant(participant);
-          this.streamCallbacks.forEach((cb) =>
-            cb(participant.identity, stream),
-          );
+          this.safeInvoke(this.streamCallbacks, participant.identity, stream);
           // Update participant media state (e.g. isScreenSharing → false)
           const user = participantToUser(participant);
-          this.participantUpdatedCallbacks.forEach((cb) => cb(user));
+          this.safeInvoke(this.participantUpdatedCallbacks, user);
         },
       )
       .on(
@@ -368,7 +433,7 @@ export class LiveKitTransport implements RoomTransport {
         (_pub: TrackPublication, participant: Participant) => {
           if (participant instanceof RemoteParticipant) {
             const user = participantToUser(participant);
-            this.participantUpdatedCallbacks.forEach((cb) => cb(user));
+            this.safeInvoke(this.participantUpdatedCallbacks, user);
           }
         },
       )
@@ -377,14 +442,14 @@ export class LiveKitTransport implements RoomTransport {
         (_pub: TrackPublication, participant: Participant) => {
           if (participant instanceof RemoteParticipant) {
             const user = participantToUser(participant);
-            this.participantUpdatedCallbacks.forEach((cb) => cb(user));
+            this.safeInvoke(this.participantUpdatedCallbacks, user);
           }
         },
       )
       .on(RoomEvent.ConnectionQualityChanged, () => {
         // Fire connection state change so UI can react; no need to
         // rebuild every remote stream on quality change.
-        this.connectionStateCallbacks.forEach((cb) => cb(this.connectionState));
+        this.safeInvoke(this.connectionStateCallbacks, this.connectionState);
       });
   }
 }
