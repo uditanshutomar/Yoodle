@@ -692,11 +692,13 @@ async function saveAndPublishAgentMessage(
     agentMeta,
   });
 
+  // Use $max for lastMessageAt to prevent regression under concurrent writes
+  // (e.g., user sends a message while agent is responding)
   await Conversation.updateOne(
     { _id: conversationId },
     {
+      $max: { lastMessageAt: agentMessage.createdAt },
       $set: {
-        lastMessageAt: agentMessage.createdAt,
         lastMessagePreview: cleanContent.slice(0, 100),
         lastMessageSenderId: new mongoose.Types.ObjectId(agentUserId),
       },

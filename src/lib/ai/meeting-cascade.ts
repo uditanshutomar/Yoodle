@@ -22,6 +22,7 @@ export interface CascadeResult {
 interface CascadeMeeting {
   _id: unknown;
   title: string;
+  hostId?: unknown;
   mom?: Record<string, unknown>;
   scheduledAt?: Date;
   createdAt?: Date;
@@ -34,7 +35,7 @@ function formatMomAsMarkdown(mom: {
   summary?: string;
   keyDecisions?: string[];
   discussionPoints?: string[];
-  actionItems?: { task: string; owner?: string; due?: string }[];
+  actionItems?: { task: string; assignee?: string; dueDate?: string }[];
   nextSteps?: string[];
 }): string {
   const lines: string[] = [];
@@ -58,8 +59,8 @@ function formatMomAsMarkdown(mom: {
   if (mom.actionItems?.length) {
     lines.push("## Action Items", "");
     for (const ai of mom.actionItems) {
-      const owner = ai.owner ? ` (${ai.owner})` : "";
-      const due = ai.due ? ` — due ${ai.due}` : "";
+      const owner = ai.assignee ? ` (${ai.assignee})` : "";
+      const due = ai.dueDate ? ` — due ${ai.dueDate}` : "";
       lines.push(`- ${ai.task}${owner}${due}`);
     }
     lines.push("");
@@ -267,8 +268,7 @@ export async function executeMeetingCascade(
   const mtg = meeting as CascadeMeeting;
 
   // Verify the user is the host or a participant of the meeting
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const meetingRaw = meeting as any;
+  const meetingRaw = meeting as CascadeMeeting;
   const isHost = String(meetingRaw.hostId) === userId;
   const isParticipant = mtg.participants?.some((p) => {
     // userId may be populated (object with _id) or a raw ObjectId
@@ -289,17 +289,6 @@ export async function executeMeetingCascade(
   }
 
   log.info({ meetingId, title: mtg.title }, "Starting meeting cascade");
-
-  // Step 1b: update knowledge graph (non-blocking enrichment)
-  if (mtg.mom) {
-    try {
-      const { updateKnowledgeGraph } = await import("@/lib/ai/knowledge-builder");
-      await updateKnowledgeGraph(userId, String(mtg._id));
-      log.info({ meetingId: String(mtg._id) }, "Knowledge graph updated");
-    } catch (err) {
-      log.warn({ err, meetingId: String(mtg._id) }, "Knowledge graph update failed (non-blocking)");
-    }
-  }
 
   // Run independent steps in parallel — each step has its own .catch() so
   // the array always resolves (no rejections). Using Promise.all is correct

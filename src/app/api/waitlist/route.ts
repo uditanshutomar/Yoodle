@@ -20,31 +20,34 @@ export const POST = withHandler(async (req: NextRequest) => {
 
   await connectDB();
 
-  // Check if email already exists
-  const existing = await Waitlist.findOne({ email: email.toLowerCase() })
-    .select("_id")
-    .lean();
-  if (existing) {
-    return successResponse({
-      message: "You're already on the waitlist!",
-      alreadyJoined: true,
+  // Attempt to create — the unique index on email prevents duplicates atomically.
+  // If a concurrent request inserts first, we catch the duplicate key error
+  // rather than relying on a TOCTOU-prone check-then-insert pattern.
+  try {
+    const entry = await Waitlist.create({
+      email: email.toLowerCase(),
+      name: name || undefined,
+      source: source || "website",
     });
+
+    return successResponse(
+      {
+        message: "You're on the list!",
+        id: entry._id,
+        position: await Waitlist.countDocuments(),
+      },
+      201,
+    );
+  } catch (err) {
+    // MongoDB duplicate key error (code 11000) — email already on waitlist
+    if (err && typeof err === "object" && "code" in err && (err as { code: number }).code === 11000) {
+      return successResponse({
+        message: "You're already on the waitlist!",
+        alreadyJoined: true,
+      });
+    }
+    throw err; // Re-throw unexpected errors for withHandler to catch
   }
-
-  const entry = await Waitlist.create({
-    email: email.toLowerCase(),
-    name: name || undefined,
-    source: source || "website",
-  });
-
-  return successResponse(
-    {
-      message: "You're on the list!",
-      id: entry._id,
-      position: await Waitlist.countDocuments(),
-    },
-    201
-  );
 });
 
 // GET — waitlist count

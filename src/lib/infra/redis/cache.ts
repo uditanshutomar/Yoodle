@@ -158,14 +158,20 @@ export async function waitingGetQueue(
     const client = getRedisClient();
     const entries = await client.hgetall(QUEUE_KEY(roomId));
     if (!entries) return [];
-    return Object.entries(entries).map(([uid, json]) => {
-      const info = JSON.parse(json) as {
-        name: string;
-        displayName: string;
-        avatar: string | null;
-        joinedWaitingAt: number;
-      };
-      return { id: uid, ...info };
+    // Parse per-entry to avoid one corrupt entry taking out the entire queue
+    return Object.entries(entries).flatMap(([uid, json]) => {
+      try {
+        const info = JSON.parse(json) as {
+          name: string;
+          displayName: string;
+          avatar: string | null;
+          joinedWaitingAt: number;
+        };
+        return [{ id: uid, ...info }];
+      } catch {
+        logger.warn({ uid, roomId, json: json?.slice(0, 100) }, "Corrupt waiting room entry — skipping");
+        return [];
+      }
     });
   } catch (err) {
     logger.error({ err, roomId }, "waitingGetQueue failed — cannot read waiting room");

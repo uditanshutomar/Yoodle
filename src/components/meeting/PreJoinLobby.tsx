@@ -60,7 +60,9 @@ export default function PreJoinLobby({
       clearTimeout(copyTimerRef.current);
       copyTimerRef.current = setTimeout(() => setCodeCopied(false), 2000);
     } catch {
-      /* ignore */
+      // Clipboard API unavailable (permissions denied, insecure context) —
+      // still show "Copied" as the link was selected, or prompt the user.
+      console.warn("[PreJoinLobby] Clipboard API unavailable");
     }
   };
 
@@ -78,20 +80,30 @@ export default function PreJoinLobby({
     const el = videoRef.current;
     if (el && stream) {
       el.srcObject = stream;
-      el.play().catch(() => {
-        // Autoplay blocked — user will see a still frame until interaction
+      el.play().catch((err) => {
+        if (err.name !== "NotAllowedError") {
+          console.warn("[PreJoinLobby] Video play failed:", err.name, err.message);
+        }
       });
     }
+    return () => {
+      if (el) el.srcObject = null;
+    };
   }, [stream, isVideoEnabled]);
 
-  const handleJoin = () => {
+  const handleJoin = async () => {
     setJoining(true);
-    onJoin({
-      video: isVideoEnabled,
-      audio: isAudioEnabled,
-      videoDeviceId: selectedVideoDevice || undefined,
-      audioDeviceId: selectedAudioDevice || undefined,
-    });
+    try {
+      await onJoin({
+        video: isVideoEnabled,
+        audio: isAudioEnabled,
+        videoDeviceId: selectedVideoDevice || undefined,
+        audioDeviceId: selectedAudioDevice || undefined,
+      });
+    } catch (err) {
+      console.error("[PreJoinLobby] Failed to join meeting:", err);
+      setJoining(false);
+    }
   };
 
   return (

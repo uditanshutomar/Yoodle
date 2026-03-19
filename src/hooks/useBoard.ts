@@ -29,7 +29,7 @@ export interface BoardTask {
   assigneeId?: string;
   labels: string[];
   dueDate?: string;
-  subtasks: { id: string; title: string; done: boolean }[];
+  subtasks: { id: string; title: string; done: boolean; assigneeId?: string }[];
   completedAt?: string;
   createdAt: string;
 }
@@ -54,44 +54,58 @@ export function useBoard(boardId?: string) {
     return () => { isMountedRef.current = false; };
   }, []);
 
-  const fetchBoard = useCallback(async () => {
+  const abortRef = useRef<AbortController | null>(null);
+
+  const fetchBoard = useCallback(async (signal?: AbortSignal) => {
     if (!boardId) return;
     try {
-      const res = await fetch(`/api/boards/${boardId}`, { credentials: "include" });
+      const res = await fetch(`/api/boards/${boardId}`, { credentials: "include", signal });
       if (!res.ok) {
         if (isMountedRef.current) setError("Failed to load board");
         return;
       }
       const json = await res.json();
-      if (isMountedRef.current) setBoard(json.data);
-    } catch {
+      if (isMountedRef.current) {
+        setBoard(json.data);
+        setError(null); // Clear previous errors on success
+      }
+    } catch (err) {
+      if (err instanceof DOMException && err.name === "AbortError") return;
       if (isMountedRef.current) setError("Failed to load board");
     }
   }, [boardId]);
 
-  const fetchTasks = useCallback(async () => {
+  const fetchTasks = useCallback(async (signal?: AbortSignal) => {
     if (!boardId) return;
     try {
-      const res = await fetch(`/api/boards/${boardId}/tasks`, { credentials: "include" });
+      const res = await fetch(`/api/boards/${boardId}/tasks`, { credentials: "include", signal });
       if (!res.ok) {
         if (isMountedRef.current) setError("Failed to load tasks");
         return;
       }
       const json = await res.json();
-      if (isMountedRef.current) setTasks(json.data);
-    } catch {
+      if (isMountedRef.current) {
+        setTasks(json.data);
+        setError(null); // Clear previous errors on success
+      }
+    } catch (err) {
+      if (err instanceof DOMException && err.name === "AbortError") return;
       if (isMountedRef.current) setError("Failed to load tasks");
     }
   }, [boardId]);
 
   useEffect(() => {
-    let cancelled = false;
+    const controller = new AbortController();
+    abortRef.current = controller;
     async function load() {
-      await Promise.all([fetchBoard(), fetchTasks()]);
-      if (!cancelled) setLoading(false);
+      await Promise.all([fetchBoard(controller.signal), fetchTasks(controller.signal)]);
+      if (!controller.signal.aborted && isMountedRef.current) setLoading(false);
     }
     load();
-    return () => { cancelled = true; };
+    return () => {
+      controller.abort();
+      abortRef.current = null;
+    };
   }, [fetchBoard, fetchTasks]);
 
   const createTask = useCallback(
@@ -109,7 +123,10 @@ export function useBoard(boardId?: string) {
           return;
         }
         const json = await res.json();
-        if (isMountedRef.current) setTasks((prev) => [...prev, json.data]);
+        if (isMountedRef.current) {
+          setTasks((prev) => [...prev, json.data]);
+          setError(null);
+        }
         return json.data;
       } catch {
         if (isMountedRef.current) setError("Failed to create task");
@@ -135,6 +152,7 @@ export function useBoard(boardId?: string) {
         const json = await res.json();
         if (isMountedRef.current) {
           setTasks((prev) => prev.map((t) => (t._id === taskId ? json.data : t)));
+          setError(null);
         }
         return json.data;
       } catch {
@@ -147,10 +165,10 @@ export function useBoard(boardId?: string) {
   const deleteTask = useCallback(
     async (taskId: string) => {
       if (!boardId) return;
-      // Capture task for rollback before optimistic removal
-      let removedTask: BoardTask | undefined;
+      // Snapshot tasks before optimistic removal for position-accurate rollback
+      let snapshot: BoardTask[] = [];
       setTasks((prev) => {
-        removedTask = prev.find((t) => t._id === taskId);
+        snapshot = prev;
         return prev.filter((t) => t._id !== taskId);
       });
       try {
@@ -159,16 +177,16 @@ export function useBoard(boardId?: string) {
           credentials: "include",
         });
         if (!res.ok) {
-          // Rollback: re-insert the task
-          if (removedTask && isMountedRef.current) {
-            setTasks((prev) => [...prev, removedTask!]);
+          // Rollback: restore full snapshot to preserve original order
+          if (isMountedRef.current) {
+            setTasks(snapshot);
             setError("Failed to delete task");
           }
         }
       } catch {
-        // Rollback on network error
-        if (removedTask && isMountedRef.current) {
-          setTasks((prev) => [...prev, removedTask!]);
+        // Rollback on network error — restore original order
+        if (isMountedRef.current) {
+          setTasks(snapshot);
           setError("Failed to delete task");
         }
       }
@@ -179,6 +197,9 @@ export function useBoard(boardId?: string) {
   const reorderTasks = useCallback(
     async (updates: { taskId: string; columnId: string; position: number }[]) => {
       if (!boardId) return;
+      // Snapshot tasks before the API call for rollback on failure.
+      // This captures the already-optimistically-updated state, so we
+      // refetch from the server instead (which has the true order).
       try {
         const res = await fetch(`/api/boards/${boardId}/tasks/reorder`, {
           method: "POST",
@@ -188,13 +209,30 @@ export function useBoard(boardId?: string) {
         });
         if (!res.ok && isMountedRef.current) {
           setError("Failed to reorder tasks");
+          // Refetch to restore server-side order after failed optimistic update
+          const controller = new AbortController();
+          abortRef.current = controller;
+          await fetchTasks(controller.signal);
         }
       } catch {
-        if (isMountedRef.current) setError("Failed to reorder tasks");
+        if (isMountedRef.current) {
+          setError("Failed to reorder tasks");
+          // Refetch to restore server-side order after failed optimistic update
+          const controller = new AbortController();
+          abortRef.current = controller;
+          await fetchTasks(controller.signal);
+        }
       }
     },
-    [boardId]
+    [boardId, fetchTasks]
   );
+
+  const refetch = useCallback(() => {
+    abortRef.current?.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
+    return Promise.all([fetchBoard(controller.signal), fetchTasks(controller.signal)]);
+  }, [fetchBoard, fetchTasks]);
 
   return {
     board,
@@ -205,7 +243,7 @@ export function useBoard(boardId?: string) {
     updateTask,
     deleteTask,
     reorderTasks,
-    refetch: () => Promise.all([fetchBoard(), fetchTasks()]),
+    refetch,
     setTasks,
   };
 }

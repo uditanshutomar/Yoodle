@@ -56,6 +56,7 @@ export async function executeWorkflow(
     state.steps[i].status = "in_progress";
     onProgress?.(structuredClone(state));
 
+    let stepFailed = false;
     try {
       const args = step.buildArgs(context);
       const result = await executeWorkspaceTool(userId, step.toolName, args);
@@ -67,6 +68,7 @@ export async function executeWorkflow(
       } else {
         state.steps[i].status = "error";
         state.steps[i].error = result.summary;
+        stepFailed = true;
         log.warn(
           { workflowId: state.workflowId, stepId: step.id, error: result.summary },
           "Step failed",
@@ -76,6 +78,7 @@ export async function executeWorkflow(
       state.steps[i].status = "error";
       state.steps[i].error =
         err instanceof Error ? err.message : "Unknown error";
+      stepFailed = true;
       log.error(
         { err, workflowId: state.workflowId, stepId: step.id },
         "Step threw exception",
@@ -83,11 +86,22 @@ export async function executeWorkflow(
     }
 
     onProgress?.(structuredClone(state));
+
+    // Stop workflow if a non-skippable step failed
+    if (stepFailed && !step.skippable) {
+      log.warn(
+        { workflowId: state.workflowId, stepId: step.id },
+        "Non-skippable step failed — aborting workflow",
+      );
+      break;
+    }
   }
 
-  const hasAnySuccess = state.steps.some((s) => s.status === "done");
   const hasAnyError = state.steps.some((s) => s.status === "error");
-  state.status = hasAnyError && !hasAnySuccess ? "cancelled" : "completed";
+  const hasPendingSteps = state.steps.some((s) => s.status === "pending");
+  // If we aborted early (non-skippable failure left pending steps), mark as cancelled.
+  // Otherwise mark completed — skippable-step errors are tolerated.
+  state.status = hasAnyError && hasPendingSteps ? "cancelled" : "completed";
   onProgress?.(structuredClone(state));
 
   log.info(

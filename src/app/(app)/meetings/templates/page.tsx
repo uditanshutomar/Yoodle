@@ -67,9 +67,11 @@ export default function TemplatesPage() {
       if (res.ok) {
         const data = await res.json();
         if (data.success) setTemplates(data.data);
+      } else {
+        console.warn("[Templates] Fetch failed:", res.status);
       }
-    } catch {
-      // Silent
+    } catch (err) {
+      console.warn("[Templates] Fetch error:", err);
     } finally {
       setLoading(false);
     }
@@ -156,9 +158,11 @@ export default function TemplatesPage() {
       });
       if (res.ok) {
         setTemplates((prev) => prev.filter((t) => t._id !== id));
+      } else {
+        console.warn("[Templates] Delete failed:", res.status);
       }
-    } catch {
-      // Silent
+    } catch (err) {
+      console.warn("[Templates] Delete error:", err);
     } finally {
       setDeleting(null);
     }

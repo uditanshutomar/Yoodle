@@ -4,7 +4,7 @@ import { withHandler } from "@/lib/infra/api/with-handler";
 import { successResponse } from "@/lib/infra/api/response";
 import { checkRateLimit } from "@/lib/infra/api/rate-limit";
 import { getUserIdFromRequest } from "@/lib/infra/auth/middleware";
-import { BadRequestError, ForbiddenError, NotFoundError } from "@/lib/infra/api/errors";
+import { BadRequestError, ForbiddenError } from "@/lib/infra/api/errors";
 import connectDB from "@/lib/infra/db/client";
 import Transcript from "@/lib/infra/db/models/transcript";
 import Meeting from "@/lib/infra/db/models/meeting";
@@ -98,7 +98,7 @@ export const POST = withHandler(async (req: NextRequest) => {
         segments: {
           $each: [
             {
-              speaker: resolvedSpeakerName,
+              speakerName: resolvedSpeakerName,
               speakerId: userId,
               text,
               timestamp: timestamp && !isNaN(Number(timestamp)) ? parseInt(timestamp, 10) : Date.now(),

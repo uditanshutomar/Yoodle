@@ -36,17 +36,22 @@ export default function MeetingTimerBanner({
 
   const handleExtend = async (minutes: number) => {
     setExtending(true);
-    const ok = await onExtend(minutes);
-    setExtending(false);
-    if (ok) {
-      setExtended(true);
-      setShowExtendOptions(false);
-      // Auto-dismiss after 2s
-      clearTimeout(dismissTimerRef.current);
-      dismissTimerRef.current = setTimeout(() => {
-        setExtended(false);
-        onDismiss();
-      }, 2000);
+    try {
+      const ok = await onExtend(minutes);
+      if (ok) {
+        setExtended(true);
+        setShowExtendOptions(false);
+        // Auto-dismiss after 2s
+        clearTimeout(dismissTimerRef.current);
+        dismissTimerRef.current = setTimeout(() => {
+          setExtended(false);
+          onDismiss();
+        }, 2000);
+      }
+    } catch (err) {
+      console.error("[MeetingTimerBanner] Failed to extend meeting:", err);
+    } finally {
+      setExtending(false);
     }
   };
 

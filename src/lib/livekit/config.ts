@@ -44,8 +44,9 @@ export function getLiveKitApiSecret(): string {
 export function getLiveKitPublicUrl(): string {
   const url = process.env.NEXT_PUBLIC_LIVEKIT_URL || process.env.LIVEKIT_URL;
   if (!url) {
-    console.warn("[livekit:config] Neither NEXT_PUBLIC_LIVEKIT_URL nor LIVEKIT_URL is set — client connections will fail");
-    return "";
+    throw new Error(
+      "Neither NEXT_PUBLIC_LIVEKIT_URL nor LIVEKIT_URL is set. Client connections require a LiveKit URL.",
+    );
   }
   return url;
 }

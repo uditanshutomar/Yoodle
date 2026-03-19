@@ -89,7 +89,7 @@ export function useChat(
     (content: string) => {
       if (!room || !userId) return;
 
-      const id = Math.random().toString(36).slice(2);
+      const id = crypto.randomUUID();
       const timestamp = Date.now();
 
       const dataMsg: ChatMessageData = {

@@ -38,7 +38,7 @@ export const POST = withHandler(async (req: NextRequest, context) => {
   }
 
   const isParticipant = ghostRoom.participants.some(
-    (p) => p.userId === userId,
+    (p) => p.userId.toString() === userId,
   );
   if (!isParticipant) {
     throw new ForbiddenError("You are not a participant in this ghost room.");
@@ -62,7 +62,7 @@ export const POST = withHandler(async (req: NextRequest, context) => {
   const code = generateMeetingCode();
   const participants = ghostRoom.participants.map((p) => ({
     userId: new mongoose.Types.ObjectId(p.userId),
-    role: p.userId === ghostRoom.hostId ? ("host" as const) : ("participant" as const),
+    role: p.userId.toString() === ghostRoom.hostId.toString() ? ("host" as const) : ("participant" as const),
     joinedAt: new Date(),
     status: "joined" as const,
   }));
@@ -88,8 +88,8 @@ export const POST = withHandler(async (req: NextRequest, context) => {
   // Atomically link meeting to ghost room — only succeeds if meetingId
   // is still unset, preventing a duplicate meeting from a concurrent request.
   const linked = await GhostRoom.findOneAndUpdate(
-    { roomId, $or: [{ meetingId: { $exists: false } }, { meetingId: null }, { meetingId: "" }] },
-    { $set: { meetingId: meeting._id.toString() } },
+    { roomId, $or: [{ meetingId: { $exists: false } }, { meetingId: null }] },
+    { $set: { meetingId: meeting._id } },
     { new: true },
   );
 

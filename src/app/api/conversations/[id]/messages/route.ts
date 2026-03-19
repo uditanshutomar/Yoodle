@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
 import mongoose from "mongoose";
+import { z } from "zod";
 import { withHandler } from "@/lib/infra/api/with-handler";
 import { successResponse } from "@/lib/infra/api/response";
 import { checkRateLimit } from "@/lib/infra/api/rate-limit";
@@ -13,6 +14,14 @@ import { toClientMessage } from "@/lib/chat/message-transform";
 import { createLogger } from "@/lib/infra/logger";
 
 const log = createLogger("api:conversations:messages");
+
+const createMessageSchema = z.object({
+  content: z.string().min(1, "Message content is required.").max(4000, "Message content must be 4000 characters or less."),
+  replyTo: z.string().refine(
+    (val) => mongoose.Types.ObjectId.isValid(val),
+    { message: "Invalid replyTo message ID." },
+  ).optional(),
+});
 
 const URGENCY_PATTERNS = /\b(asap|urgent|blocking|blocked|critical|deadline today|deadline tomorrow|p0|p1|emergency|immediately)\b/i;
 
@@ -102,21 +111,10 @@ export const POST = withHandler(async (req: NextRequest, context) => {
   }
 
   // Validate body
-  const body = await req.json();
-  const { content, replyTo } = body;
+  const { content, replyTo } = createMessageSchema.parse(await req.json());
 
-  if (!content || typeof content !== "string" || content.trim().length === 0) {
-    throw new BadRequestError("Message content is required.");
-  }
-  if (content.length > 4000) {
-    throw new BadRequestError("Message content must be 4000 characters or less.");
-  }
-
-  // Validate replyTo is a valid ObjectId and belongs to this conversation
+  // Validate replyTo belongs to this conversation
   if (replyTo) {
-    if (!mongoose.Types.ObjectId.isValid(replyTo)) {
-      throw new BadRequestError("Invalid replyTo message ID.");
-    }
     const replyMsg = await DirectMessage.exists({
       _id: new mongoose.Types.ObjectId(replyTo),
       conversationId: new mongoose.Types.ObjectId(id),

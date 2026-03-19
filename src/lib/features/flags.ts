@@ -10,38 +10,46 @@
 
 type YoodleEdition = "community" | "cloud";
 
-const EDITION: YoodleEdition = (process.env.YOODLE_EDITION as YoodleEdition) || "community";
+const VALID_EDITIONS: ReadonlySet<string> = new Set(["community", "cloud"]);
+const rawEdition = process.env.YOODLE_EDITION || "community";
+if (!VALID_EDITIONS.has(rawEdition)) {
+  throw new Error(
+    `Invalid YOODLE_EDITION="${rawEdition}". Must be "community" or "cloud".`,
+  );
+}
+const EDITION = rawEdition as YoodleEdition;
+const isCloud = EDITION === "cloud";
 
 export const features = {
   /** Current edition */
   edition: EDITION,
 
   /** Whether this is the cloud (SaaS) edition */
-  isCloud: EDITION === "cloud",
+  isCloud,
 
   /** Whether this is the self-hosted community edition */
-  isCommunity: EDITION === "community",
+  isCommunity: !isCloud,
 
   /** Usage-based billing via Stripe */
-  usageBilling: EDITION === "cloud",
+  usageBilling: isCloud,
 
   /** Server-side recording via LiveKit Egress — available to all */
   serverSideRecording: true,
 
   /** Managed LiveKit (cloud provides hosted SFU) */
-  livekitCloud: EDITION === "cloud",
+  livekitCloud: isCloud,
 
   /** Maximum participants per room */
-  maxParticipantsPerRoom: EDITION === "cloud" ? 100 : 25,
+  maxParticipantsPerRoom: isCloud ? 100 : 25,
 
   /** AI-powered live captions (counts against AI minutes) */
-  liveCaptions: EDITION === "cloud",
+  liveCaptions: isCloud,
 
   /** Custom branding (logos, colors) */
-  customBranding: EDITION === "cloud",
+  customBranding: isCloud,
 
   /** Advanced analytics dashboard */
-  advancedAnalytics: EDITION === "cloud",
+  advancedAnalytics: isCloud,
 
   /** Admin dashboard — available to all */
   adminDashboard: true,
@@ -59,10 +67,10 @@ export const features = {
   maxMeetingDurationMinutes: 0,
 
   /** Free tier participant-minutes per month (cloud only, 0 = unlimited) */
-  freeParticipantMinutes: EDITION === "cloud" ? 10_000 : 0,
+  freeParticipantMinutes: isCloud ? 10_000 : 0,
 } as const;
 
 /** Get the current edition display name */
 export function getEditionName(): string {
-  return EDITION === "cloud" ? "Yoodle Cloud" : "Yoodle Community";
+  return isCloud ? "Yoodle Cloud" : "Yoodle Community";
 }

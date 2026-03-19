@@ -21,6 +21,8 @@ export interface ChatMsg {
   conversationId: string;
   sender: MessageSender;
   senderType?: "user" | "agent" | "system";
+  /** Message type from DB — "system" for system messages, "text" for regular, "agent" for AI */
+  type?: "text" | "system" | "agent" | "agent_channel";
   content: string;
   replyTo?: string;
   replyToMessage?: {
@@ -93,7 +95,10 @@ export function useMessages(conversationId: string | null) {
           `/api/conversations/${conversationId}/messages?${params}`,
           { credentials: "include", signal: controller.signal },
         );
-        if (!res.ok) return;
+        if (!res.ok) {
+          console.error(`[useMessages] Fetch messages failed: ${res.status}`);
+          return;
+        }
 
         const json = await res.json();
         if (!json.success || !isMountedRef.current) return;
@@ -137,146 +142,139 @@ export function useMessages(conversationId: string | null) {
     );
     eventSourceRef.current = es;
 
-    es.addEventListener("message", (e) => {
+    // Helper: parse SSE JSON, return undefined on malformed data.
+    // Separating parse from handler logic so bugs in state updates
+    // aren't silently swallowed by the parse catch.
+    function parseSSE<T>(raw: string): T | undefined {
       try {
-        const msg: ChatMsg = JSON.parse(e.data);
-        setMessages((prev) => {
-          // Deduplicate: if SSE delivers a message already in the list, skip
-          if (prev.some((m) => m._id === msg._id)) return prev;
-          // If there's an optimistic message with matching content, replace it
-          // (optimistic IDs start with "optimistic-")
-          const optimisticIdx = prev.findIndex(
-            (m) =>
-              m._id.startsWith("optimistic-") &&
-              m.content === msg.content,
-          );
-          if (optimisticIdx !== -1) {
-            const next = [...prev];
-            next[optimisticIdx] = msg;
-            return next;
-          }
-          return [...prev, msg];
-        });
-
-        // If this message is from an agent, clear their thinking indicator
-        if (msg.senderType === "agent") {
-          setTypingUsers((prev) => {
-            const next = new Map(prev);
-            next.delete(msg.sender._id);
-            return next;
-          });
-        }
+        return JSON.parse(raw) as T;
       } catch {
-        // Skip malformed data
+        return undefined;
+      }
+    }
+
+    es.addEventListener("message", (e) => {
+      const msg = parseSSE<ChatMsg>(e.data);
+      if (!msg) return;
+
+      setMessages((prev) => {
+        // Deduplicate: if SSE delivers a message already in the list, skip
+        if (prev.some((m) => m._id === msg._id)) return prev;
+        // If there's an optimistic message with matching content, replace it
+        // (optimistic IDs start with "optimistic-")
+        const optimisticIdx = prev.findIndex(
+          (m) =>
+            m._id.startsWith("optimistic-") &&
+            m.content === msg.content,
+        );
+        if (optimisticIdx !== -1) {
+          const next = [...prev];
+          next[optimisticIdx] = msg;
+          return next;
+        }
+        return [...prev, msg];
+      });
+
+      // If this message is from an agent, clear their thinking indicator
+      if (msg.senderType === "agent") {
+        setTypingUsers((prev) => {
+          const next = new Map(prev);
+          next.delete(msg.sender._id);
+          return next;
+        });
       }
     });
 
     es.addEventListener("typing", (e) => {
-      try {
-        const data = JSON.parse(e.data);
-        const { userId: typerId, name } = data as {
-          userId: string;
-          name: string;
-        };
+      const data = parseSSE<{ userId: string; name: string }>(e.data);
+      if (!data) return;
+      const { userId: typerId, name } = data;
 
+      setTypingUsers((prev) => {
+        const next = new Map(prev);
+        next.set(typerId, name);
+        return next;
+      });
+
+      // Clear existing timer for this user
+      const existing = typingTimersRef.current.get(typerId);
+      if (existing) clearTimeout(existing);
+
+      // Auto-clear after 3s
+      const timer = setTimeout(() => {
         setTypingUsers((prev) => {
           const next = new Map(prev);
-          next.set(typerId, name);
+          next.delete(typerId);
           return next;
         });
-
-        // Clear existing timer for this user
-        const existing = typingTimersRef.current.get(typerId);
-        if (existing) clearTimeout(existing);
-
-        // Auto-clear after 3s
-        const timer = setTimeout(() => {
-          setTypingUsers((prev) => {
-            const next = new Map(prev);
-            next.delete(typerId);
-            return next;
-          });
-          typingTimersRef.current.delete(typerId);
-        }, 3000);
-        typingTimersRef.current.set(typerId, timer);
-      } catch {
-        // Skip
-      }
+        typingTimersRef.current.delete(typerId);
+      }, 3000);
+      typingTimersRef.current.set(typerId, timer);
     });
 
     es.addEventListener("reaction", (e) => {
-      try {
-        const data = JSON.parse(e.data);
-        const { messageId, emoji, userId: reactUserId, action } = data as {
-          messageId: string;
-          emoji: string;
-          userId: string;
-          action: "add" | "remove";
-        };
+      const data = parseSSE<{
+        messageId: string;
+        emoji: string;
+        userId: string;
+        action: "add" | "remove";
+      }>(e.data);
+      if (!data) return;
+      const { messageId, emoji, userId: reactUserId, action } = data;
 
-        setMessages((prev) =>
-          prev.map((msg) => {
-            if (msg._id !== messageId) return msg;
+      setMessages((prev) =>
+        prev.map((msg) => {
+          if (msg._id !== messageId) return msg;
 
-            const reactions = msg.reactions.map((r) => ({ ...r, users: [...r.users] }));
-            const existing = reactions.find((r) => r.emoji === emoji);
+          const reactions = msg.reactions.map((r) => ({ ...r, users: [...r.users] }));
+          const existing = reactions.find((r) => r.emoji === emoji);
 
-            if (action === "add") {
-              if (existing) {
-                if (!existing.users.includes(reactUserId)) {
-                  existing.users.push(reactUserId);
-                }
-              } else {
-                reactions.push({ emoji, users: [reactUserId] });
+          if (action === "add") {
+            if (existing) {
+              if (!existing.users.includes(reactUserId)) {
+                existing.users.push(reactUserId);
               }
             } else {
-              if (existing) {
-                existing.users = existing.users.filter(
-                  (u) => u !== reactUserId,
-                );
-                if (existing.users.length === 0) {
-                  const idx = reactions.indexOf(existing);
-                  reactions.splice(idx, 1);
-                }
+              reactions.push({ emoji, users: [reactUserId] });
+            }
+          } else {
+            if (existing) {
+              existing.users = existing.users.filter(
+                (u) => u !== reactUserId,
+              );
+              if (existing.users.length === 0) {
+                const idx = reactions.indexOf(existing);
+                reactions.splice(idx, 1);
               }
             }
+          }
 
-            return { ...msg, reactions };
-          }),
-        );
-      } catch {
-        // Skip
-      }
+          return { ...msg, reactions };
+        }),
+      );
     });
 
     es.addEventListener("agent_thinking", (e) => {
-      try {
-        const data = JSON.parse(e.data);
-        const { agentId, name } = data as { agentId: string; name: string };
+      const data = parseSSE<{ agentId: string; name: string }>(e.data);
+      if (!data) return;
+      const { agentId, name } = data;
 
-        setTypingUsers((prev) => {
-          const next = new Map(prev);
-          next.set(agentId, name);
-          return next;
-        });
-      } catch {
-        // Skip
-      }
+      setTypingUsers((prev) => {
+        const next = new Map(prev);
+        next.set(agentId, name);
+        return next;
+      });
     });
 
     es.addEventListener("agent_thinking_done", (e) => {
-      try {
-        const data = JSON.parse(e.data);
-        const { agentId } = data as { agentId: string };
+      const data = parseSSE<{ agentId: string }>(e.data);
+      if (!data) return;
 
-        setTypingUsers((prev) => {
-          const next = new Map(prev);
-          next.delete(agentId);
-          return next;
-        });
-      } catch {
-        // Skip
-      }
+      setTypingUsers((prev) => {
+        const next = new Map(prev);
+        next.delete(data.agentId);
+        return next;
+      });
     });
 
     es.addEventListener("read", () => {
@@ -291,15 +289,18 @@ export function useMessages(conversationId: string | null) {
       // If readyState is CLOSED, the browser gave up — manually reconnect
       // with exponential backoff by re-triggering this effect.
       setConnected(false);
-      if (es.readyState === EventSource.CLOSED && sseRetriesRef.current < 5) {
-        const delay = Math.min(1000 * 2 ** sseRetriesRef.current, 30000);
+      if (es.readyState === EventSource.CLOSED) {
+        const retries = sseRetriesRef.current;
         sseRetriesRef.current++;
+        // First 5 retries: exponential backoff (1s, 2s, 4s, 8s, 16s)
+        // After that: keep trying every 60s so recovery is still possible
+        const delay = retries < 5
+          ? Math.min(1000 * 2 ** retries, 30000)
+          : 60000;
         reconnectTimer = setTimeout(() => {
           setSseRetry((n) => n + 1);
         }, delay);
       }
-      // After max retries, connection is lost — connected stays false
-      // so the UI can show a disconnection banner
     };
 
     // Reset retry counter on successful connection + re-fetch to fill gaps
@@ -425,7 +426,10 @@ export function useMessages(conversationId: string | null) {
     fetch(`/api/conversations/${conversationId}/typing`, {
       method: "POST",
       credentials: "include",
-    }).catch(() => {});
+    }).catch((err) => {
+      // Best-effort — typing indicators are non-critical
+      console.debug("[useMessages] Typing indicator failed:", err);
+    });
   }, [conversationId]);
 
   const toggleReaction = useCallback(
@@ -433,14 +437,17 @@ export function useMessages(conversationId: string | null) {
       if (!conversationId) return;
 
       try {
-        await fetch(`/api/conversations/${conversationId}/reactions`, {
+        const res = await fetch(`/api/conversations/${conversationId}/reactions`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           credentials: "include",
           body: JSON.stringify({ messageId, emoji }),
         });
-      } catch {
-        // Silent fail
+        if (!res.ok) {
+          console.error(`[useMessages] toggleReaction failed: ${res.status}`);
+        }
+      } catch (err) {
+        console.error("[useMessages] toggleReaction network error:", err);
       }
     },
     [conversationId],
@@ -451,7 +458,10 @@ export function useMessages(conversationId: string | null) {
     fetch(`/api/conversations/${conversationId}/read`, {
       method: "POST",
       credentials: "include",
-    }).catch(() => {});
+    }).catch((err) => {
+      // Best-effort — read receipts are non-critical
+      console.debug("[useMessages] markAsRead failed:", err);
+    });
   }, [conversationId]);
 
   return {

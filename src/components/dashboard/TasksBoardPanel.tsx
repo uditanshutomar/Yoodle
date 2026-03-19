@@ -188,6 +188,7 @@ export default function TasksBoardPanel({
   const [selectedTask, setSelectedTask] = useState<BoardTask | null>(null);
 
   const [boardError, setBoardError] = useState<string | null>(null);
+  const [retryCount, setRetryCount] = useState(0);
 
   // Fetch or auto-create personal board
   useEffect(() => {
@@ -223,7 +224,7 @@ export default function TasksBoardPanel({
       }
     })();
     return () => { cancelled = true; };
-  }, []);
+  }, [retryCount]);
 
   const { board, tasks, loading, updateTask, deleteTask } = useBoard(personalBoardId || undefined);
 
@@ -309,8 +310,15 @@ export default function TasksBoardPanel({
 
         {/* Board error */}
         {boardError && (
-          <div className="text-xs text-[#EF4444] bg-[#EF4444]/5 rounded-lg px-3 py-2 mb-2">
-            {boardError}
+          <div className="flex items-center gap-2 text-xs text-[#EF4444] bg-[#EF4444]/5 rounded-lg px-3 py-2 mb-2">
+            <span>{boardError}</span>
+            <button
+              onClick={() => { setBoardError(null); setRetryCount((c) => c + 1); }}
+              className="ml-auto font-bold hover:underline"
+              style={{ fontFamily: "var(--font-heading)" }}
+            >
+              Retry
+            </button>
           </div>
         )}
 

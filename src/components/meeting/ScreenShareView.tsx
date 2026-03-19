@@ -32,10 +32,15 @@ export default function ScreenShareView({
         const el = screenVideoRef.current;
         if (el && screenStream) {
             el.srcObject = screenStream;
-            el.play().catch(() => {
-                // Autoplay blocked — user will see a still frame until interaction
+            el.play().catch((err) => {
+                if (err.name !== "NotAllowedError") {
+                    console.warn("[ScreenShareView] Screen play failed:", err.name, err.message);
+                }
             });
         }
+        return () => {
+            if (el) el.srcObject = null;
+        };
     }, [screenStream]);
 
     // Attach presenter camera stream to PiP video
@@ -44,10 +49,15 @@ export default function ScreenShareView({
         const el = presenterVideoRef.current;
         if (el && presenter.stream) {
             el.srcObject = presenter.stream;
-            el.play().catch(() => {
-                // Autoplay blocked — user will see a still frame until interaction
+            el.play().catch((err) => {
+                if (err.name !== "NotAllowedError") {
+                    console.warn("[ScreenShareView] Presenter PiP play failed:", err.name, err.message);
+                }
             });
         }
+        return () => {
+            if (el) el.srcObject = null;
+        };
     }, [presenter.stream, presenter.isVideoOff]);
 
     return (
@@ -102,14 +112,19 @@ export default function ScreenShareView({
                         className="absolute inset-0 h-full w-full object-contain bg-black"
                     />
                 ) : (
-                    <Image
-                        src="/mock-screen-share.png"
-                        alt="Shared screen"
-                        fill
-                        className="object-cover"
-                        sizes="100vw"
-                        priority
-                    />
+                    <div className="absolute inset-0 flex items-center justify-center bg-[var(--surface)]">
+                        <div className="text-center">
+                            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="mx-auto text-[var(--text-muted)] mb-2">
+                                <rect x="2" y="3" width="20" height="14" rx="2" ry="2" />
+                                <line x1="8" y1="21" x2="16" y2="21" />
+                                <line x1="12" y1="17" x2="12" y2="21" />
+                                <line x1="2" y1="3" x2="22" y2="17" />
+                            </svg>
+                            <p className="text-sm text-[var(--text-secondary)]" style={{ fontFamily: "var(--font-body)" }}>
+                                Screen share unavailable
+                            </p>
+                        </div>
+                    </div>
                 )}
             </div>
 

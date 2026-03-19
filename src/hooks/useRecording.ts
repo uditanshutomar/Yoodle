@@ -285,7 +285,7 @@ export function useRecording(
           .forEach((t) => t.stop());
         displayStreamRef.current = null;
 
-        audioContextRef.current?.close();
+        audioContextRef.current?.close().catch(() => { /* already closed */ });
         audioContextRef.current = null;
         mixedDestRef.current = null;
       };
@@ -345,7 +345,7 @@ export function useRecording(
       clonedTracksRef.current = [];
       displayStreamRef.current?.getTracks().forEach((t) => t.stop());
       displayStreamRef.current = null;
-      audioContextRef.current?.close();
+      audioContextRef.current?.close().catch(() => { /* already closed */ });
       audioContextRef.current = null;
       mixedDestRef.current = null;
       if (recordingTimerRef.current) {

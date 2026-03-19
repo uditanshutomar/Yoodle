@@ -59,7 +59,6 @@ export async function GET() {
       {
         status,
         timestamp: new Date().toISOString(),
-        uptime: process.uptime(),
         latency,
         services,
       },
@@ -73,7 +72,6 @@ export async function GET() {
       {
         status: "unhealthy",
         timestamp: new Date().toISOString(),
-        uptime: process.uptime(),
         latency,
         services: {
           database: "error",

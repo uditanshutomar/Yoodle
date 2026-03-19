@@ -168,8 +168,8 @@ describe("Google Slides service", () => {
       summary: "Discussed sprint goals and priorities.",
       keyDecisions: ["Adopt new CI pipeline", "Postpone feature X"],
       actionItems: [
-        { task: "Set up CI", owner: "Alice", due: "2026-03-20" },
-        { task: "Update docs", owner: "Bob", due: "2026-03-22" },
+        { task: "Set up CI", assignee: "Alice", dueDate: "2026-03-20" },
+        { task: "Update docs", assignee: "Bob", dueDate: "2026-03-22" },
       ],
       nextSteps: ["Review progress Friday", "Demo to stakeholders"],
     };

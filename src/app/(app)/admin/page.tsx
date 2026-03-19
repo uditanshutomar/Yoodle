@@ -52,6 +52,95 @@ function formatEventType(type: string): string {
   return type.replace(/_/g, " ");
 }
 
+function TrendsAndBreakdown({ data }: { data: AnalyticsSummary }) {
+  const weeklyRate = data.trends.meetingsLast7d;
+  const avgWeekly = data.trends.meetingsLast30d / 4.3;
+  const trendPct = avgWeekly > 0 ? Math.round(((weeklyRate - avgWeekly) / avgWeekly) * 100) : 0;
+  const maxCount = Math.max(...data.eventBreakdown.map(e => e.count), 1);
+
+  return (
+    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-8">
+      <div className="rounded-xl border-2 border-[var(--border-strong)] bg-[var(--surface)] p-5 shadow-[4px_4px_0_var(--border-strong)]">
+        <div className="flex items-center gap-2 mb-4">
+          <BarChart3 size={18} className="text-[var(--text-secondary)]" />
+          <h2
+            className="text-base font-bold text-[var(--text-primary)]"
+            style={{ fontFamily: "var(--font-heading)" }}
+          >
+            Meeting Trends
+          </h2>
+        </div>
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <span className="text-sm text-[var(--text-secondary)]">Last 7 days</span>
+            <div className="flex items-center gap-2">
+              <span
+                className="text-lg font-bold"
+                style={{ fontFamily: "var(--font-heading)" }}
+              >
+                {data.trends.meetingsLast7d}
+              </span>
+              {trendPct !== 0 && (
+                <span className={`flex items-center gap-0.5 text-xs font-bold px-2 py-0.5 rounded-full ${trendPct > 0 ? "bg-[#22C55E]/10 text-[#22C55E]" : "bg-[#FF6B6B]/10 text-[#FF6B6B]"}`}>
+                  {trendPct > 0 ? <TrendingUp size={12} /> : <TrendingDown size={12} />}
+                  {Math.abs(trendPct)}%
+                </span>
+              )}
+            </div>
+          </div>
+          <div className="flex items-center justify-between">
+            <span className="text-sm text-[var(--text-secondary)]">Last 30 days</span>
+            <span
+              className="text-lg font-bold"
+              style={{ fontFamily: "var(--font-heading)" }}
+            >
+              {data.trends.meetingsLast30d}
+            </span>
+          </div>
+        </div>
+      </div>
+
+      <div className="rounded-xl border-2 border-[var(--border-strong)] bg-[var(--surface)] p-5 shadow-[4px_4px_0_var(--border-strong)]">
+        <div className="flex items-center gap-2 mb-4">
+          <Activity size={18} className="text-[var(--text-secondary)]" />
+          <h2
+            className="text-base font-bold text-[var(--text-primary)]"
+            style={{ fontFamily: "var(--font-heading)" }}
+          >
+            Event Breakdown (30d)
+          </h2>
+        </div>
+        {data.eventBreakdown.length === 0 ? (
+          <p className="text-sm text-[var(--text-secondary)]">
+            No events recorded yet
+          </p>
+        ) : (
+          <div className="space-y-2">
+            {data.eventBreakdown.map((event) => (
+              <div key={event.type} className="flex items-center gap-3">
+                <span className="text-sm text-[var(--text-secondary)] w-32 truncate">
+                  {formatEventType(event.type)}
+                </span>
+                <div className="flex-1 h-3 rounded-full bg-[var(--border)] overflow-hidden">
+                  <motion.div
+                    className="h-full rounded-full bg-[#FFE600]"
+                    initial={{ width: 0 }}
+                    animate={{ width: `${(event.count / maxCount) * 100}%` }}
+                    transition={{ delay: 0.3, duration: 0.5 }}
+                  />
+                </div>
+                <span className="text-sm font-bold w-8 text-right" style={{ fontFamily: "var(--font-heading)" }}>
+                  {event.count}
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export default function AdminDashboard() {
   const router = useRouter();
   const [data, setData] = useState<AnalyticsSummary | null>(null);
@@ -68,14 +157,24 @@ export default function AdminDashboard() {
           setAccessDenied(true);
           return null;
         }
+        if (!r.ok) {
+          throw new Error(`Analytics request failed with status ${r.status}`);
+        }
         return r.json();
       })
       .then((res) => {
         if (!res) return;
-        if (res.success) setData(res.data);
-        else setError(res.error?.message || "Failed to load analytics");
+        if (res.success) {
+          setData(res.data);
+          setError(null);
+        } else {
+          setError(res.error?.message || "Failed to load analytics");
+        }
       })
-      .catch(() => setError("Failed to load analytics"))
+      .catch((err) => {
+        console.error("[Admin] Failed to fetch analytics:", err);
+        setError("Failed to load analytics");
+      })
       .finally(() => { setLoading(false); setLastRefresh(new Date()); });
   }, []);
 
@@ -228,7 +327,7 @@ export default function AdminDashboard() {
                 className="text-3xl font-bold text-[var(--text-primary)]"
                 style={{ fontFamily: "var(--font-heading)" }}
               >
-                {value.toLocaleString()}
+                {(value ?? 0).toLocaleString()}
               </p>
             </motion.div>
           );
@@ -236,93 +335,7 @@ export default function AdminDashboard() {
       </div>
 
       {/* Trends and event breakdown */}
-      {(() => {
-        const weeklyRate = data.trends.meetingsLast7d;
-        const avgWeekly = data.trends.meetingsLast30d / 4.3;
-        const trendPct = avgWeekly > 0 ? Math.round(((weeklyRate - avgWeekly) / avgWeekly) * 100) : 0;
-        const maxCount = Math.max(...data.eventBreakdown.map(e => e.count), 1);
-        return (
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-8">
-        <div className="rounded-xl border-2 border-[var(--border-strong)] bg-[var(--surface)] p-5 shadow-[4px_4px_0_var(--border-strong)]">
-          <div className="flex items-center gap-2 mb-4">
-            <BarChart3 size={18} className="text-[var(--text-secondary)]" />
-            <h2
-              className="text-base font-bold text-[var(--text-primary)]"
-              style={{ fontFamily: "var(--font-heading)" }}
-            >
-              Meeting Trends
-            </h2>
-          </div>
-          <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <span className="text-sm text-[var(--text-secondary)]">Last 7 days</span>
-              <div className="flex items-center gap-2">
-                <span
-                  className="text-lg font-bold"
-                  style={{ fontFamily: "var(--font-heading)" }}
-                >
-                  {data.trends.meetingsLast7d}
-                </span>
-                {trendPct !== 0 && (
-                  <span className={`flex items-center gap-0.5 text-xs font-bold px-2 py-0.5 rounded-full ${trendPct > 0 ? "bg-[#22C55E]/10 text-[#22C55E]" : "bg-[#FF6B6B]/10 text-[#FF6B6B]"}`}>
-                    {trendPct > 0 ? <TrendingUp size={12} /> : <TrendingDown size={12} />}
-                    {Math.abs(trendPct)}%
-                  </span>
-                )}
-              </div>
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="text-sm text-[var(--text-secondary)]">Last 30 days</span>
-              <span
-                className="text-lg font-bold"
-                style={{ fontFamily: "var(--font-heading)" }}
-              >
-                {data.trends.meetingsLast30d}
-              </span>
-            </div>
-          </div>
-        </div>
-
-        <div className="rounded-xl border-2 border-[var(--border-strong)] bg-[var(--surface)] p-5 shadow-[4px_4px_0_var(--border-strong)]">
-          <div className="flex items-center gap-2 mb-4">
-            <Activity size={18} className="text-[var(--text-secondary)]" />
-            <h2
-              className="text-base font-bold text-[var(--text-primary)]"
-              style={{ fontFamily: "var(--font-heading)" }}
-            >
-              Event Breakdown (30d)
-            </h2>
-          </div>
-          {data.eventBreakdown.length === 0 ? (
-            <p className="text-sm text-[var(--text-secondary)]">
-              No events recorded yet
-            </p>
-          ) : (
-            <div className="space-y-2">
-              {data.eventBreakdown.map((event) => (
-                <div key={event.type} className="flex items-center gap-3">
-                  <span className="text-sm text-[var(--text-secondary)] w-32 truncate">
-                    {formatEventType(event.type)}
-                  </span>
-                  <div className="flex-1 h-3 rounded-full bg-[var(--border)] overflow-hidden">
-                    <motion.div
-                      className="h-full rounded-full bg-[#FFE600]"
-                      initial={{ width: 0 }}
-                      animate={{ width: `${(event.count / maxCount) * 100}%` }}
-                      transition={{ delay: 0.3, duration: 0.5 }}
-                    />
-                  </div>
-                  <span className="text-sm font-bold w-8 text-right" style={{ fontFamily: "var(--font-heading)" }}>
-                    {event.count}
-                  </span>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      </div>
-        );
-      })()}
+      <TrendsAndBreakdown data={data} />
     </div>
   );
 }

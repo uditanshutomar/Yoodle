@@ -9,7 +9,7 @@ export const PROCESSING_STATUSES = [
 export type ProcessingStatus = (typeof PROCESSING_STATUSES)[number];
 
 export interface IRecordingTranscriptSegment {
-  speakerId: Types.ObjectId;
+  speakerId: string;
   speakerName: string;
   text: string;
   startTime: number;
@@ -26,7 +26,7 @@ export interface IRecordingTranscript {
 export interface IActionItem {
   task: string;
   assignee: string;
-  deadline: string;
+  dueDate: string;
 }
 
 export interface IAIMinutes {
@@ -56,8 +56,7 @@ export interface IRecordingDocument extends IRecording, Document {
 const transcriptSegmentSchema = new Schema<IRecordingTranscriptSegment>(
   {
     speakerId: {
-      type: Schema.Types.ObjectId,
-      ref: "User",
+      type: String,
       required: true,
     },
     speakerName: {
@@ -112,7 +111,7 @@ const actionItemSchema = new Schema<IActionItem>(
       type: String,
       required: true,
     },
-    deadline: {
+    dueDate: {
       type: String,
       required: true,
     },

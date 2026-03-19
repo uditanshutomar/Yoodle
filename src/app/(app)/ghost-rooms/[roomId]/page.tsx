@@ -47,13 +47,17 @@ export default function GhostRoomPage() {
   const [actionError, setActionError] = useState("");
   const [startingCall, setStartingCall] = useState(false);
 
-  const fetchRoom = useCallback(async () => {
+  const fetchRoom = useCallback(async (signal?: AbortSignal) => {
     if (!user || !roomId) return;
     try {
       const res = await fetch(`/api/ghost-rooms/${roomId}`, {
         credentials: "include",
+        signal,
       });
+      if (signal?.aborted) return;
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
+      if (signal?.aborted) return;
       if (data.success && data.data) {
         setRoom(data.data);
         const me = data.data.participants?.find((p: { userId: string }) => p.userId === user?.id);
@@ -64,17 +68,22 @@ export default function GhostRoomPage() {
           : data.error?.message || data.message || "Room not found or expired.";
         setError(errMsg);
       }
-    } catch {
+    } catch (err) {
+      if (err instanceof DOMException && err.name === "AbortError") return;
       setError("Failed to load ghost room.");
     } finally {
-      setLoading(false);
+      if (!signal?.aborted) setLoading(false);
     }
   }, [user, roomId]);
 
   useEffect(() => {
-    fetchRoom();
-    const interval = setInterval(fetchRoom, 5000);
-    return () => clearInterval(interval);
+    const controller = new AbortController();
+    fetchRoom(controller.signal);
+    const interval = setInterval(() => fetchRoom(controller.signal), 5000);
+    return () => {
+      controller.abort();
+      clearInterval(interval);
+    };
   }, [fetchRoom]);
 
   const sendMessage = async (content: string) => {
@@ -100,6 +109,11 @@ export default function GhostRoomPage() {
   const notesSyncTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const notesInitializedRef = useRef(false);
 
+  // Reset notes initialization flag when roomId changes
+  useEffect(() => {
+    notesInitializedRef.current = false;
+  }, [roomId]);
+
   // Sync notes from server on first load or when room changes
   useEffect(() => {
     if (room?.notes !== undefined && !notesInitializedRef.current) {
@@ -116,10 +130,23 @@ export default function GhostRoomPage() {
         headers: { "Content-Type": "application/json" },
         credentials: "include",
         body: JSON.stringify({ action: "updateNotes", notes }),
-      }).catch(() => {});
+      }).then((res) => {
+        if (!res.ok) {
+          console.warn("[GhostRoom] Notes sync failed with status", res.status);
+        }
+      }).catch((err) => {
+        console.error("[GhostRoom] Failed to sync notes:", err);
+      });
     },
     [user, roomId],
   );
+
+  // Cleanup debounce timer on unmount
+  useEffect(() => {
+    return () => {
+      if (notesSyncTimerRef.current) clearTimeout(notesSyncTimerRef.current);
+    };
+  }, []);
 
   const handleNotesChange = (value: string) => {
     setLocalNotes(value);
@@ -159,7 +186,10 @@ export default function GhostRoomPage() {
       });
       const data = await res.json();
       if (data.success && data.data?.meetingId) {
-        router.push(`/meetings/${data.data.meetingId}/room`);
+        // Navigate to the meeting lobby (not /room directly) so the user goes
+        // through the join flow which saves roomSession to sessionStorage.
+        // Going to /room directly would redirect back to lobby since roomSession is null.
+        router.push(`/meetings/${data.data.meetingId}`);
       } else {
         setActionError(data.error || "Failed to start call.");
         setStartingCall(false);
@@ -173,7 +203,7 @@ export default function GhostRoomPage() {
   // If ghost room already has an active call, allow joining it
   const handleJoinCall = () => {
     if (room?.meetingId) {
-      router.push(`/meetings/${room.meetingId}/room`);
+      router.push(`/meetings/${room.meetingId}`);
     }
   };
 

@@ -20,13 +20,13 @@ vi.mock("@/lib/infra/auth/middleware", () => ({
   getUserIdFromRequest: (...args: unknown[]) => mockedGetUserId(...args),
 }));
 
-const mockConvFindByIdChain = {
+const mockConvFindOneChain = {
   select: vi.fn().mockReturnThis(),
   lean: vi.fn(),
 };
 vi.mock("@/lib/infra/db/models/conversation", () => ({
   default: {
-    findById: vi.fn(() => mockConvFindByIdChain),
+    findOne: vi.fn(() => mockConvFindOneChain),
   },
 }));
 
@@ -69,7 +69,7 @@ describe("POST /api/conversations/[id]/reactions", () => {
   beforeEach(() => vi.clearAllMocks());
 
   function setupConversation() {
-    mockConvFindByIdChain.lean.mockResolvedValue({
+    mockConvFindOneChain.lean.mockResolvedValue({
       _id: VALID_CONV_ID,
       participants: [
         { userId: { toString: () => TEST_USER_ID } },

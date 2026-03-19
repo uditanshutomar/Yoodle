@@ -50,7 +50,7 @@ export function useGeolocation(options: UseGeolocationOptions = {}) {
       lastSyncRef.current = now;
 
       try {
-        await fetch("/api/users/me", {
+        const res = await fetch("/api/users/me", {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
           credentials: "include",
@@ -61,8 +61,12 @@ export function useGeolocation(options: UseGeolocationOptions = {}) {
             },
           }),
         });
-      } catch {
-        // Best-effort sync
+        if (!res.ok) {
+          console.warn(`[useGeolocation] Location sync failed: ${res.status}`);
+        }
+      } catch (err) {
+        // Best-effort sync — log for diagnostics
+        console.debug("[useGeolocation] Location sync error:", err);
       }
     },
     [syncToServer, syncInterval],
@@ -72,6 +76,12 @@ export function useGeolocation(options: UseGeolocationOptions = {}) {
     if (!navigator.geolocation) {
       setState((s) => ({ ...s, error: "Geolocation not supported", loading: false }));
       return;
+    }
+
+    // Clear any existing watch before starting a new one to prevent
+    // orphaned watchers that keep firing position callbacks.
+    if (watchIdRef.current !== null) {
+      navigator.geolocation.clearWatch(watchIdRef.current);
     }
 
     setState((s) => ({ ...s, loading: true, error: null, permissionDenied: false }));

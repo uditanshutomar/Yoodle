@@ -424,9 +424,18 @@ function AttendeeSearch({ selectedUsers, onAdd, onRemove }: {
             if (res.ok) {
                 const data = await res.json();
                 setResults((data.data || []).filter((u: YoodleUser) => !selectedUsers.some(s => s.id === u.id)));
+            } else {
+                console.error("[AttendeeSearch] Search failed:", res.status);
             }
-        } catch { /* ignore */ }
+        } catch (err) {
+            console.error("[AttendeeSearch] Search error:", err);
+        }
     }, [selectedUsers]);
+
+    // Cleanup debounce timer on unmount
+    useEffect(() => {
+        return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
+    }, []);
 
     const handleInput = (value: string) => {
         setQuery(value);
@@ -837,6 +846,7 @@ export default function CalendarPanel() {
     const [monthEvents, setMonthEvents] = useState<CalEvent[]>([]);
     const [taskDeadlines, setTaskDeadlines] = useState<CalEvent[]>([]);
     const [loading, setLoading] = useState(true);
+    const [fetchError, setFetchError] = useState<string | null>(null);
     const [noGoogleAccess, setNoGoogleAccess] = useState(false);
     const [portalReady, setPortalReady] = useState(false);
     const scrollRef = useRef<HTMLDivElement>(null);
@@ -916,8 +926,9 @@ export default function CalendarPanel() {
                 const calEvents = apiEvents.map((e, i) => apiEventToCalEvent(e, i, timeMin)).filter((e): e is CalEvent => e !== null);
                 setEvents(calEvents);
             }
-        } catch {
-            // Calendar fetch failed — UI will show empty state
+            setFetchError(null);
+        } catch (err) {
+            setFetchError(err instanceof Error ? err.message : "Failed to load calendar");
         } finally {
             setLoading(false);
         }
@@ -943,7 +954,10 @@ export default function CalendarPanel() {
                 `/api/tasks/my?dueDateMin=${timeMin.toISOString()}&dueDateMax=${timeMax.toISOString()}&limit=50`,
                 { credentials: "include" }
             );
-            if (!res.ok) return;
+            if (!res.ok) {
+                console.error("[Calendar] Task deadlines fetch failed:", res.status);
+                return;
+            }
             const data = await res.json();
             const tasks = data.data || [];
             const TASK_COLORS: Record<string, { color: string; bgColor: string }> = {
@@ -974,7 +988,9 @@ export default function CalendarPanel() {
                     } as CalEvent;
                 });
             setTaskDeadlines(deadlines);
-        } catch { /* ignore */ }
+        } catch (err) {
+            console.error("[Calendar] Failed to fetch task deadlines:", err);
+        }
     }, [weekOffset, view]);
 
     useEffect(() => { fetchEvents(); fetchTaskDeadlines(); }, [fetchEvents, fetchTaskDeadlines]);
@@ -1076,7 +1092,10 @@ export default function CalendarPanel() {
             if (!res.ok) throw new Error("Failed to create event");
             setQuickAdd(null);
             await fetchEvents();
-        } catch { /* quick save failed — UI resets */ }
+        } catch (err) {
+            console.error("[Calendar] Failed to create event:", err);
+            setFetchError("Failed to create event. Please try again.");
+        }
         finally { setQuickSaving(false); }
     }, [quickAdd, DAYS_OF_WEEK, fetchEvents]);
 
@@ -1089,7 +1108,10 @@ export default function CalendarPanel() {
             if (!res.ok) throw new Error("Failed to delete event");
             setSelectedEvent(null);
             await fetchEvents();
-        } catch { /* delete failed */ }
+        } catch (err) {
+            console.error("[Calendar] Failed to delete event:", err);
+            setFetchError("Failed to delete event. Please try again.");
+        }
     }, [fetchEvents]);
 
     const handleQuickMoreOptions = useCallback((title: string) => {
@@ -1209,6 +1231,13 @@ export default function CalendarPanel() {
                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4" /><polyline points="10 17 15 12 10 7" /><line x1="15" y1="12" x2="3" y2="12" /></svg>
                         Connect
                     </a>
+                </div>
+            ) : fetchError ? (
+                <div className="flex flex-col items-center py-6 text-center">
+                    <p className="text-xs text-red-500 font-semibold mb-2">Failed to load calendar</p>
+                    <button onClick={() => fetchEvents()} className="text-xs text-[var(--text-secondary)] hover:text-[var(--text-primary)] underline">
+                        Try again
+                    </button>
                 </div>
             ) : loading ? (
                 <div className="py-6 space-y-3">

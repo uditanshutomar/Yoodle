@@ -76,6 +76,7 @@ export function useTransport({
     if (!enabled || !localStream) return;
 
     let cancelled = false;
+    let lateTrackTimer: ReturnType<typeof setTimeout> | undefined;
     const abortController = new AbortController();
 
     async function init() {
@@ -87,7 +88,6 @@ export function useTransport({
           signal: abortController.signal,
           body: JSON.stringify({
             roomId: meetingId,
-            identity: userId,
             name: userName,
           }),
         });
@@ -169,7 +169,7 @@ export function useTransport({
 
         // Track subscriptions can finalise after connect() resolves.
         // Do a second sync shortly after to pick up any late tracks.
-        setTimeout(() => {
+        lateTrackTimer = setTimeout(() => {
           if (!cancelled) {
             setRemoteParticipants(t.getRemoteParticipants());
             updateRemoteState(t);
@@ -190,6 +190,7 @@ export function useTransport({
     return () => {
       cancelled = true;
       abortController.abort();
+      clearTimeout(lateTrackTimer);
       if (transportRef.current) {
         transportRef.current.leave();
         transportRef.current = null;
@@ -212,12 +213,14 @@ export function useTransport({
 
     if (audioTrack) {
       t.replaceTrack("audio", audioTrack).catch((err) => {
-        console.warn("Failed to replace audio track:", err);
+        console.error("[useTransport] Failed to replace audio track:", err);
+        setError("Failed to switch audio device. Try selecting the device again.");
       });
     }
     if (videoTrack) {
       t.replaceTrack("video", videoTrack).catch((err) => {
-        console.warn("Failed to replace video track:", err);
+        console.error("[useTransport] Failed to replace video track:", err);
+        setError("Failed to switch video device. Try selecting the device again.");
       });
     }
   }, [localStream]);
@@ -229,13 +232,21 @@ export function useTransport({
   useEffect(() => {
     const t = transportRef.current;
     if (!t) return;
-    t.muteTrack("audio", !userAudioEnabled).catch(() => {});
+    t.muteTrack("audio", !userAudioEnabled).catch((err) => {
+      // PRIVACY: mute failures must be surfaced — if mute fails, the user
+      // thinks they're muted but audio is still being sent to all participants.
+      console.error("[useTransport] Failed to sync audio mute state:", err);
+      setError(`Audio ${!userAudioEnabled ? "mute" : "unmute"} failed — your mic may still be ${userAudioEnabled ? "muted" : "live"}`);
+    });
   }, [userAudioEnabled]);
 
   useEffect(() => {
     const t = transportRef.current;
     if (!t) return;
-    t.muteTrack("video", !userVideoEnabled).catch(() => {});
+    t.muteTrack("video", !userVideoEnabled).catch((err) => {
+      console.error("[useTransport] Failed to sync video mute state:", err);
+      setError(`Video ${!userVideoEnabled ? "mute" : "unmute"} failed`);
+    });
   }, [userVideoEnabled]);
 
   const room = useMemo(() => {

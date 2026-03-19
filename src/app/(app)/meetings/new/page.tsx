@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { Suspense, useState, useRef, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { Video, ArrowLeft, Clock, Shield, Mic, Monitor, Users, Copy, Check, Link2, FileText, ChevronDown, X } from "lucide-react";
@@ -21,6 +21,14 @@ interface MeetingTemplateOption {
 }
 
 export default function NewMeetingPage() {
+  return (
+    <Suspense fallback={<div className="flex items-center justify-center py-24"><div className="h-8 w-8 border-3 border-[#FFE600] border-t-transparent rounded-full animate-spin" /></div>}>
+      <NewMeetingPageInner />
+    </Suspense>
+  );
+}
+
+function NewMeetingPageInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const titleInputRef = useRef<HTMLInputElement>(null);
@@ -81,6 +89,12 @@ export default function NewMeetingPage() {
     title: string;
   } | null>(null);
   const [copied, setCopied] = useState(false);
+  const copiedTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+
+  // Cleanup copied timer on unmount
+  useEffect(() => {
+    return () => { clearTimeout(copiedTimerRef.current); };
+  }, []);
 
   const createMeeting = async (meetingTitle: string, isScheduled: boolean) => {
     const body: Record<string, unknown> = {
@@ -126,6 +140,7 @@ export default function NewMeetingPage() {
 
   // Instant meeting — "Start Now" button creates and joins immediately
   const handleStartNow = async () => {
+    if (startingNow) return;
     setError("");
     setStartingNow(true);
 
@@ -191,7 +206,8 @@ export default function NewMeetingPage() {
     try {
       await navigator.clipboard.writeText(link);
       setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
+      clearTimeout(copiedTimerRef.current);
+      copiedTimerRef.current = setTimeout(() => setCopied(false), 2000);
     } catch {
       // Fallback for older browsers
       const textarea = document.createElement("textarea");
@@ -201,7 +217,8 @@ export default function NewMeetingPage() {
       document.execCommand("copy");
       document.body.removeChild(textarea);
       setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
+      clearTimeout(copiedTimerRef.current);
+      copiedTimerRef.current = setTimeout(() => setCopied(false), 2000);
     }
   };
 
@@ -210,7 +227,8 @@ export default function NewMeetingPage() {
     try {
       await navigator.clipboard.writeText(createdMeeting.code);
       setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
+      clearTimeout(copiedTimerRef.current);
+      copiedTimerRef.current = setTimeout(() => setCopied(false), 2000);
     } catch {
       /* ignore */
     }

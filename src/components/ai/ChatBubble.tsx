@@ -127,15 +127,16 @@ function InlineActionCard({
   const pa = toolCall.pendingAction;
   if (!pa) return null;
 
-  const actionIcon = ACTION_ICONS[pa.actionType] || CheckSquare;
+  const actionIcon = ACTION_ICONS[pa.type] || CheckSquare;
   const ActionIcon = actionIcon;
 
   const handleConfirm = async () => {
     setStatus("confirming");
     try {
-      await onConfirm?.(pa.actionId, pa.actionType, pa.actionArgs);
+      await onConfirm?.(pa.actionId, pa.type, pa.args);
       setStatus("confirmed");
-    } catch {
+    } catch (err) {
+      console.error("[ChatBubble] Action confirmation failed:", err);
       setStatus("pending");
     }
   };
@@ -157,10 +158,10 @@ function InlineActionCard({
         </div>
         <div className="flex-1 min-w-0">
           <p className="text-xs font-semibold text-[var(--text-primary)] leading-snug" style={{ fontFamily: "var(--font-heading)" }}>
-            {pa.actionSummary}
+            {pa.summary}
           </p>
           <p className="text-[10px] text-[var(--text-muted)] mt-0.5 capitalize">
-            {pa.actionType.replace(/_/g, " ")}
+            {pa.type.replace(/_/g, " ")}
           </p>
         </div>
       </div>

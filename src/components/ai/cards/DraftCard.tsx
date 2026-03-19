@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Send, Sparkles, Copy, X, Check } from "lucide-react";
 import type { DraftCardData } from "./types";
@@ -18,6 +18,11 @@ export default function DraftCard({ data, onSend, onPolish }: DraftCardProps) {
   const [content, setContent] = useState(data.content);
   const [copied, setCopied] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const copyTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
+
+  useEffect(() => {
+    return () => clearTimeout(copyTimerRef.current);
+  }, []);
 
   const handleSend = async () => {
     if (state === "sending") return; // prevent double-fire
@@ -25,7 +30,8 @@ export default function DraftCard({ data, onSend, onPolish }: DraftCardProps) {
     try {
       await onSend?.(data.actionType, { ...data.actionArgs, content });
       setState("sent");
-    } catch {
+    } catch (err) {
+      console.error("[DraftCard] Failed to send draft:", err);
       setState("editing");
     }
   };
@@ -38,9 +44,11 @@ export default function DraftCard({ data, onSend, onPolish }: DraftCardProps) {
     try {
       await navigator.clipboard.writeText(content);
       setCopied(true);
-      setTimeout(() => setCopied(false), 1500);
-    } catch {
-      // clipboard API may fail in insecure contexts — silent fallback
+      clearTimeout(copyTimerRef.current);
+      copyTimerRef.current = setTimeout(() => setCopied(false), 1500);
+    } catch (err) {
+      // clipboard API may fail in insecure contexts
+      console.warn("[DraftCard] Clipboard write failed:", err);
     }
   };
 

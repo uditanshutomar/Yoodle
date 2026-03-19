@@ -46,7 +46,7 @@ export interface IMeetingMoM {
   summary: string;
   keyDecisions: string[];
   discussionPoints: string[];
-  actionItems: { task: string; owner: string; due: string }[];
+  actionItems: { task: string; assignee: string; dueDate: string }[];
   nextSteps: string[];
   generatedAt?: Date;
   generatedBy?: Types.ObjectId;
@@ -223,8 +223,8 @@ const meetingSchema = new Schema<IMeetingDocument>(
           type: [
             {
               task: { type: String, required: true },
-              owner: { type: String, default: "Unassigned" },
-              due: { type: String, default: "TBD" },
+              assignee: { type: String, default: "Unassigned" },
+              dueDate: { type: String, default: "TBD" },
             },
           ],
           default: [],

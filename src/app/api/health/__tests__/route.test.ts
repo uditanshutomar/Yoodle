@@ -73,13 +73,14 @@ describe("GET /api/health", () => {
     expect(body.services.redis).toBe("connected");
   });
 
-  it("returns timestamp, uptime, and latency fields", async () => {
+  it("returns timestamp and latency fields", async () => {
     const response = await GET();
     const body = await response.json();
 
     expect(body.timestamp).toBeDefined();
-    expect(typeof body.uptime).toBe("number");
     expect(typeof body.latency).toBe("number");
+    // uptime intentionally removed to reduce info exposure
+    expect(body.uptime).toBeUndefined();
   });
 
   it("returns 503 with status 'degraded' when DB is disconnected", async () => {

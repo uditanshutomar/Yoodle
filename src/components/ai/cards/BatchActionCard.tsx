@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { motion } from "framer-motion";
-import { CheckSquare, Square, Loader2 } from "lucide-react";
+import { CheckSquare, Square, Loader2, Check } from "lucide-react";
 import type { BatchActionCardData } from "./types";
 
 interface Props {
@@ -15,6 +15,7 @@ export default function BatchActionCard({ data, onConfirm }: Props) {
     new Set(data.items.map((i) => i.id)),
   );
   const [isConfirming, setIsConfirming] = useState(false);
+  const [isConfirmed, setIsConfirmed] = useState(false);
 
   const toggleItem = (id: string) => {
     setSelectedIds((prev) => {
@@ -39,7 +40,10 @@ export default function BatchActionCard({ data, onConfirm }: Props) {
     try {
       const selected = data.items.filter((i) => selectedIds.has(i.id));
       await onConfirm?.(Array.from(selectedIds), data.actionType, selected);
-    } catch {
+      setIsConfirmed(true);
+    } catch (err) {
+      console.error("[BatchActionCard] Confirmation failed:", err);
+    } finally {
       setIsConfirming(false);
     }
   };
@@ -100,18 +104,26 @@ export default function BatchActionCard({ data, onConfirm }: Props) {
       </div>
 
       <div className="flex items-center justify-end gap-2 mt-2 pt-2 border-t border-[var(--border)]">
-        <span className="text-[10px] text-[var(--text-muted)] mr-auto" style={{ fontFamily: "var(--font-body)" }}>
-          {selectedIds.size} of {data.items.length} selected
-        </span>
-        <button
-          onClick={handleConfirm}
-          disabled={selectedIds.size === 0 || isConfirming}
-          className="flex items-center gap-1 px-3 py-1.5 text-[11px] font-bold rounded-lg bg-[#FFE600] text-[#0A0A0A] border-2 border-[var(--border-strong)] shadow-[2px_2px_0_var(--border-strong)] hover:shadow-none hover:translate-x-[2px] hover:translate-y-[2px] transition-all disabled:opacity-40 disabled:shadow-none"
-          style={{ fontFamily: "var(--font-heading)" }}
-        >
-          {isConfirming ? <Loader2 size={12} className="animate-spin" /> : null}
-          Confirm
-        </button>
+        {isConfirmed ? (
+          <span className="flex items-center gap-1.5 text-[11px] font-semibold text-green-500 ml-auto" style={{ fontFamily: "var(--font-heading)" }}>
+            <Check size={14} /> Confirmed
+          </span>
+        ) : (
+          <>
+            <span className="text-[10px] text-[var(--text-muted)] mr-auto" style={{ fontFamily: "var(--font-body)" }}>
+              {selectedIds.size} of {data.items.length} selected
+            </span>
+            <button
+              onClick={handleConfirm}
+              disabled={selectedIds.size === 0 || isConfirming}
+              className="flex items-center gap-1 px-3 py-1.5 text-[11px] font-bold rounded-lg bg-[#FFE600] text-[#0A0A0A] border-2 border-[var(--border-strong)] shadow-[2px_2px_0_var(--border-strong)] hover:shadow-none hover:translate-x-[2px] hover:translate-y-[2px] transition-all disabled:opacity-40 disabled:shadow-none"
+              style={{ fontFamily: "var(--font-heading)" }}
+            >
+              {isConfirming ? <Loader2 size={12} className="animate-spin" /> : null}
+              Confirm
+            </button>
+          </>
+        )}
       </div>
     </motion.div>
   );

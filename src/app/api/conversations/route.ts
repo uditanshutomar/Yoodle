@@ -26,7 +26,7 @@ const createDmSchema = z.object({
 const createGroupSchema = z.object({
   type: z.literal("group"),
   name: z.string().min(1, "Group name is required").max(200),
-  participantIds: z.array(objectIdString).min(1),
+  participantIds: z.array(objectIdString).min(1).max(100),
 });
 
 const createConversationSchema = z.discriminatedUnion("type", [

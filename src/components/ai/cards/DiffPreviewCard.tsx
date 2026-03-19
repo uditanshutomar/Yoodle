@@ -22,7 +22,8 @@ export default function DiffPreviewCard({ data, onConfirm, onDeny }: DiffPreview
     try {
       await onConfirm?.(data.actionType, data.actionArgs);
       setState("confirmed");
-    } catch {
+    } catch (err) {
+      console.error("[DiffPreviewCard] Confirmation failed:", err);
       setState("preview");
     }
   };

@@ -41,11 +41,28 @@ export function createStreamingResponse(
         controller.enqueue(encoder.encode("data: [DONE]\n\n"));
         controller.close();
       } catch (error) {
-        // Log the real error server-side; send a generic message to the client
+        // Log the real error server-side; send a classified message to the client
         // to avoid leaking internal details (API keys, paths, connection strings).
         log.error({ err: error }, "SSE stream error");
+
+        // Classify the error so the client knows whether to retry
+        const errMsg = error instanceof Error ? error.message : "";
+        const isTransient =
+          errMsg.includes("ECONNRESET") ||
+          errMsg.includes("ETIMEDOUT") ||
+          errMsg.includes("socket hang up") ||
+          errMsg.includes("503") ||
+          errMsg.includes("429") ||
+          errMsg.includes("quota");
+
         try {
-          const errorData = `data: ${JSON.stringify({ error: "An error occurred while processing your request." })}\n\n`;
+          const errorPayload = {
+            error: isTransient
+              ? "The AI service is temporarily unavailable. Please try again in a moment."
+              : "An error occurred while processing your request.",
+            retryable: isTransient,
+          };
+          const errorData = `data: ${JSON.stringify(errorPayload)}\n\n`;
           controller.enqueue(encoder.encode(errorData));
           controller.close();
         } catch {
@@ -65,8 +82,9 @@ export function createStreamingResponse(
   return new Response(stream, {
     headers: {
       "Content-Type": "text/event-stream",
-      "Cache-Control": "no-cache",
+      "Cache-Control": "no-cache, no-transform",
       Connection: "keep-alive",
+      "X-Accel-Buffering": "no",
     },
   });
 }

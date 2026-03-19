@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
 import mongoose from "mongoose";
+import { z } from "zod";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { withHandler } from "@/lib/infra/api/with-handler";
 import { successResponse } from "@/lib/infra/api/response";
@@ -26,7 +27,7 @@ Return ONLY valid JSON with this exact structure:
   "keyDecisions": ["decision 1", "decision 2"],
   "discussionPoints": ["topic discussed 1", "topic discussed 2"],
   "actionItems": [
-    {"task": "description", "owner": "person name", "due": "timeframe"}
+    {"task": "description", "assignee": "person name", "dueDate": "timeframe"}
   ],
   "nextSteps": ["next step 1", "next step 2"]
 }
@@ -112,46 +113,14 @@ export const POST = withHandler(
       if (transcript && (transcript as unknown as Record<string, unknown>).segments) {
         const segments = (transcript as unknown as Record<string, unknown>)
           .segments as Array<{
-          speaker?: string;
           speakerName?: string;
           text: string;
         }>;
         transcriptText = segments
           .map(
-            (s) => `${s.speaker || s.speakerName || "Unknown"}: ${s.text}`
+            (s) => `${s.speakerName || "Unknown"}: ${s.text}`
           )
           .join("\n");
-      }
-    }
-
-    // Also try the inline API transcription endpoint
-    if (!transcriptText) {
-      try {
-        const base =
-          process.env.NEXT_PUBLIC_APP_URL ||
-          process.env.NEXT_PUBLIC_BASE_URL ||
-          process.env.NEXTAUTH_URL ||
-          "http://localhost:3000";
-        const res = await fetch(
-          `${base}/api/transcription?meetingId=${meeting._id}`,
-          {
-            headers: { cookie: req.headers.get("cookie") || "" },
-          }
-        );
-        if (res.ok) {
-          const data = await res.json();
-          const segments = data.data?.segments || [];
-          if (segments.length > 0) {
-            transcriptText = segments
-              .map(
-                (s: { speaker: string; text: string }) =>
-                  `${s.speaker}: ${s.text}`
-              )
-              .join("\n");
-          }
-        }
-      } catch (err) {
-        log.warn({ err, meetingId }, "failed to fetch transcript for MoM generation");
       }
     }
 
@@ -159,6 +128,12 @@ export const POST = withHandler(
       throw new BadRequestError(
         "No transcript found for this meeting. Record and transcribe the meeting first."
       );
+    }
+
+    // Cap transcript length to avoid excessive token usage / API errors
+    const MAX_TRANSCRIPT_CHARS = 100_000; // ~25k tokens — well within Gemini limits
+    if (transcriptText.length > MAX_TRANSCRIPT_CHARS) {
+      transcriptText = transcriptText.slice(0, MAX_TRANSCRIPT_CHARS) + "\n\n[Transcript truncated due to length]";
     }
 
     // Generate MoM using Gemini
@@ -170,13 +145,30 @@ export const POST = withHandler(
       model: process.env.GEMINI_MODEL || "gemini-2.0-flash",
     });
 
-    const result = await model.generateContent(
-      `${MOM_PROMPT}\n\nMeeting title: "${meeting.title}"\n\nTranscript:\n${transcriptText}`
-    );
+    const result = await Promise.race([
+      model.generateContent(
+        `${MOM_PROMPT}\n\nMeeting title: "${meeting.title}"\n\nTranscript:\n${transcriptText}`
+      ),
+      new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error("MoM generation timed out")), 120_000)
+      ),
+    ]);
 
     const responseText = result.response.text();
 
-    // Parse the JSON response
+    // Parse and validate the JSON response
+    const momResponseSchema = z.object({
+      summary: z.string().max(5000).default(""),
+      keyDecisions: z.array(z.string().max(1000)).max(50).default([]),
+      discussionPoints: z.array(z.string().max(1000)).max(50).default([]),
+      actionItems: z.array(z.object({
+        task: z.string().max(1000).default(""),
+        assignee: z.string().max(200).default("Unassigned"),
+        dueDate: z.string().max(100).default("TBD"),
+      })).max(100).default([]),
+      nextSteps: z.array(z.string().max(1000)).max(50).default([]),
+    });
+
     let mom;
     try {
       // Strip markdown code blocks if present
@@ -184,7 +176,8 @@ export const POST = withHandler(
         .replace(/```json\s*/gi, "")
         .replace(/```\s*/g, "")
         .trim();
-      mom = JSON.parse(cleaned);
+      const parsed = JSON.parse(cleaned);
+      mom = momResponseSchema.parse(parsed);
     } catch (parseErr) {
       log.error({ err: parseErr, responseText: responseText.slice(0, 500) }, "Failed to parse Gemini MoM response");
       throw new BadRequestError("Failed to parse AI-generated meeting minutes. Please try again.");
@@ -196,17 +189,15 @@ export const POST = withHandler(
       {
         $set: {
           mom: {
-            summary: mom.summary || "",
-            keyDecisions: mom.keyDecisions || [],
-            discussionPoints: mom.discussionPoints || [],
-            actionItems: (mom.actionItems || []).map(
-              (a: { task: string; owner: string; due: string }) => ({
-                task: a.task,
-                owner: a.owner || "Unassigned",
-                due: a.due || "TBD",
-              })
-            ),
-            nextSteps: mom.nextSteps || [],
+            summary: mom.summary,
+            keyDecisions: mom.keyDecisions,
+            discussionPoints: mom.discussionPoints,
+            actionItems: mom.actionItems.map((a) => ({
+              task: a.task,
+              assignee: a.assignee,
+              dueDate: a.dueDate,
+            })),
+            nextSteps: mom.nextSteps,
             generatedAt: new Date(),
             generatedBy: userId,
           },
@@ -218,13 +209,13 @@ export const POST = withHandler(
     (async () => {
       try {
         const conversation = await Conversation.findOne({ meetingId: meeting._id });
-        const actionItems: { task: string; owner: string; due: string }[] = mom.actionItems || [];
+        const actionItems: { task: string; assignee: string; dueDate: string }[] = mom.actionItems || [];
         if (!conversation || !actionItems.length) return;
 
         const actionCount = actionItems.length;
         const itemList = actionItems
-          .map((item: { task: string; owner: string; due: string }, i: number) =>
-            `${i + 1}. **${item.task}** → ${item.owner}${item.due !== "TBD" ? ` (due: ${item.due})` : ""}`)
+          .map((item: { task: string; assignee: string; dueDate: string }, i: number) =>
+            `${i + 1}. **${item.task}** → ${item.assignee}${item.dueDate !== "TBD" ? ` (due: ${item.dueDate})` : ""}`)
           .join("\n");
 
         const content = `📋 **${actionCount} action item(s) from this meeting:**\n\n${itemList}\n\nSay "add these to the board" to create tasks, or ask me about any of them.`;

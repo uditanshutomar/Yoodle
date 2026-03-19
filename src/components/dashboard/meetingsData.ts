@@ -20,10 +20,10 @@ export type MeetingRecord = {
     mom?: {
         keyDecisions: string[];
         discussionPoints: string[];
-        actionItems: { task: string; owner: string; due: string }[];
+        actionItems: { task: string; assignee: string; dueDate: string }[];
         nextSteps: string[];
     };
-    transcript?: { speaker: string; time: string; text: string }[];
+    transcript?: { speakerName: string; time: string; text: string }[];
     recordingUrl?: string;
     artifacts?: {
         momDocUrl?: string;
@@ -59,7 +59,7 @@ export interface APIMeetingMoM {
     summary: string;
     keyDecisions: string[];
     discussionPoints: string[];
-    actionItems: { task: string; owner: string; due: string }[];
+    actionItems: { task: string; assignee: string; dueDate: string }[];
     nextSteps: string[];
     generatedAt?: string;
 }
@@ -131,15 +131,21 @@ export function apiMeetingToRecord(m: APIMeeting): MeetingRecord {
         }
     }
 
-    const dateStr = new Date(start).toLocaleDateString("en-US", {
-        weekday: "short",
-        month: "short",
-        day: "numeric",
-    });
-    const timeStr = new Date(start).toLocaleTimeString("en-US", {
-        hour: "numeric",
-        minute: "2-digit",
-    });
+    const dt = new Date(start);
+    const isValidDate = !isNaN(dt.getTime());
+    const dateStr = isValidDate
+        ? dt.toLocaleDateString("en-US", {
+              weekday: "short",
+              month: "short",
+              day: "numeric",
+          })
+        : "Unknown date";
+    const timeStr = isValidDate
+        ? dt.toLocaleTimeString("en-US", {
+              hour: "numeric",
+              minute: "2-digit",
+          })
+        : "--:--";
 
     const projectColors: Record<string, string> = {
         ghost: "#7C3AED",
@@ -161,7 +167,7 @@ export function apiMeetingToRecord(m: APIMeeting): MeetingRecord {
                 role: p.role === "host" ? "Host" : undefined,
             };
         }),
-        hasSummary: !!m.description && m.description.length > 10,
+        hasSummary: !!m.mom,
         hasTranscript: false, // real transcript checked dynamically in MeetingDetail
         hasRecording: !!m.recordingId,
         project: m.type === "ghost" ? "Ghost" : undefined,
@@ -181,8 +187,8 @@ export function apiMeetingToRecord(m: APIMeeting): MeetingRecord {
                   discussionPoints: m.mom.discussionPoints || [],
                   actionItems: (m.mom.actionItems || []).map((a) => ({
                       task: a.task,
-                      owner: a.owner || "Unassigned",
-                      due: a.due || "TBD",
+                      assignee: a.assignee || "Unassigned",
+                      dueDate: a.dueDate || "TBD",
                   })),
                   nextSteps: m.mom.nextSteps || [],
               }

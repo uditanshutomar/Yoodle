@@ -12,7 +12,7 @@ interface SearchUser {
   _id: string;
   name: string;
   displayName?: string;
-  avatarUrl?: string;
+  avatar?: string;
   status?: "online" | "offline" | "in-meeting" | "dnd";
 }
 
@@ -86,8 +86,18 @@ export default function NewMessageModal({
           `/api/users/search?q=${encodeURIComponent(query)}`,
           { credentials: "include", signal: controller.signal },
         );
+        if (!res.ok) {
+          console.error("[NewMessageModal] User search failed:", res.status);
+          return;
+        }
         const data = await res.json();
-        if (data.success) setResults(data.data || []);
+        if (data.success) {
+          // Map API avatarUrl to frontend-standard avatar field
+          const mapped = ((data.data || []) as Array<Record<string, unknown>>).map(
+            (u) => ({ ...u, avatar: u.avatarUrl ?? u.avatar ?? undefined, avatarUrl: undefined } as unknown as SearchUser),
+          );
+          setResults(mapped);
+        }
       } catch (err) {
         if (err instanceof DOMException && err.name === "AbortError") return;
       } finally {
@@ -290,7 +300,7 @@ export default function NewMessageModal({
                           }`}
                         >
                           <Avatar
-                            src={user.avatarUrl}
+                            src={user.avatar}
                             name={user.displayName || user.name}
                             size="sm"
                             status={user.status as "online" | "offline" | "in-meeting" | "dnd" | undefined}

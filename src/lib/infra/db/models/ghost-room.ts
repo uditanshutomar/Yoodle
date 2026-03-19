@@ -1,4 +1,4 @@
-import mongoose, { Schema, Document, Model } from "mongoose";
+import mongoose, { Schema, Document, Model, Types } from "mongoose";
 
 // ── Types ─────────────────────────────────────────────────────────────
 
@@ -12,7 +12,7 @@ export interface IGhostMessage {
 }
 
 export interface IGhostParticipant {
-  userId: string;
+  userId: Types.ObjectId;
   name: string;
   displayName?: string;
   joinedAt: Date;
@@ -23,11 +23,11 @@ export interface IGhostRoom extends Document {
   roomId: string;
   code: string;
   title: string;
-  hostId: string;
+  hostId: Types.ObjectId;
   participants: IGhostParticipant[];
   messages: IGhostMessage[];
   notes: string;
-  meetingId?: string;
+  meetingId?: Types.ObjectId;
   expiresAt: Date;
   createdAt: Date;
   updatedAt: Date;
@@ -49,7 +49,7 @@ const ghostMessageSchema = new Schema<IGhostMessage>(
 
 const ghostParticipantSchema = new Schema<IGhostParticipant>(
   {
-    userId: { type: String, required: true },
+    userId: { type: Schema.Types.ObjectId, ref: "User", required: true },
     name: { type: String, required: true },
     displayName: { type: String },
     joinedAt: { type: Date, default: Date.now },
@@ -65,11 +65,11 @@ const ghostRoomSchema = new Schema<IGhostRoom>(
     roomId: { type: String, required: true, unique: true, index: true },
     code: { type: String, required: true, unique: true, index: true },
     title: { type: String, required: true, default: "Ghost Room", maxlength: 200 },
-    hostId: { type: String, required: true },
+    hostId: { type: Schema.Types.ObjectId, ref: "User", required: true },
     participants: { type: [ghostParticipantSchema], default: [] },
     messages: { type: [ghostMessageSchema], default: [] },
     notes: { type: String, default: "", maxlength: 10000 },
-    meetingId: { type: String },
+    meetingId: { type: Schema.Types.ObjectId, ref: "Meeting" },
     expiresAt: { type: Date, required: true },
   },
   {

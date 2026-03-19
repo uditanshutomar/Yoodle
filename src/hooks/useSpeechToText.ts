@@ -80,6 +80,10 @@ export function useSpeechToText(): UseSpeechToTextReturn {
         method: "POST",
         credentials: "include",
       });
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData?.error?.message || `Token request failed (${res.status})`);
+      }
       const json = await res.json();
       apiKey = (json.data?.key || "").trim();
       if (!apiKey) throw new Error("No key returned");

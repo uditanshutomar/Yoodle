@@ -40,6 +40,8 @@ export default function KanbanColumn({ column, tasks, onCreateTask, onTaskClick 
       await onCreateTask({ title, columnId: column.id });
       setNewTaskTitle("");
       setShowAddInput(false);
+    } catch (err) {
+      console.error("[KanbanColumn] Failed to create task:", err);
     } finally {
       setCreating(false);
     }

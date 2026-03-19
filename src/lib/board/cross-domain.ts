@@ -55,12 +55,12 @@ export async function createTaskFromMeeting(userId: string, args: Record<string,
   const createdTasks: string[] = [];
   const taskDocs = items.map((item) => {
     const ownerUser = participantUsers.find(
-      (u) => u.displayName?.toLowerCase().includes(item.owner?.toLowerCase() || "") ||
-             u.name?.toLowerCase().includes(item.owner?.toLowerCase() || "")
+      (u) => u.displayName?.toLowerCase().includes(item.assignee?.toLowerCase() || "") ||
+             u.name?.toLowerCase().includes(item.assignee?.toLowerCase() || "")
     );
     let dueDate: Date | undefined;
-    if (item.due && item.due !== "TBD") {
-      const parsed = new Date(item.due);
+    if (item.dueDate && item.dueDate !== "TBD") {
+      const parsed = new Date(item.dueDate);
       if (!isNaN(parsed.getTime())) dueDate = parsed;
     }
     const position = nextPosition;

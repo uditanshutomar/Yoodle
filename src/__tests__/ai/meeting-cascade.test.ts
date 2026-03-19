@@ -66,11 +66,6 @@ vi.mock("@/lib/ai/meeting-undo", () => ({
   storeUndoToken: (...args: unknown[]) => mockStoreUndoToken(...args),
 }));
 
-const mockUpdateKnowledgeGraph = vi.fn().mockResolvedValue(undefined);
-vi.mock("@/lib/ai/knowledge-builder", () => ({
-  updateKnowledgeGraph: (...args: unknown[]) => mockUpdateKnowledgeGraph(...args),
-}));
-
 vi.mock("@/lib/infra/logger", () => ({
   createLogger: () => ({
     info: vi.fn(),
@@ -101,7 +96,7 @@ const baseMeeting = {
     summary: "We discussed sprint results.",
     keyPoints: ["Velocity improved", "QA bottleneck"],
     actionItems: [
-      { task: "Fix CI pipeline", owner: "Alice", due: "2026-03-20" },
+      { task: "Fix CI pipeline", assignee: "Alice", dueDate: "2026-03-20" },
     ],
     decisions: ["Adopt new testing framework"],
   },
@@ -306,25 +301,4 @@ describe("executeMeetingCascade", () => {
     expect(artifactCalls.length).toBe(0);
   });
 
-  /* ─── Knowledge Graph Tests ─── */
-
-  it("calls updateKnowledgeGraph when meeting has MoM", async () => {
-    await executeMeetingCascade(USER_ID, MEETING_ID);
-    expect(mockUpdateKnowledgeGraph).toHaveBeenCalledWith(USER_ID, MEETING_ID);
-  });
-
-  it("does not call updateKnowledgeGraph when meeting has no MoM", async () => {
-    mockFindById.mockResolvedValue({ ...baseMeeting, mom: undefined });
-    await executeMeetingCascade(USER_ID, MEETING_ID);
-    expect(mockUpdateKnowledgeGraph).not.toHaveBeenCalled();
-  });
-
-  it("continues cascade when updateKnowledgeGraph throws", async () => {
-    mockUpdateKnowledgeGraph.mockRejectedValue(new Error("KB failure"));
-    const result = await executeMeetingCascade(USER_ID, MEETING_ID);
-    // Cascade should still complete with all steps
-    expect(result.steps.length).toBeGreaterThanOrEqual(4);
-    const tasksStep = result.steps.find((s) => s.step === "create_tasks");
-    expect(tasksStep!.status).toBe("done");
-  });
 });

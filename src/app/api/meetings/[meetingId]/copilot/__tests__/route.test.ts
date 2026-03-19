@@ -99,7 +99,8 @@ describe("GET /api/meetings/[meetingId]/copilot", () => {
 
     expect(response.status).toBe(200);
     expect(response.headers.get("Content-Type")).toBe("text/event-stream");
-    expect(response.headers.get("Cache-Control")).toBe("no-cache");
+    expect(response.headers.get("Cache-Control")).toBe("no-cache, no-transform");
+    expect(response.headers.get("X-Accel-Buffering")).toBe("no");
   });
 
   it("returns 404 when meeting not found", async () => {

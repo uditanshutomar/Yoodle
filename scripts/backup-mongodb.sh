@@ -76,16 +76,29 @@ END_TIME=$(date +%s)
 DURATION=$((END_TIME - START_TIME))
 
 # ── Verify backup ─────────────────────────────────────────────────────────
-if [ -f "$BACKUP_DIR/$BACKUP_FILE" ]; then
-  FILE_SIZE=$(du -h "$BACKUP_DIR/$BACKUP_FILE" | cut -f1)
-  echo "✅ Backup completed successfully!"
-  echo "   Size: $FILE_SIZE"
-  echo "   Duration: ${DURATION}s"
-  echo "   Path: $BACKUP_DIR/$BACKUP_FILE"
-else
+if [ ! -f "$BACKUP_DIR/$BACKUP_FILE" ]; then
   echo "❌ Backup failed — output file not found."
   exit 1
 fi
+
+# Check for suspiciously small files (truncated/empty backups)
+# stat -f%z is macOS, stat -c%s is Linux
+FILE_SIZE_BYTES=$(stat -f%z "$BACKUP_DIR/$BACKUP_FILE" 2>/dev/null || stat -c%s "$BACKUP_DIR/$BACKUP_FILE")
+if [ "$FILE_SIZE_BYTES" -lt 100 ]; then
+  echo "❌ Backup failed — file is suspiciously small (${FILE_SIZE_BYTES} bytes). Likely truncated."
+  rm -f "$BACKUP_DIR/$BACKUP_FILE"
+  exit 1
+fi
+
+# Note: mongodump --gzip --archive produces MongoDB's custom archive format,
+# NOT a standard gzip file. Do NOT run gzip -t on it — it will always fail
+# and falsely report corruption. The size check + set -e on mongodump is sufficient.
+
+FILE_SIZE=$(du -h "$BACKUP_DIR/$BACKUP_FILE" | cut -f1)
+echo "✅ Backup completed successfully!"
+echo "   Size: $FILE_SIZE"
+echo "   Duration: ${DURATION}s"
+echo "   Path: $BACKUP_DIR/$BACKUP_FILE"
 
 # ── Cleanup old backups ──────────────────────────────────────────────────
 echo ""

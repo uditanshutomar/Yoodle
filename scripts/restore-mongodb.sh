@@ -23,7 +23,8 @@ if [ -z "${1:-}" ]; then
   echo "   Available backups:"
   SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
   PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
-  find "$PROJECT_DIR/backups" -name "yoodle-backup-*.gz" -printf "     %f (%s bytes, %Td %Tb %TY)\n" 2>/dev/null | sort -r | head -10
+  # Use ls -lh instead of find -printf — -printf is GNU-only and fails on macOS
+  ls -lhtr "$PROJECT_DIR/backups"/yoodle-backup-*.gz 2>/dev/null | tail -10 | awk '{print "     " $NF " (" $5 ", " $6 " " $7 " " $8 ")"}'
   exit 1
 fi
 
@@ -44,6 +45,8 @@ elif [ -n "${MONGODB_URI:-}" ]; then
   : # Already set
 elif [ -f "$PROJECT_DIR/.env" ]; then
   MONGODB_URI=$(grep -E "^MONGODB_URI=" "$PROJECT_DIR/.env" | cut -d '=' -f 2- | tr -d '"' | tr -d "'")
+elif [ -f "$PROJECT_DIR/.env.production" ]; then
+  MONGODB_URI=$(grep -E "^MONGODB_URI=" "$PROJECT_DIR/.env.production" | cut -d '=' -f 2- | tr -d '"' | tr -d "'")
 fi
 
 if [ -z "${MONGODB_URI:-}" ]; then
@@ -72,6 +75,19 @@ read -rp "Are you sure? Type 'yes' to proceed: " CONFIRM
 if [ "$CONFIRM" != "yes" ]; then
   echo "❌ Restore cancelled."
   exit 0
+fi
+
+# ── Pre-restore safety backup ─────────────────────────────────────────────
+# Since --drop destroys existing data, take a safety snapshot first
+# so the operation is reversible if the restore file is corrupt.
+echo ""
+echo "🛡️  Creating pre-restore safety backup..."
+SAFETY_DIR="$(dirname "$BACKUP_FILE")"
+SAFETY_FILE="${SAFETY_DIR}/pre-restore-safety-$(date +%Y-%m-%d_%H-%M-%S).gz"
+if mongodump --uri="$MONGODB_URI" --gzip --archive="$SAFETY_FILE" --quiet; then
+  echo "   Safety backup saved: $SAFETY_FILE"
+else
+  echo "   ⚠️  Safety backup failed — proceeding anyway (source backup file still available)"
 fi
 
 # ── Run restore ───────────────────────────────────────────────────────────

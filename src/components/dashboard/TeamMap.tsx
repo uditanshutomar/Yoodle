@@ -73,6 +73,8 @@ export default function TeamMap({ active }: TeamMapProps) {
         const json = await res.json();
         setNearbyUsers(json.data || []);
         setFetchError(null);
+      } else {
+        setFetchError("Couldn't load nearby Yoodlers");
       }
     } catch (err) {
       if (err instanceof DOMException && err.name === "AbortError") return;
@@ -84,12 +86,19 @@ export default function TeamMap({ active }: TeamMapProps) {
   useEffect(() => { fetchNearbyRef.current = fetchNearby; }, [fetchNearby]);
 
   useEffect(() => {
-    const controller = new AbortController();
-    void fetchNearbyRef.current(controller.signal);
-    if (!active) return () => controller.abort();
-    const interval = setInterval(() => void fetchNearbyRef.current(controller.signal), 15_000);
+    let cancelled = false;
+    let currentController = new AbortController();
+    void fetchNearbyRef.current(currentController.signal);
+    if (!active) return () => { cancelled = true; currentController.abort(); };
+    const interval = setInterval(() => {
+      if (cancelled) return;
+      currentController.abort(); // Cancel any in-flight request from previous tick
+      currentController = new AbortController();
+      void fetchNearbyRef.current(currentController.signal);
+    }, 15_000);
     return () => {
-      controller.abort();
+      cancelled = true;
+      currentController.abort();
       clearInterval(interval);
     };
   }, [active]);

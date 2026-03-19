@@ -11,11 +11,11 @@ import InsightQueue, { type InsightItem } from "./InsightQueue";
 import SessionSwitcher from "./SessionSwitcher";
 import VoiceInputButton from "@/components/chat/VoiceInputButton";
 import { useAuth } from "@/hooks/useAuth";
-import type { ChatMessage } from "@/hooks/useAIChat";
+import type { AIChatMessage } from "@/hooks/useAIChat";
 import { MASCOT_BY_MODE } from "./constants";
 
 interface ChatWindowProps {
-  messages: ChatMessage[];
+  messages: AIChatMessage[];
   isStreaming: boolean;
   onSend: (message: string) => void;
   onStop: () => void;

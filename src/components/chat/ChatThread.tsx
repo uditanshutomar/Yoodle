@@ -3,6 +3,7 @@
 import {
   useState,
   useEffect,
+  useLayoutEffect,
   useRef,
   useCallback,
   useMemo,
@@ -159,7 +160,8 @@ export default function ChatThread({
   }, []);
 
   const loadingRef = useRef(loading);
-  useEffect(() => { loadingRef.current = loading; }, [loading]);
+  // useLayoutEffect ensures the ref is updated before any scroll handlers fire
+  useLayoutEffect(() => { loadingRef.current = loading; }, [loading]);
 
   const handleScroll = useCallback(() => {
     const el = scrollContainerRef.current;
@@ -260,14 +262,14 @@ export default function ChatThread({
     isVoiceRecordingRef.current = false;
   }, []);
 
-  // Cleanup typing timeout
+  // Clear typing timeout on unmount AND when conversation changes
   useEffect(() => {
     return () => {
       if (typingTimeoutRef.current) {
         clearTimeout(typingTimeoutRef.current);
       }
     };
-  }, []);
+  }, [conversationId]);
 
   // ── Agent toggle ───────────────────────────────────────────────────────
 

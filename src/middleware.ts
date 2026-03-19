@@ -37,11 +37,19 @@ function redirectToLogin(request: NextRequest, pathname: string, clearCookie = f
   const response = NextResponse.redirect(loginUrl);
   if (clearCookie) {
     response.cookies.delete("yoodle-access-token");
+    response.cookies.delete({ name: "yoodle-refresh-token", path: "/api/auth" });
+    response.cookies.delete({ name: "yoodle-refresh-token", path: "/" });
   }
   return applySecurityHeaders(response);
 }
 
-/** Append security headers to every response flowing through middleware. */
+/**
+ * Append security headers to every response flowing through middleware.
+ *
+ * NOTE: These headers mirror next.config.ts securityHeaders[]. If you change
+ * values here, update next.config.ts too (it covers static assets that bypass
+ * middleware). CSP is only in next.config.ts since it needs build-time env vars.
+ */
 function applySecurityHeaders(response: NextResponse): NextResponse {
   response.headers.set("X-Frame-Options", "SAMEORIGIN");
   response.headers.set("X-Content-Type-Options", "nosniff");
@@ -97,8 +105,21 @@ export async function middleware(request: NextRequest) {
     }
 
     return applySecurityHeaders(response);
-  } catch {
-    // Token is invalid or expired - redirect to login
+  } catch (err) {
+    // Distinguish expected JWT failures from unexpected errors for observability.
+    // Use .code (not .name) — class names are minified in Edge bundles but
+    // jose sets explicit .code strings that survive minification.
+    const code = (err as { code?: string }).code ?? "";
+    const isExpectedJwtError =
+      code === "ERR_JWT_EXPIRED" ||
+      code === "ERR_JWT_CLAIM_VALIDATION_FAILED" ||
+      code === "ERR_JWS_SIGNATURE_VERIFICATION_FAILED" ||
+      code === "ERR_JWS_INVALID";
+
+    if (!isExpectedJwtError) {
+      console.error("[middleware] Unexpected error during JWT verification:", err);
+    }
+
     return redirectToLogin(request, pathname, true);
   }
 }

@@ -6,7 +6,14 @@ import { checkRateLimit } from "@/lib/infra/api/rate-limit";
 import { getGoogleAuthUrl } from "@/lib/infra/auth/google";
 
 const querySchema = z.object({
-  redirect: z.string().optional().default("/dashboard"),
+  redirect: z
+    .string()
+    .optional()
+    .default("/dashboard")
+    .refine(
+      (v) => v.startsWith("/") && !v.startsWith("//") && !v.includes("://"),
+      { message: "redirect must be a relative path" }
+    ),
 });
 
 /**

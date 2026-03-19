@@ -9,7 +9,6 @@ const components = {
     const safe =
       href &&
       (href.startsWith("https://") ||
-        href.startsWith("http://") ||
         href.startsWith("mailto:") ||
         /^\/(?!\/)/.test(href)); // single-slash relative paths only, blocks //evil.com
     return safe ? (

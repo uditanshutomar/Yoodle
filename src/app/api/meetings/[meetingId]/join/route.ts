@@ -78,7 +78,7 @@ async function ensureMeetingConversation(meetingId: string, meeting: any) {
 
       try {
         const redis = getRedisClient();
-        await redis.publish(`chat:${conv._id}`, JSON.stringify({ type: "message", message: msg }));
+        await redis.publish(`chat:${conv._id}`, JSON.stringify({ type: "message", data: msg }));
       } catch (err) { chatLog.warn({ err }, "Redis publish failed"); }
     }
   } catch (err) {

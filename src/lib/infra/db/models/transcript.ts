@@ -1,7 +1,7 @@
 import mongoose, { Schema, Document, Model } from "mongoose";
 
 export interface ITranscriptSegment {
-  speaker: string;
+  speakerName: string;
   speakerId: string;
   text: string;
   timestamp: number;
@@ -18,7 +18,7 @@ export interface ITranscript extends Document {
 
 const transcriptSegmentSchema = new Schema<ITranscriptSegment>(
   {
-    speaker: { type: String, required: true },
+    speakerName: { type: String, required: true },
     speakerId: { type: String, required: true },
     text: { type: String, required: true },
     timestamp: { type: Number, required: true },

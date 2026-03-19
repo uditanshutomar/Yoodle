@@ -97,8 +97,9 @@ export default function ChatPanel({ isOpen, onClose, messages, onSendMessage, cu
                         )}
                         {messages.map((msg) => {
                             const isMe = msg.senderId === currentUserId;
-                            const color = getInitialColor(msg.senderName);
-                            const initial = msg.senderName.charAt(0).toUpperCase();
+                            const safeName = msg.senderName || "?";
+                            const color = getInitialColor(safeName);
+                            const initial = safeName.charAt(0).toUpperCase();
 
                             return (
                                 <motion.div

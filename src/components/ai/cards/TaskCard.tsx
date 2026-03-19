@@ -10,6 +10,7 @@ const PRIORITY_COLORS: Record<TaskPriority, string> = {
   high: "bg-orange-500/20 text-orange-400 border-orange-500/30",
   medium: "bg-yellow-500/20 text-yellow-400 border-yellow-500/30",
   low: "bg-blue-500/20 text-blue-400 border-blue-500/30",
+  none: "bg-gray-500/10 text-gray-400 border-gray-500/20",
 };
 
 const STATUS_ICONS: Record<TaskStatus, string> = {

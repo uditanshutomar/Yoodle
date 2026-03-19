@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   DndContext,
@@ -57,6 +57,9 @@ export default function KanbanBoard({
   });
   const keyboardSensor = useSensor(KeyboardSensor);
   const sensors = useSensors(pointerSensor, keyboardSensor);
+
+  // Ref to capture position updates from pure state updaters (avoids side-effects inside updaters)
+  const pendingUpdatesRef = useRef<{ taskId: string; columnId: string; position: number }[] | null>(null);
 
   /* ─── Filtered tasks ─── */
   const filteredTasks = useMemo(() => {
@@ -153,86 +156,82 @@ export default function KanbanBoard({
       const activeTaskId = String(active.id);
       const overId = String(over.id);
 
+      // Helper to determine target column from overId
+      const getColumnId = (id: string) =>
+        id.startsWith("column-") ? id.replace("column-", "") : findColumnOfTask(id);
+
       const activeColumnId = findColumnOfTask(activeTaskId);
       if (!activeColumnId) return;
 
-      let overColumnId: string | null = null;
-      if (overId.startsWith("column-")) {
-        overColumnId = overId.replace("column-", "");
-      } else {
-        overColumnId = findColumnOfTask(overId);
-      }
+      const overColumnId = getColumnId(overId);
       if (!overColumnId) return;
+
+      // Use a ref to capture position updates from the pure state updater,
+      // so we can fire the API call outside without mutating a local `let`
+      // inside the updater (which is a side-effect that breaks under Strict Mode).
+      pendingUpdatesRef.current = null;
 
       // Reorder within same column
       if (activeColumnId === overColumnId && !overId.startsWith("column-")) {
-        const columnTasks = tasks
-          .filter((t) => t.columnId === activeColumnId)
-          .sort((a, b) => a.position - b.position);
-        const oldIndex = columnTasks.findIndex((t) => t._id === activeTaskId);
-        const newIndex = columnTasks.findIndex((t) => t._id === overId);
+        setTasks((prev) => {
+          const columnTasks = prev
+            .filter((t) => t.columnId === activeColumnId)
+            .sort((a, b) => a.position - b.position);
+          const oldIndex = columnTasks.findIndex((t) => t._id === activeTaskId);
+          const newIndex = columnTasks.findIndex((t) => t._id === overId);
 
-        if (oldIndex !== -1 && newIndex !== -1 && oldIndex !== newIndex) {
+          if (oldIndex === -1 || newIndex === -1 || oldIndex === newIndex) return prev;
+
           const reordered = arrayMove(columnTasks, oldIndex, newIndex);
-          const updates = reordered.map((t, i) => ({
+          pendingUpdatesRef.current = reordered.map((t, i) => ({
             taskId: t._id,
             columnId: activeColumnId,
             position: i,
           }));
 
-          // Optimistic update
-          setTasks((prev) => {
-            const otherTasks = prev.filter((t) => t.columnId !== activeColumnId);
-            const updatedColumnTasks = reordered.map((t, i) => ({
-              ...t,
-              position: i,
-            }));
-            return [...otherTasks, ...updatedColumnTasks];
-          });
-
-          reorderTasks(updates);
-        }
+          const otherTasks = prev.filter((t) => t.columnId !== activeColumnId);
+          return [...otherTasks, ...reordered.map((t, i) => ({ ...t, position: i }))];
+        });
       } else {
-        // Cross-column move: persist the move
-        const targetColumnTasks = tasks
-          .filter((t) => t.columnId === overColumnId && t._id !== activeTaskId)
-          .sort((a, b) => a.position - b.position);
+        // Cross-column move
+        setTasks((prev) => {
+          const movedTask = prev.find((t) => t._id === activeTaskId);
+          if (!movedTask) return prev;
 
-        let insertIndex = targetColumnTasks.length;
-        if (!overId.startsWith("column-")) {
-          const overIndex = targetColumnTasks.findIndex((t) => t._id === overId);
-          if (overIndex !== -1) insertIndex = overIndex;
-        }
+          const targetColumnTasks = prev
+            .filter((t) => t.columnId === overColumnId && t._id !== activeTaskId)
+            .sort((a, b) => a.position - b.position);
 
-        // Insert the moved task
-        const movedTask = tasks.find((t) => t._id === activeTaskId);
-        if (movedTask) {
+          let insertIndex = targetColumnTasks.length;
+          if (!overId.startsWith("column-")) {
+            const overIndex = targetColumnTasks.findIndex((t) => t._id === overId);
+            if (overIndex !== -1) insertIndex = overIndex;
+          }
+
           const newColumnTasks = [...targetColumnTasks];
           newColumnTasks.splice(insertIndex, 0, { ...movedTask, columnId: overColumnId });
 
-          const updates = newColumnTasks.map((t, i) => ({
+          pendingUpdatesRef.current = newColumnTasks.map((t, i) => ({
             taskId: t._id,
             columnId: overColumnId!,
             position: i,
           }));
 
-          setTasks((prev) => {
-            const otherTasks = prev.filter(
-              (t) => t.columnId !== overColumnId && t._id !== activeTaskId
-            );
-            const updatedColumnTasks = newColumnTasks.map((t, i) => ({
-              ...t,
-              columnId: overColumnId!,
-              position: i,
-            }));
-            return [...otherTasks, ...updatedColumnTasks];
-          });
+          const otherTasks = prev.filter(
+            (t) => t.columnId !== overColumnId && t._id !== activeTaskId
+          );
+          return [...otherTasks, ...newColumnTasks.map((t, i) => ({ ...t, columnId: overColumnId!, position: i }))];
+        });
+      }
 
-          reorderTasks(updates);
-        }
+      // Fire API call outside the updater to keep updaters pure
+      if (pendingUpdatesRef.current) {
+        reorderTasks(pendingUpdatesRef.current).catch((err: unknown) =>
+          console.error("[KanbanBoard] Reorder failed:", err)
+        );
       }
     },
-    [findColumnOfTask, tasks, setTasks, reorderTasks]
+    [findColumnOfTask, setTasks, reorderTasks]
   );
 
   /* ─── Loading state ─── */

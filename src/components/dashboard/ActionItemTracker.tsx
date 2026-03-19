@@ -29,7 +29,7 @@ export default function ActionItemTracker() {
 
     const fetchData = async () => {
       try {
-        const res = await fetch("/api/boards/tasks?source=meeting-mom&limit=100", {
+        const res = await fetch("/api/tasks/my?limit=100", {
           credentials: "include",
         });
         if (cancelled) return;
@@ -46,9 +46,10 @@ export default function ActionItemTracker() {
           }).length;
           setStats({ total, completed, overdue });
         } else {
-          setError(true);
+          if (!cancelled) setError(true);
         }
-      } catch {
+      } catch (err) {
+        console.warn("[ActionItemTracker] Failed to fetch tasks:", err);
         if (!cancelled) setError(true);
       } finally {
         if (!cancelled) setLoading(false);
@@ -102,35 +103,41 @@ export default function ActionItemTracker() {
         </span>
       </div>
 
-      {error && (
+      {error ? (
         <p className="text-xs text-[var(--text-muted)] text-center py-4">
           Could not load action items
         </p>
+      ) : stats.total === 0 ? (
+        <p className="text-xs text-[var(--text-muted)] text-center py-4">
+          No action items yet — they&apos;ll show up after meetings
+        </p>
+      ) : (
+        <>
+          {/* Progress bar */}
+          <div className="relative h-2.5 rounded-full bg-[var(--surface-hover)] overflow-hidden mb-3">
+            <div
+              className="absolute inset-y-0 left-0 rounded-full bg-[#22C55E] transition-all duration-500"
+              style={{ width: `${pct}%` }}
+            />
+          </div>
+
+          {/* Stats row */}
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-1 text-[11px] font-semibold text-[#22C55E]">
+              <CheckCircle2 size={13} />
+              <span>{stats.completed} done</span>
+            </div>
+            <div className="flex items-center gap-1 text-[11px] font-semibold text-[var(--text-muted)]">
+              <Circle size={13} />
+              <span>{open} open</span>
+            </div>
+            <div className="flex items-center gap-1 text-[11px] font-semibold text-[#EF4444]">
+              <AlertTriangle size={13} />
+              <span>{stats.overdue} overdue</span>
+            </div>
+          </div>
+        </>
       )}
-
-      {/* Progress bar */}
-      <div className="relative h-2.5 rounded-full bg-[var(--surface-hover)] overflow-hidden mb-3">
-        <div
-          className="absolute inset-y-0 left-0 rounded-full bg-[#22C55E] transition-all duration-500"
-          style={{ width: `${pct}%` }}
-        />
-      </div>
-
-      {/* Stats row */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-1 text-[11px] font-semibold text-[#22C55E]">
-          <CheckCircle2 size={13} />
-          <span>{stats.completed} done</span>
-        </div>
-        <div className="flex items-center gap-1 text-[11px] font-semibold text-[var(--text-muted)]">
-          <Circle size={13} />
-          <span>{open} open</span>
-        </div>
-        <div className="flex items-center gap-1 text-[11px] font-semibold text-[#EF4444]">
-          <AlertTriangle size={13} />
-          <span>{stats.overdue} overdue</span>
-        </div>
-      </div>
     </div>
   );
 }

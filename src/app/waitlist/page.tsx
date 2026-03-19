@@ -1,11 +1,13 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
 import Image from "next/image";
 import { YoodleMascotSmall } from "@/components/YoodleMascot";
 import { DoodleStar, DoodleLightning, DoodleSparkles } from "@/components/Doodles";
+
+const WAITLIST_URL = "https://yoodle.vercel.app/waitlist";
 
 export default function WaitlistPage() {
   const [email, setEmail] = useState("");
@@ -17,27 +19,61 @@ export default function WaitlistPage() {
   const [position, setPosition] = useState<number | null>(null);
   const [waitlistCount, setWaitlistCount] = useState<number | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const isSubmittingRef = useRef(false);
+  const [copyFeedback, setCopyFeedback] = useState<string | null>(null);
+  const copyTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
 
   // Fetch waitlist count on mount
   useEffect(() => {
     fetch("/api/waitlist")
-      .then((r) => r.json())
+      .then((r) => {
+        if (!r.ok) throw new Error(`Waitlist fetch failed: ${r.status}`);
+        return r.json();
+      })
       .then((d) => {
         if (d.success && d.data?.count != null) {
           setWaitlistCount(d.data.count);
         }
       })
-      .catch(() => {});
+      .catch((err) => {
+        console.warn("[WaitlistPage] Failed to fetch waitlist count:", err.message);
+      });
+  }, []);
+
+  // Clean up copy feedback timer on unmount
+  useEffect(() => {
+    return () => { clearTimeout(copyTimerRef.current); };
+  }, []);
+
+  const handleCopyLink = useCallback(async () => {
+    try {
+      await navigator.clipboard.writeText(WAITLIST_URL);
+      setCopyFeedback("Copied!");
+    } catch {
+      setCopyFeedback("Failed to copy");
+    }
+    clearTimeout(copyTimerRef.current);
+    copyTimerRef.current = setTimeout(() => setCopyFeedback(null), 2000);
   }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSubmittingRef.current) return;
+
     if (!email.trim()) {
       setErrorMsg("Email is required.");
       inputRef.current?.focus();
       return;
     }
 
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email.trim())) {
+      setErrorMsg("Please enter a valid email address.");
+      inputRef.current?.focus();
+      return;
+    }
+
+    isSubmittingRef.current = true;
     setStatus("loading");
     setErrorMsg("");
 
@@ -51,7 +87,15 @@ export default function WaitlistPage() {
         }),
       });
 
-      const data = await res.json();
+      let data;
+      try {
+        data = await res.json();
+      } catch {
+        console.warn("[WaitlistPage] Non-JSON response from /api/waitlist POST:", res.status);
+        setStatus("error");
+        setErrorMsg("Server returned an unexpected response. Please try again later.");
+        return;
+      }
 
       if (!res.ok) {
         setStatus("error");
@@ -66,9 +110,12 @@ export default function WaitlistPage() {
         if (data.data?.position) setPosition(data.data.position);
         setWaitlistCount((prev) => (prev != null ? prev + 1 : null));
       }
-    } catch {
+    } catch (err) {
+      console.error("[WaitlistPage] Submit failed:", err);
       setStatus("error");
       setErrorMsg("Network error. Please try again.");
+    } finally {
+      isSubmittingRef.current = false;
     }
   };
 
@@ -137,7 +184,7 @@ export default function WaitlistPage() {
             className="text-2xl font-black tracking-tight"
             style={{
               fontFamily: "var(--font-heading)",
-              color: "#0A0A0A",
+              color: "var(--text-primary)",
               textShadow: "2px 2px 0 #FFE600",
             }}
           >
@@ -190,7 +237,7 @@ export default function WaitlistPage() {
             <span
               className="relative inline-block"
               style={{
-                color: "#0A0A0A",
+                color: "var(--text-primary)",
               }}
             >
               everyone else.
@@ -297,10 +344,9 @@ export default function WaitlistPage() {
                           window.open(
                             `https://twitter.com/intent/tweet?text=${encodeURIComponent(
                               "Just joined the waitlist for @yoodle_app — meetings reimagined! Get in early: "
-                            )}&url=${encodeURIComponent(
-                              "https://yoodle.vercel.app/waitlist"
-                            )}`,
-                            "_blank"
+                            )}&url=${encodeURIComponent(WAITLIST_URL)}`,
+                            "_blank",
+                            "noopener,noreferrer"
                           )
                         }
                         icon={
@@ -312,9 +358,10 @@ export default function WaitlistPage() {
                         onClick={() =>
                           window.open(
                             `https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(
-                              "https://yoodle.vercel.app/waitlist"
+                              WAITLIST_URL
                             )}`,
-                            "_blank"
+                            "_blank",
+                            "noopener,noreferrer"
                           )
                         }
                         icon={
@@ -322,12 +369,8 @@ export default function WaitlistPage() {
                         }
                       />
                       <ShareButton
-                        label="Copy Link"
-                        onClick={() => {
-                          navigator.clipboard.writeText(
-                            "https://yoodle.vercel.app/waitlist"
-                          );
-                        }}
+                        label={copyFeedback || "Copy Link"}
+                        onClick={handleCopyLink}
                         icon={
                           <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
                         }
@@ -529,7 +572,7 @@ function ShareButton({
         height="16"
         viewBox="0 0 24 24"
         fill="none"
-        stroke="#0A0A0A"
+        stroke="currentColor"
         strokeWidth="1.5"
         strokeLinecap="round"
         strokeLinejoin="round"

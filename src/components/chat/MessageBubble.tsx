@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useCallback } from "react";
-import ReactMarkdown from "react-markdown";
+import SafeMarkdown from "@/components/ai/SafeMarkdown";
 import { CornerUpLeft, Check, X, Loader2, Zap } from "lucide-react";
 import Avatar from "@/components/ui/Avatar";
 import { CardRenderer } from "@/components/ai/cards";
@@ -52,7 +52,8 @@ export default function MessageBubble({
   const [expanded, setExpanded] = useState(false);
   const senderType = message.senderType ?? "user";
   const isAgent = senderType === "agent";
-  const isSystem = senderType === "system";
+  // System messages may have senderType "user" (DB default) but type "system"
+  const isSystem = senderType === "system" || message.type === "system";
 
   const senderDisplayName =
     message.sender.displayName || message.sender.name || "Unknown";
@@ -186,22 +187,7 @@ export default function MessageBubble({
                 className="prose prose-sm prose-invert max-w-none"
                 style={{ color: "var(--text-primary)" }}
               >
-                <ReactMarkdown
-                  disallowedElements={["script", "iframe", "object", "embed", "form", "input", "style"]}
-                  unwrapDisallowed
-                  components={{
-                    a: ({ href, children }) => {
-                      const safe = href && (href.startsWith("https://") || href.startsWith("http://") || href.startsWith("/") || href.startsWith("mailto:"));
-                      return safe ? (
-                        <a href={href} target="_blank" rel="noopener noreferrer">{children}</a>
-                      ) : (
-                        <span>{children}</span>
-                      );
-                    },
-                  }}
-                >
-                  {displayContent}
-                </ReactMarkdown>
+                <SafeMarkdown>{displayContent}</SafeMarkdown>
               </div>
 
               {isLong && (

@@ -47,6 +47,7 @@ const statusColors: Record<AvatarStatus, string> = {
 function getInitials(name: string): string {
   return name
     .split(" ")
+    .filter(Boolean)
     .map((part) => part[0])
     .join("")
     .toUpperCase()
@@ -91,6 +92,8 @@ export default function Avatar({ src, name = "", size = "md", status, className 
       {status && (
         <span
           className={`absolute ${s.dotPos} ${s.dot} ${statusColors[status]} rounded-full border-2 border-[var(--surface)]`}
+          aria-label={status}
+          role="status"
         />
       )}
     </div>

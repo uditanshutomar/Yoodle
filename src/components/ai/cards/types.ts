@@ -13,7 +13,7 @@ export type CardType =
   | "meeting_cascade";
 
 export type TaskStatus = "todo" | "in-progress" | "in-review" | "done" | "blocked";
-export type TaskPriority = "urgent" | "high" | "medium" | "low";
+export type TaskPriority = "urgent" | "high" | "medium" | "low" | "none";
 export type HighlightType = "decision" | "key_point" | "disagreement" | "commitment";
 
 export interface BaseCard {

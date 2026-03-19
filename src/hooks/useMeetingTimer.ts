@@ -46,7 +46,9 @@ export function useMeetingTimer({
   const joinTimeRef = useRef(0);
   const isMountedRef = useRef(true);
 
-  // Initialize join time on mount (outside render to avoid impure function call)
+  // Initialize join time in an effect to satisfy the purity rule (Date.now
+  // is impure and can't be called during render). The interval tick guards
+  // against joinTimeRef still being 0.
   useEffect(() => {
     if (joinTimeRef.current === 0) {
       joinTimeRef.current = Date.now();
@@ -60,10 +62,12 @@ export function useMeetingTimer({
   const onTimeWarningRef = useRef(onTimeWarning);
   useEffect(() => { onTimeWarningRef.current = onTimeWarning; }, [onTimeWarning]);
 
-  // Tick every second
+  // Tick every second — guard against joinTimeRef not yet initialized
   useEffect(() => {
     const interval = setInterval(() => {
-      setElapsedSeconds(Math.floor((Date.now() - joinTimeRef.current) / 1000));
+      if (joinTimeRef.current > 0) {
+        setElapsedSeconds(Math.floor((Date.now() - joinTimeRef.current) / 1000));
+      }
     }, 1000);
     return () => clearInterval(interval);
   }, []);
@@ -103,7 +107,8 @@ export function useMeetingTimer({
           setScheduledDuration(data.data.scheduledDuration);
         }
         return true;
-      } catch {
+      } catch (err) {
+        console.warn("[useMeetingTimer] extendMeeting failed:", err);
         return false;
       }
     },

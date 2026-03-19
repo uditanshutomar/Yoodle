@@ -35,17 +35,15 @@ export const POST = withHandler(async (req: NextRequest, context) => {
 
   await connectDB();
 
-  // Verify user is a participant
-  const conversation = await Conversation.findById(id).select("participants").lean();
+  // Verify user is a participant (atomic single query — no TOCTOU gap)
+  const conversation = await Conversation.findOne({
+    _id: new mongoose.Types.ObjectId(id),
+    "participants.userId": new mongoose.Types.ObjectId(userId),
+  })
+    .select("_id")
+    .lean();
   if (!conversation) {
     throw new NotFoundError("Conversation not found.");
-  }
-
-  const isParticipant = conversation.participants.some(
-    (p) => p.userId.toString() === userId
-  );
-  if (!isParticipant) {
-    throw new ForbiddenError("You are not a participant in this conversation.");
   }
 
   // Validate body

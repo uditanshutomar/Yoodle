@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
 import mongoose from "mongoose";
+import { z } from "zod";
 import { withHandler } from "@/lib/infra/api/with-handler";
 import { successResponse } from "@/lib/infra/api/response";
 import { checkRateLimit } from "@/lib/infra/api/rate-limit";
@@ -16,6 +17,16 @@ import { createLogger } from "@/lib/infra/logger";
 const log = createLogger("api:recordings-upload");
 
 // ── Upload validation constants ──────────────────────────────────
+
+const speechSegmentSchema = z.object({
+  speakerName: z.string().max(200),
+  speakerId: z.string().max(100),
+  startTime: z.number().min(0),
+  endTime: z.number().min(0),
+});
+
+const speechSegmentsSchema = z.array(speechSegmentSchema).max(5000);
+
 const MAX_FILE_SIZE_BYTES = 500 * 1024 * 1024; // 500 MB
 const ALLOWED_MIME_TYPES = new Set([
   "video/webm",
@@ -133,29 +144,21 @@ export const POST = withHandler(async (req: NextRequest) => {
   // Store speech segments for speaker-attributed transcription
   if (speechSegmentsRaw) {
     try {
-      const segments = JSON.parse(speechSegmentsRaw);
-      if (Array.isArray(segments) && segments.length > 0) {
-        // Cap incoming segments to prevent abuse
-        const cappedSegments = segments.slice(0, 5000);
+      const parsed = JSON.parse(speechSegmentsRaw);
+      const segments = speechSegmentsSchema.parse(parsed);
+      if (segments.length > 0) {
         await Transcript.findOneAndUpdate(
           { meetingId },
           {
             $push: {
               segments: {
-                $each: cappedSegments.map(
-                  (seg: {
-                    speakerName: string;
-                    speakerId: string;
-                    startTime: number;
-                    endTime: number;
-                  }) => ({
-                    speaker: seg.speakerName,
-                    speakerId: seg.speakerId,
-                    text: "",
-                    timestamp: seg.startTime,
-                    duration: seg.endTime - seg.startTime,
-                  })
-                ),
+                $each: segments.map((seg) => ({
+                  speakerName: seg.speakerName,
+                  speakerId: seg.speakerId,
+                  text: "",
+                  timestamp: seg.startTime,
+                  duration: seg.endTime - seg.startTime,
+                })),
                 $slice: -5000,
               },
             },

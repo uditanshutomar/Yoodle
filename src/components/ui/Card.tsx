@@ -12,6 +12,21 @@ interface CardProps {
 export default function Card({ children, className = "", hover = false, onClick }: CardProps) {
   const base = `bg-[var(--surface)] border-2 border-[var(--border-strong)] rounded-2xl shadow-[var(--shadow-card)] p-6 ${className}`;
 
+  // When clickable, add keyboard accessibility (Enter/Space to activate)
+  const interactiveProps = onClick
+    ? {
+        role: "button" as const,
+        tabIndex: 0,
+        onKeyDown: (e: React.KeyboardEvent) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            onClick();
+          }
+        },
+        style: { cursor: "pointer" },
+      }
+    : {};
+
   if (hover) {
     return (
       <motion.div
@@ -23,6 +38,7 @@ export default function Card({ children, className = "", hover = false, onClick 
         }}
         transition={{ type: "spring", stiffness: 400, damping: 25 }}
         onClick={onClick}
+        {...interactiveProps}
       >
         {children}
       </motion.div>
@@ -30,7 +46,7 @@ export default function Card({ children, className = "", hover = false, onClick 
   }
 
   return (
-    <div className={base} onClick={onClick}>
+    <div className={base} onClick={onClick} {...interactiveProps}>
       {children}
     </div>
   );

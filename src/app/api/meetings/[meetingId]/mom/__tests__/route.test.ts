@@ -72,8 +72,8 @@ vi.mock("@/lib/infra/db/models/transcript", () => ({
     findOne: vi.fn().mockReturnValue({
       lean: vi.fn().mockResolvedValue({
         segments: [
-          { speaker: "Alice", text: "Let's discuss the roadmap." },
-          { speaker: "Bob", text: "Agreed. We need to finalize Q2 goals." },
+          { speakerName: "Alice", text: "Let's discuss the roadmap." },
+          { speakerName: "Bob", text: "Agreed. We need to finalize Q2 goals." },
         ],
       }),
     }),
@@ -87,7 +87,7 @@ const mockGenerateContent = vi.fn().mockResolvedValue({
       summary: "Discussed Q2 roadmap",
       keyDecisions: ["Finalize Q2 goals"],
       discussionPoints: ["Roadmap discussion"],
-      actionItems: [{ task: "Draft Q2 plan", owner: "Alice", due: "Next week" }],
+      actionItems: [{ task: "Draft Q2 plan", assignee: "Alice", dueDate: "Next week" }],
       nextSteps: ["Follow-up meeting"],
     }),
   },

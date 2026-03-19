@@ -10,17 +10,8 @@ vi.mock("@/lib/infra/db/client", () => ({
 const mockWaitlistCreate = vi.fn();
 const mockWaitlistCountDocuments = vi.fn();
 
-// Store the resolved value so findOne().select().lean() chain works
-let findOneResult: unknown = null;
-const mockWaitlistFindOne = vi.fn(() => ({
-  select: vi.fn().mockReturnValue({
-    lean: vi.fn().mockImplementation(() => Promise.resolve(findOneResult)),
-  }),
-}));
-
 vi.mock("@/lib/infra/db/models/waitlist", () => ({
   default: {
-    findOne: mockWaitlistFindOne,
     create: mockWaitlistCreate,
     countDocuments: mockWaitlistCountDocuments,
   },
@@ -45,11 +36,17 @@ function createPostRequest(body?: object) {
   return new NextRequest(url, init);
 }
 
+/** Simulate a MongoDB duplicate key error (code 11000) */
+function makeDuplicateKeyError() {
+  const err = new Error("E11000 duplicate key error") as Error & { code: number };
+  err.code = 11000;
+  return err;
+}
+
 describe("POST /api/waitlist", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    // Default: no duplicate, creation succeeds
-    findOneResult = null;
+    // Default: creation succeeds
     mockWaitlistCreate.mockResolvedValue({
       _id: "waitlist-entry-123",
       email: "new@example.com",
@@ -63,7 +60,6 @@ describe("POST /api/waitlist", () => {
     const response = await POST(req);
     const body = await response.json();
 
-    // successResponse({ message, id, position }, 201) → { success: true, data: { message, id, position } }
     expect(response.status).toBe(201);
     expect(body.success).toBe(true);
     expect(body.data.message).toContain("on the list");
@@ -73,7 +69,6 @@ describe("POST /api/waitlist", () => {
     const req = createPostRequest({ email: "Test@EXAMPLE.com" });
     await POST(req);
 
-    // The route calls Waitlist.create with email.toLowerCase()
     expect(mockWaitlistCreate).toHaveBeenCalledWith(
       expect.objectContaining({
         email: "test@example.com",
@@ -109,32 +104,16 @@ describe("POST /api/waitlist", () => {
     );
   });
 
-  it("returns idempotent success when email already exists (duplicate)", async () => {
-    findOneResult = {
-      _id: "existing-entry",
-      email: "dupe@example.com",
-    };
+  it("returns idempotent success when email already exists (duplicate key error)", async () => {
+    mockWaitlistCreate.mockRejectedValue(makeDuplicateKeyError());
 
     const req = createPostRequest({ email: "dupe@example.com" });
     const response = await POST(req);
     const body = await response.json();
 
-    // successResponse({ message, alreadyJoined }) → { success: true, data: { message, alreadyJoined } }
     expect(response.status).toBe(200);
     expect(body.success).toBe(true);
     expect(body.data.message).toContain("already on the waitlist");
-  });
-
-  it("does NOT call Waitlist.create when email already exists", async () => {
-    findOneResult = {
-      _id: "existing-entry",
-      email: "dupe@example.com",
-    };
-
-    const req = createPostRequest({ email: "dupe@example.com" });
-    await POST(req);
-
-    expect(mockWaitlistCreate).not.toHaveBeenCalled();
   });
 
   it("returns 400 with invalid email format", async () => {
@@ -188,12 +167,8 @@ describe("POST /api/waitlist", () => {
     expect(body.success).toBe(false);
   });
 
-  it("returns 500 when an unexpected error occurs", async () => {
-    mockWaitlistFindOne.mockReturnValue({
-      select: vi.fn().mockReturnValue({
-        lean: vi.fn().mockRejectedValue(new Error("DB crashed")),
-      }),
-    });
+  it("returns 500 when an unexpected (non-duplicate) error occurs", async () => {
+    mockWaitlistCreate.mockRejectedValue(new Error("DB crashed"));
 
     const req = createPostRequest({ email: "user@example.com" });
     const response = await POST(req);

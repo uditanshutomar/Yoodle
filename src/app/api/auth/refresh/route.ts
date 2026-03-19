@@ -27,10 +27,11 @@ export const POST = withHandler(async (req: NextRequest) => {
     // Return error response directly (not throw) so cookie deletions are preserved.
     // Throwing would create a new response in withHandler, discarding these cookies.
     const response = NextResponse.json(
-      { success: false, error: "Refresh token has been revoked." },
+      { success: false, error: { code: "TOKEN_REVOKED", message: "Refresh token has been revoked." } },
       { status: 401 },
     );
-    response.cookies.delete("yoodle-refresh-token");
+    response.cookies.delete({ name: "yoodle-refresh-token", path: "/api/auth" });
+    response.cookies.delete({ name: "yoodle-refresh-token", path: "/" });
     response.cookies.delete("yoodle-access-token");
     return response;
   }
@@ -101,7 +102,7 @@ export const POST = withHandler(async (req: NextRequest) => {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
     sameSite: "lax",
-    path: "/",
+    path: "/api/auth",
     maxAge: 7 * 24 * 60 * 60,
   });
 

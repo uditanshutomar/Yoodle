@@ -72,7 +72,7 @@ export const GET = withHandler(async (req: NextRequest) => {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       sameSite: "lax",
-      path: "/",
+      path: "/api/auth",
       maxAge: 7 * 24 * 60 * 60, // 7 days
     });
 

@@ -5,7 +5,7 @@ import { Save, Check, Users } from "lucide-react";
 import Button from "@/components/ui/Button";
 
 interface VoteToSaveProps {
-  roomId: string;
+  roomId?: string;
   totalParticipants: number;
   totalVotes: number;
   hasVoted: boolean;

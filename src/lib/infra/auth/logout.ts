@@ -63,7 +63,9 @@ export async function performLogout(req: NextRequest): Promise<NextResponse> {
 
   const response = successResponse({ message: "Logged out successfully." });
   response.cookies.delete("yoodle-access-token");
-  response.cookies.delete("yoodle-refresh-token");
+  // Delete refresh token at both paths to handle tokens issued before path scoping
+  response.cookies.delete({ name: "yoodle-refresh-token", path: "/api/auth" });
+  response.cookies.delete({ name: "yoodle-refresh-token", path: "/" });
 
   return response;
 }

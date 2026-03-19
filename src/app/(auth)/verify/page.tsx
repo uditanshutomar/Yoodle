@@ -10,7 +10,8 @@ import Button from "@/components/ui/Button";
 import { useAuth } from "@/hooks/useAuth";
 
 function VerifyContent() {
-  const searchParams = useSearchParams();
+  // useSearchParams() triggers the Suspense boundary for client navigation
+  useSearchParams();
   const router = useRouter();
   const { refreshSession } = useAuth();
   const [status, setStatus] = useState<"loading" | "success" | "error">("loading");
@@ -21,17 +22,22 @@ function VerifyContent() {
     // The actual auth happens via /api/auth/google/callback.
     // If we reach here, check if user is already authenticated.
     let cancelled = false;
+    let redirectTimer: ReturnType<typeof setTimeout>;
+
+    const COOKIE_SETTLE_DELAY_MS = 500;
+    const REDIRECT_DELAY_MS = 1500;
 
     const checkAuth = async () => {
       try {
         await refreshSession();
         if (!cancelled) {
           setStatus("success");
-          setTimeout(() => {
+          redirectTimer = setTimeout(() => {
             router.push("/dashboard");
-          }, 1500);
+          }, REDIRECT_DELAY_MS);
         }
-      } catch {
+      } catch (err) {
+        console.warn("[VerifyPage] Auth check failed:", err);
         if (!cancelled) {
           setStatus("error");
           setErrorMessage("Authentication not complete. Please sign in with Google.");
@@ -40,13 +46,15 @@ function VerifyContent() {
     };
 
     // Small delay to allow cookies to be set from callback redirect
-    const timer = setTimeout(checkAuth, 500);
+    const timer = setTimeout(checkAuth, COOKIE_SETTLE_DELAY_MS);
 
     return () => {
       cancelled = true;
       clearTimeout(timer);
+      clearTimeout(redirectTimer);
     };
-  }, [searchParams, router, refreshSession]);
+    // searchParams intentionally omitted — not read inside the effect
+  }, [router, refreshSession]);
 
   return (
     <motion.div
@@ -117,7 +125,7 @@ function VerifyContent() {
               Oops, that didn&apos;t work
             </h2>
             <p
-              className="text-sm text-[#0A0A0A]/60 max-w-xs mx-auto"
+              className="text-sm text-[var(--text-secondary)] max-w-xs mx-auto"
               style={{ fontFamily: "var(--font-body)" }}
             >
               {errorMessage}

@@ -13,9 +13,9 @@ import { findBoardWithAccess, verifyEditAccess } from "@/lib/board/helpers";
 const reorderSchema = z.object({
   tasks: z.array(
     z.object({
-      taskId: z.string(),
-      columnId: z.string(),
-      position: z.number(),
+      taskId: z.string().refine((val) => mongoose.Types.ObjectId.isValid(val), { message: "Invalid task ID" }),
+      columnId: z.string().max(50),
+      position: z.number().min(0).max(1_000_000),
     }),
   ).max(500),
 });

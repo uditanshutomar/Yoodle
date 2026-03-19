@@ -19,7 +19,7 @@ export const GET = withHandler(async (req: NextRequest) => {
   await connectDB();
 
   const user = await User.findById(userId)
-    .select("-refreshTokenHash -__v -googleTokens.accessToken -googleTokens.refreshToken -googleTokens.expiresAt -googleTokens.scope")
+    .select("-refreshTokenHash -magicLinkToken -magicLinkExpires -__v -googleTokens.accessToken -googleTokens.refreshToken -googleTokens.expiresAt -googleTokens.scope")
     .lean();
 
   if (!user) {

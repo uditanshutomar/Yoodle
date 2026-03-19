@@ -9,7 +9,7 @@ import Button from "@/components/ui/Button";
 import Badge from "@/components/ui/Badge";
 
 interface TranscriptSegment {
-  speaker: string;
+  speakerName: string;
   speakerId: string;
   text: string;
   timestamp: number;
@@ -94,16 +94,19 @@ export default function RecordingPage() {
     if (!videoRef.current) return;
     if (isPlaying) {
       videoRef.current.pause();
+      setIsPlaying(false);
     } else {
-      videoRef.current.play();
+      videoRef.current.play().catch(() => {
+        // Autoplay blocked or media error — keep isPlaying false
+      });
+      // isPlaying is set by the onPlay event handler on the <video> element
     }
-    setIsPlaying(!isPlaying);
   };
 
   const handleDownloadTranscript = () => {
     if (segments.length === 0) return;
     const lines = segments.map(
-      (seg) => `[${formatTimestamp(seg.timestamp)}] ${seg.speaker}: ${seg.text}`
+      (seg) => `[${formatTimestamp(seg.timestamp)}] ${seg.speakerName}: ${seg.text}`
     );
     const blob = new Blob([lines.join("\n")], { type: "text/plain" });
     const d = meetingDate || new Date();
@@ -235,7 +238,7 @@ export default function RecordingPage() {
                           className="flex items-center gap-1 text-xs text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors"
                         >
                           <Download size={14} />
-                          Download {formatFileSize(latestRecording.size) && `(${formatFileSize(latestRecording.size)})`}
+                          Download {(() => { const s = formatFileSize(latestRecording.size); return s ? `(${s})` : ""; })()}
                         </a>
                       )}
                     </div>
@@ -293,11 +296,7 @@ export default function RecordingPage() {
                             {new Date(rec.createdTime).toLocaleDateString()}
                           </span>
                         )}
-                        {formatFileSize(rec.size) && (
-                          <span className="text-[10px] text-[var(--text-muted)]">
-                            {formatFileSize(rec.size)}
-                          </span>
-                        )}
+                        {(() => { const s = formatFileSize(rec.size); return s ? <span className="text-[10px] text-[var(--text-muted)]">{s}</span> : null; })()}
                         <ExternalLink size={10} className="text-[var(--text-muted)]" />
                       </div>
                     </a>
@@ -354,7 +353,7 @@ export default function RecordingPage() {
               ) : (
                 <div className="space-y-3 max-h-[500px] overflow-y-auto">
                   {segments.map((seg, i) => (
-                    <div key={i} className="flex gap-3">
+                    <div key={`${seg.speakerId}-${seg.timestamp}-${i}`} className="flex gap-3">
                       <span className="text-xs text-[var(--text-muted)] w-10 shrink-0 pt-0.5 font-mono">
                         {formatTimestamp(seg.timestamp)}
                       </span>
@@ -363,7 +362,7 @@ export default function RecordingPage() {
                           className="text-xs font-bold text-[var(--text-primary)]"
                           style={{ fontFamily: "var(--font-heading)" }}
                         >
-                          {seg.speaker}
+                          {seg.speakerName}
                         </span>
                         <p
                           className="text-sm text-[var(--text-secondary)]"

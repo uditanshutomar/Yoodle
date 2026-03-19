@@ -45,8 +45,9 @@ export default function VoiceInputButton({
       try {
         onRecordingStart?.();
         await startRecording();
-      } catch {
+      } catch (err) {
         // Mic permission denied or unavailable — revert recording state
+        console.error("[VoiceInputButton] Failed to start recording:", err);
         onRecordingEnd?.();
       }
     }

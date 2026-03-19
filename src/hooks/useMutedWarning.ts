@@ -88,7 +88,10 @@ export function useMutedWarning(
 
       checkAudio();
     } catch {
-      // AudioContext not available
+      // AudioContext not available — stop the cloned track to avoid
+      // leaking a live mic stream that would never be cleaned up.
+      monitorTrack.stop();
+      return;
     }
 
     return () => {

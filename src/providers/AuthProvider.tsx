@@ -65,8 +65,17 @@ export default function AuthProvider({ children }: { children: ReactNode }) {
       } else {
         setUser(null);
       }
-    } catch {
-      setUser(null);
+    } catch (err) {
+      // Only clear user if this is NOT a transient network error.
+      // Network failures throw TypeError with "Failed to fetch" or "NetworkError".
+      // Other TypeErrors (programming bugs) should still clear the session.
+      const isNetworkError =
+        err instanceof TypeError &&
+        (err.message.includes("Failed to fetch") || err.message.includes("NetworkError") || err.message.includes("Load failed"));
+      if (!isNetworkError) {
+        setUser(null);
+      }
+      console.error("[AuthProvider] refreshSession failed:", err);
     } finally {
       setLoading(false);
     }
@@ -76,7 +85,7 @@ export default function AuthProvider({ children }: { children: ReactNode }) {
     refreshSession();
   }, [refreshSession]);
 
-  const loginWithGoogle = async (
+  const loginWithGoogle = useCallback(async (
     redirect?: string
   ): Promise<{ success: boolean; url?: string; message: string }> => {
     try {
@@ -93,9 +102,9 @@ export default function AuthProvider({ children }: { children: ReactNode }) {
     } catch {
       return { success: false, message: "Network error. Try again." };
     }
-  };
+  }, []);
 
-  const logout = async () => {
+  const logout = useCallback(async () => {
     try {
       await fetch("/api/auth/logout", { method: "POST", credentials: "include" });
     } catch {
@@ -103,7 +112,7 @@ export default function AuthProvider({ children }: { children: ReactNode }) {
     }
     setUser(null);
     router.push("/login");
-  };
+  }, [router]);
 
   return (
     <AuthContext.Provider value={{ user, loading, loginWithGoogle, logout, refreshSession }}>

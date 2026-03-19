@@ -173,7 +173,10 @@ export default function MeetingsPage() {
 
   useEffect(() => {
     fetch("/api/meetings", { credentials: "include" })
-      .then((r) => r.json())
+      .then((r) => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        return r.json();
+      })
       .then((data) => {
         if (data.success && data.data) {
           setMeetings(
@@ -206,7 +209,7 @@ export default function MeetingsPage() {
       .then((data) => {
         if (data.success && data.data) setGhostRooms(data.data);
       })
-      .catch(() => {});
+      .catch((err) => console.warn("[Meetings] Ghost rooms fetch failed:", err));
   }, [user, retryCount]);
 
   const handleRetry = () => {
@@ -227,8 +230,12 @@ export default function MeetingsPage() {
       if (data.success && data.data) {
         const id = data.data._id || data.data.id;
         router.push(`/meetings/${id}`);
+      } else {
+        setError(data.error?.message || "Failed to create instant meeting");
       }
-    } catch { /* ignore */ }
+    } catch {
+      setError("Failed to create meeting. Check your connection.");
+    }
   };
 
   const handleCreateGhostRoom = async () => {
@@ -244,8 +251,12 @@ export default function MeetingsPage() {
       const data = await res.json();
       if (data.success && data.data) {
         router.push(`/ghost-rooms/${data.data.roomId}`);
+      } else {
+        setError(data.error?.message || "Failed to create ghost room");
       }
-    } catch { /* ignore */ }
+    } catch {
+      setError("Failed to create ghost room. Check your connection.");
+    }
     finally { setCreatingGhost(false); }
   };
 

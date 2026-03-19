@@ -16,24 +16,25 @@ import { findBoardWithAccess, verifyEditAccess } from "@/lib/board/helpers";
 const updateTaskSchema = z.object({
   title: z.string().min(1).max(500).optional(),
   description: z.string().max(10000).optional(),
-  columnId: z.string().optional(),
-  position: z.number().optional(),
+  columnId: z.string().max(50).optional(),
+  position: z.number().min(0).max(1_000_000).optional(),
   priority: z.enum(["urgent", "high", "medium", "low", "none"]).optional(),
-  assigneeId: z.string().nullable().optional(),
-  labels: z.array(z.string()).optional(),
-  dueDate: z.string().refine((v) => !isNaN(Date.parse(v)), { message: "Invalid date" }).nullable().optional(),
-  startDate: z.string().refine((v) => !isNaN(Date.parse(v)), { message: "Invalid date" }).nullable().optional(),
+  assigneeId: z.string().refine((val) => mongoose.Types.ObjectId.isValid(val), { message: "Invalid assignee ID" }).nullable().optional(),
+  labels: z.array(z.string().max(100)).max(50).optional(),
+  dueDate: z.string().datetime({ message: "Invalid ISO date" }).nullable().optional(),
+  startDate: z.string().datetime({ message: "Invalid ISO date" }).nullable().optional(),
   subtasks: z
     .array(
       z.object({
-        id: z.string(),
+        id: z.string().max(50),
         title: z.string().min(1).max(500),
         done: z.boolean(),
-        assigneeId: z.string().optional(),
+        assigneeId: z.string().refine((val) => mongoose.Types.ObjectId.isValid(val), { message: "Invalid subtask assignee ID" }).optional(),
       }),
     )
+    .max(100)
     .optional(),
-  estimatePoints: z.number().min(0).nullable().optional(),
+  estimatePoints: z.number().min(0).max(1000).nullable().optional(),
 }).refine((data) => Object.keys(data).length > 0, { message: "At least one field required" });
 
 /* ─── GET /api/boards/[boardId]/tasks/[taskId] ─── */

@@ -28,6 +28,7 @@ interface Subtask {
   id: string;
   title: string;
   done: boolean;
+  assigneeId?: string;
 }
 
 export interface BoardTask {
@@ -161,14 +162,23 @@ function TaskDetailInner({
   const descRef = useRef<HTMLTextAreaElement>(null);
   const subtaskInputRef = useRef<HTMLInputElement>(null);
 
-  /* ── Close on Escape ── */
+  /* ── Close on Escape (skip if a dropdown is open) ── */
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
+      if (e.key !== "Escape") return;
+      // If a dropdown menu is open, close it first instead of closing the drawer
+      if (showPriorityMenu || showColumnMenu || showLabelMenu || showDeleteConfirm) {
+        setShowPriorityMenu(false);
+        setShowColumnMenu(false);
+        setShowLabelMenu(false);
+        setShowDeleteConfirm(false);
+        return;
+      }
+      onClose();
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [onClose]);
+  }, [onClose, showPriorityMenu, showColumnMenu, showLabelMenu, showDeleteConfirm]);
 
   /* ── Focus helpers ── */
   useEffect(() => {
@@ -179,6 +189,12 @@ function TaskDetailInner({
   }, [editingDesc]);
 
   const [commentsError, setCommentsError] = useState<string | null>(null);
+  const mountedRef = useRef(true);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => { mountedRef.current = false; };
+  }, []);
 
   /* ── Fetch comments & activity ── */
   const fetchComments = useCallback(async () => {
@@ -189,16 +205,17 @@ function TaskDetailInner({
         `/api/boards/${task.boardId}/tasks/${task._id}/comments`,
         { credentials: "include" }
       );
+      if (!mountedRef.current) return;
       if (res.ok) {
         const json = await res.json();
-        setComments(json.data || []);
+        if (mountedRef.current) setComments(json.data || []);
       } else {
         setCommentsError("Failed to load comments");
       }
     } catch {
-      setCommentsError("Failed to load comments");
+      if (mountedRef.current) setCommentsError("Failed to load comments");
     } finally {
-      setCommentsLoading(false);
+      if (mountedRef.current) setCommentsLoading(false);
     }
   }, [task.boardId, task._id]);
 
@@ -236,7 +253,11 @@ function TaskDetailInner({
 
   /* ── Persist helpers ── */
   const persist = useCallback(
-    (data: Partial<BoardTask>) => onUpdate(task._id, data),
+    (data: Partial<BoardTask>) => {
+      onUpdate(task._id, data).catch((err: unknown) => {
+        console.error("[TaskDetail] Failed to save change:", err);
+      });
+    },
     [task._id, onUpdate]
   );
 
@@ -329,7 +350,8 @@ function TaskDetailInner({
     try {
       await onDelete(task._id);
       onClose();
-    } catch {
+    } catch (err) {
+      console.error("[TaskDetail] Failed to delete task:", err);
       setDeleting(false);
     }
   }, [task._id, onDelete, onClose]);

@@ -28,11 +28,20 @@ export default function MeetingPulse() {
         if (cancelled) return;
         if (res.ok) {
           const data = await res.json();
-          setMeetings(data.data || []);
+          // Transform raw API response: _id → id, participants[] → participantCount
+          const transformed = (data.data || []).map((m: Record<string, unknown>) => ({
+            id: (m._id as string) || (m.id as string),
+            title: m.title as string,
+            scheduledAt: m.scheduledAt as string,
+            aiPreview: m.aiPreview as string | undefined,
+            participantCount: Array.isArray(m.participants) ? m.participants.length : 0,
+          }));
+          setMeetings(transformed);
         } else {
           setError(true);
         }
-      } catch {
+      } catch (err) {
+        console.warn("[MeetingPulse] Failed to fetch meetings:", err);
         if (!cancelled) setError(true);
       } finally {
         if (!cancelled) setLoading(false);

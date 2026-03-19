@@ -1,11 +1,18 @@
+import mongoose from "mongoose";
 import { customAlphabet, nanoid } from "nanoid";
 import connectDB from "@/lib/infra/db/client";
 import GhostRoom from "@/lib/infra/db/models/ghost-room";
-import type { IGhostParticipant, IGhostMessage } from "@/lib/infra/db/models/ghost-room";
+import type { IGhostMessage } from "@/lib/infra/db/models/ghost-room";
 
 // ── Re-export types for backward compatibility ───────────────────────
-
-export type GhostParticipant = IGhostParticipant;
+// GhostParticipant uses string userId (converted from ObjectId in toRoomData)
+export interface GhostParticipant {
+  userId: string;
+  name: string;
+  displayName?: string;
+  joinedAt: Date;
+  votedToSave: boolean;
+}
 export type GhostMessage = IGhostMessage;
 
 export interface GhostRoomData {
@@ -54,8 +61,9 @@ const DEFAULT_DURATION_MS = 4 * 60 * 60 * 1000;
 function toRoomData(doc: InstanceType<typeof GhostRoom>): GhostRoomData {
   const participants = new Map<string, GhostParticipant>();
   for (const p of doc.participants) {
-    participants.set(p.userId, {
-      userId: p.userId,
+    const uid = p.userId.toString();
+    participants.set(uid, {
+      userId: uid,
       name: p.name,
       displayName: p.displayName,
       joinedAt: p.joinedAt,
@@ -66,7 +74,7 @@ function toRoomData(doc: InstanceType<typeof GhostRoom>): GhostRoomData {
     roomId: doc.roomId,
     code: doc.code,
     title: doc.title,
-    hostId: doc.hostId,
+    hostId: doc.hostId.toString(),
     createdAt: doc.createdAt,
     participants,
     messages: doc.messages.map((m) => ({
@@ -78,7 +86,7 @@ function toRoomData(doc: InstanceType<typeof GhostRoom>): GhostRoomData {
       type: m.type,
     })),
     notes: doc.notes,
-    meetingId: doc.meetingId || undefined,
+    meetingId: doc.meetingId?.toString() || undefined,
     expiresAt: doc.expiresAt,
   };
 }
@@ -106,15 +114,16 @@ class EphemeralStore {
     const safeName = stripHtml(hostName);
     const safeTitle = title ? stripHtml(title) : "Ghost Room";
 
+    const hostOid = new mongoose.Types.ObjectId(hostId);
     const doc = await GhostRoom.create({
       roomId,
       code,
       title: safeTitle,
-      hostId,
+      hostId: hostOid,
       expiresAt: new Date(now.getTime() + DEFAULT_DURATION_MS),
       participants: [
         {
-          userId: hostId,
+          userId: hostOid,
           name: safeName,
           joinedAt: now,
           votedToSave: false,
@@ -170,6 +179,7 @@ class EphemeralStore {
     const now = new Date();
     const safeName = stripHtml(name);
     const safeDisplayName = displayName ? stripHtml(displayName) : undefined;
+    const userOid = new mongoose.Types.ObjectId(userId);
 
     // Single atomic operation: only push if the user is NOT already present.
     // Avoids the TOCTOU race of a separate findOne + findOneAndUpdate.
@@ -177,12 +187,12 @@ class EphemeralStore {
       {
         roomId,
         expiresAt: { $gt: now },
-        "participants.userId": { $ne: userId },
+        "participants.userId": { $ne: userOid },
       },
       {
         $push: {
           participants: {
-            userId,
+            userId: userOid,
             name: safeName,
             displayName: safeDisplayName,
             joinedAt: now,
@@ -202,7 +212,7 @@ class EphemeralStore {
 
     // null means either room not found OR user already present — check which.
     if (!result) {
-      const exists = await GhostRoom.exists({ roomId, expiresAt: { $gt: now }, "participants.userId": userId });
+      const exists = await GhostRoom.exists({ roomId, expiresAt: { $gt: now }, "participants.userId": userOid });
       return exists !== null; // true = already a participant
     }
     return true;
@@ -210,32 +220,48 @@ class EphemeralStore {
 
   async removeParticipant(roomId: string, userId: string): Promise<void> {
     await this.connect();
+    const userOid = new mongoose.Types.ObjectId(userId);
 
-    const doc = await GhostRoom.findOne({
-      roomId,
-      expiresAt: { $gt: new Date() },
-    });
-    if (!doc) return;
-
-    const participant = doc.participants.find((p) => p.userId === userId);
-    if (!participant) return;
-
-    await GhostRoom.findOneAndUpdate(
-      { roomId },
+    // Single atomic operation — avoids TOCTOU race where the participant could
+    // be removed between a findOne and the subsequent update.
+    const doc = await GhostRoom.findOneAndUpdate(
       {
-        $pull: { participants: { userId } },
-        $push: {
-          messages: {
-            id: nanoid(8),
-            senderId: "system",
-            senderName: "System",
-            content: `${participant.displayName || participant.name} left the ghost room`,
-            timestamp: Date.now(),
-            type: "system",
+        roomId,
+        expiresAt: { $gt: new Date() },
+        "participants.userId": userOid,
+      },
+      {
+        $pull: { participants: { userId: userOid } },
+      },
+      { returnDocument: "before" },
+    );
+    if (!doc) return; // Room gone or user was not a participant
+
+    const participant = doc.participants.find((p) => p.userId.toString() === userId);
+    const displayName = participant?.displayName || participant?.name || "Someone";
+
+    // Append system message as a separate update — the participant is already
+    // atomically removed above so there is no race window for duplicate removal.
+    // Wrapped in try/catch since the core operation already succeeded.
+    try {
+      await GhostRoom.updateOne(
+        { roomId },
+        {
+          $push: {
+            messages: {
+              id: nanoid(8),
+              senderId: "system",
+              senderName: "System",
+              content: `${displayName} left the ghost room`,
+              timestamp: Date.now(),
+              type: "system",
+            },
           },
         },
-      }
-    );
+      );
+    } catch (err) {
+      console.warn(`[EphemeralStore] Failed to append leave message for room ${roomId}:`, err);
+    }
   }
 
   // ── Messages ──────────────────────────────────────────────────────
@@ -285,12 +311,13 @@ class EphemeralStore {
     totalParticipants: number;
   } | null> {
     await this.connect();
+    const userOid = new mongoose.Types.ObjectId(userId);
 
     const result = await GhostRoom.findOneAndUpdate(
       {
         roomId,
         expiresAt: { $gt: new Date() },
-        "participants.userId": userId,
+        "participants.userId": userOid,
       },
       { $set: { "participants.$.votedToSave": true } },
       { new: true }
@@ -320,7 +347,7 @@ class EphemeralStore {
     await this.connect();
     const doc = await GhostRoom.findOneAndDelete({
       roomId,
-      "participants.votedToSave": { $not: { $elemMatch: { $eq: false } } },
+      participants: { $not: { $elemMatch: { votedToSave: { $ne: true } } } },
       "participants.0": { $exists: true },
     });
     if (!doc) return undefined;
@@ -336,7 +363,7 @@ class EphemeralStore {
   async restoreRoom(roomData: GhostRoomData): Promise<void> {
     await this.connect();
     const participantsArray = Array.from(roomData.participants.values()).map((p) => ({
-      userId: p.userId,
+      userId: new mongoose.Types.ObjectId(p.userId),
       name: p.name,
       displayName: p.displayName,
       joinedAt: p.joinedAt,
@@ -346,11 +373,11 @@ class EphemeralStore {
       roomId: roomData.roomId,
       code: roomData.code,
       title: roomData.title,
-      hostId: roomData.hostId,
+      hostId: new mongoose.Types.ObjectId(roomData.hostId),
       participants: participantsArray,
       messages: roomData.messages,
       notes: roomData.notes,
-      meetingId: roomData.meetingId,
+      meetingId: roomData.meetingId ? new mongoose.Types.ObjectId(roomData.meetingId) : undefined,
       expiresAt: roomData.expiresAt,
     });
   }
@@ -390,7 +417,7 @@ class EphemeralStore {
     const docs = await GhostRoom.find(
       {
         expiresAt: { $gt: new Date() },
-        "participants.userId": userId,
+        "participants.userId": new mongoose.Types.ObjectId(userId),
       },
       { roomId: 1, title: 1, code: 1, participants: 1, createdAt: 1, expiresAt: 1 }
     ).sort({ createdAt: -1 });

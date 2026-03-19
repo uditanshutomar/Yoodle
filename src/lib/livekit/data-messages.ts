@@ -12,7 +12,7 @@
 
 export enum DataMessageType {
   CHAT_MESSAGE = "chat:message",
-  REACTION = "reaction",
+  REACTION = "reaction:send",
   HAND_RAISE = "hand:raise",
   HAND_LOWER = "hand:lower",
   HOST_MUTE = "host:mute",
@@ -111,16 +111,26 @@ const VALID_MESSAGE_TYPES = new Set<string>(
   Object.values(DataMessageType),
 );
 
-export function decodeMessage(data: Uint8Array): DataMessage {
-  const parsed: unknown = JSON.parse(decoder.decode(data));
+export function decodeMessage(data: Uint8Array): DataMessage | null {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(decoder.decode(data));
+  } catch {
+    console.warn("[data-messages] Received non-JSON data channel payload, ignoring");
+    return null;
+  }
   if (
     typeof parsed !== "object" ||
     parsed === null ||
-    !("type" in parsed) ||
-    typeof (parsed as Record<string, unknown>).type !== "string" ||
-    !VALID_MESSAGE_TYPES.has((parsed as Record<string, unknown>).type as string)
+    !("type" in parsed)
   ) {
-    throw new Error("Invalid data channel message: unknown or missing type.");
+    console.warn("[data-messages] Invalid data channel message: missing type");
+    return null;
+  }
+  const { type } = parsed as { type: unknown };
+  if (typeof type !== "string" || !VALID_MESSAGE_TYPES.has(type)) {
+    console.warn("[data-messages] Unknown data channel message type:", type);
+    return null;
   }
   return parsed as DataMessage;
 }

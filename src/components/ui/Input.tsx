@@ -11,11 +11,13 @@ interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> {
 
 const Input = forwardRef<HTMLInputElement, InputProps>(
   ({ label, error, icon: Icon, className = "", type = "text", ...props }, ref) => {
+    const inputId = useId();
     const errorId = useId();
     return (
       <div className="flex flex-col gap-1.5">
         {label && (
           <label
+            htmlFor={inputId}
             className="text-sm font-bold text-[var(--text-primary)]"
             style={{ fontFamily: "var(--font-heading)" }}
           >
@@ -30,6 +32,7 @@ const Input = forwardRef<HTMLInputElement, InputProps>(
           )}
           <input
             ref={ref}
+            id={inputId}
             type={type}
             aria-invalid={!!error}
             aria-describedby={error ? errorId : undefined}
@@ -63,11 +66,13 @@ interface TextareaProps extends React.TextareaHTMLAttributes<HTMLTextAreaElement
 
 const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(
   ({ label, error, className = "", ...props }, ref) => {
+    const textareaId = useId();
     const errorId = useId();
     return (
       <div className="flex flex-col gap-1.5">
         {label && (
           <label
+            htmlFor={textareaId}
             className="text-sm font-bold text-[var(--text-primary)]"
             style={{ fontFamily: "var(--font-heading)" }}
           >
@@ -76,6 +81,7 @@ const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(
         )}
         <textarea
           ref={ref}
+          id={textareaId}
           aria-invalid={!!error}
           aria-describedby={error ? errorId : undefined}
           className={`w-full border-2 border-[var(--border-strong)] rounded-xl px-4 py-3 text-sm bg-[var(--surface)] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:ring-2 focus:ring-[#FFE600] focus:ring-offset-0 transition-all resize-none ${

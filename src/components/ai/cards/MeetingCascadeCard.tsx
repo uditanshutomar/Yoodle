@@ -32,8 +32,8 @@ export default function MeetingCascadeCard({ data, onUndo }: Props) {
     try {
       await onUndo?.(token);
       setUndone((prev) => new Set(prev).add(token));
-    } catch {
-      // Undo failed — don't mark as undone, revert to actionable state
+    } catch (err) {
+      console.error("[MeetingCascadeCard] Undo failed:", err);
     } finally {
       setUndoing(null);
     }
@@ -65,7 +65,7 @@ export default function MeetingCascadeCard({ data, onUndo }: Props) {
 
           return (
             <div
-              key={`${step.step}-${step.status}`}
+              key={step.step}
               className={`flex items-start gap-2 ${isUndone ? "opacity-50" : ""}`}
             >
               <StatusIcon status={step.status} />

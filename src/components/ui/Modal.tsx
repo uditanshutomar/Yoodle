@@ -29,7 +29,7 @@ export default function Modal({ open, onOpenChange, title, description, children
             </Dialog.Overlay>
             <Dialog.Content asChild>
               <motion.div
-                className="fixed left-1/2 top-1/2 z-[150] w-full max-w-lg bg-[var(--surface)] border-2 border-[var(--border-strong)] rounded-2xl shadow-[var(--shadow-card)] p-6"
+                className="fixed left-1/2 top-1/2 z-[151] w-full max-w-lg bg-[var(--surface)] border-2 border-[var(--border-strong)] rounded-2xl shadow-[var(--shadow-card)] p-6"
                 initial={{ opacity: 0, scale: 0.95, x: "-50%", y: "-50%" }}
                 animate={{ opacity: 1, scale: 1, x: "-50%", y: "-50%" }}
                 exit={{ opacity: 0, scale: 0.95, x: "-50%", y: "-50%" }}

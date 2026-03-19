@@ -28,15 +28,19 @@ export async function findWorkspaceOrThrow(
   return workspace;
 }
 
+/** Shape of a workspace document with members (for membership checks). */
+interface WorkspaceWithMembers {
+  ownerId: { toString(): string };
+  members: Array<{ userId: { toString(): string }; role: string }>;
+}
+
 /**
  * Verify the user is a member (or owner) of the workspace.
- * Returns the member record.
+ * Returns the member record, or undefined if the user is the owner
+ * but not in the members array.
  */
 export function verifyWorkspaceMembership(
-  workspace: {
-    ownerId: { toString(): string };
-    members: Array<{ userId: { toString(): string }; role: string }>;
-  },
+  workspace: WorkspaceWithMembers,
   userId: string,
 ): { userId: { toString(): string }; role: string } | undefined {
   const member = workspace.members.find(
@@ -54,10 +58,7 @@ export function verifyWorkspaceMembership(
  * Throws ForbiddenError for non-admin members.
  */
 export function verifyWorkspaceAdminAccess(
-  workspace: {
-    ownerId: { toString(): string };
-    members: Array<{ userId: { toString(): string }; role: string }>;
-  },
+  workspace: WorkspaceWithMembers,
   userId: string,
   action: string,
 ): void {

@@ -59,14 +59,32 @@ describe("executeWorkflow", () => {
     expect(onProgress).toHaveBeenCalled();
   });
 
-  it("marks step as error and continues on tool failure", async () => {
+  it("aborts workflow when a non-skippable step fails", async () => {
+    (executeWorkspaceTool as ReturnType<typeof vi.fn>)
+      .mockResolvedValueOnce({ success: false, summary: "Failed" });
+    const state = await executeWorkflow(mockTemplate, "user123", {});
+    expect(state.steps[0].status).toBe("error");
+    expect(state.steps[1].status).toBe("pending"); // never reached
+    expect(state.status).toBe("cancelled");
+    expect(executeWorkspaceTool).toHaveBeenCalledTimes(1);
+  });
+
+  it("continues past a skippable step failure", async () => {
+    const skippableFirst: WorkflowTemplate = {
+      ...mockTemplate,
+      steps: [
+        { ...mockTemplate.steps[0], skippable: true },
+        mockTemplate.steps[1],
+      ],
+    };
     (executeWorkspaceTool as ReturnType<typeof vi.fn>)
       .mockResolvedValueOnce({ success: false, summary: "Failed" })
       .mockResolvedValueOnce({ success: true, summary: "OK" });
-    const state = await executeWorkflow(mockTemplate, "user123", {});
+    const state = await executeWorkflow(skippableFirst, "user123", {});
     expect(state.steps[0].status).toBe("error");
     expect(state.steps[1].status).toBe("done");
     expect(state.status).toBe("completed");
+    expect(executeWorkspaceTool).toHaveBeenCalledTimes(2);
   });
 
   it("supports skipping steps", async () => {

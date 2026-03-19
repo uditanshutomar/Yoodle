@@ -30,7 +30,6 @@ export default function AppTopbar() {
             onChange={(e) => setSearchValue(e.target.value)}
             className="w-full rounded-xl border-2 border-[var(--border)] bg-[var(--surface)] py-2 pl-9 pr-4 text-sm text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:border-[var(--border-strong)] focus:outline-none focus:ring-2 focus:ring-[#FFE600] transition-all"
             style={{ fontFamily: "var(--font-body)" }}
-            aria-label="Search meetings, people, notes"
           />
         </div>
       </div>
@@ -92,7 +91,7 @@ export default function AppTopbar() {
 
                   <DropdownMenu.Item asChild>
                     <Link
-                      href="/settings"
+                      href="/settings#profile"
                       className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)] transition-colors cursor-pointer outline-none"
                       style={{ fontFamily: "var(--font-heading)" }}
                     >

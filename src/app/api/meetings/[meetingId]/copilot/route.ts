@@ -78,6 +78,15 @@ export const GET = withHandler(async (req: NextRequest, context) => {
         }
       });
 
+      // Send heartbeat every 15s to keep the connection alive
+      const heartbeat = setInterval(() => {
+        try {
+          controller.enqueue(encoder.encode(": heartbeat\n\n"));
+        } catch {
+          clearInterval(heartbeat);
+        }
+      }, 15000);
+
       // Send initial connected event
       controller.enqueue(
         encoder.encode(
@@ -87,6 +96,7 @@ export const GET = withHandler(async (req: NextRequest, context) => {
 
       // Cleanup on client disconnect
       req.signal.addEventListener("abort", () => {
+        clearInterval(heartbeat);
         try {
           sub.unsubscribe(`copilot:${meetingId}`);
         } catch (err) {
@@ -107,8 +117,9 @@ export const GET = withHandler(async (req: NextRequest, context) => {
   return new Response(stream, {
     headers: {
       "Content-Type": "text/event-stream",
-      "Cache-Control": "no-cache",
+      "Cache-Control": "no-cache, no-transform",
       Connection: "keep-alive",
+      "X-Accel-Buffering": "no",
     },
   });
 });

@@ -24,19 +24,19 @@ export function usePageContext(): PageContextResult {
     return { context: "dashboard" };
   }
 
-  const meetingMatch = pathname.match(/\/meetings?\/([a-zA-Z0-9]+)/);
+  const meetingMatch = pathname.match(/\/meetings?\/([a-zA-Z0-9_-]+)/);
   if (meetingMatch) {
     return { context: "meeting", entityId: meetingMatch[1] };
   }
 
   if (pathname.includes("/board") || pathname.includes("/tasks")) {
-    const boardMatch = pathname.match(/\/boards?\/([a-zA-Z0-9]+)/);
+    const boardMatch = pathname.match(/\/boards?\/([a-zA-Z0-9_-]+)/);
     return { context: "board", entityId: boardMatch?.[1] };
   }
 
   if (pathname.includes("/messages") || pathname.includes("/conversations")) {
     const convMatch = pathname.match(
-      /\/(?:messages|conversations)\/([a-zA-Z0-9]+)/
+      /\/(?:messages|conversations)\/([a-zA-Z0-9_-]+)/
     );
     return { context: "messages", entityId: convMatch?.[1] };
   }

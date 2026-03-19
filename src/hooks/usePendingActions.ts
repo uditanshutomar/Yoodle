@@ -15,6 +15,10 @@ export function usePendingActions() {
   const [actions, setActions] = useState<PendingAction[]>([]);
   const [error, setError] = useState<string | null>(null);
   const cleanupTimersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
+  const actionsRef = useRef<PendingAction[]>([]);
+
+  // Keep ref in sync so we can read current state without Promise-inside-setState
+  useEffect(() => { actionsRef.current = actions; }, [actions]);
 
   // Clear all pending timers on unmount
   useEffect(() => {
@@ -35,18 +39,17 @@ export function usePendingActions() {
   }, []);
 
   const confirmAction = useCallback(async (actionId: string) => {
-    // Read current action snapshot synchronously, then update status
-    const actionSnapshot = await new Promise<PendingAction | undefined>((resolve) => {
-      setActions((prev) => {
-        const found = prev.find((a) => a.actionId === actionId);
-        resolve(found);
-        if (!found) return prev;
-        return prev.map((a) => (a.actionId === actionId ? { ...a, status: "confirming" as const } : a));
-      });
-    });
+    // Read current action from ref — avoids Promise-inside-setState which
+    // breaks under React Concurrent Mode (updater can run multiple times).
+    const actionSnapshot = actionsRef.current.find((a) => a.actionId === actionId);
     if (!actionSnapshot) return;
 
+    setActions((prev) =>
+      prev.map((a) => (a.actionId === actionId ? { ...a, status: "confirming" as const } : a))
+    );
+
     try {
+      setError(null);
       const res = await fetch("/api/ai/action/confirm", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -82,17 +85,16 @@ export function usePendingActions() {
 
   const reviseAction = useCallback(
     async (actionId: string, userFeedback: string) => {
-      const actionSnapshot = await new Promise<PendingAction | undefined>((resolve) => {
-        setActions((prev) => {
-          const found = prev.find((a) => a.actionId === actionId);
-          resolve(found);
-          if (!found) return prev;
-          return prev.map((a) => (a.actionId === actionId ? { ...a, status: "revising" as const } : a));
-        });
-      });
+      // Read from ref — avoids Promise-inside-setState antipattern
+      const actionSnapshot = actionsRef.current.find((a) => a.actionId === actionId);
       if (!actionSnapshot) return;
 
+      setActions((prev) =>
+        prev.map((a) => (a.actionId === actionId ? { ...a, status: "revising" as const } : a))
+      );
+
       try {
+        setError(null);
         const res = await fetch("/api/ai/action/revise", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -104,6 +106,11 @@ export function usePendingActions() {
             userFeedback,
           }),
         });
+
+        if (!res.ok) {
+          const errData = await res.json().catch(() => ({}));
+          throw new Error(errData?.error?.message || `Revision failed (${res.status})`);
+        }
 
         const data = await res.json();
         if (data.success && data.data) {
@@ -139,25 +146,20 @@ export function usePendingActions() {
   // Filter out denied actions for display
   const pendingActions = actions.filter((a) => a.status !== "denied");
 
-  // Wrap confirmAction to auto-clean only on success
+  // Wrap confirmAction to auto-clean only on success.
+  // Reads from actionsRef (not a state updater) to avoid impure side effects
+  // inside setState — updaters must be pure as React may invoke them twice
+  // under Strict Mode / Concurrent features.
   const confirmAndClear = useCallback(async (actionId: string) => {
     await confirmAction(actionId);
-    // Read current state to check if confirmation succeeded — use a ref-stable
-    // getter instead of putting setTimeout inside a state setter.
-    setActions((prev) => {
-      const action = prev.find((a) => a.actionId === actionId);
-      if (action?.status === "confirmed") {
-        // Schedule cleanup outside the setter via microtask
-        queueMicrotask(() => {
-          const timer = setTimeout(() => {
-            cleanupTimersRef.current.delete(actionId);
-            setActions((p) => p.filter((a) => a.actionId !== actionId));
-          }, 2000);
-          cleanupTimersRef.current.set(actionId, timer);
-        });
-      }
-      return prev;
-    });
+    const action = actionsRef.current.find((a) => a.actionId === actionId);
+    if (action?.status === "confirmed") {
+      const timer = setTimeout(() => {
+        cleanupTimersRef.current.delete(actionId);
+        setActions((p) => p.filter((a) => a.actionId !== actionId));
+      }, 2000);
+      cleanupTimersRef.current.set(actionId, timer);
+    }
   }, [confirmAction]);
 
   const clearError = useCallback(() => setError(null), []);

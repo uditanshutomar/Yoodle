@@ -25,7 +25,7 @@ export async function getGoogleClientForUser(userId: string) {
   });
 
   // Listen for token refresh events and persist new tokens
-  client.on("tokens", async (newTokens) => {
+  client.once("tokens", async (newTokens) => {
     try {
       const update: Record<string, unknown> = {};
 

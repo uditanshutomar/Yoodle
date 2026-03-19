@@ -2,9 +2,18 @@
 
 import { createContext, useContext, useState, useCallback, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import dynamic from "next/dynamic";
 import Image from "next/image";
-import ChatWindow from "@/components/ai/ChatWindow";
 import { useAIChat } from "@/hooks/useAIChat";
+
+const ChatWindow = dynamic(() => import("@/components/ai/ChatWindow"), {
+  ssr: false,
+  loading: () => (
+    <div className="flex-1 flex items-center justify-center">
+      <div className="animate-pulse text-sm text-[var(--text-muted)]">Loading chat...</div>
+    </div>
+  ),
+});
 import { useAuth } from "@/hooks/useAuth";
 import { useInsightCount } from "@/hooks/useInsightCount";
 import { MASCOT_BY_MODE } from "./constants";

@@ -40,7 +40,6 @@ export function useTranscription(
   const [isTranscribing, setIsTranscribing] = useState(false);
 
   const recorderRef = useRef<MediaRecorder | null>(null);
-  const chunksRef = useRef<Blob[]>([]);
   const localStreamRef = useRef<MediaStream | null>(null);
   const safetyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isEnabledRef = useRef(false);
@@ -75,7 +74,12 @@ export function useTranscription(
           body: formData,
         });
 
-        if (res.ok && isMountedRef.current) {
+        if (!res.ok) {
+          console.warn(`[useTranscription] sendChunk failed: ${res.status}`);
+          return;
+        }
+
+        if (isMountedRef.current) {
           const data = await res.json();
           const text = data.data?.text;
           if (text) {
@@ -88,8 +92,9 @@ export function useTranscription(
             });
           }
         }
-      } catch {
-        // Transcription is best-effort — silent fail
+      } catch (err) {
+        // Transcription is best-effort — log but don't disrupt meeting
+        console.warn("[useTranscription] sendChunk error:", err);
       }
     },
     [meetingId, userId, userName],
@@ -127,16 +132,20 @@ export function useTranscription(
       : "audio/webm";
 
     const recorder = new MediaRecorder(audioStream, { mimeType });
-    chunksRef.current = [];
+    // Use a local array per recorder instance to avoid the race where
+    // a new startSegment() resets chunksRef before onstop fires for the
+    // previous recorder — which would lose up to 30s of audio data.
+    let localChunks: Blob[] = [];
 
     recorder.ondataavailable = (e) => {
-      if (e.data.size > 0) chunksRef.current.push(e.data);
+      if (e.data.size > 0) localChunks.push(e.data);
     };
 
     recorder.onstop = () => {
-      if (chunksRef.current.length === 0) return;
-      const blob = new Blob(chunksRef.current, { type: mimeType });
-      chunksRef.current = [];
+      const captured = localChunks;
+      localChunks = [];
+      if (captured.length === 0) return;
+      const blob = new Blob(captured, { type: mimeType });
       void sendChunk(blob);
     };
 
