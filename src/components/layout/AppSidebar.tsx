@@ -1,31 +1,63 @@
 "use client";
 
+import { useState, useEffect, useRef } from "react";
 import { motion } from "framer-motion";
 import { usePathname } from "next/navigation";
 import Link from "next/link";
 import {
-  LayoutDashboard,
-  Video,
-  MessageSquare,
-  Settings,
-  LogOut,
+  LayoutGrid,
+  DoorOpen,
+  Kanban,
+  MessageCircle,
+  Activity,
+  ChevronDown,
+  Check,
 } from "lucide-react";
 import { YoodleMascotSmall } from "../YoodleMascot";
-import Avatar from "../ui/Avatar";
-import { useAuth } from "@/hooks/useAuth";
 import { useTotalUnread } from "@/hooks/useTotalUnread";
+import { useWorkspaces } from "@/hooks/useWorkspaces";
 
 const navItems = [
-  { label: "Home", href: "/dashboard", icon: LayoutDashboard },
-  { label: "Meetings", href: "/meetings", icon: Video },
-  { label: "Messages", href: "/messages", icon: MessageSquare },
-  { label: "Settings", href: "/settings", icon: Settings },
+  { label: "The Desk", href: "/dashboard", icon: LayoutGrid },
+  { label: "Rooms", href: "/meetings", icon: DoorOpen },
+  { label: "The Board", href: "/board", icon: Kanban },
+  { label: "Chatter", href: "/messages", icon: MessageCircle },
+  { label: "Pulse", href: "/analytics", icon: Activity },
 ];
 
-export default function AppSidebar() {
+interface AppSidebarProps {
+  mobile?: boolean;
+}
+
+export default function AppSidebar({ mobile }: AppSidebarProps) {
   const pathname = usePathname();
-  const { user, logout } = useAuth();
   const { totalUnread } = useTotalUnread();
+  const { workspaces, fetchWorkspaces } = useWorkspaces();
+  const [wsOpen, setWsOpen] = useState(false);
+  const [selectedWsId, setSelectedWsId] = useState<string | null>(null);
+  const wsRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    fetchWorkspaces().catch(() => {});
+  }, [fetchWorkspaces]);
+
+  // Derive selected workspace: use explicit selection if valid, otherwise first workspace
+  const selectedWs = selectedWsId && workspaces.some((w) => w._id === selectedWsId)
+    ? selectedWsId
+    : workspaces[0]?._id ?? null;
+
+  // Close dropdown on outside click
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (wsRef.current && !wsRef.current.contains(e.target as Node)) {
+        setWsOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, []);
+
+  const currentWs = workspaces.find((w) => w._id === selectedWs) ?? null;
 
   const isActive = (href: string) => {
     if (href === "/dashboard") return pathname === "/dashboard";
@@ -50,6 +82,57 @@ export default function AppSidebar() {
         </span>
       </div>
 
+      {/* Space switcher */}
+      <div className="px-3 py-3 border-b-2 border-[var(--border)]" ref={wsRef}>
+        <button
+          onClick={() => setWsOpen(!wsOpen)}
+          className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2 hover:bg-[var(--surface-hover)] transition-colors cursor-pointer"
+        >
+          <div
+            className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-[#FFE600]/20 border-2 border-[var(--border-strong)] text-xs font-black text-[var(--text-primary)]"
+            style={{ fontFamily: "var(--font-heading)" }}
+          >
+            {currentWs ? currentWs.name.charAt(0).toUpperCase() : "W"}
+          </div>
+          <span
+            className="flex-1 truncate text-left text-sm font-bold text-[var(--text-primary)]"
+            style={{ fontFamily: "var(--font-heading)" }}
+          >
+            {currentWs?.name || "Workspace"}
+          </span>
+          <ChevronDown
+            size={14}
+            className={`text-[var(--text-muted)] transition-transform ${wsOpen ? "rotate-180" : ""}`}
+          />
+        </button>
+
+        {wsOpen && (
+          <div className="mt-1 rounded-xl border-2 border-[var(--border-strong)] bg-[var(--surface)] shadow-[4px_4px_0_var(--border-strong)] overflow-hidden">
+            {workspaces.map((ws) => (
+              <button
+                key={ws._id}
+                onClick={() => {
+                  setSelectedWsId(ws._id);
+                  setWsOpen(false);
+                }}
+                className="flex w-full items-center gap-2.5 px-3 py-2 text-sm hover:bg-[var(--surface-hover)] transition-colors cursor-pointer"
+                style={{ fontFamily: "var(--font-heading)" }}
+              >
+                <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-[#FFE600]/20 border border-[var(--border)] text-[10px] font-black text-[var(--text-primary)]">
+                  {ws.name.charAt(0).toUpperCase()}
+                </div>
+                <span className="flex-1 truncate text-left font-bold text-[var(--text-primary)]">
+                  {ws.name}
+                </span>
+                {ws._id === selectedWs && (
+                  <Check size={14} className="text-[#FFE600]" />
+                )}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+
       {/* Navigation */}
       <nav className="flex-1 px-3 py-4 space-y-1" aria-label="Main navigation">
         {navItems.map((item) => {
@@ -71,12 +154,12 @@ export default function AppSidebar() {
                 className={active ? "text-[var(--text-primary)]" : "text-[var(--text-muted)] group-hover:text-[var(--text-primary)]"}
               />
               {item.label}
-              {item.label === "Messages" && totalUnread > 0 && (
+              {item.label === "Chatter" && totalUnread > 0 && (
                 <span className="ml-auto flex h-5 min-w-5 items-center justify-center rounded-full bg-[#FFE600] px-1.5 text-[10px] font-black text-[#0A0A0A] border border-[var(--border-strong)] tabular-nums">
                   {totalUnread > 99 ? "99+" : totalUnread}
                 </span>
               )}
-              {active && !(item.label === "Messages" && totalUnread > 0) && (
+              {active && !(item.label === "Chatter" && totalUnread > 0) && (
                 <motion.div
                   layoutId="sidebar-active"
                   className="ml-auto h-1.5 w-1.5 rounded-full bg-[#FFE600]"
@@ -87,42 +170,12 @@ export default function AppSidebar() {
           );
         })}
       </nav>
-
-      {/* User section */}
-      <div className="border-t-2 border-[var(--border)] px-4 py-4">
-        <div className="flex items-center gap-3">
-          <Avatar
-            src={user?.avatar}
-            name={user?.name || "User"}
-            size="sm"
-            status="online"
-          />
-          <div className="flex-1 min-w-0">
-            <p
-              className="text-sm font-bold text-[var(--text-primary)] truncate"
-              style={{ fontFamily: "var(--font-heading)" }}
-            >
-              {user?.name || "Loading..."}
-            </p>
-            <p
-              className="text-xs text-[var(--text-secondary)] truncate"
-              style={{ fontFamily: "var(--font-body)" }}
-            >
-              {user?.displayName ? `@${user.displayName}` : ""}
-            </p>
-          </div>
-          <button
-            onClick={logout}
-            className="rounded-lg p-1.5 text-[var(--text-muted)] hover:text-[#FF6B6B] hover:bg-[#FF6B6B]/10 transition-colors cursor-pointer"
-            title="Log out"
-            aria-label="Log out"
-          >
-            <LogOut size={16} aria-hidden="true" />
-          </button>
-        </div>
-      </div>
     </div>
   );
+
+  if (mobile) {
+    return sidebarContent;
+  }
 
   return (
     <aside
