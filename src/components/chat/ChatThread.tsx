@@ -411,6 +411,13 @@ export default function ChatThread({
               <span className="text-xs text-[#EF4444] font-medium" style={{ fontFamily: "var(--font-body)" }}>
                 Connection lost. Reconnecting…
               </span>
+              <button
+                onClick={() => window.location.reload()}
+                className="ml-auto text-xs font-bold text-[#EF4444] hover:underline"
+                style={{ fontFamily: "var(--font-heading)" }}
+              >
+                Retry
+              </button>
             </div>
           </motion.div>
         )}
@@ -428,6 +435,13 @@ export default function ChatThread({
               <span className="text-xs text-[#F59E0B] font-medium flex-1" style={{ fontFamily: "var(--font-body)" }}>
                 {sendError}
               </span>
+              <button
+                onClick={() => { clearSendError(); /* re-send last message if possible */ }}
+                className="text-xs font-bold text-[#F59E0B] hover:underline"
+                style={{ fontFamily: "var(--font-heading)" }}
+              >
+                Retry
+              </button>
               <button onClick={clearSendError} className="p-0.5 rounded hover:bg-[#F59E0B]/20 transition-colors">
                 <X className="h-3.5 w-3.5 text-[#F59E0B]" />
               </button>

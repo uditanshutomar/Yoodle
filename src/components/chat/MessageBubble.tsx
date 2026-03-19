@@ -79,7 +79,7 @@ export default function MessageBubble({
   const bubbleClass = isOwn
     ? "bg-[#FFE600]/15 border border-[#FFE600]/30"
     : isAgent
-      ? "bg-[#FFE600]/5 border-l-2 border-[#FFE600]"
+      ? "bg-[#FFE600]/8 border-l-3 border-[#FFE600]"
       : "bg-[var(--surface)] border border-[var(--border)]";
 
   // ── Collapsible content ─────────────────────────────────────────────

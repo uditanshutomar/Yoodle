@@ -190,7 +190,7 @@ export default function TermsOfServicePage() {
           </h2>
           <p className="leading-relaxed">
             These Terms shall be governed by and construed in accordance with the laws of the
-            jurisdiction where Yoodle operates, without regard to conflict of law principles.
+            State of Colorado, United States, without regard to conflict of law principles.
           </p>
         </section>
 

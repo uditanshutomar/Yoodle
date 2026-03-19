@@ -106,7 +106,7 @@ function ToolCallIndicator({ toolCall }: { toolCall: ToolCall }) {
           <Check size={12} className="text-green-500" />
         )}
         {toolCall.status === "error" && (
-          <X size={12} className="text-red-500" />
+          <span title="Tool call failed"><X size={12} className="text-red-500" /></span>
         )}
       </span>
     </motion.div>
@@ -124,6 +124,7 @@ function InlineActionCard({
   onDeny?: (actionId: string) => void;
 }) {
   const [status, setStatus] = useState<"pending" | "confirming" | "confirmed" | "denied">("pending");
+  const [error, setError] = useState<string | null>(null);
   const pa = toolCall.pendingAction;
   if (!pa) return null;
 
@@ -131,12 +132,14 @@ function InlineActionCard({
   const ActionIcon = actionIcon;
 
   const handleConfirm = async () => {
+    setError(null);
     setStatus("confirming");
     try {
       await onConfirm?.(pa.actionId, pa.type, pa.args);
       setStatus("confirmed");
     } catch (err) {
       console.error("[ChatBubble] Action confirmation failed:", err);
+      setError("Action failed. Try again.");
       setStatus("pending");
     }
   };
@@ -165,6 +168,8 @@ function InlineActionCard({
           </p>
         </div>
       </div>
+
+      {error && <p className="text-xs text-[#FF6B6B] mt-1">{error}</p>}
 
       {status === "pending" && (
         <div className="flex items-center gap-2 mt-2.5">

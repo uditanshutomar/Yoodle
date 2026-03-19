@@ -1,7 +1,6 @@
 "use client";
 
-import { useState } from "react";
-import { Search, Bell, ChevronDown, LogOut, Settings, User, Menu, X } from "lucide-react";
+import { Search, ChevronDown, LogOut, Settings, User, Menu, X } from "lucide-react";
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
@@ -15,7 +14,6 @@ interface AppTopbarProps {
 
 export default function AppTopbar({ onMenuToggle, menuOpen }: AppTopbarProps) {
   const { user, logout } = useAuth();
-  const [searchValue, setSearchValue] = useState("");
 
   return (
     <header className="sticky top-0 z-40 flex h-16 items-center justify-between gap-4 border-b-2 border-[var(--border)] bg-[var(--background)]/80 backdrop-blur-xl px-4 lg:px-6">
@@ -28,34 +26,15 @@ export default function AppTopbar({ onMenuToggle, menuOpen }: AppTopbarProps) {
         >
           {menuOpen ? <X size={20} /> : <Menu size={20} />}
         </button>
-        <div className="relative flex-1">
-          <Search
-            size={16}
-            className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)]"
-          />
-          <label htmlFor="topbar-search" className="sr-only">Find anything</label>
-          <input
-            id="topbar-search"
-            type="search"
-            placeholder="Find anything..."
-            value={searchValue}
-            onChange={(e) => setSearchValue(e.target.value)}
-            className="w-full rounded-xl border-2 border-[var(--border)] bg-[var(--surface)] py-2 pl-9 pr-4 text-sm text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:border-[var(--border-strong)] focus:outline-none focus:ring-2 focus:ring-[#FFE600] transition-all"
-            style={{ fontFamily: "var(--font-body)" }}
-          />
+        <div className="flex items-center gap-2 rounded-xl border-2 border-[var(--border)] bg-[var(--surface)] py-2 px-3 text-[var(--text-muted)]">
+          <Search size={16} />
+          <span className="text-sm" style={{ fontFamily: "var(--font-body)" }}>Search</span>
+          <kbd className="ml-auto rounded-md border border-[var(--border)] bg-[var(--surface-hover)] px-1.5 py-0.5 text-[10px] font-bold text-[var(--text-muted)]" style={{ fontFamily: "var(--font-heading)" }}>⌘K</kbd>
         </div>
       </div>
 
       {/* Right actions */}
       <div className="flex items-center gap-3">
-        {/* Pings (notifications) */}
-        <button
-          className="relative rounded-xl p-2 text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-hover)] transition-colors cursor-pointer"
-          aria-label="Pings"
-        >
-          <Bell size={18} />
-        </button>
-
         {/* User dropdown */}
         <DropdownMenu.Root>
           <DropdownMenu.Trigger asChild>

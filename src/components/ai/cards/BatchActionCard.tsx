@@ -16,6 +16,7 @@ export default function BatchActionCard({ data, onConfirm }: Props) {
   );
   const [isConfirming, setIsConfirming] = useState(false);
   const [isConfirmed, setIsConfirmed] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const toggleItem = (id: string) => {
     setSelectedIds((prev) => {
@@ -36,6 +37,7 @@ export default function BatchActionCard({ data, onConfirm }: Props) {
 
   const handleConfirm = async () => {
     if (selectedIds.size === 0 || isConfirming) return;
+    setError(null);
     setIsConfirming(true);
     try {
       const selected = data.items.filter((i) => selectedIds.has(i.id));
@@ -43,7 +45,7 @@ export default function BatchActionCard({ data, onConfirm }: Props) {
       setIsConfirmed(true);
     } catch (err) {
       console.error("[BatchActionCard] Confirmation failed:", err);
-    } finally {
+      setError("Batch action failed. Try again.");
       setIsConfirming(false);
     }
   };
@@ -103,6 +105,7 @@ export default function BatchActionCard({ data, onConfirm }: Props) {
         })}
       </div>
 
+      {error && <p className="text-xs text-[#FF6B6B] mt-1">{error}</p>}
       <div className="flex items-center justify-end gap-2 mt-2 pt-2 border-t border-[var(--border)]">
         {isConfirmed ? (
           <span className="flex items-center gap-1.5 text-[11px] font-semibold text-green-500 ml-auto" style={{ fontFamily: "var(--font-heading)" }}>

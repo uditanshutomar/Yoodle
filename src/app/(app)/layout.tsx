@@ -15,6 +15,14 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     <MotionProvider>
     <AIDrawerProvider>
       <div className="flex h-screen bg-background">
+        <a
+          href="#main-content"
+          className="sr-only focus:not-sr-only focus:fixed focus:top-4 focus:left-4 focus:z-[200] focus:rounded-xl focus:border-2 focus:border-[var(--border-strong)] focus:bg-[#FFE600] focus:px-4 focus:py-2 focus:text-sm focus:font-bold focus:text-[#0A0A0A] focus:shadow-[4px_4px_0_var(--border-strong)]"
+          style={{ fontFamily: "var(--font-heading)" }}
+        >
+          Skip to content
+        </a>
+
         {/* Desktop sidebar */}
         <AppSidebar />
 
@@ -53,7 +61,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           />
 
           {/* Content */}
-          <main className="flex-1 overflow-y-auto pb-16 lg:pb-0">
+          <main id="main-content" className="flex-1 overflow-y-auto pb-16 lg:pb-0">
             <div className="mx-auto max-w-7xl px-4 py-6 lg:px-8">
               {children}
             </div>

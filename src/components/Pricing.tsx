@@ -187,7 +187,7 @@ export default function Pricing() {
               >
                 Cloud
                 <span className="ml-1.5 inline-block rounded-full border border-[#A855F7] bg-[#A855F7]/10 px-2 py-0.5 text-[10px] font-bold uppercase text-[#A855F7]">
-                  Coming Soon
+                  Coming 2026
                 </span>
               </div>
             </div>

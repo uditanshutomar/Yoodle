@@ -19,6 +19,19 @@ const components = {
       <span>{children}</span>
     );
   },
+  pre: ({ children }: { children?: React.ReactNode }) => (
+    <pre className="my-2 rounded-xl bg-[var(--surface-hover)] border border-[var(--border)] p-4 overflow-x-auto text-sm">
+      {children}
+    </pre>
+  ),
+  code: ({ children, className }: { children?: React.ReactNode; className?: string }) => {
+    const isBlock = className?.startsWith("language-");
+    return isBlock ? (
+      <code className={`font-mono text-sm ${className || ""}`}>{children}</code>
+    ) : (
+      <code className="rounded bg-[var(--surface-hover)] px-1.5 py-0.5 text-[0.85em] font-mono">{children}</code>
+    );
+  },
 };
 
 interface SafeMarkdownProps {

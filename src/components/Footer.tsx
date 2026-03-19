@@ -6,7 +6,7 @@ import Link from "next/link";
 const socials = [
   {
     label: "Twitter",
-    href: "https://x.com",
+    href: "https://x.com/yaboroamern",
     path: "M23 3a10.9 10.9 0 0 1-3.14 1.53A4.48 4.48 0 0 0 12 7.5v1A10.66 10.66 0 0 1 3 4s-4 9 5 13a11.64 11.64 0 0 1-7 2c9 5 20 0 20-11.5a4.5 4.5 0 0 0-.08-.83A7.72 7.72 0 0 0 23 3z",
   },
   {
@@ -16,7 +16,7 @@ const socials = [
   },
   {
     label: "LinkedIn",
-    href: "https://linkedin.com",
+    href: "https://linkedin.com/in/uditanshutomar",
     path: "M16 8a6 6 0 0 1 6 6v7h-4v-7a2 2 0 0 0-4 0v7h-4v-7a6 6 0 0 1 6-6zM2 9h4v12H2zM4 2a2 2 0 1 1 0 4 2 2 0 0 1 0-4z",
   },
 ];
@@ -42,31 +42,31 @@ export default function Footer() {
         {/* Tagline + Legal */}
         <div className="flex flex-col items-center gap-2 sm:flex-row sm:gap-4">
           <p
-            className="text-sm text-[#0A0A0A]/40"
+            className="text-sm text-[#0A0A0A]/60"
             style={{ fontFamily: "var(--font-body)" }}
           >
             Made for the new workforce.
           </p>
-          <span className="text-sm text-[#0A0A0A]/25">|</span>
+          <span className="text-sm text-[#0A0A0A]/60">|</span>
           <div className="flex items-center gap-3">
             <Link
               href="/privacy"
-              className="text-sm text-[#0A0A0A]/40 hover:text-[#0A0A0A]/70 transition-colors"
+              className="text-sm text-[#0A0A0A]/60 hover:text-[#0A0A0A]/70 transition-colors"
               style={{ fontFamily: "var(--font-body)" }}
             >
               Privacy
             </Link>
             <Link
               href="/terms"
-              className="text-sm text-[#0A0A0A]/40 hover:text-[#0A0A0A]/70 transition-colors"
+              className="text-sm text-[#0A0A0A]/60 hover:text-[#0A0A0A]/70 transition-colors"
               style={{ fontFamily: "var(--font-body)" }}
             >
               Terms
             </Link>
           </div>
-          <span className="text-sm text-[#0A0A0A]/25">|</span>
+          <span className="text-sm text-[#0A0A0A]/60">|</span>
           <p
-            className="text-sm text-[#0A0A0A]/40"
+            className="text-sm text-[#0A0A0A]/60"
             style={{ fontFamily: "var(--font-body)" }}
           >
             MIT License

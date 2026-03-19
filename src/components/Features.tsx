@@ -125,12 +125,7 @@ export default function Features() {
               initial="hidden"
               whileInView="visible"
               viewport={{ once: true, margin: "-80px" }}
-              whileHover={{
-                y: -6,
-                rotate: i % 2 === 0 ? 1 : -1,
-                transition: { type: "spring", stiffness: 400 },
-              }}
-              className="group relative cursor-default rounded-2xl border-2 border-[var(--border-strong)] bg-[var(--surface)] p-6 shadow-[4px_4px_0_var(--border-strong)] transition-shadow hover:shadow-[2px_2px_0_var(--border-strong)]"
+              className="group relative cursor-default rounded-2xl border-2 border-[var(--border-strong)] bg-[var(--surface)] p-6 shadow-[4px_4px_0_var(--border-strong)]"
             >
               {/* Colored dot */}
               <div

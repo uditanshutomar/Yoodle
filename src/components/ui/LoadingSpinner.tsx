@@ -17,14 +17,14 @@ export default function LoadingSpinner({ size = "md", className = "" }: LoadingS
   const s = sizeMap[size];
 
   return (
-    <div className={`flex flex-col items-center gap-3 ${className}`}>
+    <div role="status" aria-live="polite" className={`flex flex-col items-center gap-3 ${className}`}>
       <m.div
         className={`${s.container} relative`}
         animate={{ rotate: 360 }}
         transition={{ duration: 1.5, repeat: Infinity, ease: "linear" }}
       >
         {/* Outer doodle spiral */}
-        <svg viewBox="0 0 50 50" fill="none" className="h-full w-full">
+        <svg viewBox="0 0 50 50" fill="none" className="h-full w-full" aria-hidden="true">
           <m.circle
             cx="25"
             cy="25"
@@ -59,6 +59,7 @@ export default function LoadingSpinner({ size = "md", className = "" }: LoadingS
           />
         </svg>
       </m.div>
+      <span className="sr-only">Loading…</span>
     </div>
   );
 }

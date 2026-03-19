@@ -15,6 +15,7 @@ type CardState = "editing" | "sending" | "sent" | "discarded";
 
 export default function DraftCard({ data, onSend, onPolish }: DraftCardProps) {
   const [state, setState] = useState<CardState>("editing");
+  const [error, setError] = useState<string | null>(null);
   const [content, setContent] = useState(data.content);
   const [copied, setCopied] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -26,12 +27,14 @@ export default function DraftCard({ data, onSend, onPolish }: DraftCardProps) {
 
   const handleSend = async () => {
     if (state === "sending") return; // prevent double-fire
+    setError(null);
     setState("sending");
     try {
       await onSend?.(data.actionType, { ...data.actionArgs, content });
       setState("sent");
     } catch (err) {
       console.error("[DraftCard] Failed to send draft:", err);
+      setError("Failed to send. Try again.");
       setState("editing");
     }
   };
@@ -119,6 +122,7 @@ export default function DraftCard({ data, onSend, onPolish }: DraftCardProps) {
             />
 
             {/* Action buttons */}
+            {error && <p className="text-xs text-[#FF6B6B] mt-1">{error}</p>}
             <div className="flex items-center gap-2 mt-2.5">
               <motion.button
                 whileHover={{ scale: 1.03 }}

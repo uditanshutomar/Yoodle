@@ -15,15 +15,18 @@ type CardState = "preview" | "confirming" | "confirmed" | "denied";
 
 export default function DiffPreviewCard({ data, onConfirm, onDeny }: DiffPreviewCardProps) {
   const [state, setState] = useState<CardState>("preview");
+  const [error, setError] = useState<string | null>(null);
 
   const handleConfirm = async () => {
     if (state === "confirming") return; // prevent double-fire
+    setError(null);
     setState("confirming");
     try {
       await onConfirm?.(data.actionType, data.actionArgs);
       setState("confirmed");
     } catch (err) {
       console.error("[DiffPreviewCard] Confirmation failed:", err);
+      setError("Confirmation failed. Try again.");
       setState("preview");
     }
   };
@@ -74,6 +77,7 @@ export default function DiffPreviewCard({ data, onConfirm, onDeny }: DiffPreview
               <span
                 className="text-[11px] text-[var(--text-primary)] truncate"
                 style={{ fontFamily: "var(--font-body)" }}
+                title={field.value}
               >
                 {field.value}
               </span>
@@ -83,6 +87,7 @@ export default function DiffPreviewCard({ data, onConfirm, onDeny }: DiffPreview
       )}
 
       {/* Action buttons / status */}
+      {error && <p className="text-xs text-[#FF6B6B] mt-1">{error}</p>}
       <AnimatePresence mode="wait">
         {state === "preview" && (
           <motion.div
