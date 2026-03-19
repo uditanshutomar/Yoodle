@@ -156,7 +156,6 @@ src/
 │   ├── ghost/                  # Ghost room components
 │   ├── ai/                     # AI assistant components
 │   ├── pulse/                  # Analytics components
-│   ├── dashboard/              # Dashboard layout (greeting, calendar, tasks)
 │   ├── settings/               # Settings components (workspace section)
 │   ├── layout/                 # Sidebar, topbar
 │   └── ui/                     # Reusable UI primitives
