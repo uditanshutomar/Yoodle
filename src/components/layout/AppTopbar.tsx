@@ -6,6 +6,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
 import Avatar from "../ui/Avatar";
 import { useAuth } from "@/hooks/useAuth";
+import CommandPalette from "./CommandPalette";
 
 interface AppTopbarProps {
   onMenuToggle?: () => void;
@@ -26,11 +27,15 @@ export default function AppTopbar({ onMenuToggle, menuOpen }: AppTopbarProps) {
         >
           {menuOpen ? <X size={20} /> : <Menu size={20} />}
         </button>
-        <div className="flex items-center gap-2 rounded-xl border-2 border-[var(--border)] bg-[var(--surface)] py-2 px-3 text-[var(--text-muted)]">
+        <CommandPalette />
+        <button
+          onClick={() => document.dispatchEvent(new KeyboardEvent("keydown", { key: "k", metaKey: true }))}
+          className="flex items-center gap-2 rounded-xl border-2 border-[var(--border)] bg-[var(--surface)] py-2 px-3 text-[var(--text-muted)] cursor-pointer hover:bg-[var(--surface-hover)] transition-colors"
+        >
           <Search size={16} />
-          <span className="text-sm" style={{ fontFamily: "var(--font-body)" }}>Search</span>
+          <span className="hidden text-sm sm:inline" style={{ fontFamily: "var(--font-body)" }}>Search</span>
           <kbd className="ml-auto rounded-md border border-[var(--border)] bg-[var(--surface-hover)] px-1.5 py-0.5 text-[10px] font-bold text-[var(--text-muted)]" style={{ fontFamily: "var(--font-heading)" }}>⌘K</kbd>
-        </div>
+        </button>
       </div>
 
       {/* Right actions */}
