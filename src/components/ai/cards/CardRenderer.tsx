@@ -7,7 +7,6 @@ import PersonCard from "./PersonCard";
 import DataSummaryCard from "./DataSummaryCard";
 import DraftCard from "./DraftCard";
 import DiffPreviewCard from "./DiffPreviewCard";
-import WorkflowProgressCard from "./WorkflowProgressCard";
 import BatchActionCard from "./BatchActionCard";
 import MeetingBriefCard from "./MeetingBriefCard";
 import MeetingAnalyticsCard from "./MeetingAnalyticsCard";
@@ -63,8 +62,6 @@ export default function CardRenderer({ cards, onAction }: CardRendererProps) {
                 onConfirm={(actionType, args) => onAction?.(actionType, args)}
               />
             );
-          case "workflow_progress":
-            return <WorkflowProgressCard key={key} data={card} />;
           case "batch_action":
             return (
               <BatchActionCard

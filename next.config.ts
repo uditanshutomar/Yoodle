@@ -53,7 +53,7 @@ const securityHeaders = [
       "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
       "font-src 'self' https://fonts.gstatic.com",
       "img-src 'self' data: blob: https://lh3.googleusercontent.com https://maps.gstatic.com https://maps.googleapis.com https://*.ggpht.com https://*.googleapis.com",
-      `connect-src 'self' wss://${appHost} ws://localhost:* https://accounts.google.com https://www.googleapis.com https://maps.googleapis.com https://*.googleapis.com https://*.ingest.sentry.io`,
+      `connect-src 'self' wss://${appHost} ws://localhost:* wss://api.deepgram.com https://accounts.google.com https://www.googleapis.com https://maps.googleapis.com https://*.googleapis.com https://*.ingest.sentry.io`,
       "frame-src 'self' https://accounts.google.com",
       "media-src 'self' blob:",
       "object-src 'none'",

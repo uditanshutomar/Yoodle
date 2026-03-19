@@ -5,7 +5,6 @@ export type CardType =
   | "person"
   | "data_summary"
   | "draft"
-  | "workflow_progress"
   | "diff_preview"
   | "batch_action"
   | "meeting_brief"
@@ -73,16 +72,6 @@ export interface DraftCardData extends BaseCard {
   actionArgs: Record<string, unknown>;
 }
 
-export interface WorkflowProgressCardData extends BaseCard {
-  type: "workflow_progress";
-  workflowId: string;
-  title: string;
-  steps: Array<{
-    label: string;
-    status: "pending" | "in_progress" | "done" | "skipped" | "error";
-  }>;
-}
-
 export interface DiffPreviewCardData extends BaseCard {
   type: "diff_preview";
   actionType: string;
@@ -135,7 +124,6 @@ export type CardData =
   | PersonCardData
   | DataSummaryCardData
   | DraftCardData
-  | WorkflowProgressCardData
   | DiffPreviewCardData
   | BatchActionCardData
   | MeetingBriefCardData
