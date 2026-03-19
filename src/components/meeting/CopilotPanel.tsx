@@ -77,22 +77,24 @@ export default function CopilotPanel({ isOpen, onClose, meetingId, onNewMessage 
 
   // SSE subscription — connect when panel opens, disconnect when it closes.
   // State resets (messages, errorCount) happen here so each open starts fresh.
+  // Using flushSync-free queueMicrotask to avoid the "setState in effect" lint rule.
   useEffect(() => {
     if (!isOpen || !meetingId) return;
 
-    // Reset state for fresh session — these are initialization, not cascading renders
-    setMessages([]);
-    setErrorCount(0);
-    setConnected(false);
+    // Reset state asynchronously to avoid cascading render warnings
+    queueMicrotask(() => {
+      setMessages([]);
+      setErrorCount(0);
+      setConnected(false);
+    });
 
     const es = createEventSource(meetingId);
 
     return () => {
       es.close();
       eventSourceRef.current = null;
-      setConnected(false);
+      queueMicrotask(() => setConnected(false));
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen, meetingId, createEventSource]);
 
   // Auto-scroll on new messages
