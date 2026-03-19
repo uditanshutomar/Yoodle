@@ -16,6 +16,7 @@ import {
   X,
   Hand,
   LayoutGrid,
+  Sparkles,
 } from "lucide-react";
 import { useState } from "react";
 
@@ -26,9 +27,11 @@ interface MeetingControlsProps {
   isRecording: boolean;
   isChatOpen: boolean;
   isParticipantsOpen: boolean;
+  isCopilotOpen?: boolean;
   isHandRaised?: boolean;
   layout?: "bubbles" | "grid";
   unreadChatCount?: number;
+  unreadCopilotCount?: number;
   canScreenShare?: boolean;
   canRecord?: boolean;
   onToggleAudio: () => void;
@@ -42,6 +45,7 @@ interface MeetingControlsProps {
   onLeave: () => void;
   onToggleHandRaise?: () => void;
   onToggleLayout?: () => void;
+  onToggleCopilot?: () => void;
 }
 
 const REACTIONS = ["👏", "🔥", "❤️", "😂", "🎉", "👍", "💯", "🤯"];
@@ -101,9 +105,11 @@ export default function MeetingControls({
   isRecording,
   isChatOpen,
   isParticipantsOpen,
+  isCopilotOpen,
   isHandRaised = false,
   layout = "bubbles",
   unreadChatCount = 0,
+  unreadCopilotCount = 0,
   canScreenShare = true,
   canRecord = true,
   onToggleAudio,
@@ -117,6 +123,7 @@ export default function MeetingControls({
   onLeave,
   onToggleHandRaise,
   onToggleLayout,
+  onToggleCopilot,
 }: MeetingControlsProps) {
   const shouldReduceMotion = useReducedMotion();
   const [showReactions, setShowReactions] = useState(false);
@@ -270,6 +277,13 @@ export default function MeetingControls({
             className={isParticipantsOpen ? "text-[#06B6D4]" : ""}
           />
         </ControlButton>
+
+        {/* Copilot toggle */}
+        {onToggleCopilot && (
+          <ControlButton onClick={onToggleCopilot} active={isCopilotOpen} label="Copilot" badge={!isCopilotOpen && (unreadCopilotCount ?? 0) > 0}>
+            <Sparkles size={18} className={isCopilotOpen ? "text-[#A855F7]" : ""} />
+          </ControlButton>
+        )}
 
         {/* Layout toggle */}
         {onToggleLayout && (

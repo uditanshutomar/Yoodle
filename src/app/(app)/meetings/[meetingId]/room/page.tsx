@@ -12,6 +12,7 @@ import ConnectionIndicator from "@/components/meeting/ConnectionIndicator";
 import LoadingSpinner from "@/components/ui/LoadingSpinner";
 import type { WaitingUser } from "@/components/meeting/WaitingRoomPanel";
 
+const CopilotPanel = dynamic(() => import("@/components/meeting/CopilotPanel"), { ssr: false });
 const ChatPanel = dynamic(() => import("@/components/meeting/ChatPanel"), { ssr: false });
 const ScreenShareView = dynamic(() => import("@/components/meeting/ScreenShareView"), { ssr: false });
 const ParticipantList = dynamic(() => import("@/components/meeting/ParticipantList"), { ssr: false });
@@ -92,7 +93,9 @@ export default function MeetingRoomPage() {
           const hostId = d.data?.hostId?._id || d.data?.hostId;
           if (hostId) setCurrentHostId(hostId.toString());
         })
-        .catch(() => {});
+        .catch((err) => {
+          if (active) console.warn("[MeetingRoom] Meeting data poll failed:", err);
+        });
     };
 
     fetchMeetingData();
@@ -191,6 +194,8 @@ export default function MeetingRoomPage() {
   // ── UI state ─────────────────────────────────────────────────────────
   const [showChat, setShowChat] = useState(false);
   const [showParticipants, setShowParticipants] = useState(false);
+  const [showCopilot, setShowCopilot] = useState(false);
+  const [copilotUnread, setCopilotUnread] = useState(0);
   const [layout, setLayout] = useState<"bubbles" | "grid">("bubbles");
   const [isHandRaised, setIsHandRaised] = useState(false);
   const [showWaitingRoom, setShowWaitingRoom] = useState(false);
@@ -446,8 +451,8 @@ export default function MeetingRoomPage() {
           setWaitingUsers(users);
           if (users.length > 0) setShowWaitingRoom(true);
         }
-      } catch {
-        // Polling is best-effort
+      } catch (err) {
+        console.warn("[MeetingRoom] Waiting room poll error:", err);
       }
     };
 
@@ -598,9 +603,11 @@ export default function MeetingRoomPage() {
         });
         if (res.ok) {
           setCurrentHostId(targetUserId);
+        } else {
+          console.warn("[MeetingRoom] Host transfer failed:", res.status);
         }
-      } catch {
-        /* best-effort */
+      } catch (err) {
+        console.warn("[MeetingRoom] Host transfer error:", err);
       }
     },
     [isLocalHost, meetingId],
@@ -612,14 +619,15 @@ export default function MeetingRoomPage() {
     async (userId: string) => {
       if (!isLocalHost) return;
       try {
-        await fetch(`/api/meetings/${meetingId}/admit`, {
+        const res = await fetch(`/api/meetings/${meetingId}/admit`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           credentials: "include",
           body: JSON.stringify({ userId }),
         });
-      } catch {
-        /* best-effort */
+        if (!res.ok) console.warn("[MeetingRoom] Admit user failed:", res.status);
+      } catch (err) {
+        console.warn("[MeetingRoom] Admit user error:", err);
       }
       setWaitingUsers((prev) => prev.filter((u) => u.id !== userId));
     },
@@ -630,14 +638,15 @@ export default function MeetingRoomPage() {
     async (userId: string) => {
       if (!isLocalHost) return;
       try {
-        await fetch(`/api/meetings/${meetingId}/deny`, {
+        const res = await fetch(`/api/meetings/${meetingId}/deny`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           credentials: "include",
           body: JSON.stringify({ userId }),
         });
-      } catch {
-        /* best-effort */
+        if (!res.ok) console.warn("[MeetingRoom] Deny user failed:", res.status);
+      } catch (err) {
+        console.warn("[MeetingRoom] Deny user error:", err);
       }
       setWaitingUsers((prev) => prev.filter((u) => u.id !== userId));
     },
@@ -662,8 +671,8 @@ export default function MeetingRoomPage() {
         method: "POST",
         credentials: "include",
       });
-    } catch {
-      /* ignore */
+    } catch (err) {
+      console.warn("[MeetingRoom] Leave meeting error:", err);
     }
 
     router.push("/meetings");
@@ -964,6 +973,13 @@ export default function MeetingRoomPage() {
             )}
           </AnimatePresence>
         )}
+
+        {/* Copilot panel */}
+        <AnimatePresence>
+          {showCopilot && (
+            <CopilotPanel isOpen={showCopilot} onClose={() => setShowCopilot(false)} meetingId={meetingId} />
+          )}
+        </AnimatePresence>
       </div>
 
       {/* Reactions overlay */}
@@ -1052,6 +1068,9 @@ export default function MeetingRoomPage() {
         onLeave={handleEndCall}
         onToggleHandRaise={handleToggleHandRaise}
         onToggleLayout={handleToggleLayout}
+        isCopilotOpen={showCopilot}
+        onToggleCopilot={() => { setShowCopilot(!showCopilot); if (!showCopilot) setCopilotUnread(0); }}
+        unreadCopilotCount={copilotUnread}
       />
     </div>
   );
