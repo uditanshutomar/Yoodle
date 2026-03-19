@@ -1,0 +1,39 @@
+import dynamic from "next/dynamic";
+import type { ComponentType } from "react";
+
+const stub = () => null;
+
+export const WIDGET_COMPONENTS: Record<string, ComponentType> = {
+  "up-next": dynamic(() => import("./UpNextWidget"), {
+    ssr: false,
+    loading: stub,
+  }),
+  launchpad: dynamic(() => import("./LaunchpadWidget"), {
+    ssr: false,
+    loading: stub,
+  }),
+  "sticky-board": dynamic(() => import("./StickyBoardWidget"), {
+    ssr: false,
+    loading: stub,
+  }),
+  "yoodler-says": dynamic(() => import("./YoodlerSaysWidget"), {
+    ssr: false,
+    loading: stub,
+  }),
+  "pulse-check": dynamic(() => import("./PulseCheckWidget"), {
+    ssr: false,
+    loading: stub,
+  }),
+  buzz: dynamic(() => import("./BuzzWidget"), {
+    ssr: false,
+    loading: stub,
+  }),
+  replays: dynamic(() => import("./ReplaysWidget"), {
+    ssr: false,
+    loading: stub,
+  }),
+  "the-feed": dynamic(() => import("./TheFeedWidget"), {
+    ssr: false,
+    loading: stub,
+  }),
+};
