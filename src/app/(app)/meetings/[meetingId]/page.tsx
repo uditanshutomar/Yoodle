@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { motion } from "framer-motion";
+import { FileText, ChevronDown, Loader2, ExternalLink } from "lucide-react";
 import PreJoinLobby from "@/components/meeting/PreJoinLobby";
 import LoadingSpinner from "@/components/ui/LoadingSpinner";
 import { useAuth } from "@/hooks/useAuth";
@@ -30,6 +31,9 @@ export default function MeetingLobbyPage() {
   const [meeting, setMeeting] = useState<MeetingData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [brief, setBrief] = useState<Record<string, unknown> | null>(null);
+  const [loadingBrief, setLoadingBrief] = useState(false);
+  const [briefCollapsed, setBriefCollapsed] = useState(false);
   const [waitingForAdmission, setWaitingForAdmission] = useState(false);
   const [pendingJoinSettings, setPendingJoinSettings] = useState<{
     video: boolean;
@@ -38,10 +42,14 @@ export default function MeetingLobbyPage() {
     audioDeviceId?: string;
   } | null>(null);
   const pollingRef = useRef(false);
+  const admittedRef = useRef(false);
 
   useEffect(() => {
     fetch(`/api/meetings/${meetingId}`, { credentials: "include" })
-      .then((r) => r.json())
+      .then((r) => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        return r.json();
+      })
       .then((data) => {
         if (data.success && data.data) {
           setMeeting(data.data);
@@ -52,6 +60,18 @@ export default function MeetingLobbyPage() {
       .catch(() => setError("Failed to load meeting"))
       .finally(() => setLoading(false));
   }, [meetingId]);
+
+  useEffect(() => {
+    if (!meetingId || !user) return;
+    const controller = new AbortController();
+    setLoadingBrief(true);
+    fetch(`/api/meetings/${meetingId}/brief`, { credentials: "include", signal: controller.signal })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((res) => { if (res?.data) setBrief(res.data); })
+      .catch(() => {})
+      .finally(() => setLoadingBrief(false));
+    return () => controller.abort();
+  }, [meetingId, user]);
 
   const submitJoin = useCallback(
     async (settings: {
@@ -84,13 +104,15 @@ export default function MeetingLobbyPage() {
 
           saveRoomJoinSession(meetingId, roomSession);
 
-          if (roomSession.joinDisposition === "waiting") {
+          if (roomSession.joinDisposition === "waiting" && !admittedRef.current) {
             setPendingJoinSettings(settings);
             setWaitingForAdmission(true);
             setError("");
             return;
           }
 
+          // Reset admitted flag after use to avoid permanently skipping waiting room
+          admittedRef.current = false;
           router.push(`/meetings/${roomSession.roomId}/room`);
         } else {
           setError(data.error?.message || "Failed to join meeting");
@@ -126,6 +148,7 @@ export default function MeetingLobbyPage() {
         if (status === "admitted") {
           pollingRef.current = false;
           setWaitingForAdmission(false);
+          admittedRef.current = true;
           await submitJoin(pendingJoinSettings);
           return;
         }
@@ -257,6 +280,133 @@ export default function MeetingLobbyPage() {
         participantCount={(meeting.participants || []).filter((p) => p.status === "joined").length}
         onJoin={submitJoin}
       />
+
+      {(brief || loadingBrief) && (
+        <motion.div
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="rounded-2xl border-2 border-[var(--border-strong)] bg-[var(--surface)] shadow-[4px_4px_0_var(--border-strong)] mt-4 overflow-hidden"
+        >
+          {/* Collapsible header */}
+          <button
+            onClick={() => setBriefCollapsed((c) => !c)}
+            className="flex w-full items-center justify-between px-5 py-4 text-left"
+          >
+            <div className="flex items-center gap-2">
+              <FileText size={16} className="text-[#3B82F6]" />
+              <span
+                className="text-sm font-bold text-[var(--text-primary)]"
+                style={{ fontFamily: "var(--font-heading)" }}
+              >
+                Meeting Brief
+              </span>
+              {brief?.status === "stale" && (
+                <span className="rounded-full bg-[#F59E0B]/10 border border-[#F59E0B]/30 px-2 py-0.5 text-[9px] font-bold text-[#F59E0B]">
+                  Stale
+                </span>
+              )}
+            </div>
+            <ChevronDown
+              size={16}
+              className={`text-[var(--text-muted)] transition-transform ${briefCollapsed ? "" : "rotate-180"}`}
+            />
+          </button>
+
+          {/* Content */}
+          {!briefCollapsed && (
+            <div className="border-t border-[var(--border)] px-5 pb-5 pt-4 space-y-4">
+              {loadingBrief && !brief && (
+                <div className="flex items-center justify-center py-6">
+                  <Loader2 size={20} className="animate-spin text-[var(--text-muted)]" />
+                </div>
+              )}
+
+              {brief && (
+                <>
+                  {/* Suggested Agenda */}
+                  {Array.isArray(brief.agendaSuggestions) && (brief.agendaSuggestions as string[]).length > 0 && (
+                    <div>
+                      <p
+                        className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider mb-2"
+                        style={{ fontFamily: "var(--font-heading)" }}
+                      >
+                        Suggested Agenda
+                      </p>
+                      <ul className="space-y-1.5">
+                        {(brief.agendaSuggestions as string[]).map((item, i) => (
+                          <li key={i} className="flex items-start gap-2 text-sm text-[var(--text-secondary)] leading-relaxed">
+                            <span className="flex-shrink-0 mt-1.5 h-1.5 w-1.5 rounded-full bg-[#3B82F6]" />
+                            {item}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+
+                  {/* Carryover Items */}
+                  {Array.isArray(brief.carryoverItems) && (brief.carryoverItems as { task: string; fromMeetingTitle: string }[]).length > 0 && (
+                    <div>
+                      <p
+                        className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider mb-2"
+                        style={{ fontFamily: "var(--font-heading)" }}
+                      >
+                        Carryover Items
+                      </p>
+                      <ul className="space-y-1.5">
+                        {(brief.carryoverItems as { task: string; fromMeetingTitle: string }[]).map((item, i) => (
+                          <li key={i} className="text-sm text-[var(--text-secondary)] leading-relaxed">
+                            <span className="text-[var(--text-muted)] mr-1">{"\u21B3"}</span>
+                            {item.task}
+                            <span className="ml-1 text-[10px] text-[var(--text-muted)]">from {item.fromMeetingTitle}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+
+                  {/* Relevant Sources */}
+                  {Array.isArray(brief.sources) && (brief.sources as { type: string; title: string; summary: string }[]).length > 0 && (
+                    <div>
+                      <p
+                        className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider mb-2"
+                        style={{ fontFamily: "var(--font-heading)" }}
+                      >
+                        Relevant Sources
+                      </p>
+                      <div className="space-y-2">
+                        {(brief.sources as { type: string; title: string; summary: string }[]).map((src, i) => (
+                          <div key={i} className="rounded-xl border border-[var(--border)] bg-[var(--background)] px-3 py-2.5">
+                            <div className="flex items-center gap-2 mb-1">
+                              <span className="rounded-full bg-[#8B5CF6]/10 border border-[#8B5CF6]/30 px-2 py-0.5 text-[9px] font-bold text-[#8B5CF6] uppercase">
+                                {src.type}
+                              </span>
+                              <span className="text-xs font-medium text-[var(--text-primary)]">{src.title}</span>
+                            </div>
+                            <p className="text-xs text-[var(--text-secondary)] leading-relaxed">{src.summary}</p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Google Doc link */}
+                  {brief.googleDocUrl && (
+                    <a
+                      href={brief.googleDocUrl as string}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1.5 text-xs font-medium text-[#3B82F6] hover:underline"
+                    >
+                      <ExternalLink size={12} />
+                      View full brief in Google Docs
+                    </a>
+                  )}
+                </>
+              )}
+            </div>
+          )}
+        </motion.div>
+      )}
     </div>
   );
 }

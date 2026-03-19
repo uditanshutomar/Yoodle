@@ -5,9 +5,9 @@ import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import Image from "next/image";
 import { MeetingRecord } from "./meetingsData";
-import { Loader2, ExternalLink, Download, Play, Pause, Video, Check } from "lucide-react";
+import { Loader2, ExternalLink, Download, Play, Pause, Video, Check, FileText } from "lucide-react";
 
-type Tab = "overview" | "mom" | "transcript" | "recording" | "analytics";
+type Tab = "overview" | "mom" | "transcript" | "recording" | "analytics" | "brief";
 
 const TAB_ICONS: Record<Tab, React.ReactNode> = {
     overview: <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#EC4899" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2" /><rect x="8" y="2" width="8" height="4" rx="1" ry="1" /></svg>,
@@ -15,6 +15,7 @@ const TAB_ICONS: Record<Tab, React.ReactNode> = {
     transcript: <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#3B82F6" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" /></svg>,
     recording: <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#EF4444" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polygon points="5 3 19 12 5 21 5 3" /></svg>,
     analytics: <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#8B5CF6" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="20" x2="18" y2="10" /><line x1="12" y1="20" x2="12" y2="4" /><line x1="6" y1="20" x2="6" y2="14" /></svg>,
+    brief: <FileText size={13} className="text-[#3B82F6]" />,
 };
 
 const TABS: { key: Tab; label: string }[] = [
@@ -23,6 +24,7 @@ const TABS: { key: Tab; label: string }[] = [
     { key: "transcript", label: "Transcript" },
     { key: "recording", label: "Recording" },
     { key: "analytics", label: "Analytics" },
+    { key: "brief", label: "Brief" },
 ];
 
 interface TranscriptSegment {
@@ -70,6 +72,10 @@ export default function MeetingDetail({
     // Analytics state
     const [analyticsData, setAnalyticsData] = useState<Record<string, unknown> | null>(null);
     const [loadingAnalytics, setLoadingAnalytics] = useState(false);
+
+    // Brief state
+    const [briefData, setBriefData] = useState<Record<string, unknown> | null>(null);
+    const [loadingBrief, setLoadingBrief] = useState(false);
 
     // Feedback toasts
     const [toast, setToast] = useState("");
@@ -159,10 +165,28 @@ export default function MeetingDetail({
             }
         }
 
+        async function fetchBrief() {
+            setLoadingBrief(true);
+            try {
+                const res = await fetch(`/api/meetings/${meeting.id}/brief`, { credentials: "include", signal });
+                if (signal.aborted) return;
+                if (res.ok) {
+                    const data = await res.json();
+                    if (data.data) setBriefData(data.data);
+                }
+            } catch (err) {
+                if (err instanceof DOMException && err.name === "AbortError") return;
+                console.error("[MeetingDetail] Brief fetch error:", err);
+            } finally {
+                if (!signal.aborted) setLoadingBrief(false);
+            }
+        }
+
         fetchTranscript();
         fetchRecordings();
         fetchMom();
         fetchAnalytics();
+        fetchBrief();
 
         return () => { controller.abort(); };
     }, [meeting.id, meeting.mom]);
@@ -393,7 +417,8 @@ export default function MeetingDetail({
                             const disabled = (t.key === "transcript" && !hasRealTranscript && !meeting.hasTranscript) ||
                                 (t.key === "recording" && !hasRealRecordings && !meeting.hasRecording) ||
                                 (t.key === "mom" && !momData) ||
-                                (t.key === "analytics" && !analyticsData);
+                                (t.key === "analytics" && !analyticsData) ||
+                                (t.key === "brief" && !briefData);
                             return (
                                 <button
                                     key={t.key}
@@ -418,6 +443,9 @@ export default function MeetingDetail({
                                         <Loader2 size={10} className="animate-spin ml-1" />
                                     )}
                                     {t.key === "analytics" && loadingAnalytics && (
+                                        <Loader2 size={10} className="animate-spin ml-1" />
+                                    )}
+                                    {t.key === "brief" && loadingBrief && (
                                         <Loader2 size={10} className="animate-spin ml-1" />
                                     )}
                                 </button>
@@ -453,6 +481,7 @@ export default function MeetingDetail({
                                 />
                             )}
                             {tab === "analytics" && analyticsData && <AnalyticsTab key="analytics" data={analyticsData} />}
+                            {tab === "brief" && briefData && <BriefTab key="brief" data={briefData} />}
                         </AnimatePresence>
                     </div>
 
@@ -1052,6 +1081,100 @@ function AnalyticsTab({ data }: { data: Record<string, unknown> }) {
                         })}
                     </div>
                 </div>
+            )}
+        </motion.div>
+    );
+}
+
+function BriefTab({ data }: { data: Record<string, unknown> }) {
+    const agendaSuggestions = (data.agendaSuggestions as string[]) || [];
+    const carryoverItems = (data.carryoverItems as { task: string; fromMeetingTitle: string }[]) || [];
+    const sources = (data.sources as { type: string; title: string; summary: string }[]) || [];
+    const googleDocUrl = data.googleDocUrl as string | undefined;
+    const status = data.status as string | undefined;
+
+    return (
+        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="space-y-5">
+            {/* Status badge */}
+            {status === "stale" && (
+                <div className="flex items-center gap-2">
+                    <span className="rounded-full bg-[#F59E0B]/10 border border-[#F59E0B]/30 px-2.5 py-0.5 text-[10px] font-bold text-[#F59E0B]">
+                        Stale — brief may be outdated
+                    </span>
+                </div>
+            )}
+
+            {/* Suggested Agenda */}
+            {agendaSuggestions.length > 0 && (
+                <div className="rounded-2xl border-[1.5px] border-[var(--border)] bg-[var(--surface)] p-5">
+                    <p className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider mb-3 flex items-center gap-1.5" style={{ fontFamily: "var(--font-heading)" }}>
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#3B82F6" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2" /><rect x="8" y="2" width="8" height="4" rx="1" ry="1" /></svg>
+                        Suggested Agenda
+                    </p>
+                    <ul className="space-y-2">
+                        {agendaSuggestions.map((item, i) => (
+                            <li key={i} className="flex items-start gap-2.5 text-sm text-[var(--text-secondary)] leading-relaxed">
+                                <span className="flex-shrink-0 mt-1 h-1.5 w-1.5 rounded-full bg-[#3B82F6]" />
+                                {item}
+                            </li>
+                        ))}
+                    </ul>
+                </div>
+            )}
+
+            {/* Carryover Items */}
+            {carryoverItems.length > 0 && (
+                <div className="rounded-2xl border-[1.5px] border-[var(--border)] bg-[var(--surface)] p-5">
+                    <p className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider mb-3 flex items-center gap-1.5" style={{ fontFamily: "var(--font-heading)" }}>
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#F59E0B" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 14 20 9 15 4" /><path d="M4 20v-7a4 4 0 0 1 4-4h12" /></svg>
+                        Carryover Items
+                    </p>
+                    <ul className="space-y-2">
+                        {carryoverItems.map((item, i) => (
+                            <li key={i} className="text-sm text-[var(--text-secondary)] leading-relaxed">
+                                <span className="text-[var(--text-muted)] mr-1">{"\u21B3"}</span>
+                                {item.task}
+                                <span className="ml-1.5 text-[10px] text-[var(--text-muted)]">from {item.fromMeetingTitle}</span>
+                            </li>
+                        ))}
+                    </ul>
+                </div>
+            )}
+
+            {/* Relevant Sources */}
+            {sources.length > 0 && (
+                <div className="rounded-2xl border-[1.5px] border-[var(--border)] bg-[var(--surface)] p-5">
+                    <p className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider mb-3 flex items-center gap-1.5" style={{ fontFamily: "var(--font-heading)" }}>
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#8B5CF6" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z" /><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z" /></svg>
+                        Relevant Sources
+                    </p>
+                    <div className="space-y-2">
+                        {sources.map((src, i) => (
+                            <div key={i} className="rounded-xl bg-[var(--background)] px-3.5 py-2.5">
+                                <div className="flex items-center gap-2 mb-1">
+                                    <span className="rounded-full bg-[#8B5CF6]/10 border border-[#8B5CF6]/30 px-2 py-0.5 text-[9px] font-bold text-[#8B5CF6] uppercase">
+                                        {src.type}
+                                    </span>
+                                    <span className="text-xs font-medium text-[var(--text-primary)]">{src.title}</span>
+                                </div>
+                                <p className="text-xs text-[var(--text-secondary)] leading-relaxed">{src.summary}</p>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            )}
+
+            {/* Google Doc link */}
+            {googleDocUrl && (
+                <a
+                    href={googleDocUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1.5 text-sm font-medium text-[#3B82F6] hover:underline"
+                >
+                    <ExternalLink size={14} />
+                    View full brief in Google Docs
+                </a>
             )}
         </motion.div>
     );
