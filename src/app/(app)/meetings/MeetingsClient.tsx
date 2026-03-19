@@ -430,7 +430,19 @@ export default function MeetingsClient() {
           )}
 
           {activeTab === "blueprints" && (
-            <EmptyState title="Meeting templates coming soon" description="Create reusable meeting blueprints with agendas, timers, and auto-assigned roles." />
+            <div className="flex flex-col items-center gap-4 py-12">
+              <p className="text-sm text-[var(--text-secondary)]" style={{ fontFamily: "var(--font-body)" }}>
+                Create reusable meeting blueprints with agendas, timers, and auto-assigned roles.
+              </p>
+              <Link
+                href="/meetings/templates"
+                className="inline-flex items-center gap-2 rounded-xl border-2 border-[var(--border-strong)] bg-[#FFE600] px-5 py-2.5 text-sm font-bold text-[#0A0A0A] shadow-[2px_2px_0_var(--border-strong)] transition-all hover:shadow-[4px_4px_0_var(--border-strong)] hover:translate-x-[-2px] hover:translate-y-[-2px]"
+                style={{ fontFamily: "var(--font-heading)" }}
+              >
+                <Plus size={16} />
+                Manage Templates
+              </Link>
+            </div>
           )}
         </>
       )}
