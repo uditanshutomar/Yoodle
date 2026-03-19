@@ -1,10 +1,11 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { motion } from "framer-motion";
 import { Settings, User, Bell, Palette, Shield, Save, Sun, Moon, Monitor, Link2, ExternalLink } from "lucide-react";
 import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
+import WorkspaceSection from "@/components/settings/WorkspaceSection";
 import { useAuth } from "@/hooks/useAuth";
 import { useTheme, type Theme } from "@/providers/ThemeProvider";
 
@@ -31,6 +32,12 @@ export default function SettingsPage() {
   const [notifications, setNotifications] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saveStatus, setSaveStatus] = useState<"idle" | "success" | "error">("idle");
+  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+
+  // Cleanup save status timer on unmount
+  useEffect(() => {
+    return () => { clearTimeout(saveTimerRef.current); };
+  }, []);
 
   // Load user preferences on mount
   useEffect(() => {
@@ -53,8 +60,8 @@ export default function SettingsPage() {
             }
           }
         }
-      } catch {
-        // Ignore — use defaults
+      } catch (err) {
+        console.warn("[Settings] Failed to load preferences:", err);
       }
     }
 
@@ -83,7 +90,8 @@ export default function SettingsPage() {
       if (res.ok) {
         setSaveStatus("success");
         await refreshSession();
-        setTimeout(() => setSaveStatus("idle"), 2000);
+        clearTimeout(saveTimerRef.current);
+        saveTimerRef.current = setTimeout(() => setSaveStatus("idle"), 2000);
       } else {
         setSaveStatus("error");
       }
@@ -248,6 +256,11 @@ export default function SettingsPage() {
         </Card>
       </motion.div>
 
+      {/* Workspaces */}
+      <motion.div variants={itemVariants}>
+        <WorkspaceSection />
+      </motion.div>
+
       {/* Save button */}
       <motion.div variants={itemVariants} className="flex items-center gap-3">
         <Button variant="primary" size="md" icon={Save} onClick={handleSave} disabled={saving}>
@@ -278,10 +291,14 @@ function GoogleConnectButton() {
         credentials: "include",
       });
       const data = await res.json();
-      if (data.data?.url) {
-        window.location.href = data.data.url;
+      if (!res.ok || !data.data?.url) {
+        console.warn("[Settings] Google connect: unexpected response", res.status);
+        setConnecting(false);
+        return;
       }
-    } catch {
+      window.location.href = data.data.url;
+    } catch (err) {
+      console.warn("[Settings] Google connect failed:", err);
       setConnecting(false);
     }
   };
