@@ -96,7 +96,7 @@ export default function PrivacyPolicyPage() {
           </h2>
           <ul className="list-disc pl-6 space-y-1 leading-relaxed">
             <li>Data is stored in encrypted MongoDB databases</li>
-            <li>Recordings are stored in encrypted object storage (Vultr/Google Drive)</li>
+            <li>Recordings are stored in the user's Google Drive</li>
             <li>All connections use TLS 1.2+ encryption</li>
             <li>Authentication tokens are short-lived (15 minutes) with secure refresh mechanisms</li>
             <li>Passwords are hashed using bcrypt with appropriate salt rounds</li>

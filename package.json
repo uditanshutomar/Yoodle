@@ -1,5 +1,5 @@
 {
-  "name": "yoodle-landing",
+  "name": "yoodle",
   "version": "0.1.0",
   "private": true,
   "scripts": {
@@ -41,7 +41,6 @@
     "react-dom": "^19.2.4",
     "react-grid-layout": "^2.2.2",
     "react-markdown": "^10.1.0",
-    "resend": "^6.9.3",
     "server-only": "^0.0.1",
     "sonner": "^2.0.7",
     "zod": "^4.3.6"

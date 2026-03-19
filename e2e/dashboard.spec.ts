@@ -252,8 +252,8 @@ test.describe("Dashboard — critical flows", () => {
     const aiCard = page.getByRole("button", { name: /open ai assistant/i });
     await expect(aiCard).toBeVisible();
 
-    // Verify it contains the "Doodle Poodle" text
-    await expect(page.getByText("Doodle Poodle")).toBeVisible();
+    // Verify it contains the "Yoodler" text
+    await expect(page.getByText("Yoodler")).toBeVisible();
 
     // Verify quick action prompts are shown
     await expect(page.getByText("Summarize my day")).toBeVisible();

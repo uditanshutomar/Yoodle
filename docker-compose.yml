@@ -1,7 +1,7 @@
 version: "3.9"
 
 services:
-  # ── Yoodle Next.js App (with embedded Socket.io signaling) ─────────
+  # ── Yoodle Next.js App ─────────────────────────────────────────────
   yoodle:
     build:
       context: .

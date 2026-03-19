@@ -51,7 +51,6 @@ Full read/write access to Gmail, Google Calendar, Drive, Docs, Sheets, Slides, T
 | Job Queues | BullMQ (durable, Redis-backed) |
 | Styling | Tailwind CSS 4 |
 | UI | Radix UI, Framer Motion, Lucide Icons |
-| Email | Resend (configured, not yet active) |
 | Storage | Google Drive (per-user recordings) |
 | Monitoring | Sentry |
 | Validation | Zod |

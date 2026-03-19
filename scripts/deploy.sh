@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# ── Yoodle Deployment Script ─────────────────────────────────────────
-# Deploys Yoodle to a Vultr VM via SSH.
+# ── Yoodle Self-Hosted Deployment Script ─────────────────────────────
+# Deploys Yoodle to a self-hosted VM via SSH (alternative to Vercel).
 #
 # Usage:
 #   ./scripts/deploy.sh <server-ip> [domain]
