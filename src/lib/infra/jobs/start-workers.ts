@@ -10,6 +10,7 @@ const log = createLogger("jobs:workers");
 // ── Worker Registry ─────────────────────────────────────────────────
 
 const workers: Worker[] = [];
+let started = false;
 
 /**
  * Attach common event listeners to a worker:
@@ -36,10 +37,11 @@ function attachCommonListeners(worker: Worker, label: string): void {
  * Each worker creates its own Redis connection via BullMQ's ioredis client.
  */
 export function startWorkers(): void {
-  if (workers.length > 0) {
+  if (started) {
     log.warn("workers already started, skipping duplicate call");
     return;
   }
+  started = true;
 
   const connection = getConnection();
 

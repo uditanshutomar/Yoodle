@@ -130,7 +130,7 @@ export const POST = withHandler(async (req: NextRequest, context) => {
       log.error({ err, meetingId: result._id.toString() }, "failed to enqueue post-meeting cascade");
     }
 
-    } // end if (endResult.modifiedCount > 0)
+    } // end else (endResult.modifiedCount > 0)
   } else if (isHost && remainingParticipants.length > 0) {
     // Host left but others remain — transfer host to the earliest-joined participant
     const newHost = remainingParticipants.sort(

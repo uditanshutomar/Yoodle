@@ -111,7 +111,7 @@ export async function processPostMeetingCascade(
   // ── Step 0: Sync calendar end time to actual duration (idempotent) ─
 
   try {
-    if (meeting.calendarEventId && meeting.endedAt) {
+    if (meeting.calendarEventId) {
       const startTime = meeting.startedAt || meeting.scheduledAt || meeting.createdAt;
       const endedAt = new Date(job.data.endedAt);
       const actualMinutes = Math.max(1, (endedAt.getTime() - startTime.getTime()) / 60000);

@@ -27,8 +27,10 @@ export async function processCalendarSync(
         await deleteEvent(userId, calendarEventId);
         jobLog.info("calendar event deleted successfully");
       } catch (err) {
-        // Google returns 404 or 410 if event already deleted — treat as success
+        // Google API errors expose HTTP status as `.code` (number), `.status`,
+        // or `.response.status` depending on the error wrapper. Check all three.
         const status =
+          (err as { code?: number }).code ??
           (err as { status?: number }).status ??
           (err as { response?: { status?: number } }).response?.status;
 
