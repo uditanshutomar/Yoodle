@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { BarChart3 } from "lucide-react";
+import { BarChart3, RefreshCw } from "lucide-react";
 
 interface TrendsData {
   range: string;
@@ -16,26 +16,34 @@ interface TrendsData {
 export default function MeetingTrendsCard() {
   const [data, setData] = useState<TrendsData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [range, setRange] = useState<"week" | "month" | "quarter">("month");
 
   useEffect(() => {
-    let cancelled = false;
+    const controller = new AbortController();
 
-    const fetchTrends = async () => {
+    async function fetchTrends() {
       try {
-        const res = await fetch(`/api/meetings/analytics/trends?range=${range}`, { credentials: "include" });
-        if (!res.ok) return;
+        const res = await fetch(`/api/meetings/analytics/trends?range=${range}`, {
+          credentials: "include",
+          signal: controller.signal,
+        });
+        if (controller.signal.aborted) return;
+        if (!res.ok) throw new Error(`Failed to load trends (${res.status})`);
         const json = await res.json();
-        if (!cancelled && json?.data) setData(json.data);
-      } catch {
-        // ignore fetch errors
+        if (json?.data) setData(json.data);
+        setError(null);
+      } catch (err) {
+        if (err instanceof DOMException && err.name === "AbortError") return;
+        console.error("[MeetingTrendsCard] Fetch error:", err);
+        setError(err instanceof Error ? err.message : "Failed to load trends");
       } finally {
-        if (!cancelled) setLoading(false);
+        if (!controller.signal.aborted) setLoading(false);
       }
-    };
+    }
 
     fetchTrends();
-    return () => { cancelled = true; };
+    return () => controller.abort();
   }, [range]);
 
   const scoreColor = data ? (data.avgScore >= 70 ? "#22C55E" : data.avgScore >= 40 ? "#F59E0B" : "#EF4444") : "#6B7280";
@@ -60,6 +68,17 @@ export default function MeetingTrendsCard() {
       <div className="p-4">
         {loading && !data ? (
           <div className="text-center py-4 text-sm text-[var(--text-secondary)]">Loading trends…</div>
+        ) : error ? (
+          <div className="text-center py-4">
+            <p className="text-sm text-[#FF6B6B] mb-2">{error}</p>
+            <button
+              onClick={() => setRange((r) => r)}
+              className="inline-flex items-center gap-1 text-xs font-bold text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors"
+              style={{ fontFamily: "var(--font-heading)" }}
+            >
+              <RefreshCw size={10} /> Retry
+            </button>
+          </div>
         ) : !data || data.totalMeetings === 0 ? (
           <div className="text-center py-4 text-sm text-[var(--text-secondary)]">No meeting data yet</div>
         ) : (

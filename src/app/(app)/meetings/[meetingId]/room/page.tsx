@@ -977,7 +977,7 @@ export default function MeetingRoomPage() {
         {/* Copilot panel */}
         <AnimatePresence>
           {showCopilot && (
-            <CopilotPanel isOpen={showCopilot} onClose={() => setShowCopilot(false)} meetingId={meetingId} />
+            <CopilotPanel isOpen={showCopilot} onClose={() => setShowCopilot(false)} meetingId={meetingId} onNewMessage={() => { if (!showCopilot) setCopilotUnread((c) => c + 1); }} />
           )}
         </AnimatePresence>
       </div>

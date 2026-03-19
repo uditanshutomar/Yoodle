@@ -36,6 +36,28 @@ export interface AuditLogEntry {
   createdAt: string;
 }
 
+/* ─── Helpers ─── */
+
+/** Extract a human-readable error message from an API JSON response. */
+function extractErrorMessage(json: Record<string, unknown>, fallback: string): string {
+  // API error shape: { error: { code, message } } or { error: "string" } or { message: "string" }
+  if (json.error && typeof json.error === "object") {
+    return (json.error as { message?: string }).message || fallback;
+  }
+  if (typeof json.error === "string") return json.error;
+  if (typeof json.message === "string") return json.message;
+  return fallback;
+}
+
+/** Safely parse JSON from a response, returning null for non-JSON bodies. */
+async function safeJson(res: Response): Promise<Record<string, unknown> | null> {
+  try {
+    return await res.json();
+  } catch {
+    return null;
+  }
+}
+
 /* ─── Hook ─── */
 
 export function useWorkspaces() {
@@ -48,9 +70,13 @@ export function useWorkspaces() {
     setError(null);
     try {
       const res = await fetch("/api/workspaces", { credentials: "include" });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error || json.message || "Failed to fetch workspaces");
-      setWorkspaces(json.workspaces ?? json.data?.workspaces ?? []);
+      const json = await safeJson(res);
+      if (!res.ok) {
+        throw new Error(json ? extractErrorMessage(json, "Failed to fetch workspaces") : `Request failed (${res.status})`);
+      }
+      // API returns { data: { workspaces: [...] } } via successResponse
+      const list = (json?.data as Record<string, unknown>)?.workspaces ?? json?.workspaces ?? [];
+      setWorkspaces(list as Workspace[]);
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Failed to fetch workspaces";
       setError(msg);
@@ -67,10 +93,12 @@ export function useWorkspaces() {
       credentials: "include",
       body: JSON.stringify({ name, description }),
     });
-    const json = await res.json();
-    if (!res.ok) throw new Error(json.error || json.message || "Failed to create workspace");
+    const json = await safeJson(res);
+    if (!res.ok) {
+      throw new Error(json ? extractErrorMessage(json, "Failed to create workspace") : `Request failed (${res.status})`);
+    }
     await fetchWorkspaces();
-    return json.data;
+    return json?.data;
   }, [fetchWorkspaces]);
 
   const updateWorkspace = useCallback(async (
@@ -83,10 +111,12 @@ export function useWorkspaces() {
       credentials: "include",
       body: JSON.stringify(data),
     });
-    const json = await res.json();
-    if (!res.ok) throw new Error(json.error || json.message || "Failed to update workspace");
+    const json = await safeJson(res);
+    if (!res.ok) {
+      throw new Error(json ? extractErrorMessage(json, "Failed to update workspace") : `Request failed (${res.status})`);
+    }
     await fetchWorkspaces();
-    return json.data;
+    return json?.data;
   }, [fetchWorkspaces]);
 
   const deleteWorkspace = useCallback(async (id: string) => {
@@ -94,17 +124,21 @@ export function useWorkspaces() {
       method: "DELETE",
       credentials: "include",
     });
-    const json = await res.json();
-    if (!res.ok) throw new Error(json.error || json.message || "Failed to delete workspace");
+    const json = await safeJson(res);
+    if (!res.ok) {
+      throw new Error(json ? extractErrorMessage(json, "Failed to delete workspace") : `Request failed (${res.status})`);
+    }
     await fetchWorkspaces();
-    return json.data;
+    return json?.data;
   }, [fetchWorkspaces]);
 
   const fetchMembers = useCallback(async (id: string) => {
     const res = await fetch(`/api/workspaces/${id}/members`, { credentials: "include" });
-    const json = await res.json();
-    if (!res.ok) throw new Error(json.error || json.message || "Failed to fetch members");
-    return json.data as WorkspaceMember[];
+    const json = await safeJson(res);
+    if (!res.ok) {
+      throw new Error(json ? extractErrorMessage(json, "Failed to fetch members") : `Request failed (${res.status})`);
+    }
+    return (json?.data ?? []) as WorkspaceMember[];
   }, []);
 
   const addMember = useCallback(async (id: string, email: string, role: "member" | "admin") => {
@@ -114,28 +148,38 @@ export function useWorkspaces() {
       credentials: "include",
       body: JSON.stringify({ email, role }),
     });
-    const json = await res.json();
-    if (!res.ok) throw new Error(json.error || json.message || "Failed to add member");
+    const json = await safeJson(res);
+    if (!res.ok) {
+      throw new Error(json ? extractErrorMessage(json, "Failed to add member") : `Request failed (${res.status})`);
+    }
     await fetchWorkspaces();
-    return json.data;
+    return json?.data;
   }, [fetchWorkspaces]);
 
   const removeMember = useCallback(async (workspaceId: string, memberId: string) => {
+    if (!memberId || typeof memberId !== "string" || !memberId.trim()) {
+      throw new Error("Invalid member ID");
+    }
     const res = await fetch(`/api/workspaces/${workspaceId}/members?memberId=${memberId}`, {
       method: "DELETE",
       credentials: "include",
     });
-    const json = await res.json();
-    if (!res.ok) throw new Error(json.error || json.message || "Failed to remove member");
+    const json = await safeJson(res);
+    if (!res.ok) {
+      throw new Error(json ? extractErrorMessage(json, "Failed to remove member") : `Request failed (${res.status})`);
+    }
     await fetchWorkspaces();
-    return json.data;
+    return json?.data;
   }, [fetchWorkspaces]);
 
   const fetchAuditLogs = useCallback(async (id: string) => {
     const res = await fetch(`/api/workspaces/${id}/audit`, { credentials: "include" });
-    const json = await res.json();
-    if (!res.ok) throw new Error(json.error || json.message || "Failed to fetch audit logs");
-    return (json.data?.logs ?? json.logs ?? []) as AuditLogEntry[];
+    const json = await safeJson(res);
+    if (!res.ok) {
+      throw new Error(json ? extractErrorMessage(json, "Failed to fetch audit logs") : `Request failed (${res.status})`);
+    }
+    const data = json?.data as Record<string, unknown> | undefined;
+    return (data?.logs ?? json?.logs ?? []) as AuditLogEntry[];
   }, []);
 
   return {

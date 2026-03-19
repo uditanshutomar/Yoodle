@@ -86,22 +86,26 @@ export default function WorkspaceSection() {
   const [newName, setNewName] = useState("");
   const [newDesc, setNewDesc] = useState("");
   const [creating, setCreating] = useState(false);
+  const [createError, setCreateError] = useState<string | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
   useEffect(() => {
-    fetchWorkspaces().catch(() => {});
+    fetchWorkspaces().catch((err: unknown) => {
+      console.error("[WorkspaceSection] Failed to load workspaces:", err);
+    });
   }, [fetchWorkspaces]);
 
   const handleCreate = async () => {
     if (!newName.trim()) return;
     setCreating(true);
+    setCreateError(null);
     try {
       await createWorkspace(newName.trim(), newDesc.trim() || undefined);
       setNewName("");
       setNewDesc("");
       setShowCreate(false);
-    } catch {
-      // error is in hook state
+    } catch (err) {
+      setCreateError(err instanceof Error ? err.message : "Failed to create workspace");
     } finally {
       setCreating(false);
     }
@@ -185,6 +189,9 @@ export default function WorkspaceSection() {
             className="w-full px-4 py-2.5 text-sm border-2 border-[var(--border)] rounded-xl bg-[var(--surface)] text-[var(--text-primary)] focus:border-[#FFE600] focus:outline-none"
             style={{ fontFamily: "var(--font-body)" }}
           />
+          {createError && (
+            <p className="text-xs text-[#FF6B6B]" style={{ fontFamily: "var(--font-body)" }}>{createError}</p>
+          )}
           <div className="flex gap-2">
             <button
               onClick={handleCreate}
@@ -195,7 +202,7 @@ export default function WorkspaceSection() {
               {creating ? "Creating..." : "Create"}
             </button>
             <button
-              onClick={() => { setShowCreate(false); setNewName(""); setNewDesc(""); }}
+              onClick={() => { setShowCreate(false); setNewName(""); setNewDesc(""); setCreateError(null); }}
               className="px-4 py-2 text-sm font-bold rounded-xl border-2 border-[var(--border)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors"
               style={{ fontFamily: "var(--font-heading)" }}
             >
@@ -244,9 +251,13 @@ function WorkspaceItem({
   const [editDesc, setEditDesc] = useState(workspace.description || "");
   const [saving, setSaving] = useState(false);
 
+  // Per-operation error feedback
+  const [opError, setOpError] = useState<string | null>(null);
+
   // Members
   const [members, setMembers] = useState<WorkspaceMember[]>([]);
   const [membersLoaded, setMembersLoaded] = useState(false);
+  const [membersError, setMembersError] = useState<string | null>(null);
   const [memberEmail, setMemberEmail] = useState("");
   const [memberRole, setMemberRole] = useState<"member" | "admin">("member");
   const [addingMember, setAddingMember] = useState(false);
@@ -259,6 +270,7 @@ function WorkspaceItem({
   const [auditLogs, setAuditLogs] = useState<AuditLogEntry[]>([]);
   const [showAudit, setShowAudit] = useState(false);
   const [auditLoaded, setAuditLoaded] = useState(false);
+  const [auditError, setAuditError] = useState<string | null>(null);
 
   // Delete confirm
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -267,12 +279,14 @@ function WorkspaceItem({
   // Load members when expanded
   const loadMembers = useCallback(async () => {
     if (membersLoaded) return;
+    setMembersError(null);
     try {
       const data = await onFetchMembers(workspace._id);
       setMembers(data);
       setMembersLoaded(true);
-    } catch {
-      // silently fail
+    } catch (err) {
+      setMembersLoaded(true); // prevent infinite retry loop
+      setMembersError(err instanceof Error ? err.message : "Failed to load members");
     }
   }, [membersLoaded, onFetchMembers, workspace._id]);
 
@@ -290,16 +304,25 @@ function WorkspaceItem({
     setShutdownMinutes(workspace.settings?.shutdownAfterMinutes ?? 60);
   }, [workspace]);
 
+  // Auto-clear operation errors after 4s
+  useEffect(() => {
+    if (!opError) return;
+    const t = setTimeout(() => setOpError(null), 4000);
+    return () => clearTimeout(t);
+  }, [opError]);
+
   const handleSave = async () => {
+    const mins = Math.max(5, shutdownMinutes);
     setSaving(true);
+    setOpError(null);
     try {
       await onUpdate(workspace._id, {
         name: editName.trim(),
         description: editDesc.trim(),
-        settings: { autoShutdown, shutdownAfterMinutes: shutdownMinutes },
+        settings: { autoShutdown, shutdownAfterMinutes: mins },
       });
-    } catch {
-      // error handled by hook
+    } catch (err) {
+      setOpError(err instanceof Error ? err.message : "Failed to save");
     } finally {
       setSaving(false);
     }
@@ -308,35 +331,39 @@ function WorkspaceItem({
   const handleAddMember = async () => {
     if (!memberEmail.trim()) return;
     setAddingMember(true);
+    setOpError(null);
     try {
       await onAddMember(workspace._id, memberEmail.trim(), memberRole);
       setMemberEmail("");
       setMemberRole("member");
       setMembersLoaded(false);
-    } catch {
-      // error handled by hook
+    } catch (err) {
+      setOpError(err instanceof Error ? err.message : "Failed to add member");
     } finally {
       setAddingMember(false);
     }
   };
 
   const handleRemoveMember = async (memberId: string) => {
+    setOpError(null);
     try {
       await onRemoveMember(workspace._id, memberId);
       setMembersLoaded(false);
-    } catch {
-      // error handled by hook
+    } catch (err) {
+      setOpError(err instanceof Error ? err.message : "Failed to remove member");
     }
   };
 
   const handleToggleAudit = async () => {
     if (!showAudit && !auditLoaded) {
+      setAuditError(null);
       try {
         const logs = await onFetchAuditLogs(workspace._id);
         setAuditLogs(logs);
         setAuditLoaded(true);
-      } catch {
-        // silently fail
+      } catch (err) {
+        setAuditLoaded(true);
+        setAuditError(err instanceof Error ? err.message : "Failed to load audit logs");
       }
     }
     setShowAudit(!showAudit);
@@ -344,11 +371,12 @@ function WorkspaceItem({
 
   const handleDelete = async () => {
     setDeleting(true);
+    setOpError(null);
     try {
       await onDelete(workspace._id);
       setConfirmDelete(false);
-    } catch {
-      // error handled by hook
+    } catch (err) {
+      setOpError(err instanceof Error ? err.message : "Failed to delete workspace");
     } finally {
       setDeleting(false);
     }
@@ -387,6 +415,13 @@ function WorkspaceItem({
             className="overflow-hidden"
           >
             <div className="px-4 pb-4 space-y-5 border-t-2 border-[var(--border)] pt-4">
+              {/* Operation error banner */}
+              {opError && (
+                <div className="text-xs text-[#FF6B6B] bg-[#FF6B6B]/5 border border-[#FF6B6B]/20 rounded-lg px-3 py-2" style={{ fontFamily: "var(--font-body)" }}>
+                  {opError}
+                </div>
+              )}
+
               {/* Edit name/description */}
               {canEdit && (
                 <div className="space-y-3">
@@ -444,7 +479,7 @@ function WorkspaceItem({
                         type="number"
                         min={5}
                         value={shutdownMinutes}
-                        onChange={(e) => setShutdownMinutes(Number(e.target.value))}
+                        onChange={(e) => setShutdownMinutes(Math.max(5, Number(e.target.value) || 5))}
                         className="w-32 px-4 py-2.5 text-sm border-2 border-[var(--border)] rounded-xl bg-[var(--surface)] text-[var(--text-primary)] focus:border-[#FFE600] focus:outline-none"
                         style={{ fontFamily: "var(--font-body)" }}
                       />
@@ -467,10 +502,21 @@ function WorkspaceItem({
                 <h3 className="text-xs font-bold text-[var(--text-secondary)] mb-2" style={{ fontFamily: "var(--font-heading)" }}>
                   Members
                 </h3>
-                {members.length === 0 && !membersLoaded && (
+                {!membersLoaded && !membersError && (
                   <p className="text-xs text-[var(--text-muted)]" style={{ fontFamily: "var(--font-body)" }}>
                     Loading members...
                   </p>
+                )}
+                {membersError && (
+                  <div className="flex items-center gap-2 text-xs text-[#FF6B6B] mb-2" style={{ fontFamily: "var(--font-body)" }}>
+                    <span>{membersError}</span>
+                    <button
+                      onClick={() => { setMembersLoaded(false); setMembersError(null); }}
+                      className="underline hover:no-underline"
+                    >
+                      Retry
+                    </button>
+                  </div>
                 )}
                 <div className="space-y-1">
                   {members.map((m) => {
@@ -557,7 +603,17 @@ function WorkspaceItem({
                         transition={{ duration: 0.15 }}
                         className="overflow-hidden"
                       >
-                        {auditLogs.length === 0 ? (
+                        {auditError ? (
+                          <div className="flex items-center gap-2 text-xs text-[#FF6B6B] mt-2" style={{ fontFamily: "var(--font-body)" }}>
+                            <span>{auditError}</span>
+                            <button
+                              onClick={() => { setAuditLoaded(false); setAuditError(null); handleToggleAudit(); }}
+                              className="underline hover:no-underline"
+                            >
+                              Retry
+                            </button>
+                          </div>
+                        ) : auditLogs.length === 0 ? (
                           <p className="text-xs text-[var(--text-muted)] mt-2" style={{ fontFamily: "var(--font-body)" }}>
                             No audit logs
                           </p>

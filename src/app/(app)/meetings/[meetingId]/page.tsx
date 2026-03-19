@@ -66,9 +66,15 @@ export default function MeetingLobbyPage() {
     const controller = new AbortController();
     setLoadingBrief(true);
     fetch(`/api/meetings/${meetingId}/brief`, { credentials: "include", signal: controller.signal })
-      .then((r) => (r.ok ? r.json() : null))
+      .then((r) => {
+        if (!r.ok) return null;
+        return r.json();
+      })
       .then((res) => { if (res?.data) setBrief(res.data); })
-      .catch(() => {})
+      .catch((err) => {
+        if (err instanceof DOMException && err.name === "AbortError") return;
+        console.error("[MeetingLobbyPage] Failed to fetch brief:", err);
+      })
       .finally(() => setLoadingBrief(false));
     return () => controller.abort();
   }, [meetingId, user]);

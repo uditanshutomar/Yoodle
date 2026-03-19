@@ -148,11 +148,24 @@ export default function MeetingDetail({
             }
         }
 
+        fetchTranscript();
+        fetchRecordings();
+        fetchMom();
+        // Analytics and brief are lazy-fetched when the user clicks their tab
+
+        return () => { controller.abort(); };
+    }, [meeting.id, meeting.mom]);
+
+    // Lazy-fetch analytics only when the user clicks the analytics tab
+    useEffect(() => {
+        if (tab !== "analytics" || analyticsData || loadingAnalytics) return;
+        const controller = new AbortController();
+
         async function fetchAnalytics() {
             setLoadingAnalytics(true);
             try {
-                const res = await fetch(`/api/meetings/${meeting.id}/analytics`, { credentials: "include", signal });
-                if (signal.aborted) return;
+                const res = await fetch(`/api/meetings/${meeting.id}/analytics`, { credentials: "include", signal: controller.signal });
+                if (controller.signal.aborted) return;
                 if (res.ok) {
                     const data = await res.json();
                     if (data.data) setAnalyticsData(data.data);
@@ -161,15 +174,24 @@ export default function MeetingDetail({
                 if (err instanceof DOMException && err.name === "AbortError") return;
                 console.error("[MeetingDetail] Analytics fetch error:", err);
             } finally {
-                if (!signal.aborted) setLoadingAnalytics(false);
+                if (!controller.signal.aborted) setLoadingAnalytics(false);
             }
         }
+        fetchAnalytics();
+        return () => { controller.abort(); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [tab, meeting.id]);
+
+    // Lazy-fetch brief only when the user clicks the brief tab
+    useEffect(() => {
+        if (tab !== "brief" || briefData || loadingBrief) return;
+        const controller = new AbortController();
 
         async function fetchBrief() {
             setLoadingBrief(true);
             try {
-                const res = await fetch(`/api/meetings/${meeting.id}/brief`, { credentials: "include", signal });
-                if (signal.aborted) return;
+                const res = await fetch(`/api/meetings/${meeting.id}/brief`, { credentials: "include", signal: controller.signal });
+                if (controller.signal.aborted) return;
                 if (res.ok) {
                     const data = await res.json();
                     if (data.data) setBriefData(data.data);
@@ -178,18 +200,13 @@ export default function MeetingDetail({
                 if (err instanceof DOMException && err.name === "AbortError") return;
                 console.error("[MeetingDetail] Brief fetch error:", err);
             } finally {
-                if (!signal.aborted) setLoadingBrief(false);
+                if (!controller.signal.aborted) setLoadingBrief(false);
             }
         }
-
-        fetchTranscript();
-        fetchRecordings();
-        fetchMom();
-        fetchAnalytics();
         fetchBrief();
-
         return () => { controller.abort(); };
-    }, [meeting.id, meeting.mom]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [tab, meeting.id]);
 
     const hasRealTranscript = transcriptSegments.length > 0;
     const hasRealRecordings = recordings.length > 0;
