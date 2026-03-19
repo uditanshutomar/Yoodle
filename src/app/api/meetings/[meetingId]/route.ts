@@ -8,7 +8,8 @@ import { getUserIdFromRequest } from "@/lib/infra/auth/middleware";
 import { BadRequestError, NotFoundError, ForbiddenError } from "@/lib/infra/api/errors";
 import connectDB from "@/lib/infra/db/client";
 import Meeting from "@/lib/infra/db/models/meeting";
-import { deleteEvent } from "@/lib/google/calendar";
+import { getQueue, QUEUE_NAMES } from "@/lib/infra/jobs/queue";
+import type { CalendarSyncPayload } from "@/lib/infra/jobs/types";
 import { createLogger } from "@/lib/infra/logger";
 import "@/lib/infra/db/models/user"; // register User schema for .populate("hostId")
 import { buildMeetingFilter } from "@/lib/meetings/helpers";
@@ -229,12 +230,23 @@ export const DELETE = withHandler(async (req: NextRequest, context) => {
     throw new BadRequestError("Meeting is already ended or cancelled.");
   }
 
-  // Clean up Google Calendar event if one was created
+  // Enqueue durable calendar event cleanup (previously fire-and-forget)
   if (result.calendarEventId) {
     try {
-      await deleteEvent(userId, result.calendarEventId);
+      const payload: CalendarSyncPayload = {
+        action: "delete",
+        userId,
+        calendarEventId: result.calendarEventId,
+        meetingId: result._id.toString(),
+      };
+      await getQueue(QUEUE_NAMES.CALENDAR_SYNC).add(
+        "delete-calendar-event",
+        payload,
+        { jobId: `cal-delete-${result._id.toString()}` },
+      );
     } catch (err) {
-      log.warn({ err, meetingId: result._id.toString(), calendarEventId: result.calendarEventId }, "Failed to delete calendar event on meeting cancellation");
+      // Queue unavailable — log but don't fail the cancel request
+      log.warn({ err, meetingId: result._id.toString(), calendarEventId: result.calendarEventId }, "Failed to enqueue calendar event deletion");
     }
   }
 

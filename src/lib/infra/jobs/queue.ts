@@ -1,49 +1,24 @@
 import { Queue } from "bullmq";
+import { getConnection } from "./connection";
 import { createLogger } from "@/lib/infra/logger";
 
 const logger = createLogger("jobs:queue");
-
-// -- Connection options -------------------------------------------------------
-
-/**
- * Parse Redis connection config directly from REDIS_URL instead of
- * reaching into ioredis client internals (which are not part of the
- * public API and can change between versions).
- */
-function getConnection(): {
-  host: string;
-  port: number;
-  password?: string;
-  db: number;
-  maxRetriesPerRequest: null;
-  tls?: Record<string, unknown>;
-} {
-  const redisUrl = process.env.REDIS_URL || "redis://localhost:6379";
-  const useTls = redisUrl.startsWith("rediss://");
-
-  const parsed = new URL(redisUrl);
-
-  return {
-    host: parsed.hostname || "localhost",
-    port: parsed.port ? parseInt(parsed.port, 10) : 6379,
-    password: parsed.password || undefined,
-    db: parsed.pathname ? parseInt(parsed.pathname.slice(1), 10) || 0 : 0,
-    maxRetriesPerRequest: null, // Required by BullMQ
-    ...(useTls ? { tls: {} } : {}),
-  };
-}
 
 // -- Queue Names --------------------------------------------------------------
 
 export const QUEUE_NAMES = {
   RECORDING_PROCESS: "recording-process",
+  POST_MEETING_CASCADE: "post-meeting-cascade",
+  CALENDAR_SYNC: "calendar-sync",
 } as const;
 
 // -- Queue Factory ------------------------------------------------------------
 
 const queues = new Map<string, Queue>();
 
-export function getQueue(name: string): Queue {
+export type QueueName = typeof QUEUE_NAMES[keyof typeof QUEUE_NAMES];
+
+export function getQueue(name: QueueName): Queue {
   const existing = queues.get(name);
   if (existing) return existing;
 

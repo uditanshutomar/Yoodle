@@ -8,29 +8,12 @@ import { getUserIdFromRequest } from "@/lib/infra/auth/middleware";
 import { BadRequestError, NotFoundError } from "@/lib/infra/api/errors";
 import connectDB from "@/lib/infra/db/client";
 import Meeting from "@/lib/infra/db/models/meeting";
-import Conversation from "@/lib/infra/db/models/conversation";
-import DirectMessage from "@/lib/infra/db/models/direct-message";
-import { getRedisClient } from "@/lib/infra/redis/client";
-import { updateEvent } from "@/lib/google/calendar";
+import { getQueue, QUEUE_NAMES } from "@/lib/infra/jobs/queue";
+import type { PostMeetingCascadePayload } from "@/lib/infra/jobs/types";
 import { createLogger } from "@/lib/infra/logger";
 import { buildMeetingFilter } from "@/lib/meetings/helpers";
 
 const log = createLogger("meetings:leave");
-
-// ── Types ───────────────────────────────────────────────────────────
-
-interface MeetingMom {
-  summary?: string;
-  keyDecisions?: string[];
-  discussionPoints?: string[];
-  actionItems?: { task: string; owner: string; due: string }[];
-  nextSteps?: string[];
-}
-
-interface MeetingWithMom {
-  title?: string;
-  mom?: MeetingMom;
-}
 
 // ── Validation ──────────────────────────────────────────────────────
 
@@ -126,195 +109,26 @@ export const POST = withHandler(async (req: NextRequest, context) => {
       log.info({ meetingId: result._id.toString() }, "meeting already ended by another request, skipping cascade");
     } else {
 
-    // Sync calendar event to actual meeting duration (rounded to 15-min slots)
-    // Use host's OAuth token since they own the calendar event
-    if (result.calendarEventId) {
-      try {
-        const startTime = result.startedAt || result.scheduledAt || result.createdAt;
-        const actualMinutes = Math.max(1, (endedAt.getTime() - startTime.getTime()) / 60000);
-        const roundedMinutes = Math.max(15, Math.round(actualMinutes / 15) * 15);
-        const newEnd = new Date(startTime.getTime() + roundedMinutes * 60000);
+    // Enqueue durable post-meeting cascade (calendar end-time sync, system
+    // message, MoM, action items, calendar update). Previously a fire-and-forget
+    // IIFE — now survives crashes and retries on failure.
+    try {
+      const payload: PostMeetingCascadePayload = {
+        meetingId: result._id.toString(),
+        hostId: hostIdStr,
+        endedAt: endedAt.toISOString(),
+      };
 
-        await updateEvent(hostIdStr, result.calendarEventId, {
-          end: newEnd.toISOString(),
-        });
-      } catch (calErr) {
-        log.warn({ err: calErr }, "failed to sync calendar end time after meeting");
-      }
+      await getQueue(QUEUE_NAMES.POST_MEETING_CASCADE).add(
+        "post-meeting-cascade",
+        payload,
+        { jobId: `cascade-${result._id.toString()}` },
+      );
+      log.info({ meetingId: result._id.toString() }, "post-meeting cascade job enqueued");
+    } catch (err) {
+      // Queue unavailable (no Redis) — log but don't fail the leave request
+      log.error({ err, meetingId: result._id.toString() }, "failed to enqueue post-meeting cascade");
     }
-
-    // Post end message and MoM to linked conversation (fire-and-forget).
-    // Each section has its own error boundary so a failure in one doesn't
-    // block the other.
-    (async () => {
-      let convId: mongoose.Types.ObjectId;
-      try {
-        const conv = await Conversation.findOne({ meetingId: result._id }).select("_id").lean();
-        if (!conv) return;
-        convId = conv._id as mongoose.Types.ObjectId;
-      } catch (err) {
-        log.warn({ err, meetingId: result._id }, "failed to find meeting conversation");
-        return;
-      }
-
-      // 1. Post "meeting ended" system message
-      try {
-        const endMsg = await DirectMessage.create({
-          conversationId: convId,
-          senderId: result.hostId,
-          senderType: "user",
-          content: "Meeting ended.",
-          type: "system",
-        });
-
-        await Conversation.updateOne(
-          { _id: convId },
-          {
-            $set: {
-              lastMessageAt: endMsg.createdAt,
-              lastMessagePreview: endMsg.content,
-              lastMessageSenderId: endMsg.senderId,
-            },
-          },
-        );
-
-        try {
-          const redis = getRedisClient();
-          await redis.publish(`chat:${convId}`, JSON.stringify({ type: "message", message: endMsg }));
-        } catch (err) { log.warn({ err }, "Redis publish failed"); }
-      } catch (err) {
-        log.warn({ err, meetingId: result._id }, "failed to post meeting-ended message");
-      }
-
-      // Use MoM data from the already-fetched result (no redundant DB read)
-      const meetingWithMom: MeetingWithMom | null = result as unknown as MeetingWithMom;
-
-      // 2. Post MoM if it exists (independent of step 1)
-      try {
-        if (meetingWithMom?.mom?.summary) {
-          const mom = meetingWithMom.mom;
-          const momContent = [
-            `**Minutes of Meeting: ${meetingWithMom.title}**`,
-            "",
-            `**Summary:** ${mom.summary}`,
-            mom.keyDecisions?.length ? `\n**Key Decisions:**\n${mom.keyDecisions.map((d: string) => `- ${d}`).join("\n")}` : "",
-            mom.discussionPoints?.length ? `\n**Discussion Points:**\n${mom.discussionPoints.map((d: string) => `- ${d}`).join("\n")}` : "",
-            mom.actionItems?.length ? `\n**Action Items:**\n${mom.actionItems.map((a: { task: string; owner: string; due: string }) => `- ${a.task} → ${a.owner} (${a.due})`).join("\n")}` : "",
-            mom.nextSteps?.length ? `\n**Next Steps:**\n${mom.nextSteps.map((s: string) => `- ${s}`).join("\n")}` : "",
-          ].filter(Boolean).join("\n");
-
-          const momMsg = await DirectMessage.create({
-            conversationId: convId,
-            senderId: result.hostId,
-            senderType: "agent",
-            content: momContent,
-            type: "agent",
-            agentMeta: { forUserId: result.hostId },
-          });
-
-          await Conversation.updateOne(
-            { _id: convId },
-            {
-              $set: {
-                lastMessageAt: momMsg.createdAt,
-                lastMessagePreview: "Minutes of Meeting posted",
-                lastMessageSenderId: momMsg.senderId,
-              },
-            },
-          );
-
-          try {
-            const redis = getRedisClient();
-            await redis.publish(`chat:${convId}`, JSON.stringify({ type: "message", message: momMsg }));
-          } catch (err) { log.warn({ err }, "Redis publish failed"); }
-        }
-      } catch (err) {
-        log.warn({ err, meetingId: result._id }, "failed to post MoM to conversation");
-      }
-
-      // 3. Extract action items from MoM and propose tasks
-      try {
-        if (meetingWithMom?.mom?.actionItems?.length) {
-          const actionItems = meetingWithMom.mom.actionItems;
-
-          const taskProposals = actionItems.map(
-            (a: { task: string; owner: string; due: string }) =>
-              `- **${a.task}** -> ${a.owner} (due: ${a.due})`
-          ).join("\n");
-
-          const proposalContent = [
-            `**Action Items from "${meetingWithMom.title}"**`,
-            "",
-            "I detected these action items from the meeting:",
-            taskProposals,
-            "",
-            "Would you like me to create tasks for these?",
-          ].join("\n");
-
-          const proposalMsg = await DirectMessage.create({
-            conversationId: convId,
-            senderId: result.hostId,
-            senderType: "agent",
-            content: proposalContent,
-            type: "agent",
-            agentMeta: {
-              forUserId: result.hostId,
-              pendingAction: {
-                actionId: `action-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`,
-                actionType: "create_tasks_from_meeting",
-                args: {
-                  meetingId: result._id.toString(),
-                  actionItems: actionItems,
-                },
-                summary: `Create ${actionItems.length} tasks from meeting "${meetingWithMom.title}"`,
-                status: "pending",
-              },
-            },
-          });
-
-          await Conversation.updateOne(
-            { _id: convId },
-            {
-              $set: {
-                lastMessageAt: proposalMsg.createdAt,
-                lastMessagePreview: "Action items detected from meeting",
-                lastMessageSenderId: proposalMsg.senderId,
-              },
-            },
-          );
-
-          try {
-            const redis = getRedisClient();
-            await redis.publish(`chat:${convId}`, JSON.stringify({ type: "message", message: proposalMsg }));
-          } catch (err) { log.warn({ err }, "Redis publish failed"); }
-        }
-      } catch (err) {
-        log.warn({ err, meetingId: result._id }, "failed to extract action items from meeting");
-      }
-
-      // 4. Update calendar event with MoM summary (independent of steps 1 & 2)
-      try {
-        if (result.calendarEventId && meetingWithMom?.mom?.summary) {
-          const baseUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000";
-          const yoodleLink = `${baseUrl}/meetings/${result.code}/room`;
-          const momLink = `${baseUrl}/meetings/${result._id}`;
-          const updatedDesc = [
-            `Join Yoodle meeting: ${yoodleLink}`,
-            ``,
-            `📝 Meeting Notes:`,
-            meetingWithMom.mom.summary,
-            meetingWithMom.mom.keyDecisions?.length ? `\nKey Decisions: ${meetingWithMom.mom.keyDecisions.join("; ")}` : "",
-            `\nFull notes: ${momLink}`,
-          ].filter(Boolean).join("\n");
-
-          await updateEvent(hostIdStr, result.calendarEventId, {
-            description: updatedDesc,
-          });
-        }
-      } catch (err) {
-        log.warn({ err, meetingId: result._id }, "failed to update calendar event with MoM");
-      }
-    })().catch((err) => log.error({ err, meetingId: result._id?.toString() }, "Unhandled error in post-meeting cascade"));
 
     } // end if (endResult.modifiedCount > 0)
   } else if (isHost && remainingParticipants.length > 0) {
