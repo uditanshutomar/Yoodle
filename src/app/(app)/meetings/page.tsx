@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
-import { Video, Plus, Calendar, Users, Clock, Ghost, ChevronDown } from "lucide-react";
+import { Video, Plus, Calendar, Users, Clock, Ghost, ChevronDown, DoorOpen, LogIn } from "lucide-react";
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import Card from "@/components/ui/Card";
 import Badge from "@/components/ui/Badge";
@@ -167,9 +167,10 @@ export default function MeetingsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [retryCount, setRetryCount] = useState(0);
-  const [activeTab, setActiveTab] = useState<"upcoming" | "past" | "ghost">("upcoming");
+  const [activeTab, setActiveTab] = useState<"upcoming" | "past" | "blueprints">("upcoming");
   const [ghostRooms, setGhostRooms] = useState<GhostRoomSummary[]>([]);
   const [creatingGhost, setCreatingGhost] = useState(false);
+  const [joinCode, setJoinCode] = useState("");
 
   useEffect(() => {
     fetch("/api/meetings", { credentials: "include" })
@@ -260,9 +261,13 @@ export default function MeetingsPage() {
     finally { setCreatingGhost(false); }
   };
 
+  const handleJoin = () => {
+    const code = joinCode.trim();
+    if (!code) return;
+    router.push(`/meetings/join?code=${encodeURIComponent(code)}`);
+  };
+
   // Split meetings into upcoming (scheduled/live) and past (ended/cancelled)
-  // Past meetings only show for 24 hours — after that they're only in Meeting History
-  // Capture "now" once on mount so the filter is stable across re-renders
   const [now] = useState(() => Date.now());
   const TWENTY_FOUR_HOURS = 24 * 60 * 60 * 1000;
   const upcoming = meetings.filter((m) => m.status === "scheduled" || m.status === "live");
@@ -275,26 +280,35 @@ export default function MeetingsPage() {
 
   return (
     <motion.div variants={containerVariants} initial="hidden" animate="visible" className="space-y-6">
-      {/* Header */}
-      <motion.div variants={itemVariants} className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#FFE600] border-2 border-[var(--border-strong)]">
-            <Video size={20} className="text-[#0A0A0A]" />
-          </div>
-          <h1 className="text-2xl font-black text-[var(--text-primary)]" style={{ fontFamily: "var(--font-heading)" }}>
-            Meetings
-          </h1>
-        </div>
+      {/* Page Header */}
+      <motion.div variants={itemVariants}>
+        <h1
+          className="text-2xl sm:text-3xl lg:text-4xl font-black text-[var(--text-primary)] leading-tight"
+          style={{ fontFamily: "var(--font-heading)", textShadow: "2px 2px 0 #FFE600" }}
+        >
+          Rooms
+        </h1>
+        <p className="mt-1 text-sm text-[var(--text-muted)]" style={{ fontFamily: "var(--font-body)" }}>
+          Start, join, and revisit your meeting rooms
+        </p>
+      </motion.div>
 
-        {/* New Meeting dropdown */}
+      {/* Action Buttons: Start a Room + Join a Room */}
+      <motion.div variants={itemVariants} className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        {/* Start a Room */}
         <DropdownMenu.Root>
           <DropdownMenu.Trigger asChild>
-            <button className="flex items-center gap-1.5 rounded-xl bg-[#FFE600] border-2 border-[var(--border-strong)] px-4 py-2.5 text-sm font-bold text-[#0A0A0A] shadow-[3px_3px_0_var(--border-strong)] hover:shadow-[1px_1px_0_var(--border-strong)] hover:translate-x-[2px] hover:translate-y-[2px] transition-all" style={{ fontFamily: "var(--font-heading)" }}>
-              <Plus size={16} /> New Meeting <ChevronDown size={14} />
+            <button
+              className="flex items-center gap-3 rounded-2xl bg-[#FFE600] border-2 border-[var(--border-strong)] px-6 py-4 shadow-[4px_4px_0_var(--border-strong)] hover:shadow-[2px_2px_0_var(--border-strong)] hover:translate-x-[2px] hover:translate-y-[2px] transition-all text-left w-full"
+              style={{ fontFamily: "var(--font-heading)" }}
+            >
+              <DoorOpen size={20} className="text-[#0A0A0A] flex-shrink-0" />
+              <span className="text-base font-bold text-[#0A0A0A]">Start a Room</span>
+              <ChevronDown size={14} className="ml-auto text-[#0A0A0A]" />
             </button>
           </DropdownMenu.Trigger>
           <DropdownMenu.Portal>
-            <DropdownMenu.Content sideOffset={8} align="end" className="z-50 min-w-[200px] bg-[var(--surface)] border-2 border-[var(--border-strong)] rounded-xl shadow-[var(--shadow-card)] p-1.5">
+            <DropdownMenu.Content sideOffset={8} align="start" className="z-50 min-w-[200px] bg-[var(--surface)] border-2 border-[var(--border-strong)] rounded-xl shadow-[var(--shadow-card)] p-1.5">
               <DropdownMenu.Item onSelect={handleInstantMeeting} className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)] transition-colors cursor-pointer outline-none" style={{ fontFamily: "var(--font-heading)" }}>
                 <Video size={14} /> Instant Meeting
               </DropdownMenu.Item>
@@ -307,36 +321,51 @@ export default function MeetingsPage() {
               <DropdownMenu.Item onSelect={handleCreateGhostRoom} className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)] transition-colors cursor-pointer outline-none" style={{ fontFamily: "var(--font-heading)" }}>
                 <Ghost size={14} /> Ghost Room
               </DropdownMenu.Item>
-              <DropdownMenu.Separator className="my-1 h-px bg-[var(--border)]" />
-              <DropdownMenu.Item asChild>
-                <Link href="/meetings/templates" className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)] transition-colors cursor-pointer outline-none" style={{ fontFamily: "var(--font-heading)" }}>
-                  <Users size={14} /> Manage Templates
-                </Link>
-              </DropdownMenu.Item>
             </DropdownMenu.Content>
           </DropdownMenu.Portal>
         </DropdownMenu.Root>
+
+        {/* Join a Room */}
+        <div className="flex items-center rounded-2xl border-2 border-[var(--border-strong)] bg-[var(--surface)] shadow-[4px_4px_0_var(--border-strong)] overflow-hidden">
+          <div className="flex-1 flex items-center gap-3 px-5 py-4">
+            <LogIn size={18} className="text-[var(--text-secondary)] flex-shrink-0" />
+            <label htmlFor="join-room-code" className="sr-only">Room code</label>
+            <input
+              id="join-room-code"
+              type="text"
+              value={joinCode}
+              onChange={(e) => setJoinCode(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && handleJoin()}
+              placeholder="Enter room code"
+              aria-label="Enter room code to join a meeting"
+              className="bg-transparent text-sm text-[var(--text-primary)] outline-none placeholder:text-[var(--text-muted)] w-full"
+              style={{ fontFamily: "var(--font-body)" }}
+            />
+          </div>
+          <button
+            onClick={handleJoin}
+            className="h-full bg-[var(--foreground)] px-6 py-4 text-sm font-bold text-[var(--background)] border-l-2 border-[var(--border-strong)] hover:opacity-90 transition-opacity"
+            style={{ fontFamily: "var(--font-heading)" }}
+          >
+            Join
+          </button>
+        </div>
       </motion.div>
 
       {/* Tab bar */}
-      <motion.div variants={itemVariants} className="flex items-center gap-1 rounded-xl border-2 border-[var(--border)] bg-[var(--surface)] p-1">
-        {(["upcoming", "past", "ghost"] as const).map((tab) => (
+      <motion.div variants={itemVariants} className="flex items-center gap-1 rounded-xl border-2 border-[var(--border-strong)] bg-[var(--surface)] p-1">
+        {(["upcoming", "past", "blueprints"] as const).map((tab) => (
           <button
             key={tab}
             onClick={() => setActiveTab(tab)}
             className={`flex-1 px-4 py-2 rounded-lg text-sm font-bold transition-all ${
               activeTab === tab
                 ? "bg-[#FFE600] text-[#0A0A0A] shadow-[2px_2px_0_var(--border-strong)]"
-                : "text-[var(--text-muted)] hover:text-[var(--text-primary)]"
+                : "text-[var(--text-muted)] hover:bg-[var(--surface-hover)]"
             }`}
             style={{ fontFamily: "var(--font-heading)" }}
           >
-            {tab === "upcoming" ? "Upcoming" : tab === "past" ? "Past" : "Ghost Rooms"}
-            {tab === "ghost" && ghostRooms.length > 0 && (
-              <span className="ml-1.5 text-[10px] font-bold bg-[var(--surface-hover)] rounded-full px-1.5 py-0.5">
-                {ghostRooms.length}
-              </span>
-            )}
+            {tab === "upcoming" ? "Upcoming" : tab === "past" ? "Past" : "Blueprints"}
           </button>
         ))}
       </motion.div>
@@ -368,13 +397,21 @@ export default function MeetingsPage() {
       ) : (
         <>
           {activeTab === "upcoming" && (
-            upcoming.length > 0 ? (
-              <motion.div variants={itemVariants} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {upcoming.map((m) => <MeetingCard key={m.id} meeting={m} />)}
-              </motion.div>
-            ) : (
-              <EmptyState title="No upcoming meetings" description="Schedule a meeting or start an instant one." action={{ label: "Schedule Meeting", onClick: () => router.push("/meetings/new"), icon: Plus }} />
-            )
+            <>
+              {/* Ghost rooms inline */}
+              {ghostRooms.length > 0 && (
+                <motion.div variants={itemVariants} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {ghostRooms.map((r) => <GhostRoomCard key={r.roomId} room={r} />)}
+                </motion.div>
+              )}
+              {upcoming.length > 0 ? (
+                <motion.div variants={itemVariants} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {upcoming.map((m) => <MeetingCard key={m.id} meeting={m} />)}
+                </motion.div>
+              ) : ghostRooms.length === 0 ? (
+                <EmptyState title="No upcoming rooms" description="Schedule a meeting or start an instant one." action={{ label: "Start a Room", onClick: () => router.push("/meetings/new"), icon: Plus }} />
+              ) : null}
+            </>
           )}
 
           {activeTab === "past" && (
@@ -387,14 +424,8 @@ export default function MeetingsPage() {
             )
           )}
 
-          {activeTab === "ghost" && (
-            ghostRooms.length > 0 ? (
-              <motion.div variants={itemVariants} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {ghostRooms.map((r) => <GhostRoomCard key={r.roomId} room={r} />)}
-              </motion.div>
-            ) : (
-              <EmptyState title="No ghost rooms" description="Create a ghost room for temporary, ephemeral meetings." action={{ label: "Create Ghost Room", onClick: handleCreateGhostRoom, icon: Ghost }} />
-            )
+          {activeTab === "blueprints" && (
+            <EmptyState title="Meeting templates coming soon" description="Create reusable meeting blueprints with agendas, timers, and auto-assigned roles." />
           )}
         </>
       )}
