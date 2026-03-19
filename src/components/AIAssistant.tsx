@@ -35,7 +35,7 @@ export default function AIAssistant() {
                 className="mt-3 text-lg font-bold italic text-[#0A0A0A]/80"
                 style={{ fontFamily: "var(--font-heading)" }}
               >
-                Doodle poodle that yoodles.
+                Your AI-powered executive assistant.
               </p>
             </div>
           </motion.div>

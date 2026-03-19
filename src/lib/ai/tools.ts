@@ -1100,44 +1100,6 @@ export const WORKSPACE_TOOLS: Tool = {
       },
     },
 
-    // ── Workflows ──────────────────────────────────────────────────
-    {
-      name: "start_workflow",
-      description:
-        "Start a predefined multi-step workflow. Use when the user asks to prep for a meeting, follow up on a meeting, wrap up a sprint, close out their day, or create a handoff package. Returns a workflow progress card.",
-      parameters: {
-        type: Type.OBJECT,
-        properties: {
-          workflowId: {
-            type: Type.STRING,
-            description: "The workflow template ID. One of: meeting-prep, meeting-followup, sprint-wrapup, daily-closeout, handoff-package.",
-            format: "enum",
-            enum: ["meeting-prep", "meeting-followup", "sprint-wrapup", "daily-closeout", "handoff-package"],
-          },
-          params: {
-            type: Type.OBJECT,
-            description: "Optional parameters for the workflow (e.g., meetingTime, projectName, conversationId).",
-            properties: {},
-          },
-          skipSteps: {
-            type: Type.ARRAY,
-            items: { type: Type.STRING },
-            description: "Optional list of step IDs to skip.",
-          },
-        },
-        required: ["workflowId"],
-      },
-    },
-    {
-      name: "list_workflows",
-      description:
-        "List available workflow templates the user can start. Use when user asks 'what workflows are available?' or 'what can you automate?'",
-      parameters: {
-        type: Type.OBJECT,
-        properties: {},
-      },
-    },
-
     // ── Batch Operations ────────────────────────────────────────────
     {
       name: "batch_action",
@@ -2808,59 +2770,6 @@ export async function executeWorkspaceTool(
               createdAt: m.createdAt.toISOString(),
             })),
           },
-        };
-      }
-
-      // ── Workflows ──────────────────────────────────────────────
-      case "start_workflow": {
-        const { getWorkflow } = await import("@/lib/ai/workflows/registry");
-        const { executeWorkflow } = await import("@/lib/ai/workflows/executor");
-
-        const wfId = args.workflowId as string;
-        const template = getWorkflow(wfId);
-        if (!template) {
-          return { success: false, summary: `Unknown workflow: ${wfId}` };
-        }
-
-        const params = (args.params as Record<string, unknown>) ?? {};
-        const skipSet = args.skipSteps
-          ? new Set(args.skipSteps as string[])
-          : undefined;
-
-        const state = await executeWorkflow(template, userId, params, undefined, skipSet);
-
-        const doneCount = state.steps.filter((s) => s.status === "done").length;
-        const errorCount = state.steps.filter((s) => s.status === "error").length;
-
-        return {
-          success: errorCount === 0,
-          summary: `Workflow "${template.name}" completed: ${doneCount}/${state.steps.length} steps succeeded${errorCount > 0 ? `, ${errorCount} failed` : ""}.`,
-          data: {
-            card: {
-              type: "workflow_progress" as const,
-              workflowId: state.workflowId,
-              title: state.title,
-              steps: state.steps,
-            },
-            stepResults: Object.fromEntries(
-              Object.entries(state.context.stepResults).map(([k, v]) => [k, v.summary]),
-            ),
-          },
-        };
-      }
-
-      case "list_workflows": {
-        const { listWorkflows } = await import("@/lib/ai/workflows/registry");
-        const all = listWorkflows();
-        return {
-          success: true,
-          summary: `Available workflows: ${all.map((w) => w.name).join(", ")}`,
-          data: all.map((w) => ({
-            id: w.id,
-            name: w.name,
-            description: w.description,
-            stepCount: w.steps.length,
-          })),
         };
       }
 

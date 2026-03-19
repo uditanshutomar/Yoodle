@@ -144,7 +144,6 @@ src/
 │   │   ├── messages/           # Direct messages + AI agent chat
 │   │   ├── board/              # Kanban task board
 │   │   ├── analytics/          # Pulse analytics
-│   │   ├── ai/                 # AI assistant page
 │   │   ├── ghost-rooms/        # Ephemeral brainstorm rooms
 │   │   ├── admin/              # Admin panel
 │   │   └── settings/           # User settings

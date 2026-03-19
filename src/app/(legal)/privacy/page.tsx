@@ -83,7 +83,7 @@ export default function PrivacyPolicyPage() {
             4. AI Processing
           </h2>
           <p className="leading-relaxed">
-            Yoodle uses third-party AI services (Google Gemini, Anthropic Claude, OpenAI) to generate
+            Yoodle uses third-party AI services (Google Gemini) to generate
             meeting summaries, action items, and insights. Meeting transcripts may be sent to these
             providers for processing. We do not use your data to train AI models. Each provider&apos;s
             data handling is governed by their respective privacy policies.

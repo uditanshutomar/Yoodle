@@ -45,10 +45,6 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
-# server build artifacts
-server/node_modules
-server/dist
-
 # database backups
 /backups
 

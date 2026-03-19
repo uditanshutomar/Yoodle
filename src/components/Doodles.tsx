@@ -95,30 +95,6 @@ export function DoodleStar({ className = "", color = "#FFE600", size = 32 }: { c
   );
 }
 
-export function DoodleSquiggle({ className = "" }: { className?: string }) {
-  return (
-    <motion.svg
-      className={className}
-      width="120"
-      height="30"
-      viewBox="0 0 120 30"
-      fill="none"
-      initial="hidden"
-      whileInView="visible"
-      viewport={{ once: true, margin: "-50px" }}
-    >
-      <motion.path
-        d="M3 15C13 5 23 25 33 15C43 5 53 25 63 15C73 5 83 25 93 15C103 5 113 25 117 15"
-        stroke="#1A1A1A"
-        strokeWidth="2"
-        strokeLinecap="round"
-        fill="none"
-        variants={draw}
-      />
-    </motion.svg>
-  );
-}
-
 export function DoodleLightning({ className = "", color = "#FFE600" }: { className?: string; color?: string }) {
   return (
     <motion.svg

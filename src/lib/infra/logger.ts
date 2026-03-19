@@ -30,7 +30,7 @@ export const logger = pino({
  * Create a child logger with a specific module context.
  *
  * Usage:
- *   const log = createLogger("socket-server");
+ *   const log = createLogger("meetings:copilot");
  *   log.info({ roomId }, "User joined room");
  */
 export function createLogger(module: string) {

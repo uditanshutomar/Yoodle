@@ -37,7 +37,7 @@ export default function TermsOfServicePage() {
           </h2>
           <p className="leading-relaxed">
             Yoodle is a video meeting and collaboration platform that provides video calls, AI-powered
-            meeting notes, workspace management, cloud development environments, calendar integration,
+            meeting notes, workspace management, task boards, calendar integration,
             and ephemeral ghost rooms. The Service is provided &quot;as is&quot; and may be updated,
             modified, or discontinued at our discretion.
           </p>
@@ -107,7 +107,7 @@ export default function TermsOfServicePage() {
           </h2>
           <p className="leading-relaxed">
             Yoodle integrates with third-party services including Google Workspace, AI providers
-            (Google Gemini, Anthropic Claude, OpenAI), and infrastructure providers. Your use of
+            (Google Gemini), and infrastructure providers. Your use of
             these integrations is subject to the respective third-party terms and privacy policies.
             Yoodle is not responsible for the availability, accuracy, or practices of third-party
             services.
