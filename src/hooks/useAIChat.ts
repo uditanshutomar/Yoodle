@@ -85,6 +85,9 @@ export function useAIChat() {
       return stored ? JSON.parse(stored) : [];
     } catch { return []; }
   });
+  const sessionsRef = useRef(sessions);
+  useEffect(() => { sessionsRef.current = sessions; }, [sessions]);
+
   const [activeSessionId, setActiveSessionId] = useState<string>(() =>
     typeof window !== "undefined" ? crypto.randomUUID() : "default"
   );
@@ -382,12 +385,12 @@ export function useAIChat() {
   }, []);
 
   const switchSession = useCallback((sessionId: string) => {
-    const session = sessions.find((s) => s.id === sessionId);
+    const session = sessionsRef.current.find((s) => s.id === sessionId);
     if (session) {
       setMessages(session.messages);
       setActiveSessionId(session.id);
     }
-  }, [sessions]);
+  }, []);
 
   const fetchBriefing = useCallback(async (signal?: AbortSignal) => {
     try {

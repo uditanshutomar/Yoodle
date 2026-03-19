@@ -162,7 +162,7 @@ export class LiveKitTransport implements RoomTransport {
       this.connectionState = "connected";
       this.updateParticipantCount();
     } catch (err) {
-      this.room.disconnect();
+      try { await this.room.disconnect(); } catch { /* best-effort cleanup */ }
       this.connectionState = "disconnected";
       throw err;
     }
@@ -170,12 +170,13 @@ export class LiveKitTransport implements RoomTransport {
 
   leave(): void {
     this.intentionalDisconnect = true;
-    // Disconnect but keep room listeners intact so the instance can be
-    // re-joined later without becoming permanently deaf.
+    // Full teardown: remove SDK listeners to allow GC, then disconnect.
+    // This instance is never re-joined — callers create a new LiveKitTransport.
+    this.room.removeAllListeners();
     this.room.disconnect();
     this.connectionState = "disconnected";
     this.participantCount = 0;
-    // Clear our own callback arrays to release references and prevent stale callbacks
+    // Clear our own callback arrays to release references
     this.joinedCallbacks = [];
     this.leftCallbacks = [];
     this.streamCallbacks = [];

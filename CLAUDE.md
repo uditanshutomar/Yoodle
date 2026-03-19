@@ -82,6 +82,33 @@ npx next dev            # Development server
 - Always clamp `limit` with `Math.max(1, Math.min(parsed, MAX))` to prevent negative values
 - Always clamp `page` with `Math.max(parsed, 1)`
 
+### Logging
+
+- `createLogger(namespace)` from `@/lib/infra/logger` — structured logger with namespace prefix
+- Use `log.info()`, `log.warn()`, `log.error()` with structured data: `log.error({ err, userId }, "message")`
+- Log level controlled by `LOG_LEVEL` env var (default: `info`)
+
+### Rate Limiting
+
+- Redis-backed sliding window rate limiter in `src/lib/infra/api/rate-limit.ts`
+- Presets: `auth` (30/min), `ai` (20/min), `voice` (10/min), `meetings` (60/min), `calendar` (40/min), `general` (100/min)
+- Applied per-route via `await checkRateLimit(req, "ai")` — routes call it explicitly with their group
+- Throws `RateLimitError` (429) when exceeded
+
+### Feature Flags
+
+- `src/lib/features/flags.ts` — edition-based flags (`community` vs `cloud`)
+- Set via `YOODLE_EDITION` env var (default: `community`)
+- `features.isCloud`, `features.ghostRooms`, `features.liveCaptions`, `features.maxParticipantsPerRoom`, etc.
+- Community edition is free/self-hostable; cloud adds premium features
+
+### Environment Variables
+
+- **Required:** `MONGODB_URI`, `REDIS_URL`, `JWT_SECRET`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GEMINI_API_KEY`
+- **Optional:** `DEEPGRAM_API_KEY`, `LIVEKIT_*`, `SENTRY_DSN`, `CRON_SECRET`, `LOG_LEVEL`
+- **Edition:** `YOODLE_EDITION` (`community` | `cloud`)
+- See `.env.example` for full list
+
 ## Key Directories
 
 ```

@@ -59,13 +59,13 @@ export class CircuitBreaker {
     try {
       const result = await fn();
 
-      // Success — reset on half-open, leave closed state alone
+      // Success — reset failure count to prevent stale accumulation
       if (this.state === "half-open") {
         log.info({ breaker: this.name }, "Circuit breaker closing — probe request succeeded");
         this.state = "closed";
-        this.failureCount = 0;
         this.probeInFlight = false;
       }
+      this.failureCount = 0;
 
       return result;
     } catch (err) {

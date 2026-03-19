@@ -1,5 +1,6 @@
 import type { STTProvider, TranscriptResult, TranscriptSegment } from "./types";
-import { deepgramBreaker } from "@/lib/infra/circuit-breaker";
+import { deepgramBreaker, CircuitBreakerOpenError } from "@/lib/infra/circuit-breaker";
+import { withRetry, isTransientError } from "@/lib/utils/retry";
 
 const DEEPGRAM_BASE_URL = "https://api.deepgram.com/v1";
 
@@ -69,37 +70,44 @@ export class DeepgramSTTProvider implements STTProvider {
       params.set("language", options.language);
     }
 
-    // 120s timeout — transcription of large audio files can take a while,
-    // but we don't want to hang indefinitely if Deepgram is unresponsive.
-    // The response.ok check is inside the breaker callback so HTTP errors
-    // (e.g. 503) correctly trip the circuit breaker — fetch() alone only
-    // rejects on network-level failures, not HTTP error status codes.
-    const data: DeepgramResponse = await deepgramBreaker.execute(async () => {
-      const response = await fetch(
-        `${DEEPGRAM_BASE_URL}/listen?${params.toString()}`,
-        {
-          method: "POST",
-          headers: {
-            Authorization: `Token ${apiKey}`,
-            "Content-Type": "audio/webm",
+    // Retry wraps breaker — each attempt is circuit-broken, so N failures
+    // (not N × retries) opens the breaker. Same composition as Google APIs.
+    const data: DeepgramResponse = await withRetry(
+      () => deepgramBreaker.execute(async () => {
+        const response = await fetch(
+          `${DEEPGRAM_BASE_URL}/listen?${params.toString()}`,
+          {
+            method: "POST",
+            headers: {
+              Authorization: `Token ${apiKey}`,
+              "Content-Type": "audio/webm",
+            },
+            body: new Uint8Array(buffer),
+            signal: AbortSignal.timeout(120_000),
           },
-          body: new Uint8Array(buffer),
-          signal: AbortSignal.timeout(120_000),
-        },
-      );
-
-      if (!response.ok) {
-        // Log full error server-side; throw generic message to avoid leaking
-        // Deepgram API details or internal configuration to the client.
-        const errorBody = await response.text();
-        console.error(`Deepgram STT failed (${response.status}):`, errorBody);
-        throw new Error(
-          `Speech-to-text service error (status ${response.status}).`,
         );
-      }
 
-      return response.json();
-    });
+        if (!response.ok) {
+          const errorBody = await response.text();
+          console.error(`Deepgram STT failed (${response.status}):`, errorBody);
+          // Attach numeric `status` so isTransientError() can detect retryable HTTP errors
+          const err = new Error(`Speech-to-text service error (status ${response.status}).`);
+          (err as Error & { status: number }).status = response.status;
+          throw err;
+        }
+
+        return response.json();
+      }),
+      {
+        maxRetries: 2,
+        baseDelayMs: 1000,
+        maxDelayMs: 10_000,
+        retryOn: (error: unknown) => {
+          if (error instanceof CircuitBreakerOpenError) return false;
+          return isTransientError(error);
+        },
+      },
+    );
     const channel = data.results?.channels?.[0];
     const alternative = channel?.alternatives?.[0];
 

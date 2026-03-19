@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useEffect, useMemo } from "react";
+import { useState, useCallback, useMemo } from "react";
 import { useAuth } from "./useAuth";
 import { useBroadcastPoll } from "./useBroadcastPoll";
 
@@ -33,7 +33,7 @@ export interface ConversationInfo {
 export function useConversations() {
   const { user } = useAuth();
   const [conversations, setConversations] = useState<ConversationInfo[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   // ── Fetch conversations (used by both initial load and mutations) ─────
@@ -57,6 +57,7 @@ export function useConversations() {
   const handleData = useCallback((data: ConversationInfo[]) => {
     setConversations(data);
     setError(null);
+    setLoading(false);
   }, []);
 
   // ── Polling with tab coordination via useBroadcastPoll ────────────────
@@ -68,34 +69,6 @@ export function useConversations() {
     10_000,
     !!user,
   );
-
-  // ── Initial load (show loading spinner on first mount) ────────────────
-
-  useEffect(() => {
-    if (!user) return;
-
-    let cancelled = false;
-
-    const load = async () => {
-      setLoading(true);
-      try {
-        const data = await fetchConversations();
-        if (!cancelled) {
-          setConversations(data);
-          setError(null);
-        }
-      } catch (err) {
-        if (!cancelled) {
-          setError(err instanceof Error ? err.message : "Failed to load conversations");
-        }
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    };
-
-    load();
-    return () => { cancelled = true; };
-  }, [user, fetchConversations]);
 
   // ── Imperative refresh (for use after mutations) ──────────────────────
 
