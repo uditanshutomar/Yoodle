@@ -1,12 +1,11 @@
 "use client";
 
-import Dashboard from "@/components/dashboard/Dashboard";
-import "./dashboard.css";
+import dynamic from "next/dynamic";
+
+const DeskPage = dynamic(() => import("@/components/desk/DeskPage"), {
+  ssr: false,
+});
 
 export default function DashboardPage() {
-    return (
-        <div className="-mx-4 -my-6 lg:-mx-8">
-            <Dashboard />
-        </div>
-    );
+  return <DeskPage />;
 }
