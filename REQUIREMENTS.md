@@ -31,9 +31,9 @@ A virtual meeting and collaboration app built for the Gen Z workforce. Fun, AI-n
 - Integration with meeting action items (auto-created tasks)
 
 ### 4. Calendar Integration
-- **Google Calendar two-way sync** — create, update, and delete events
+- **Google Calendar sync** — create and view events via `/api/calendar/events`
 - **Conflict detection** — warns when scheduling over existing events
-- **Smart scheduling** — AI analyzes availability across participants' calendars
+- **Smart scheduling** — via Yoodler AI assistant (`find_mutual_free_slots` tool), not a standalone calendar UI
 - Calendar sync runs as a durable BullMQ job (`calendar-sync` queue)
 
 ### 5. Pulse Analytics
@@ -56,8 +56,7 @@ Powered by Gemini API. Has access to files, mails, tasks, messages, and calendar
 3. **Location Sharing** — For remote workers. Know if a colleague or community member is nearby (coworking spaces, cafes)
 4. **Mundane Task Automation** — Saves files in correct places, follows naming norms, handles the boring stuff
 5. **Memory** — Remembers non-trivial nice-to-have things you'd otherwise forget
-6. **Plan Summarizer** — Summarizes plans and sends to AI to proofread
-7. **Google Workspace Integration** — Read and compose emails, create docs/sheets/slides, search Drive
+6. **Google Workspace Integration** — Read and compose emails, create docs/sheets/slides, search Drive
 
 ### 7. Ghost Rooms
 - Everything vanishes after the session (for brainstorming & first-time meetings)

@@ -51,7 +51,7 @@ Full read/write access to Gmail, Google Calendar, Drive, Docs, Sheets, Slides, T
 | Job Queues | BullMQ (durable, Redis-backed) |
 | Styling | Tailwind CSS 4 |
 | UI | Radix UI, Framer Motion, Lucide Icons |
-| Email | Resend |
+| Email | Resend (configured, not yet active) |
 | Storage | Google Drive (per-user recordings) |
 | Monitoring | Sentry |
 | Validation | Zod |
@@ -86,6 +86,7 @@ REDIS_URL=redis://localhost:6379
 
 # Authentication (required)
 JWT_SECRET=your-jwt-secret-minimum-64-characters-long
+JWT_REFRESH_SECRET=your-jwt-refresh-secret-here
 
 # Application (required)
 NEXT_PUBLIC_APP_URL=http://localhost:3000
@@ -108,9 +109,6 @@ DEEPGRAM_API_KEY=your-deepgram-api-key
 
 # Monitoring (optional)
 SENTRY_DSN=your-sentry-dsn
-
-# Email (optional - falls back to console logging)
-RESEND_API_KEY=your-resend-api-key
 
 # Edition (optional - community or cloud)
 YOODLE_EDITION=community
@@ -147,18 +145,21 @@ src/
 │   │   ├── messages/           # Direct messages + AI agent chat
 │   │   ├── board/              # Kanban task board
 │   │   ├── analytics/          # Pulse analytics
+│   │   ├── ai/                 # AI assistant page
 │   │   ├── ghost-rooms/        # Ephemeral brainstorm rooms
 │   │   ├── admin/              # Admin panel
 │   │   └── settings/           # User settings
 │   └── api/                    # API routes
 ├── components/
 │   ├── meeting/                # Video call UI
-│   ├── dashboard/              # Dashboard widgets
+│   ├── desk/                   # Dashboard widgets (DeskPage, WidgetCatalog)
 │   ├── board/                  # Kanban board components
 │   ├── chat/                   # Chat/messaging components
 │   ├── ghost/                  # Ghost room components
 │   ├── ai/                     # AI assistant components
 │   ├── pulse/                  # Analytics components
+│   ├── dashboard/              # Dashboard layout (greeting, calendar, tasks)
+│   ├── settings/               # Settings components (workspace section)
 │   ├── layout/                 # Sidebar, topbar
 │   └── ui/                     # Reusable UI primitives
 ├── hooks/                      # Custom React hooks
@@ -166,9 +167,15 @@ src/
 │   ├── ai/                     # Gemini integration, tools, prompts
 │   ├── board/                  # Cross-domain AI board tools
 │   ├── chat/                   # Agent processor, message transform
+│   ├── ghost/                  # Ghost room consensus, ephemeral store
 │   ├── google/                 # Google Workspace API clients
 │   ├── infra/                  # DB, Redis, auth, logging, jobs, circuit breaker
-│   ├── transport/              # LiveKit transport
+│   ├── livekit/                # LiveKit config, data message types
+│   ├── meetings/               # Meeting helpers, room session
+│   ├── stt/                    # Deepgram speech-to-text
+│   ├── transport/              # LiveKit transport layer
+│   ├── utils/                  # Retry, ID generation, XML utilities
+│   ├── workspace/              # Workspace helpers
 │   └── features/               # Feature flags
 └── proxy.ts                    # Next.js 16 proxy (auth middleware)
 ```
@@ -176,51 +183,97 @@ src/
 ## API Overview
 
 ### Authentication
-- `GET /api/auth/google` - Initiate Google OAuth flow
-- `GET /api/auth/google/callback` - Google OAuth callback
-- `POST /api/auth/refresh` - Refresh JWT token
+- `GET /api/auth/google` — Initiate Google OAuth flow
+- `GET /api/auth/google/callback` — Google OAuth callback
+- `POST /api/auth/refresh` — Refresh JWT token
+- `GET /api/auth/session` — Get current session / `DELETE` to logout
+- `POST /api/auth/logout` — Logout (clear cookies, blacklist tokens)
+- `POST /api/auth/verify` — Verify magic link / email
 
 ### Meetings
-- `GET /api/meetings` - List meetings
-- `POST /api/meetings` - Create a meeting
-- `GET /api/meetings/[id]` - Get meeting details
-- `POST /api/meetings/[id]/start` - Start recording
-
-### Waiting Room
-- `GET /api/meetings/[id]/waiting-status` - Check waiting room status
-- `POST /api/meetings/[id]/admit` - Host admits a user
-- `POST /api/meetings/[id]/deny` - Host denies a user
+- `GET /api/meetings` — List meetings / `POST` to create
+- `GET /api/meetings/[meetingId]` — Get meeting details
+- `POST /api/meetings/[meetingId]/join` — Join a meeting
+- `POST /api/meetings/[meetingId]/leave` — Leave a meeting
+- `POST /api/meetings/[meetingId]/admit` — Host admits waiting user
+- `POST /api/meetings/[meetingId]/deny` — Host denies waiting user
+- `GET /api/meetings/[meetingId]/waiting-status` — Check waiting room status
+- `POST /api/meetings/[meetingId]/extend` — Extend meeting duration
+- `POST /api/meetings/[meetingId]/transfer-host` — Transfer host role
+- `GET /api/meetings/[meetingId]/brief` — AI meeting briefing
+- `POST /api/meetings/[meetingId]/copilot` — In-meeting AI copilot
+- `GET /api/meetings/[meetingId]/mom` — Minutes of meeting
+- `GET /api/meetings/[meetingId]/analytics` — Per-meeting analytics
+- `GET /api/meetings/analytics/trends` — Meeting analytics trends
+- `GET /api/meetings/templates` — List meeting templates / `POST` to create
+- `GET /api/meetings/templates/[templateId]` — Template details
 
 ### Recordings & Transcription
-- `GET /api/recordings/[meetingId]` - Get recordings for a meeting
-- `POST /api/recordings/upload` - Upload recording to Google Drive
-- `POST /api/transcription` - Process transcription with AI
+- `GET /api/recordings/[meetingId]` — Get recordings for a meeting
+- `POST /api/recordings/upload` — Upload recording to Google Drive
+- `POST /api/transcription` — Process transcription with AI
 
 ### Board (Tasks)
-- `GET /api/boards` - List boards
-- `POST /api/boards` - Create a board
-- `GET /api/boards/[id]` - Get board details
-- `GET /api/tasks/my` - Get current user's tasks
+- `GET /api/boards` — List boards / `POST` to create
+- `GET /api/boards/[boardId]` — Get board details
+- `GET /api/boards/[boardId]/tasks` — List tasks / `POST` to create
+- `PATCH /api/boards/[boardId]/tasks/[taskId]` — Update task
+- `POST /api/boards/[boardId]/tasks/[taskId]/comments` — Task comments
+- `POST /api/boards/[boardId]/tasks/reorder` — Reorder tasks
+- `GET /api/tasks/my` — Get current user's tasks across all boards
 
 ### Conversations
-- `GET /api/conversations` - List conversations
-- `POST /api/conversations` - Create a conversation
-- `GET /api/conversations/[id]` - Get conversation details
+- `GET /api/conversations` — List conversations / `POST` to create
+- `GET /api/conversations/[id]` — Get conversation details
+- `GET /api/conversations/[id]/messages` — List messages / `POST` to send
+- `GET /api/conversations/[id]/stream` — SSE stream for real-time messages
+- `POST /api/conversations/[id]/typing` — Typing indicators
+- `POST /api/conversations/[id]/read` — Mark as read
+- `POST /api/conversations/[id]/reactions` — Message reactions
+- `POST /api/conversations/[id]/pin` — Pin/unpin conversation
+- `POST /api/conversations/[id]/mute` — Mute/unmute conversation
+- `GET /api/conversations/[id]/media` — Media in conversation
+- `GET /api/conversations/[id]/search` — Search within conversation
+- `POST /api/conversations/[id]/agent-toggle` — Toggle AI agent in conversation
+- `GET /api/conversations/unread-count` — Total unread message count
+
+### Ghost Rooms
+- `GET /api/ghost-rooms` — List ghost rooms / `POST` to create
+- `GET /api/ghost-rooms/[roomId]` — Room details
+- `POST /api/ghost-rooms/[roomId]/vote-save` — Vote to save room
+- `POST /api/ghost-rooms/[roomId]/start-call` — Start call in ghost room
+
+### Workspaces
+- `GET /api/workspaces` — List workspaces / `POST` to create
+- `GET /api/workspaces/[workspaceId]` — Workspace details / `PATCH` to update
+- `GET /api/workspaces/[workspaceId]/members` — Manage members
+- `GET /api/workspaces/[workspaceId]/audit` — Workspace audit log
 
 ### Calendar
-- `GET /api/calendar` - Get calendar events
-- `POST /api/calendar/sync` - Sync with Google Calendar
+- `GET /api/calendar/events` — Get calendar events / `POST` to create
 
 ### AI
-- `POST /api/ai/chat` - Chat with Yoodler assistant
-- `POST /api/ai/briefing` - Generate meeting briefing
-- `POST /api/ai/action/[type]` - Execute AI actions (summarize, extract tasks, etc.)
-- `GET /api/cron/proactive` - Proactive insights cron job
+- `POST /api/ai/chat` — Chat with Yoodler assistant
+- `POST /api/ai/briefing` — Generate meeting briefing
+- `POST /api/ai/action/confirm` — Confirm an AI action
+- `POST /api/ai/action/batch-confirm` — Batch confirm AI actions
+- `POST /api/ai/action/revise` — Revise an AI action
+- `POST /api/ai/action/undo` — Undo an AI action
+- `GET /api/ai/insights/count` — Unread insights count
+- `GET /api/cron/proactive` — Proactive insights cron job
+
+### Analytics
+- `GET /api/analytics/summary` — Analytics summary
 
 ### Other
-- `GET /api/users/me` - Current user profile
-- `GET /api/livekit/token` - Generate LiveKit room token
-- `GET /api/health` - Health check
+- `GET /api/users/me` — Current user profile / `PATCH` to update
+- `GET /api/users/search` — Search users
+- `GET /api/users/nearby` — Find nearby users
+- `GET /api/livekit/token` — Generate LiveKit room token
+- `GET /api/stt/token` — Generate Deepgram STT token
+- `GET /api/presence` — User presence status
+- `GET /api/health` — Health check
+- `POST /api/waitlist` — Join waitlist
 
 ## Real-time Communication
 

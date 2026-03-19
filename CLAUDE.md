@@ -45,8 +45,8 @@ npx next dev            # Development server
 ### Authentication
 
 - **Two-layer auth:** JWT session token (cookie-based) + Google OAuth tokens (per-user, stored in DB)
-- `getUserIdFromRequest(req)` — extracts and validates JWT from cookie, returns userId string
-- `authenticateRequest(req)` — full auth check including user blacklist/ban status
+- `getUserIdFromRequest(req)` — convenience wrapper over `authenticateRequest`, returns userId string
+- `authenticateRequest(req)` — extracts JWT (Bearer header → cookie → manual Cookie parse), checks token blacklist (revoked tokens), verifies signature. Does **not** check user-level ban status.
 - Google OAuth tokens in `user.googleTokens` — auto-refreshed via `getGoogleClientForUser()`
 - JWT secret in `process.env.JWT_SECRET`, OAuth credentials in `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET`
 - Refresh tokens use a separate `JWT_REFRESH_SECRET` (not the same as `JWT_SECRET`)
@@ -118,7 +118,7 @@ npx next dev            # Development server
 ### Rate Limiting
 
 - Redis-backed sliding window rate limiter in `src/lib/infra/api/rate-limit.ts`
-- Presets: `auth` (30/min), `ai` (20/min), `voice` (10/min), `meetings` (60/min), `calendar` (40/min), `general` (100/min)
+- Presets: `auth` (30/min), `session` (30/min), `ai` (20/min), `voice` (10/min), `meetings` (60/min), `calendar` (40/min), `general` (100/min)
 - Applied per-route via `await checkRateLimit(req, "ai")` — routes call it explicitly with their group
 - Throws `RateLimitError` (429) when exceeded
 
@@ -142,7 +142,7 @@ npx next dev            # Development server
 ### Durable Job Queues (BullMQ)
 
 - Infrastructure: `src/lib/infra/jobs/` — queue factory, connection, workers, types
-- **Queue names** (`QUEUE_NAMES` in `queue.ts`): `recording-process`, `post-meeting-cascade`, `calendar-sync`
+- **Queue names** (`QUEUE_NAMES` in `queue.ts`): `recording-process` (defined, no worker yet), `post-meeting-cascade`, `calendar-sync`
 - **Producers**: API routes enqueue jobs via `getQueue(QUEUE_NAMES.X).add(name, payload, { jobId })`
 - **Workers**: Started in-process via `instrumentation.ts` → `startWorkers()` (nodejs runtime only)
 - **Payloads**: Typed in `types.ts` — must be JSON-serializable (no ObjectId/Date/Buffer)
@@ -154,8 +154,8 @@ npx next dev            # Development server
 
 ### Environment Variables
 
-- **Required:** `MONGODB_URI`, `REDIS_URL`, `JWT_SECRET`, `JWT_REFRESH_SECRET`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GEMINI_API_KEY`
-- **Optional:** `DEEPGRAM_API_KEY`, `LIVEKIT_*`, `SENTRY_DSN`, `CRON_SECRET`, `LOG_LEVEL`, `HEALTH_DETAIL_SECRET`
+- **Required:** `MONGODB_URI`, `REDIS_URL`, `JWT_SECRET`, `JWT_REFRESH_SECRET`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GEMINI_API_KEY`, `LIVEKIT_URL`, `LIVEKIT_API_KEY`, `LIVEKIT_API_SECRET`, `NEXT_PUBLIC_APP_URL`
+- **Optional:** `DEEPGRAM_API_KEY`, `NEXT_PUBLIC_LIVEKIT_URL`, `NEXT_PUBLIC_SENTRY_DSN`, `SENTRY_AUTH_TOKEN`, `SENTRY_ORG`, `SENTRY_PROJECT`, `CRON_SECRET`, `LOG_LEVEL`, `HEALTH_DETAIL_SECRET`, `GEMINI_MODEL`, `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY`
 - **Edition:** `YOODLE_EDITION` (`community` | `cloud`)
 - See `.env.example` for full list
 
@@ -163,14 +163,22 @@ npx next dev            # Development server
 
 ```
 src/app/api/          # API routes (Next.js App Router)
-src/lib/google/       # Google Workspace integrations (gmail, calendar, drive, sheets, slides, docs)
 src/lib/ai/           # AI tools, Gemini streaming, workflows
+src/lib/board/        # Board/task cross-domain AI tools
+src/lib/chat/         # Agent processor, message transform
+src/lib/ghost/        # Ghost room consensus, ephemeral store
+src/lib/google/       # Google Workspace integrations (gmail, calendar, drive, sheets, slides, docs)
 src/lib/infra/        # DB models, Redis, auth, logging, circuit breaker, rate limiting, BullMQ jobs
 src/lib/infra/redis/  # Redis cache, pub/sub, client
-src/lib/board/        # Board/task cross-domain AI tools
+src/lib/livekit/      # LiveKit config, data message types
+src/lib/meetings/     # Meeting helpers, room session
+src/lib/stt/          # Deepgram speech-to-text integration
 src/lib/transport/    # LiveKit transport layer
+src/lib/utils/        # Retry, ID generation, XML utilities
+src/lib/workspace/    # Workspace helpers
+src/lib/features/     # Edition-based feature flags
 src/hooks/            # Client-side React hooks
-src/components/       # React components
+src/components/       # React components (desk, board, meeting, chat, ghost, pulse, ai, ui, layout)
 ```
 
 ## Testing Conventions
