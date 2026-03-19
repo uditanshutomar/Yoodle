@@ -7,6 +7,7 @@ import Link from "next/link";
 import Avatar from "../ui/Avatar";
 import { useAuth } from "@/hooks/useAuth";
 import CommandPalette from "./CommandPalette";
+import NotificationBell from "./NotificationBell";
 
 interface AppTopbarProps {
   onMenuToggle?: () => void;
@@ -40,6 +41,7 @@ export default function AppTopbar({ onMenuToggle, menuOpen }: AppTopbarProps) {
 
       {/* Right actions */}
       <div className="flex items-center gap-3">
+        <NotificationBell />
         {/* User dropdown */}
         <DropdownMenu.Root>
           <DropdownMenu.Trigger asChild>
