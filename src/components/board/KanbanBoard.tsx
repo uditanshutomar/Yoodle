@@ -19,6 +19,7 @@ import { arrayMove } from "@dnd-kit/sortable";
 import { useBoard, type BoardTask } from "@/hooks/useBoard";
 import KanbanColumn from "./KanbanColumn";
 import KanbanCard from "./KanbanCard";
+import TaskDetail from "./TaskDetail";
 
 /* ─── Priority filter options ─── */
 const PRIORITY_OPTIONS = [
@@ -45,12 +46,28 @@ export default function KanbanBoard({
   onClose,
   onTaskClick,
 }: KanbanBoardProps) {
-  const { board, tasks, loading, error, createTask, reorderTasks, setTasks, refetch } =
+  const { board, tasks, boardMembers, loading, error, createTask, updateTask, deleteTask, reorderTasks, setTasks, refetch } =
     useBoard(boardId);
 
   const [activeId, setActiveId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [priorityFilter, setPriorityFilter] = useState("all");
+  const [selectedTask, setSelectedTask] = useState<BoardTask | null>(null);
+
+  const handleTaskClick = useCallback((task: BoardTask) => {
+    // Use onTaskClick if provided (external handler), otherwise open detail drawer
+    if (onTaskClick) {
+      onTaskClick(task);
+    } else {
+      setSelectedTask(task);
+    }
+  }, [onTaskClick]);
+
+  // Keep selectedTask in sync with tasks state (e.g., after update)
+  const resolvedSelectedTask = useMemo(() => {
+    if (!selectedTask) return null;
+    return tasks.find((t) => t._id === selectedTask._id) || null;
+  }, [selectedTask, tasks]);
 
   /* ─── Sensors ─── */
   const pointerSensor = useSensor(PointerSensor, {
@@ -425,7 +442,9 @@ export default function KanbanBoard({
                   column={column}
                   tasks={tasksByColumn[column.id] ?? []}
                   onCreateTask={createTask}
-                  onTaskClick={onTaskClick}
+                  onTaskClick={handleTaskClick}
+                  boardLabels={board.labels}
+                  boardMembers={boardMembers}
                 />
               </motion.div>
             ))}
@@ -435,10 +454,20 @@ export default function KanbanBoard({
         {/* Drag overlay */}
         <DragOverlay dropAnimation={null}>
           {activeTask ? (
-            <KanbanCard task={activeTask} isDragOverlay />
+            <KanbanCard task={activeTask} isDragOverlay boardLabels={board.labels} boardMembers={boardMembers} />
           ) : null}
         </DragOverlay>
       </DndContext>
+
+      {/* Task detail drawer */}
+      <TaskDetail
+        task={resolvedSelectedTask}
+        board={board}
+        boardMembers={boardMembers}
+        onClose={() => setSelectedTask(null)}
+        onUpdate={updateTask}
+        onDelete={deleteTask}
+      />
 
       {/* Empty state */}
       {columns.length === 0 && (

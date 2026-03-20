@@ -3,18 +3,39 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { motion } from "framer-motion";
-import { FileText, ChevronDown, Loader2, ExternalLink } from "lucide-react";
+import { FileText, ChevronDown, Loader2, ExternalLink, PlayCircle, ClipboardList, BarChart3, CalendarCheck, CheckCircle2, ListTodo } from "lucide-react";
 import PreJoinLobby from "@/components/meeting/PreJoinLobby";
 import LoadingSpinner from "@/components/ui/LoadingSpinner";
 import { useAuth } from "@/hooks/useAuth";
 import { saveRoomJoinSession, type RoomJoinSession } from "@/lib/meetings/room-session";
+
+interface MeetingSettings {
+  allowRecording?: boolean;
+  allowScreenShare?: boolean;
+  waitingRoom?: boolean;
+  muteOnJoin?: boolean;
+  maxParticipants?: number;
+}
+
+interface MeetingMom {
+  summary?: string;
+  keyDecisions?: string[];
+  actionItems?: { task: string; assignee: string; dueDate?: string }[];
+  nextSteps?: string[];
+}
 
 interface MeetingData {
   _id: string;
   title: string;
   code: string;
   status: string;
+  scheduledAt?: string;
+  startedAt?: string;
+  endedAt?: string;
+  recordingId?: string;
   participants: { userId: string; status: string }[];
+  settings?: MeetingSettings;
+  mom?: MeetingMom;
   artifacts?: {
     momDocUrl?: string;
     presentationUrl?: string;
@@ -230,49 +251,144 @@ export default function MeetingLobbyPage() {
 
   return (
     <div>
-      {/* Post-Meeting Artifacts */}
-      {meeting.status === "ended" && meeting.artifacts && (
-        Object.values(meeting.artifacts).some(Boolean) && (
-          <div className="rounded-2xl border-2 border-[var(--border-strong)] bg-[var(--surface)] p-4 space-y-3 mb-4">
-            <h3
-              className="text-sm font-bold text-[var(--text-primary)] font-heading"
-            >
-              Meeting Artifacts
-            </h3>
-            <div className="flex flex-wrap gap-2">
-              {meeting.artifacts.momDocUrl && (
-                <a
-                  href={meeting.artifacts.momDocUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[var(--surface-hover)] border border-[var(--border)] text-xs font-medium text-[var(--text-primary)] hover:border-[#FFE600] transition-colors"
-                >
-                  📄 Meeting Notes
-                </a>
+      {/* Post-Meeting Summary */}
+      {meeting.status === "ended" && (
+        <div className="space-y-4 mb-4">
+          {/* Quick links row */}
+          <div className="flex flex-wrap gap-2">
+            {meeting.recordingId && (
+              <a
+                href={`/meetings/${meetingId}/recording`}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[var(--surface)] border-2 border-[var(--border-strong)] text-xs font-bold text-[var(--text-primary)] hover:border-[#FF6B6B] transition-colors shadow-[2px_2px_0_var(--border-strong)] font-heading"
+              >
+                <PlayCircle size={14} className="text-[#FF6B6B]" />
+                Recording & Transcript
+              </a>
+            )}
+            {meeting.artifacts?.momDocUrl && (
+              <a
+                href={meeting.artifacts.momDocUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[var(--surface)] border-2 border-[var(--border-strong)] text-xs font-bold text-[var(--text-primary)] hover:border-[#FFE600] transition-colors shadow-[2px_2px_0_var(--border-strong)] font-heading"
+              >
+                <ExternalLink size={14} />
+                Meeting Notes Doc
+              </a>
+            )}
+            {meeting.artifacts?.folderUrl && (
+              <a
+                href={meeting.artifacts.folderUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[var(--surface)] border-2 border-[var(--border-strong)] text-xs font-bold text-[var(--text-primary)] hover:border-[#FFE600] transition-colors shadow-[2px_2px_0_var(--border-strong)] font-heading"
+              >
+                <ExternalLink size={14} />
+                Drive Folder
+              </a>
+            )}
+          </div>
+
+          {/* Minutes of Meeting */}
+          {meeting.mom?.summary && (
+            <div className="rounded-2xl border-2 border-[var(--border-strong)] bg-[var(--surface)] shadow-[4px_4px_0_var(--border-strong)] p-5 space-y-4">
+              <div className="flex items-center gap-2">
+                <ClipboardList size={16} className="text-[#8B5CF6]" />
+                <h3 className="text-sm font-bold text-[var(--text-primary)] font-heading">
+                  Minutes of Meeting
+                </h3>
+              </div>
+
+              {/* Summary */}
+              <p className="text-sm text-[var(--text-secondary)] leading-relaxed font-body">
+                {meeting.mom.summary}
+              </p>
+
+              {/* Key Decisions */}
+              {meeting.mom.keyDecisions && meeting.mom.keyDecisions.length > 0 && (
+                <div>
+                  <p className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider mb-2 font-heading">
+                    Key Decisions
+                  </p>
+                  <ul className="space-y-1.5">
+                    {meeting.mom.keyDecisions.map((d, i) => (
+                      <li key={i} className="flex items-start gap-2 text-sm text-[var(--text-secondary)] leading-relaxed font-body">
+                        <CheckCircle2 size={14} className="text-[#10B981] flex-shrink-0 mt-0.5" />
+                        {d}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
               )}
-              {meeting.artifacts.presentationUrl && (
-                <a
-                  href={meeting.artifacts.presentationUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[var(--surface-hover)] border border-[var(--border)] text-xs font-medium text-[var(--text-primary)] hover:border-[#FFE600] transition-colors"
-                >
-                  📊 Slides
-                </a>
+
+              {/* Action Items */}
+              {meeting.mom.actionItems && meeting.mom.actionItems.length > 0 && (
+                <div>
+                  <p className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider mb-2 font-heading">
+                    Action Items
+                  </p>
+                  <ul className="space-y-1.5">
+                    {meeting.mom.actionItems.map((item, i) => (
+                      <li key={i} className="flex items-start gap-2 text-sm text-[var(--text-secondary)] leading-relaxed font-body">
+                        <ListTodo size={14} className="text-[#3B82F6] flex-shrink-0 mt-0.5" />
+                        <span>
+                          {item.task}
+                          {item.assignee && item.assignee !== "Unassigned" && (
+                            <span className="ml-1.5 text-[10px] px-1.5 py-0.5 rounded-full bg-[#3B82F6]/10 text-[#3B82F6] font-medium">
+                              {item.assignee}
+                            </span>
+                          )}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
               )}
-              {meeting.artifacts.folderUrl && (
-                <a
-                  href={meeting.artifacts.folderUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[var(--surface-hover)] border border-[var(--border)] text-xs font-medium text-[var(--text-primary)] hover:border-[#FFE600] transition-colors"
-                >
-                  📁 Drive Folder
-                </a>
+
+              {/* Next Steps */}
+              {meeting.mom.nextSteps && meeting.mom.nextSteps.length > 0 && (
+                <div>
+                  <p className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider mb-2 font-heading">
+                    Next Steps
+                  </p>
+                  <ul className="space-y-1.5">
+                    {meeting.mom.nextSteps.map((step, i) => (
+                      <li key={i} className="flex items-start gap-2 text-sm text-[var(--text-secondary)] leading-relaxed font-body">
+                        <CalendarCheck size={14} className="text-[#F59E0B] flex-shrink-0 mt-0.5" />
+                        {step}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
               )}
             </div>
-          </div>
-        )
+          )}
+
+          {/* Meeting Stats */}
+          {meeting.startedAt && meeting.endedAt && (
+            <div className="rounded-2xl border-2 border-[var(--border-strong)] bg-[var(--surface)] shadow-[4px_4px_0_var(--border-strong)] p-5">
+              <div className="flex items-center gap-2 mb-3">
+                <BarChart3 size={16} className="text-[#06B6D4]" />
+                <h3 className="text-sm font-bold text-[var(--text-primary)] font-heading">
+                  Meeting Stats
+                </h3>
+              </div>
+              <div className="flex flex-wrap gap-3">
+                <span className="inline-flex items-center gap-1.5 rounded-full border border-[var(--border)] bg-[var(--background)] px-3 py-1.5 text-xs text-[var(--text-muted)] font-body">
+                  Duration: {Math.round((new Date(meeting.endedAt).getTime() - new Date(meeting.startedAt).getTime()) / 60000)} min
+                </span>
+                <span className="inline-flex items-center gap-1.5 rounded-full border border-[var(--border)] bg-[var(--background)] px-3 py-1.5 text-xs text-[var(--text-muted)] font-body">
+                  Participants: {meeting.participants.length}
+                </span>
+                {meeting.recordingId && (
+                  <span className="inline-flex items-center gap-1.5 rounded-full border border-[#FF6B6B]/30 bg-[#FF6B6B]/5 px-3 py-1.5 text-xs text-[#FF6B6B] font-body">
+                    Recorded
+                  </span>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
       )}
 
       <PreJoinLobby
@@ -280,6 +396,8 @@ export default function MeetingLobbyPage() {
         meetingTitle={meeting.title}
         meetingCode={meeting.code}
         participantCount={(meeting.participants || []).filter((p) => p.status === "joined").length}
+        settings={meeting.settings}
+        scheduledAt={meeting.scheduledAt}
         onJoin={submitJoin}
       />
 

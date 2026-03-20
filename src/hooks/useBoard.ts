@@ -18,6 +18,24 @@ export interface BoardLabel {
   color: string;
 }
 
+export interface LinkedDoc {
+  googleDocId: string;
+  title: string;
+  url: string;
+  type: "doc" | "sheet" | "slide" | "pdf" | "file";
+}
+
+export interface LinkedEmail {
+  gmailId: string;
+  subject: string;
+  from: string;
+}
+
+export interface TaskSource {
+  type: "manual" | "ai" | "meeting-mom" | "email" | "chat";
+  sourceId?: string;
+}
+
 export interface BoardTask {
   _id: string;
   boardId: string;
@@ -26,12 +44,22 @@ export interface BoardTask {
   title: string;
   description?: string;
   priority: "urgent" | "high" | "medium" | "low" | "none";
+  creatorId?: string;
   assigneeId?: string;
+  collaborators?: string[];
   labels: string[];
   dueDate?: string;
+  startDate?: string;
   subtasks: { id: string; title: string; done: boolean; assigneeId?: string }[];
+  linkedDocs?: LinkedDoc[];
+  linkedEmails?: LinkedEmail[];
+  meetingId?: string;
+  parentTaskId?: string;
+  source?: TaskSource;
+  estimatePoints?: number;
   completedAt?: string;
   createdAt: string;
+  updatedAt?: string;
 }
 
 export interface Board {
@@ -42,9 +70,17 @@ export interface Board {
   members: { userId: string; role: string }[];
 }
 
+export interface BoardMember {
+  _id: string;
+  name: string;
+  displayName?: string;
+  avatarUrl?: string;
+}
+
 export function useBoard(boardId?: string) {
   const [board, setBoard] = useState<Board | null>(null);
   const [tasks, setTasks] = useState<BoardTask[]>([]);
+  const [boardMembers, setBoardMembers] = useState<BoardMember[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const isMountedRef = useRef(true);
@@ -67,7 +103,24 @@ export function useBoard(boardId?: string) {
       const json = await res.json();
       if (isMountedRef.current) {
         setBoard(json.data);
-        setError(null); // Clear previous errors on success
+        setError(null);
+        // Fetch member profiles if board has members
+        const members = json.data?.members || [];
+        if (members.length > 0) {
+          const memberIds = members.map((m: { userId: string }) => m.userId);
+          try {
+            const memberRes = await fetch(`/api/users/batch?ids=${memberIds.join(",")}`, {
+              credentials: "include",
+              signal,
+            });
+            if (memberRes.ok) {
+              const memberJson = await memberRes.json();
+              if (isMountedRef.current) setBoardMembers(memberJson.data || []);
+            }
+          } catch {
+            // Non-fatal — members just won't show avatars
+          }
+        }
       }
     } catch (err) {
       if (err instanceof DOMException && err.name === "AbortError") return;
@@ -237,6 +290,7 @@ export function useBoard(boardId?: string) {
   return {
     board,
     tasks,
+    boardMembers,
     loading,
     error,
     createTask,

@@ -83,6 +83,8 @@ export interface IMeeting {
   artifacts?: IMeetingArtifacts;
   cascadeExecutedAt?: Date;
   templateId?: Types.ObjectId;
+  recurrence?: "none" | "daily" | "weekly" | "biweekly" | "monthly";
+  recurrenceDays?: string[];
   createdAt: Date;
   updatedAt: Date;
 }
@@ -189,6 +191,16 @@ const meetingSchema = new Schema<IMeetingDocument>(
     },
     calendarEventId: {
       type: String,
+    },
+    recurrence: {
+      type: String,
+      enum: ["none", "daily", "weekly", "biweekly", "monthly"],
+      default: "none",
+    },
+    recurrenceDays: {
+      type: [String],
+      enum: ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"],
+      default: undefined,
     },
     status: {
       type: String,

@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback, useRef, useMemo } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
-import { WifiOff, AlertTriangle } from "lucide-react";
+import { WifiOff, AlertTriangle, Link2, Check } from "lucide-react";
 import dynamic from "next/dynamic";
 import BubbleLayout from "@/components/meeting/BubbleLayout";
 import GridLayout from "@/components/meeting/GridLayout";
@@ -69,6 +69,7 @@ export default function MeetingRoomPage() {
   const [scheduledDuration, setScheduledDuration] = useState<number | undefined>();
   const [meetingType, setMeetingType] = useState<string>("regular");
   const [ghostConverted, setGhostConverted] = useState(false);
+  const [meetingCode, setMeetingCode] = useState<string | null>(null);
   const [currentHostId, setCurrentHostId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -80,6 +81,7 @@ export default function MeetingRoomPage() {
         .then((d) => {
           if (!active) return;
           if (d.success && d.data?.title) setMeetingTitle(d.data.title);
+          if (d.success && d.data?.code) setMeetingCode(d.data.code);
           if (d.success && d.data?.scheduledDuration) setScheduledDuration(d.data.scheduledDuration);
           if (d.success && d.data?.type) {
             setMeetingType((prev) => {
@@ -232,8 +234,23 @@ export default function MeetingRoomPage() {
 
 
   const isGhostMeeting = meetingType === "ghost";
-  const canRecord = isGhostMeeting ? false : (roomSession?.permissions.allowRecording ?? false);
+  const canRecord = isGhostMeeting ? false : (roomSession?.permissions.allowRecording ?? true);
   const canScreenShare = roomSession?.permissions.allowScreenShare ?? true;
+
+  // ── Share link ──────────────────────────────────────────────────────
+  const [linkCopied, setLinkCopied] = useState(false);
+  const meetingShareUrl = useMemo(() => {
+    const base = typeof window !== "undefined" ? window.location.origin : "";
+    const slug = meetingCode || meetingId;
+    return `${base}/meetings/${slug}/room`;
+  }, [meetingCode, meetingId]);
+
+  const handleCopyLink = useCallback(() => {
+    navigator.clipboard.writeText(meetingShareUrl).then(() => {
+      setLinkCopied(true);
+      setTimeout(() => setLinkCopied(false), 2000);
+    }).catch(() => {});
+  }, [meetingShareUrl]);
 
   // ── Chat hook ──────────────────────────────────────────────────────
   const {
@@ -289,6 +306,7 @@ export default function MeetingRoomPage() {
     isRecording,
     startRecording: handleStartRecording,
     stopRecording: handleStopRecording,
+    waitForUpload,
   } = useRecording(localStream, livekitRemoteStreams, meetingId, room, speechSegmentsRef, meetingTitle);
 
   const isRecordingRef = useRef(isRecording);
@@ -662,6 +680,14 @@ export default function MeetingRoomPage() {
   const handleEndCall = useCallback(async () => {
     if (isRecording) handleStopRecording();
 
+    // Wait for recording upload to complete before leaving — the post-meeting
+    // cascade depends on the recording/transcript being available in the DB.
+    try {
+      await waitForUpload();
+    } catch {
+      // Upload may have already failed — don't block leaving
+    }
+
     screenStreamRef.current?.getTracks().forEach((t) => t.stop());
     stopMedia();
     clearRoomJoinSession(meetingId);
@@ -676,7 +702,27 @@ export default function MeetingRoomPage() {
     }
 
     router.push("/meetings");
-  }, [meetingId, router, stopMedia, isRecording, handleStopRecording]);
+  }, [meetingId, router, stopMedia, isRecording, handleStopRecording, waitForUpload]);
+
+  // ── Ensure /leave fires on tab close / navigation ─────────────────
+  // Uses fetch with keepalive so the request survives page unload and
+  // includes Origin header for CSRF validation (sendBeacon does not).
+  useEffect(() => {
+    const leaveUrl = `/api/meetings/${meetingId}/leave`;
+    const onPageHide = () => {
+      try {
+        fetch(leaveUrl, {
+          method: "POST",
+          credentials: "include",
+          keepalive: true,
+        }).catch(() => { /* best-effort */ });
+      } catch {
+        // fetch may throw synchronously if page is already tearing down
+      }
+    };
+    window.addEventListener("pagehide", onPageHide);
+    return () => window.removeEventListener("pagehide", onPageHide);
+  }, [meetingId]);
 
   const handleStartRecordingClick = useCallback(() => {
     if (!canRecord) {
@@ -823,8 +869,15 @@ export default function MeetingRoomPage() {
           )}
         </div>
 
-        {/* Center: meeting code */}
-        <span className="hidden sm:block text-xs font-mono text-[var(--text-muted)]">{meetingId.slice(0, 8)}</span>
+        {/* Center: share link */}
+        <button
+          onClick={handleCopyLink}
+          className="hidden sm:flex items-center gap-1.5 rounded-full border-2 border-[var(--border-strong)] bg-[var(--surface)] px-3 py-1 text-xs font-mono text-[var(--text-muted)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)] transition-colors cursor-pointer shadow-[2px_2px_0_var(--border-strong)]"
+          title="Copy meeting link"
+        >
+          {linkCopied ? <Check size={12} className="text-green-500" /> : <Link2 size={12} />}
+          <span>{linkCopied ? "Copied!" : meetingCode || meetingId.slice(0, 8)}</span>
+        </button>
 
         {/* Right: connection quality + participant count + recording indicator */}
         <div className="flex items-center gap-1 sm:gap-2">

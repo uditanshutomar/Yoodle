@@ -14,6 +14,8 @@ export interface UseRecordingReturn {
   isRecording: boolean;
   startRecording: () => void;
   stopRecording: () => void;
+  /** Resolves when the current recording upload completes (or immediately if not recording). */
+  waitForUpload: () => Promise<void>;
   recordingDuration: number;
   error: string | null;
   clearError: () => void;
@@ -56,6 +58,7 @@ export function useRecording(
   const recordingTimerRef = useRef<ReturnType<typeof setInterval> | null>(
     null,
   );
+  const uploadPromiseRef = useRef<Promise<void>>(Promise.resolve());
   const localStreamRef = useRef<MediaStream | null>(null);
   const remoteStreamsRef = useRef<Map<string, MediaStream>>(remoteStreams);
 
@@ -221,7 +224,7 @@ export function useRecording(
         if (e.data.size > 0) recordedChunksRef.current.push(e.data);
       };
 
-      recorder.onstop = async () => {
+      recorder.onstop = () => {
         const blob = new Blob(recordedChunksRef.current, { type: mimeType });
 
         const segments = (speechSegmentsRef.current ?? []).map((seg) => ({
@@ -231,6 +234,8 @@ export function useRecording(
           endTime: seg.endTime,
         }));
 
+        // Store the upload promise so callers can await it (e.g. before calling /leave)
+        uploadPromiseRef.current = (async () => {
         try {
           const formData = new FormData();
           formData.append(
@@ -262,6 +267,7 @@ export function useRecording(
           setError("Cloud upload failed. Recording saved locally instead.");
           downloadRecording(blob);
         }
+        })();
 
         // Cleanup audio sources
         for (const source of audioSourcesRef.current) {
@@ -358,10 +364,13 @@ export function useRecording(
     };
   }, []);
 
+  const waitForUpload = useCallback(() => uploadPromiseRef.current, []);
+
   return {
     isRecording,
     startRecording,
     stopRecording,
+    waitForUpload,
     recordingDuration,
     error,
     clearError,

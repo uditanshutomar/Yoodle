@@ -23,7 +23,7 @@ export default function UpNextWidget() {
 
     async function fetchMeetings() {
       try {
-        const res = await fetch("/api/meetings?status=upcoming&limit=5", {
+        const res = await fetch("/api/meetings?status=scheduled&limit=5", {
           credentials: "include",
           signal: controller.signal,
         });

@@ -3,7 +3,7 @@
 import { Suspense, useState, useRef, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
-import { Video, ArrowLeft, Clock, Shield, Mic, Monitor, Users, Copy, Check, Link2, FileText, ChevronDown, X } from "lucide-react";
+import { Video, ArrowLeft, Clock, Shield, Mic, Monitor, Users, Copy, Check, Link2, FileText, ChevronDown, X, Repeat } from "lucide-react";
 import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
 import Input from "@/components/ui/Input";
@@ -34,10 +34,13 @@ function NewMeetingPageInner() {
   const titleInputRef = useRef<HTMLInputElement>(null);
   const [title, setTitle] = useState(searchParams.get("title") || "");
   const [description, setDescription] = useState("");
-  const [scheduleMode, setScheduleMode] = useState<"now" | "later">("now");
+  const isRecurring = searchParams.get("recurring") === "true";
+  const [scheduleMode, setScheduleMode] = useState<"now" | "later">(isRecurring ? "later" : "now");
   const [scheduledAt, setScheduledAt] = useState("");
+  const [recurrence, setRecurrence] = useState<"none" | "daily" | "weekly" | "biweekly" | "monthly">(isRecurring ? "weekly" : "none");
+  const [recurrenceDays, setRecurrenceDays] = useState<string[]>([]);
   const [settings, setSettings] = useState({
-    allowRecording: false,
+    allowRecording: true,
     allowScreenShare: true,
     waitingRoom: false,
     muteOnJoin: false,
@@ -110,6 +113,13 @@ function NewMeetingPageInner() {
 
     if (isScheduled && scheduledAt) {
       body.scheduledAt = new Date(scheduledAt).toISOString();
+    }
+
+    if (recurrence !== "none") {
+      body.recurrence = recurrence;
+      if (recurrenceDays.length > 0) {
+        body.recurrenceDays = recurrenceDays;
+      }
     }
 
     let res = await fetch("/api/meetings", {
@@ -466,7 +476,7 @@ function NewMeetingPageInner() {
             </div>
 
             {scheduleMode === "later" && (
-              <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} className="mt-3">
+              <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} className="mt-3 space-y-3">
                 <input
                   type="datetime-local"
                   aria-label="Schedule date and time"
@@ -474,6 +484,67 @@ function NewMeetingPageInner() {
                   onChange={(e) => setScheduledAt(e.target.value)}
                   className="w-full rounded-xl border-2 border-[var(--border)] bg-[var(--surface)] py-2.5 px-4 text-sm text-[var(--text-primary)] focus:border-[var(--border-strong)] focus:outline-none font-body"
                 />
+
+                {/* Recurrence selector */}
+                <div>
+                  <label className="text-sm font-bold text-[var(--text-primary)] mb-1.5 flex items-center gap-1.5 font-heading">
+                    <Repeat size={14} /> Repeat
+                  </label>
+                  <div className="flex flex-wrap gap-2">
+                    {([
+                      { value: "none", label: "No repeat" },
+                      { value: "daily", label: "Daily" },
+                      { value: "weekly", label: "Weekly" },
+                      { value: "biweekly", label: "Every 2 weeks" },
+                      { value: "monthly", label: "Monthly" },
+                    ] as const).map((opt) => (
+                      <button
+                        key={opt.value}
+                        type="button"
+                        onClick={() => {
+                          setRecurrence(opt.value);
+                          if (opt.value === "none" || opt.value === "daily" || opt.value === "monthly") {
+                            setRecurrenceDays([]);
+                          }
+                        }}
+                        className={`px-3 py-1.5 rounded-lg border-2 text-xs font-bold transition-all cursor-pointer ${
+                          recurrence === opt.value
+                            ? "border-[var(--border-strong)] bg-[#FFE600] text-[#0A0A0A] shadow-[2px_2px_0_var(--border-strong)]"
+                            : "border-[var(--border)] bg-[var(--surface)] text-[var(--text-secondary)] hover:border-[var(--border-strong)]"
+                        } font-heading`}
+                      >
+                        {opt.label}
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* Day picker for weekly/biweekly */}
+                  {(recurrence === "weekly" || recurrence === "biweekly") && (
+                    <div className="mt-2">
+                      <p className="text-xs text-[var(--text-muted)] mb-1.5 font-body">Repeat on</p>
+                      <div className="flex gap-1.5">
+                        {(["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]).map((day) => (
+                          <button
+                            key={day}
+                            type="button"
+                            onClick={() => {
+                              setRecurrenceDays((prev) =>
+                                prev.includes(day) ? prev.filter((d) => d !== day) : [...prev, day]
+                              );
+                            }}
+                            className={`w-9 h-9 rounded-full border-2 text-[11px] font-bold transition-all cursor-pointer ${
+                              recurrenceDays.includes(day)
+                                ? "border-[var(--border-strong)] bg-[#FFE600] text-[#0A0A0A] shadow-[2px_2px_0_var(--border-strong)]"
+                                : "border-[var(--border)] bg-[var(--surface)] text-[var(--text-secondary)] hover:border-[var(--border-strong)]"
+                            } font-heading`}
+                          >
+                            {day.charAt(0)}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
               </motion.div>
             )}
           </div>

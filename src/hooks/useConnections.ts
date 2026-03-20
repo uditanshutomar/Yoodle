@@ -41,7 +41,7 @@ async function apiFetch<T>(url: string, options?: RequestInit): Promise<T> {
   const body = await res.json();
 
   if (!res.ok || !body.success) {
-    throw new Error(body.error || body.message || "Request failed");
+    throw new Error(body.error?.message || body.message || "Request failed");
   }
 
   return body.data as T;

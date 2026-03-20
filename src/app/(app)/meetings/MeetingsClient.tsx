@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { motion } from "framer-motion";
-import { Video, Plus, Calendar, Users, Clock, Ghost, ChevronDown, DoorOpen, LogIn } from "lucide-react";
+import { useEffect, useState, useCallback } from "react";
+import { motion, AnimatePresence } from "framer-motion";
+import { Video, Plus, Calendar, Users, Clock, Ghost, ChevronDown, DoorOpen, LogIn, Repeat, MoreVertical, X as XIcon, CalendarClock, Trash2 } from "lucide-react";
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import Card from "@/components/ui/Card";
 import Badge from "@/components/ui/Badge";
@@ -20,8 +20,11 @@ interface MeetingSummary {
   scheduledAt?: string;
   startedAt?: string;
   endedAt?: string;
+  recurrence?: string;
+  recurrenceDays?: string[];
   participantCount: number;
   createdAt: string;
+  isHost: boolean;
 }
 
 interface GhostRoomSummary {
@@ -77,22 +80,87 @@ function formatPastDate(dateStr: string): string {
   return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
 }
 
-function MeetingCard({ meeting, isPast }: { meeting: MeetingSummary; isPast?: boolean }) {
+function MeetingCard({
+  meeting,
+  isPast,
+  onCancel,
+  onDelete,
+  onReschedule,
+}: {
+  meeting: MeetingSummary;
+  isPast?: boolean;
+  onCancel?: (id: string) => void;
+  onDelete?: (id: string) => void;
+  onReschedule?: (meeting: MeetingSummary) => void;
+}) {
   const dateStr = meeting.scheduledAt || meeting.createdAt;
 
   return (
-    <Link href={isPast ? `/meetings/${meeting.id}/recording` : `/meetings/${meeting.id}`}>
-      <Card hover className="!p-5 cursor-pointer h-full">
-        <div className="flex items-start justify-between mb-3">
+    <Card hover className="!p-5 h-full relative">
+      {/* Action menu for host */}
+      {meeting.isHost && (
+        <div className="absolute top-3 right-3 z-10">
+          <DropdownMenu.Root>
+            <DropdownMenu.Trigger asChild>
+              <button
+                onClick={(e) => e.preventDefault()}
+                className="p-1.5 rounded-lg hover:bg-[var(--surface-hover)] transition-colors cursor-pointer"
+                aria-label="Meeting actions"
+              >
+                <MoreVertical size={14} className="text-[var(--text-muted)]" />
+              </button>
+            </DropdownMenu.Trigger>
+            <DropdownMenu.Portal>
+              <DropdownMenu.Content sideOffset={4} align="end" className="z-50 min-w-[160px] bg-[var(--surface)] border-2 border-[var(--border-strong)] rounded-xl shadow-[var(--shadow-card)] p-1.5">
+                {!isPast && meeting.status === "scheduled" && (
+                  <>
+                    <DropdownMenu.Item
+                      onSelect={() => onReschedule?.(meeting)}
+                      className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)] transition-colors cursor-pointer outline-none font-heading"
+                    >
+                      <CalendarClock size={14} /> Reschedule
+                    </DropdownMenu.Item>
+                    <DropdownMenu.Item
+                      onSelect={() => onCancel?.(meeting.id)}
+                      className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-[#FF6B6B] hover:bg-[#FF6B6B]/10 transition-colors cursor-pointer outline-none font-heading"
+                    >
+                      <XIcon size={14} /> Cancel
+                    </DropdownMenu.Item>
+                  </>
+                )}
+                {(isPast || meeting.status === "cancelled" || meeting.status === "ended") && (
+                  <DropdownMenu.Item
+                    onSelect={() => onDelete?.(meeting.id)}
+                    className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-[#FF6B6B] hover:bg-[#FF6B6B]/10 transition-colors cursor-pointer outline-none font-heading"
+                  >
+                    <Trash2 size={14} /> Delete
+                  </DropdownMenu.Item>
+                )}
+              </DropdownMenu.Content>
+            </DropdownMenu.Portal>
+          </DropdownMenu.Root>
+        </div>
+      )}
+
+      <Link href={isPast ? `/meetings/${meeting.id}/recording` : `/meetings/${meeting.id}`} className="block">
+        <div className="flex items-start justify-between mb-3 pr-6">
           <Badge variant={statusColors[meeting.status] || "default"}>
             {meeting.status === "live" && (
               <span className="inline-block w-2 h-2 rounded-full bg-green-500 animate-pulse mr-1.5" />
             )}
             {meeting.status}
           </Badge>
-          {meeting.type === "ghost" && (
-            <Badge variant="info">Ghost</Badge>
-          )}
+          <div className="flex gap-1">
+            {meeting.type === "ghost" && (
+              <Badge variant="info">Ghost</Badge>
+            )}
+            {meeting.recurrence && meeting.recurrence !== "none" && (
+              <Badge variant="info">
+                <Repeat size={10} className="mr-1 inline" />
+                {meeting.recurrence}
+              </Badge>
+            )}
+          </div>
         </div>
         <h3 className="text-base font-bold text-[var(--text-primary)] mb-1 font-heading">
           {meeting.title}
@@ -119,8 +187,18 @@ function MeetingCard({ meeting, isPast }: { meeting: MeetingSummary; isPast?: bo
             </span>
           )}
         </div>
-      </Card>
-    </Link>
+        {/* Show recurrence days */}
+        {meeting.recurrenceDays && meeting.recurrenceDays.length > 0 && (
+          <div className="flex gap-1 mt-2">
+            {meeting.recurrenceDays.map((d) => (
+              <span key={d} className="text-[10px] font-bold bg-[#FFE600]/30 text-[#0A0A0A] rounded-full w-5 h-5 flex items-center justify-center font-heading">
+                {d.charAt(0)}
+              </span>
+            ))}
+          </div>
+        )}
+      </Link>
+    </Card>
   );
 }
 
@@ -160,6 +238,80 @@ function GhostRoomCard({ room }: { room: GhostRoomSummary }) {
   );
 }
 
+// Reschedule modal
+function RescheduleModal({
+  meeting,
+  onClose,
+  onSave,
+}: {
+  meeting: MeetingSummary;
+  onClose: () => void;
+  onSave: (id: string, newDate: string) => void;
+}) {
+  const [newDate, setNewDate] = useState(
+    meeting.scheduledAt
+      ? new Date(meeting.scheduledAt).toISOString().slice(0, 16)
+      : ""
+  );
+  const [saving, setSaving] = useState(false);
+
+  const handleSave = async () => {
+    if (!newDate) return;
+    setSaving(true);
+    await onSave(meeting.id, new Date(newDate).toISOString());
+    setSaving(false);
+  };
+
+  return (
+    <motion.div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      onClick={onClose}
+    >
+      <motion.div
+        initial={{ scale: 0.95, opacity: 0 }}
+        animate={{ scale: 1, opacity: 1 }}
+        exit={{ scale: 0.95, opacity: 0 }}
+        onClick={(e) => e.stopPropagation()}
+        className="bg-[var(--surface)] border-2 border-[var(--border-strong)] rounded-2xl shadow-[6px_6px_0_var(--border-strong)] p-6 w-full max-w-sm mx-4"
+      >
+        <h3 className="text-lg font-black text-[var(--text-primary)] mb-1 font-heading">
+          Reschedule Meeting
+        </h3>
+        <p className="text-sm text-[var(--text-muted)] mb-4 font-body">{meeting.title}</p>
+
+        <label className="text-sm font-bold text-[var(--text-primary)] mb-1.5 block font-heading">
+          New Date & Time
+        </label>
+        <input
+          type="datetime-local"
+          value={newDate}
+          onChange={(e) => setNewDate(e.target.value)}
+          className="w-full rounded-xl border-2 border-[var(--border)] bg-[var(--surface)] py-2.5 px-4 text-sm text-[var(--text-primary)] focus:border-[var(--border-strong)] focus:outline-none mb-4 font-body"
+        />
+
+        <div className="flex gap-3">
+          <button
+            onClick={onClose}
+            className="flex-1 py-2.5 rounded-xl border-2 border-[var(--border)] text-sm font-bold text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] transition-colors cursor-pointer font-heading"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handleSave}
+            disabled={!newDate || saving}
+            className="flex-1 py-2.5 rounded-xl border-2 border-[var(--border-strong)] bg-[#FFE600] text-sm font-bold text-[#0A0A0A] shadow-[2px_2px_0_var(--border-strong)] hover:shadow-[1px_1px_0_var(--border-strong)] hover:translate-x-[1px] hover:translate-y-[1px] transition-all cursor-pointer disabled:opacity-50 font-heading"
+          >
+            {saving ? "Saving..." : "Save"}
+          </button>
+        </div>
+      </motion.div>
+    </motion.div>
+  );
+}
+
 export default function MeetingsClient() {
   const router = useRouter();
   const { user } = useAuth();
@@ -167,10 +319,11 @@ export default function MeetingsClient() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [retryCount, setRetryCount] = useState(0);
-  const [activeTab, setActiveTab] = useState<"upcoming" | "past" | "blueprints">("upcoming");
+  const [activeTab, setActiveTab] = useState<"upcoming" | "past" | "recurring">("upcoming");
   const [ghostRooms, setGhostRooms] = useState<GhostRoomSummary[]>([]);
   const [creatingGhost, setCreatingGhost] = useState(false);
   const [joinCode, setJoinCode] = useState("");
+  const [rescheduleTarget, setRescheduleTarget] = useState<MeetingSummary | null>(null);
 
   useEffect(() => {
     fetch("/api/meetings", { credentials: "include" })
@@ -190,8 +343,16 @@ export default function MeetingsClient() {
               scheduledAt: m.scheduledAt as string | undefined,
               startedAt: m.startedAt as string | undefined,
               endedAt: m.endedAt as string | undefined,
+              recurrence: m.recurrence as string | undefined,
+              recurrenceDays: m.recurrenceDays as string[] | undefined,
               participantCount: Array.isArray(m.participants) ? m.participants.length : 0,
               createdAt: m.createdAt as string,
+              isHost: (() => {
+                const hostId = m.hostId as Record<string, unknown> | string | undefined;
+                if (!hostId) return false;
+                const hid = typeof hostId === "string" ? hostId : (hostId._id as string) || "";
+                return hid === user?.id;
+              })(),
             }))
           );
           setError("");
@@ -201,7 +362,7 @@ export default function MeetingsClient() {
       })
       .catch(() => setError("Something went wrong. Please try again."))
       .finally(() => setLoading(false));
-  }, [retryCount]);
+  }, [retryCount, user?.id]);
 
   useEffect(() => {
     if (!user) return;
@@ -228,7 +389,7 @@ export default function MeetingsClient() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({ title: "Quick Meeting", type: "regular", settings: { allowRecording: false, allowScreenShare: true, waitingRoom: false, muteOnJoin: false } }),
+        body: JSON.stringify({ title: "Quick Meeting", type: "regular", settings: { allowRecording: true, allowScreenShare: true, waitingRoom: false, muteOnJoin: false } }),
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
@@ -272,13 +433,84 @@ export default function MeetingsClient() {
     router.push(`/meetings/join?code=${encodeURIComponent(code)}`);
   };
 
-  // Split meetings into upcoming (scheduled/live) and past (ended/cancelled)
+  const handleCancel = useCallback(async (meetingId: string) => {
+    if (!confirm("Cancel this meeting? This cannot be undone.")) return;
+    try {
+      const res = await fetch(`/api/meetings/${meetingId}`, {
+        method: "DELETE",
+        credentials: "include",
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        setError(data?.error?.message || "Failed to cancel meeting");
+        return;
+      }
+      setMeetings((prev) => prev.map((m) => m.id === meetingId ? { ...m, status: "cancelled" } : m));
+    } catch {
+      setError("Failed to cancel meeting. Check your connection.");
+    }
+  }, []);
+
+  const handleDelete = useCallback(async (meetingId: string) => {
+    if (!confirm("Delete this meeting permanently?")) return;
+    try {
+      const res = await fetch(`/api/meetings/${meetingId}`, {
+        method: "DELETE",
+        credentials: "include",
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        setError(data?.error?.message || "Failed to delete meeting");
+        return;
+      }
+      setMeetings((prev) => prev.filter((m) => m.id !== meetingId));
+    } catch {
+      setError("Failed to delete meeting. Check your connection.");
+    }
+  }, []);
+
+  const handleReschedule = useCallback(async (meetingId: string, newDate: string) => {
+    try {
+      const res = await fetch(`/api/meetings/${meetingId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ scheduledAt: newDate }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        setError(data?.error?.message || "Failed to reschedule meeting");
+        return;
+      }
+      setMeetings((prev) => prev.map((m) => m.id === meetingId ? { ...m, scheduledAt: newDate } : m));
+      setRescheduleTarget(null);
+    } catch {
+      setError("Failed to reschedule meeting. Check your connection.");
+    }
+  }, []);
+
+  // Split meetings into upcoming, past, and recurring
   const now = Date.now();
-  const TWENTY_FOUR_HOURS = 24 * 60 * 60 * 1000;
-  const upcoming = meetings.filter((m) => m.status === "scheduled" || m.status === "live");
-  const past = meetings.filter((m) => {
-    return m.status === "ended" || m.status === "cancelled";
+  const ONE_HOUR = 60 * 60 * 1000;
+  const upcoming = meetings.filter((m) => {
+    if (m.recurrence && m.recurrence !== "none") return false; // recurring has its own tab
+    if (m.status === "live") return true;
+    if (m.status === "scheduled") {
+      const dateStr = m.scheduledAt || m.createdAt;
+      return new Date(dateStr).getTime() + ONE_HOUR > now;
+    }
+    return false;
   });
+  const past = meetings.filter((m) => {
+    if (m.recurrence && m.recurrence !== "none") return false; // recurring has its own tab
+    if (m.status === "ended" || m.status === "cancelled") return true;
+    if (m.status === "scheduled") {
+      const dateStr = m.scheduledAt || m.createdAt;
+      return new Date(dateStr).getTime() + ONE_HOUR <= now;
+    }
+    return false;
+  });
+  const recurring = meetings.filter((m) => m.recurrence && m.recurrence !== "none");
 
   return (
     <motion.div variants={containerVariants} initial="hidden" animate="visible" className="space-y-6">
@@ -318,6 +550,11 @@ export default function MeetingsClient() {
                   <Calendar size={14} /> Schedule Meeting
                 </Link>
               </DropdownMenu.Item>
+              <DropdownMenu.Item asChild>
+                <Link href="/meetings/new?recurring=true" className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)] transition-colors cursor-pointer outline-none font-heading">
+                  <Repeat size={14} /> Recurring Meeting
+                </Link>
+              </DropdownMenu.Item>
               <DropdownMenu.Separator className="my-1 h-px bg-[var(--border)]" />
               <DropdownMenu.Item onSelect={handleCreateGhostRoom} className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)] transition-colors cursor-pointer outline-none font-heading">
                 <Ghost size={14} /> Ghost Room
@@ -353,7 +590,7 @@ export default function MeetingsClient() {
 
       {/* Tab bar */}
       <motion.div variants={itemVariants} className="flex items-center gap-1 rounded-xl border-2 border-[var(--border-strong)] bg-[var(--surface)] p-1">
-        {(["upcoming", "past", "blueprints"] as const).map((tab) => (
+        {(["upcoming", "past", "recurring"] as const).map((tab) => (
           <button
             key={tab}
             onClick={() => setActiveTab(tab)}
@@ -363,7 +600,7 @@ export default function MeetingsClient() {
                 : "text-[var(--text-muted)] hover:bg-[var(--surface-hover)]"
             } font-heading`}
           >
-            {tab === "upcoming" ? "Upcoming" : tab === "past" ? "Past" : "Blueprints"}
+            {tab === "upcoming" ? "Upcoming" : tab === "past" ? "Past" : "Recurring"}
           </button>
         ))}
       </motion.div>
@@ -403,7 +640,14 @@ export default function MeetingsClient() {
               )}
               {upcoming.length > 0 ? (
                 <motion.div variants={itemVariants} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {upcoming.map((m) => <MeetingCard key={m.id} meeting={m} />)}
+                  {upcoming.map((m) => (
+                    <MeetingCard
+                      key={m.id}
+                      meeting={m}
+                      onCancel={handleCancel}
+                      onReschedule={setRescheduleTarget}
+                    />
+                  ))}
                 </motion.div>
               ) : ghostRooms.length === 0 ? (
                 <EmptyState title="No upcoming rooms" description="Schedule a meeting or start an instant one." action={{ label: "Start a Room", onClick: () => router.push("/meetings/new"), icon: Plus }} />
@@ -414,29 +658,54 @@ export default function MeetingsClient() {
           {activeTab === "past" && (
             past.length > 0 ? (
               <motion.div variants={itemVariants} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {past.map((m) => <MeetingCard key={m.id} meeting={m} isPast />)}
+                {past.map((m) => (
+                  <MeetingCard
+                    key={m.id}
+                    meeting={m}
+                    isPast
+                    onDelete={handleDelete}
+                  />
+                ))}
               </motion.div>
             ) : (
               <EmptyState title="No past meetings" description="Your completed meetings will appear here." />
             )
           )}
 
-          {activeTab === "blueprints" && (
-            <div className="flex flex-col items-center gap-4 py-12">
-              <p className="text-sm text-[var(--text-secondary)] font-body">
-                Create reusable meeting blueprints with agendas, timers, and auto-assigned roles.
-              </p>
-              <Link
-                href="/meetings/templates"
-                className="inline-flex items-center gap-2 rounded-xl border-2 border-[var(--border-strong)] bg-[#FFE600] px-5 py-2.5 text-sm font-bold text-[#0A0A0A] shadow-[2px_2px_0_var(--border-strong)] transition-all hover:shadow-[4px_4px_0_var(--border-strong)] hover:translate-x-[-2px] hover:translate-y-[-2px] font-heading"
-              >
-                <Plus size={16} />
-                Manage Templates
-              </Link>
-            </div>
+          {activeTab === "recurring" && (
+            recurring.length > 0 ? (
+              <motion.div variants={itemVariants} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {recurring.map((m) => (
+                  <MeetingCard
+                    key={m.id}
+                    meeting={m}
+                    onCancel={handleCancel}
+                    onReschedule={setRescheduleTarget}
+                    onDelete={handleDelete}
+                  />
+                ))}
+              </motion.div>
+            ) : (
+              <EmptyState
+                title="No recurring meetings"
+                description="Set up meetings that repeat on a schedule."
+                action={{ label: "Create Recurring Meeting", onClick: () => router.push("/meetings/new?recurring=true"), icon: Repeat }}
+              />
+            )
           )}
         </>
       )}
+
+      {/* Reschedule modal */}
+      <AnimatePresence>
+        {rescheduleTarget && (
+          <RescheduleModal
+            meeting={rescheduleTarget}
+            onClose={() => setRescheduleTarget(null)}
+            onSave={handleReschedule}
+          />
+        )}
+      </AnimatePresence>
     </motion.div>
   );
 }

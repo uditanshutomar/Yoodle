@@ -3,6 +3,7 @@ import { getConnection } from "./connection";
 import { QUEUE_NAMES, closeAllQueues } from "./queue";
 import { processPostMeetingCascade } from "./workers/post-meeting-cascade";
 import { processCalendarSync } from "./workers/calendar-sync";
+import { processRecording } from "./workers/recording-process";
 import { createLogger } from "@/lib/infra/logger";
 
 const log = createLogger("jobs:workers");
@@ -100,6 +101,34 @@ export function startWorkers(): void {
 
   attachCommonListeners(calendarWorker, "calendar-sync");
   workers.push(calendarWorker);
+
+  // ── Recording Process Worker ────────────────────────────────────
+
+  const recordingWorker = new Worker(
+    QUEUE_NAMES.RECORDING_PROCESS,
+    processRecording,
+    {
+      connection,
+      concurrency: 2,
+    },
+  );
+
+  recordingWorker.on("completed", (job) => {
+    log.info(
+      { jobId: job.id, meetingId: job.data.meetingId },
+      "recording process completed",
+    );
+  });
+
+  recordingWorker.on("failed", (job, err) => {
+    log.error(
+      { jobId: job?.id, meetingId: job?.data?.meetingId, err },
+      "recording process failed",
+    );
+  });
+
+  attachCommonListeners(recordingWorker, "recording-process");
+  workers.push(recordingWorker);
 
   // ── Graceful shutdown on process signals ────────────────────────────
   // Do NOT call process.exit() — Next.js registers its own SIGTERM handler

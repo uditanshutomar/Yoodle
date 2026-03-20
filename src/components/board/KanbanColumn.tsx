@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { useDroppable } from "@dnd-kit/core";
 import KanbanCard from "./KanbanCard";
-import type { BoardColumn, BoardTask } from "@/hooks/useBoard";
+import type { BoardColumn, BoardTask, BoardLabel, BoardMember } from "@/hooks/useBoard";
 
 /* ─── Props ─── */
 interface KanbanColumnProps {
@@ -13,10 +13,12 @@ interface KanbanColumnProps {
   tasks: BoardTask[];
   onCreateTask: (data: { title: string; columnId: string; priority?: string }) => Promise<BoardTask | undefined>;
   onTaskClick?: (task: BoardTask) => void;
+  boardLabels?: BoardLabel[];
+  boardMembers?: BoardMember[];
 }
 
 /* ─── Component ─── */
-export default function KanbanColumn({ column, tasks, onCreateTask, onTaskClick }: KanbanColumnProps) {
+export default function KanbanColumn({ column, tasks, onCreateTask, onTaskClick, boardLabels = [], boardMembers = [] }: KanbanColumnProps) {
   const [showAddInput, setShowAddInput] = useState(false);
   const [newTaskTitle, setNewTaskTitle] = useState("");
   const [creating, setCreating] = useState(false);
@@ -129,7 +131,7 @@ export default function KanbanColumn({ column, tasks, onCreateTask, onTaskClick 
         <SortableContext items={taskIds} strategy={verticalListSortingStrategy}>
           <AnimatePresence mode="popLayout">
             {sortedTasks.map((task) => (
-              <KanbanCard key={task._id} task={task} onClick={onTaskClick} />
+              <KanbanCard key={task._id} task={task} onClick={onTaskClick} boardLabels={boardLabels} boardMembers={boardMembers} />
             ))}
           </AnimatePresence>
         </SortableContext>

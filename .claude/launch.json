@@ -3,10 +3,10 @@
   "configurations": [
     {
       "name": "dev",
-      "runtimeExecutable": "/Users/uditanshutomar/.nvm/versions/node/v22.17.1/bin/node",
-      "runtimeArgs": ["node_modules/.bin/next", "dev", "--port", "3000"],
+      "runtimeExecutable": "/bin/zsh",
+      "runtimeArgs": ["-c", "export PATH=/Users/uditanshutomar/.nvm/versions/node/v22.17.1/bin:$PATH && npx next dev --turbopack --port 3000"],
       "port": 3000,
-      "autoPort": false
+      "autoPort": true
     }
   ]
 }

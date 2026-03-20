@@ -29,3 +29,16 @@ export interface CalendarSyncPayload {
   /** Meeting ObjectId for logging context */
   meetingId: string;
 }
+
+// ── Recording Process ────────────────────────────────────────────────
+
+export interface RecordingProcessPayload {
+  /** Meeting ObjectId (as string) */
+  meetingId: string;
+  /** User who uploaded the recording */
+  userId: string;
+  /** Google Drive file ID of the uploaded recording */
+  driveFileId: string;
+  /** Original file name */
+  fileName: string;
+}

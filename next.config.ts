@@ -13,6 +13,19 @@ const appHost = (() => {
   }
 })();
 
+// Derive LiveKit CSP entries from NEXT_PUBLIC_LIVEKIT_URL (e.g. "wss://foo.livekit.cloud").
+// The client SDK needs both wss: (WebSocket) and https: (signal HTTP) access.
+const livekitCsp = (() => {
+  const raw = process.env.NEXT_PUBLIC_LIVEKIT_URL;
+  if (!raw) return "";
+  try {
+    const host = raw.replace(/^wss?:\/\//, "");
+    return ` wss://${host} https://${host}`;
+  } catch {
+    return "";
+  }
+})();
+
 /**
  * Security headers for static assets and pre-rendered pages (applied via Next.js config).
  * Dynamic routes also get these from proxy.ts applySecurityHeaders().
@@ -53,7 +66,7 @@ const securityHeaders = [
       "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
       "font-src 'self' https://fonts.gstatic.com",
       "img-src 'self' data: blob: https://lh3.googleusercontent.com https://maps.gstatic.com https://maps.googleapis.com https://*.ggpht.com https://*.googleapis.com",
-      `connect-src 'self' wss://${appHost} ws://localhost:* wss://api.deepgram.com https://accounts.google.com https://www.googleapis.com https://maps.googleapis.com https://*.googleapis.com https://*.ingest.sentry.io`,
+      `connect-src 'self' wss://${appHost} ws://localhost:* wss://api.deepgram.com${livekitCsp} https://accounts.google.com https://www.googleapis.com https://maps.googleapis.com https://*.googleapis.com https://*.ingest.sentry.io`,
       "frame-src 'self' https://accounts.google.com",
       "media-src 'self' blob:",
       "object-src 'none'",

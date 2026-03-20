@@ -1,5 +1,7 @@
 import {
   Calendar,
+  CalendarDays,
+  MapPin,
   Rocket,
   StickyNote,
   Sparkles,
@@ -101,6 +103,26 @@ export const WIDGET_REGISTRY: Record<string, WidgetMeta> = {
     defaultW: 4,
     defaultH: 2,
     description: "Workspace activity stream",
+  },
+  "my-calendar": {
+    id: "my-calendar",
+    title: "My Calendar",
+    icon: CalendarDays,
+    minW: 3,
+    minH: 2,
+    defaultW: 4,
+    defaultH: 3,
+    description: "Today's schedule from Google Calendar",
+  },
+  map: {
+    id: "map",
+    title: "Map",
+    icon: MapPin,
+    minW: 3,
+    minH: 2,
+    defaultW: 4,
+    defaultH: 2,
+    description: "See your social mode and jump to the map",
   },
 };
 

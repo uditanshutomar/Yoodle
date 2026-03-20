@@ -83,8 +83,34 @@ describe("BoardPage", () => {
     expect(screen.getByText("Retry")).toBeDefined();
   });
 
-  it("shows empty state when no boards exist", async () => {
+  it("auto-creates a personal board when none exist", async () => {
+    // First call: GET /api/boards returns empty
     mockFetch.mockReturnValueOnce(successResponse([]));
+    // Second call: POST /api/boards auto-creates a board
+    mockFetch.mockReturnValueOnce(
+      Promise.resolve({
+        ok: true,
+        json: () => Promise.resolve({ success: true, data: { _id: "auto-board-1", title: "My Board" } }),
+      })
+    );
+    render(<BoardPage />);
+    await waitFor(() => {
+      expect(screen.getByTestId("kanban-board")).toBeDefined();
+    });
+    expect(screen.getByTestId("kanban-board").textContent).toBe("auto-board-1");
+    // Verify POST was called to create the board
+    expect(mockFetch).toHaveBeenCalledTimes(2);
+    expect(mockFetch).toHaveBeenLastCalledWith(
+      "/api/boards",
+      expect.objectContaining({ method: "POST" })
+    );
+  });
+
+  it("shows empty state when auto-create fails", async () => {
+    // First call: GET returns empty
+    mockFetch.mockReturnValueOnce(successResponse([]));
+    // Second call: POST fails
+    mockFetch.mockReturnValueOnce(Promise.resolve({ ok: false, status: 500 }));
     render(<BoardPage />);
     await waitFor(() => {
       expect(screen.getByText("No board found")).toBeDefined();

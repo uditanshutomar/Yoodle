@@ -134,7 +134,7 @@ describe("ReplaysWidget", () => {
 
     await waitFor(() => {
       expect(mockFetch).toHaveBeenCalledWith(
-        "/api/meetings?status=completed&limit=3",
+        "/api/meetings?status=ended&limit=3",
         expect.objectContaining({ credentials: "include" }),
       );
     });

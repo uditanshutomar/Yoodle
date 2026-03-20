@@ -20,6 +20,7 @@ import {
   X,
   WifiOff,
   AlertCircle,
+  Bot,
 } from "lucide-react";
 import Avatar from "@/components/ui/Avatar";
 import MessageBubble from "@/components/chat/MessageBubble";
@@ -30,6 +31,16 @@ import type {
   ConversationInfo,
   ConversationParticipant,
 } from "@/hooks/useConversations";
+
+// ── Mention types ─────────────────────────────────────────────────────────
+
+interface MentionOption {
+  id: string;
+  label: string;
+  type: "user" | "yoodler";
+  avatar?: string;
+  name: string;
+}
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -209,14 +220,94 @@ export default function ChatThread({
   const [voiceInterim, setVoiceInterim] = useState("");
   const isVoiceRecordingRef = useRef(false);
 
+  // ── @mention autocomplete ────────────────────────────────────────────
+  const [mentionQuery, setMentionQuery] = useState<string | null>(null);
+  const [mentionIndex, setMentionIndex] = useState(0);
+  const mentionStartRef = useRef<number>(-1);
+
+  const mentionOptions = useMemo((): MentionOption[] => {
+    if (mentionQuery === null) return [];
+    const q = mentionQuery.toLowerCase();
+    const participants = convoInfo?.participants ?? [];
+
+    const options: MentionOption[] = [];
+    for (const p of participants) {
+      const isSelf = p._id === user?.id;
+      const displayName = p.displayName ?? p.name;
+
+      // Add user @mention for others only
+      if (!isSelf) {
+        options.push({
+          id: p._id,
+          label: displayName,
+          type: "user",
+          avatar: p.avatar,
+          name: p.name,
+        });
+      }
+
+      // Add yoodler option for self only
+      if (isSelf) {
+        options.push({
+          id: `${p._id}_yoodler`,
+          label: `${displayName}'s Yoodler`,
+          type: "yoodler",
+          avatar: p.avatar,
+          name: p.name,
+        });
+      }
+    }
+
+    if (!q) return options;
+    return options.filter((o) => o.label.toLowerCase().includes(q));
+  }, [mentionQuery, convoInfo?.participants, user?.id]);
+
+  const selectMention = useCallback(
+    (option: MentionOption) => {
+      const ta = textareaRef.current;
+      if (!ta || mentionStartRef.current < 0) return;
+
+      const before = inputValue.slice(0, mentionStartRef.current);
+      const after = inputValue.slice(ta.selectionStart);
+      const insertText = `@${option.label} `;
+      const newValue = before + insertText + after;
+
+      setInputValue(newValue);
+      setMentionQuery(null);
+      mentionStartRef.current = -1;
+
+      // Move cursor after mention
+      setTimeout(() => {
+        const pos = before.length + insertText.length;
+        ta.setSelectionRange(pos, pos);
+        ta.focus();
+      }, 0);
+    },
+    [inputValue],
+  );
+
   const handleInputChange = useCallback(
     (e: ChangeEvent<HTMLTextAreaElement>) => {
-      setInputValue(e.target.value);
+      const val = e.target.value;
+      setInputValue(val);
 
       // Auto-grow textarea
       const ta = e.target;
       ta.style.height = "auto";
       ta.style.height = `${Math.min(ta.scrollHeight, 120)}px`;
+
+      // Detect @mention trigger
+      const cursor = ta.selectionStart;
+      const textBeforeCursor = val.slice(0, cursor);
+      const atMatch = textBeforeCursor.match(/@([^\s@]*)$/);
+      if (atMatch) {
+        mentionStartRef.current = cursor - atMatch[0].length;
+        setMentionQuery(atMatch[1]);
+        setMentionIndex(0);
+      } else {
+        setMentionQuery(null);
+        mentionStartRef.current = -1;
+      }
 
       // Debounced typing indicator
       if (typingTimeoutRef.current) {
@@ -248,12 +339,41 @@ export default function ChatThread({
 
   const handleKeyDown = useCallback(
     (e: KeyboardEvent<HTMLTextAreaElement>) => {
+      // Handle mention dropdown navigation
+      if (mentionQuery !== null && mentionOptions.length > 0) {
+        if (e.key === "ArrowDown") {
+          e.preventDefault();
+          setMentionIndex((prev) =>
+            prev < mentionOptions.length - 1 ? prev + 1 : 0,
+          );
+          return;
+        }
+        if (e.key === "ArrowUp") {
+          e.preventDefault();
+          setMentionIndex((prev) =>
+            prev > 0 ? prev - 1 : mentionOptions.length - 1,
+          );
+          return;
+        }
+        if (e.key === "Enter" || e.key === "Tab") {
+          e.preventDefault();
+          selectMention(mentionOptions[mentionIndex]);
+          return;
+        }
+        if (e.key === "Escape") {
+          e.preventDefault();
+          setMentionQuery(null);
+          mentionStartRef.current = -1;
+          return;
+        }
+      }
+
       if (e.key === "Enter" && !e.shiftKey) {
         e.preventDefault();
         handleSend();
       }
     },
-    [handleSend],
+    [handleSend, mentionQuery, mentionOptions, mentionIndex, selectMention],
   );
 
   const handleVoiceTranscript = useCallback((text: string) => {
@@ -559,7 +679,58 @@ export default function ChatThread({
       </AnimatePresence>
 
       {/* ── Input Area ──────────────────────────────────────────────────── */}
-      <div className="border-t-2 border-[var(--border)] px-4 py-3 bg-[var(--surface)]">
+      <div className="relative border-t-2 border-[var(--border)] px-4 py-3 bg-[var(--surface)]">
+        {/* @mention dropdown */}
+        <AnimatePresence>
+          {mentionQuery !== null && mentionOptions.length > 0 && (
+            <motion.div
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 8 }}
+              transition={{ duration: 0.12 }}
+              className="absolute left-4 right-4 bottom-full mb-1 z-50 max-h-52 overflow-y-auto rounded-lg border-2 border-[var(--border-strong)] bg-[var(--surface)] shadow-[4px_4px_0_var(--border-strong)]"
+            >
+              {mentionOptions.map((option, i) => (
+                <button
+                  key={option.id}
+                  type="button"
+                  onMouseDown={(e) => {
+                    e.preventDefault(); // prevent textarea blur
+                    selectMention(option);
+                  }}
+                  className={`flex w-full items-center gap-2.5 px-3 py-2 text-left transition-colors cursor-pointer ${
+                    i === mentionIndex
+                      ? "bg-[#FFE600]/20"
+                      : "hover:bg-[var(--surface-hover)]"
+                  }`}
+                >
+                  {option.type === "yoodler" ? (
+                    <div className="flex h-7 w-7 items-center justify-center rounded-full bg-[#FFE600] border border-[var(--border)]">
+                      <Bot className="h-4 w-4 text-[#0A0A0A]" />
+                    </div>
+                  ) : (
+                    <Avatar
+                      src={option.avatar}
+                      name={option.name}
+                      size="sm"
+                    />
+                  )}
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate font-heading text-sm font-bold text-[var(--text-primary)]">
+                      {option.label}
+                    </p>
+                    {option.type === "yoodler" && (
+                      <p className="text-[10px] text-[var(--text-muted)] font-body">
+                        AI assistant
+                      </p>
+                    )}
+                  </div>
+                </button>
+              ))}
+            </motion.div>
+          )}
+        </AnimatePresence>
+
         {/* Reply bar */}
         <AnimatePresence>
           {replyingTo && (

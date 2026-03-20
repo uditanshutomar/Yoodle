@@ -15,15 +15,27 @@ import { createLogger } from "@/lib/infra/logger";
 
 const log = createLogger("api:transcription");
 
-async function verifyMeetingParticipant(userId: string, meetingId: string): Promise<boolean> {
+/** Verify caller is an active participant in a live/scheduled meeting (for sending audio). */
+async function verifyActiveMeetingParticipant(userId: string, meetingId: string): Promise<boolean> {
   const meeting = await Meeting.findById(meetingId).select("hostId participants status").lean();
   if (!meeting) return false;
-  // Only allow active meetings
   if (!["scheduled", "live"].includes(meeting.status)) return false;
   return (
     meeting.hostId.toString() === userId ||
     meeting.participants.some((p: { userId: { toString: () => string }; status?: string }) =>
       p.userId.toString() === userId && (!p.status || p.status === "joined")
+    )
+  );
+}
+
+/** Verify caller was ever a participant (for reading transcripts after meeting ends). */
+async function verifyMeetingParticipantAny(userId: string, meetingId: string): Promise<boolean> {
+  const meeting = await Meeting.findById(meetingId).select("hostId participants").lean();
+  if (!meeting) return false;
+  return (
+    meeting.hostId.toString() === userId ||
+    meeting.participants.some((p: { userId: { toString: () => string } }) =>
+      p.userId.toString() === userId
     )
   );
 }
@@ -66,7 +78,7 @@ export const POST = withHandler(async (req: NextRequest) => {
   }
 
   await connectDB();
-  if (!(await verifyMeetingParticipant(userId, meetingId))) {
+  if (!(await verifyActiveMeetingParticipant(userId, meetingId))) {
     throw new ForbiddenError("You are not a participant in this meeting.");
   }
 
@@ -131,7 +143,7 @@ export const GET = withHandler(async (req: NextRequest) => {
 
   await connectDB();
 
-  if (!(await verifyMeetingParticipant(userId, meetingId))) {
+  if (!(await verifyMeetingParticipantAny(userId, meetingId))) {
     throw new ForbiddenError("You are not a participant in this meeting.");
   }
 

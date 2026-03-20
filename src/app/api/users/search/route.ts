@@ -45,9 +45,10 @@ export const GET = withHandler(async (req: NextRequest) => {
     $or: [
       { name: { $regex: escapedQuery, $options: "i" } },
       { displayName: { $regex: escapedQuery, $options: "i" } },
+      { email: { $regex: escapedQuery, $options: "i" } },
     ],
   })
-    .select("name displayName avatarUrl status mode")
+    .select("name displayName email avatarUrl status mode")
     .limit(limit)
     .lean();
 
@@ -55,7 +56,7 @@ export const GET = withHandler(async (req: NextRequest) => {
     _id: user._id.toString(),
     name: user.name,
     displayName: user.displayName,
-    // email deliberately excluded from public search results for privacy
+    email: user.email,
     avatarUrl: user.avatarUrl || null,
     // Invisible mode: always show as "offline" to other users
     status: user.mode === "invisible" ? "offline" : user.status,

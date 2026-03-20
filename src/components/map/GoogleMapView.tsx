@@ -5,6 +5,7 @@ import { type ReactNode, useState } from "react";
 import { MapPin } from "lucide-react";
 
 const GOOGLE_MAPS_KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || "";
+const GOOGLE_MAPS_MAP_ID = process.env.NEXT_PUBLIC_GOOGLE_MAPS_MAP_ID || "";
 
 const DARK_MAP_STYLE: google.maps.MapTypeStyle[] = [
   { elementType: "geometry", stylers: [{ color: "#1a1a2e" }] },
@@ -126,7 +127,8 @@ export default function GoogleMapView({
         defaultZoom={zoom}
         gestureHandling="greedy"
         disableDefaultUI
-        styles={DARK_MAP_STYLE}
+        mapId={GOOGLE_MAPS_MAP_ID || undefined}
+        styles={!GOOGLE_MAPS_MAP_ID ? DARK_MAP_STYLE : undefined}
         className="h-full w-full"
       >
         {children}

@@ -36,4 +36,12 @@ export const WIDGET_COMPONENTS: Record<string, ComponentType> = {
     ssr: false,
     loading: stub,
   }),
+  "my-calendar": dynamic(() => import("./CalendarWidget"), {
+    ssr: false,
+    loading: stub,
+  }),
+  map: dynamic(() => import("./MapWidget"), {
+    ssr: false,
+    loading: stub,
+  }),
 };

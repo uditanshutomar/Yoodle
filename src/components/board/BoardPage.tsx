@@ -52,7 +52,35 @@ export default function BoardPage() {
       if (boards.length > 0) {
         setBoardId(boards[0]._id);
       } else {
-        setBoardId(null);
+        // Auto-create a personal board when none exists
+        const createRes = await fetch("/api/boards", {
+          method: "POST",
+          credentials: "include",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ title: "My Board", scope: "personal" }),
+        });
+        if (!isMountedRef.current) return;
+        if (createRes.ok) {
+          const createJson = await createRes.json();
+          const newBoard = createJson.data;
+          if (newBoard?._id) {
+            setBoardId(newBoard._id);
+          }
+        } else {
+          // 409 = already exists (race condition), re-fetch
+          if (createRes.status === 409) {
+            const retryRes = await fetch("/api/boards", { credentials: "include" });
+            if (retryRes.ok) {
+              const retryJson = await retryRes.json();
+              const retryBoards: BoardSummary[] = retryJson.data || [];
+              if (retryBoards.length > 0 && isMountedRef.current) {
+                setBoardId(retryBoards[0]._id);
+              }
+            }
+          } else {
+            setBoardId(null);
+          }
+        }
       }
     } catch (err) {
       if (isMountedRef.current) setError(err instanceof Error ? err.message : "Failed to load boards");

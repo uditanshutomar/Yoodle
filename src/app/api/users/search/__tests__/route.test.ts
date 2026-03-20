@@ -61,7 +61,7 @@ describe("GET /api/users/search", () => {
 
   it("searches users by name/email", async () => {
     const fakeUsers = [
-      { _id: { toString: () => "u1" }, name: "John Doe", displayName: "John", avatarUrl: null, status: "online", mode: "normal" },
+      { _id: { toString: () => "u1" }, name: "John Doe", displayName: "John", email: "john@example.com", avatarUrl: null, status: "online", mode: "normal" },
     ];
     mockUserChain.lean.mockResolvedValue(fakeUsers);
 

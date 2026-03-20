@@ -302,8 +302,8 @@ async function suggestAgenda(userId: string, input: z.infer<typeof agendaSchema>
     .slice(0, 3)
     .join(" ");
 
-  // Gather board tasks and recent similar-titled meetings in parallel
-  const [tasksResult, meetingsResult] = await Promise.allSettled([
+  // Gather board tasks, recent similar-titled meetings, and relevant Drive docs in parallel
+  const [tasksResult, meetingsResult, driveResult] = await Promise.allSettled([
     searchBoardTasks(userId, { query: keywords }),
     Meeting.find({
       $or: [{ hostId: userOid }, { "participants.userId": userOid }],
@@ -313,6 +313,7 @@ async function suggestAgenda(userId: string, input: z.infer<typeof agendaSchema>
       .sort({ createdAt: -1 })
       .limit(5)
       .lean(),
+    searchFiles(userId, keywords, 5),
   ]);
 
   const tasks: { title: string; priority?: string; dueDate?: string }[] =
@@ -320,6 +321,7 @@ async function suggestAgenda(userId: string, input: z.infer<typeof agendaSchema>
       ? tasksResult.value.data
       : [];
   const meetings = meetingsResult.status === "fulfilled" ? meetingsResult.value : [];
+  const driveFiles = driveResult.status === "fulfilled" ? driveResult.value : [];
 
   // Build context string
   const contextParts: string[] = [];
@@ -342,6 +344,13 @@ async function suggestAgenda(userId: string, input: z.infer<typeof agendaSchema>
     }
   }
 
+  if (driveFiles.length > 0) {
+    contextParts.push("\nRelated documents from Drive:");
+    for (const file of driveFiles.slice(0, 5)) {
+      contextParts.push(`- "${file.name}" (${file.mimeType?.replace("application/vnd.google-apps.", "") || "file"}, last modified: ${file.modifiedTime || "unknown"})`);
+    }
+  }
+
   const context = contextParts.join("\n");
 
   // Ask Gemini for agenda suggestions
@@ -349,14 +358,16 @@ async function suggestAgenda(userId: string, input: z.infer<typeof agendaSchema>
     const ai = getClient();
     const model = getModelName();
 
-    const prompt = `You are an assistant that suggests meeting agenda items. Based on the meeting title and context, suggest relevant agenda items.
+    const prompt = `You are an assistant that suggests meeting agenda items. Based on the meeting title, recent tasks, past meetings, and related documents, suggest relevant agenda items.
 
 Meeting title: "${input.title}"
 ${input.attendees.length > 0 ? `Attendees: ${input.attendees.length} people` : ""}
 
 ${context || "No additional context available."}
 
-Suggest 3-5 concise agenda items that would be appropriate for this meeting. Each item should be actionable and specific.
+Suggest 3-5 concise, actionable agenda items that would be appropriate for this meeting. Each item should be a specific talking point or discussion topic synthesized from the context above (tasks, past meetings, documents). Do NOT suggest just document titles or links — suggest actual discussion points.
+
+For the "reason" field, briefly explain what data (task, past meeting, or document) informed this suggestion.
 
 Respond with JSON only: {"items":[{"value":"...","reason":"..."}]}`;
 

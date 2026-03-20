@@ -51,6 +51,8 @@ const createMeetingSchema = z.object({
     })
     .optional(),
   templateId: z.string().optional(),
+  recurrence: z.enum(["none", "daily", "weekly", "biweekly", "monthly"]).optional(),
+  recurrenceDays: z.array(z.enum(["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"])).max(7).optional(),
 });
 
 // ── GET /api/meetings ───────────────────────────────────────────────
@@ -116,7 +118,7 @@ export const POST = withHandler(async (req: NextRequest) => {
   const userId = await getUserIdFromRequest(req);
 
   const body = createMeetingSchema.parse(await req.json());
-  const { title, description, type, scheduledAt, settings } = body;
+  const { title, description, type, scheduledAt, settings, recurrence, recurrenceDays } = body;
   const { templateId } = body;
 
   await connectDB();
@@ -160,13 +162,13 @@ export const POST = withHandler(async (req: NextRequest) => {
 
   const code = generateMeetingCode();
 
-  const resolvedSettings = (settings || templateSettings) ? {
+  const resolvedSettings = {
     maxParticipants: settings?.maxParticipants ?? (templateSettings?.maxParticipants as number) ?? 25,
     allowRecording: settings?.allowRecording ?? true,
     allowScreenShare: settings?.allowScreenShare ?? true,
     waitingRoom: settings?.waitingRoom ?? (templateSettings?.waitingRoom as boolean) ?? false,
     muteOnJoin: settings?.muteOnJoin ?? (templateSettings?.muteOnJoin as boolean) ?? false,
-  } : undefined;
+  };
 
   const meeting = await Meeting.create({
     code,
@@ -178,6 +180,8 @@ export const POST = withHandler(async (req: NextRequest) => {
     scheduledAt: scheduledAt ? new Date(scheduledAt) : undefined,
     scheduledDuration: templateDuration || undefined,
     templateId: templateObjId || undefined,
+    recurrence: recurrence && recurrence !== "none" ? recurrence : undefined,
+    recurrenceDays: recurrenceDays && recurrenceDays.length > 0 ? recurrenceDays : undefined,
     participants: [
       {
         userId: new mongoose.Types.ObjectId(userId),

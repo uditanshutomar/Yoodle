@@ -105,9 +105,9 @@ export default function DeskPage() {
       {mounted && (
         <Responsive
           width={width}
-          layouts={{ lg: layout, md: layout }}
+          layouts={{ lg: layout, md: layout, sm: layout, xs: layout }}
           breakpoints={{ lg: 1024, md: 768, sm: 480, xs: 0 }}
-          cols={{ lg: 12, md: 6, sm: 6, xs: 4 }}
+          cols={{ lg: 12, md: 12, sm: 6, xs: 4 }}
           rowHeight={80}
           margin={[16, 16] as const}
           dragConfig={{

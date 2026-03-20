@@ -35,6 +35,19 @@ const updateTaskSchema = z.object({
     .max(100)
     .optional(),
   estimatePoints: z.number().min(0).max(1000).nullable().optional(),
+  collaborators: z.array(z.string().refine((val) => mongoose.Types.ObjectId.isValid(val))).max(50).optional(),
+  linkedDocs: z.array(z.object({
+    googleDocId: z.string().max(500),
+    title: z.string().max(200),
+    url: z.string().url().max(2000),
+    type: z.enum(["doc", "sheet", "slide", "pdf", "file"]),
+  })).max(50).optional(),
+  linkedEmails: z.array(z.object({
+    gmailId: z.string().max(200),
+    subject: z.string().max(500),
+    from: z.string().max(200),
+  })).max(50).optional(),
+  meetingId: z.string().refine((val) => mongoose.Types.ObjectId.isValid(val), { message: "Invalid meeting ID" }).nullable().optional(),
 }).refine((data) => Object.keys(data).length > 0, { message: "At least one field required" });
 
 /* ─── GET /api/boards/[boardId]/tasks/[taskId] ─── */
@@ -103,6 +116,16 @@ export const PATCH = withHandler(async (req: NextRequest, context) => {
   }
   if (body.subtasks !== undefined) updates.subtasks = body.subtasks;
   if (body.estimatePoints !== undefined) updates.estimatePoints = body.estimatePoints;
+  if (body.collaborators !== undefined) {
+    updates.collaborators = body.collaborators.map((id: string) => new mongoose.Types.ObjectId(id));
+  }
+  if (body.linkedDocs !== undefined) updates.linkedDocs = body.linkedDocs;
+  if (body.linkedEmails !== undefined) updates.linkedEmails = body.linkedEmails;
+  if (body.meetingId !== undefined) {
+    updates.meetingId = body.meetingId
+      ? new mongoose.Types.ObjectId(body.meetingId)
+      : null;
+  }
 
   // Track completion
   if (body.columnId) {

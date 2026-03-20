@@ -28,7 +28,7 @@ export default function ReplaysWidget() {
     setError(null);
 
     try {
-      const res = await fetch("/api/meetings?status=completed&limit=3", {
+      const res = await fetch("/api/meetings?status=ended&limit=3", {
         credentials: "include",
         signal: controller.signal,
       });

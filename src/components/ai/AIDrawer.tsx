@@ -126,6 +126,23 @@ function AIDrawerPanel({ isOpen, onClose }: { isOpen: boolean; onClose: () => vo
     }
   }, []);
 
+  const handleConfirmAction = useCallback(async (_actionId: string, actionType: string, args: Record<string, unknown>) => {
+    const res = await fetch("/api/ai/action/confirm", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({ actionType, args }),
+    });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      throw new Error(data?.error?.message || "Action failed");
+    }
+  }, []);
+
+  const handleDenyAction = useCallback((_actionId: string) => {
+    // Deny is purely client-side — InlineActionCard handles UI state
+  }, []);
+
   return (
     <AnimatePresence>
       {isOpen && (
@@ -157,6 +174,8 @@ function AIDrawerPanel({ isOpen, onClose }: { isOpen: boolean; onClose: () => vo
                 onClear={clearMessages}
                 onClose={onClose}
                 onCardAction={handleCardAction}
+                onConfirmAction={handleConfirmAction}
+                onDenyAction={handleDenyAction}
                 sessions={sessions}
                 activeSessionId={activeSessionId}
                 onSwitchSession={switchSession}

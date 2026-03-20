@@ -75,11 +75,7 @@ export const GET = withHandler(async (req: NextRequest) => {
       conn.requesterId.toString() === userId
         ? conn.recipientId
         : conn.requesterId;
-    connectedIds.push(
-      otherId instanceof mongoose.Types.ObjectId
-        ? otherId
-        : new mongoose.Types.ObjectId(otherId.toString()),
-    );
+    connectedIds.push(new mongoose.Types.ObjectId(otherId.toString()));
   }
 
   // Use MongoDB aggregation with $geoNear for distance-sorted results

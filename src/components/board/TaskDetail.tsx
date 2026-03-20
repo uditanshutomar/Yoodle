@@ -18,46 +18,23 @@ import {
   Activity,
   AlertTriangle,
   Clock,
+  FileText,
+  Mail,
+  Link2,
+  Users,
+  Hash,
+  CalendarRange,
+  Sparkles,
+  Bot,
+  Video,
+  ExternalLink,
 } from "lucide-react";
-
-/* ────────────────────────────────────────────────────────────
-   Types
-   ──────────────────────────────────────────────────────────── */
-
-interface Subtask {
-  id: string;
-  title: string;
-  done: boolean;
-  assigneeId?: string;
-}
-
-export interface BoardTask {
-  _id: string;
-  boardId: string;
-  columnId: string;
-  position: number;
-  title: string;
-  description?: string;
-  priority: "urgent" | "high" | "medium" | "low" | "none";
-  assigneeId?: string;
-  labels: string[];
-  dueDate?: string;
-  subtasks: Subtask[];
-  completedAt?: string;
-  createdAt: string;
-}
-
-export interface Board {
-  _id: string;
-  title: string;
-  columns: { id: string; title: string; color: string; position: number }[];
-  labels: { id: string; name: string; color: string }[];
-  members: { userId: string; role: string }[];
-}
+import type { BoardTask, Board, LinkedDoc, LinkedEmail } from "@/hooks/useBoard";
 
 export interface TaskDetailProps {
   task: BoardTask | null;
   board: Board | null;
+  boardMembers?: { _id: string; name: string; displayName?: string; avatarUrl?: string }[];
   onClose: () => void;
   onUpdate: (taskId: string, data: Partial<BoardTask>) => Promise<BoardTask | undefined>;
   onDelete: (taskId: string) => Promise<void>;
@@ -98,6 +75,7 @@ interface CommentEntry {
 export default function TaskDetail({
   task,
   board,
+  boardMembers,
   onClose,
   onUpdate,
   onDelete,
@@ -109,6 +87,7 @@ export default function TaskDetail({
           key={task._id}
           task={task}
           board={board}
+          boardMembers={boardMembers}
           onClose={onClose}
           onUpdate={onUpdate}
           onDelete={onDelete}
@@ -122,15 +101,24 @@ export default function TaskDetail({
    Inner (remounts per task via key)
    ──────────────────────────────────────────────────────────── */
 
+interface Subtask {
+  id: string;
+  title: string;
+  done: boolean;
+  assigneeId?: string;
+}
+
 function TaskDetailInner({
   task,
   board,
+  boardMembers = [],
   onClose,
   onUpdate,
   onDelete,
 }: {
   task: BoardTask;
   board: Board | null;
+  boardMembers?: { _id: string; name: string; displayName?: string; avatarUrl?: string }[];
   onClose: () => void;
   onUpdate: (taskId: string, data: Partial<BoardTask>) => Promise<BoardTask | undefined>;
   onDelete: (taskId: string) => Promise<void>;
@@ -143,6 +131,18 @@ function TaskDetailInner({
   const [priority, setPriority] = useState(task.priority);
   const [columnId, setColumnId] = useState(task.columnId);
   const [dueDate, setDueDate] = useState(task.dueDate || "");
+  const [startDate, setStartDate] = useState(task.startDate || "");
+  const [estimatePoints, setEstimatePoints] = useState<number | null>(task.estimatePoints ?? null);
+  const [assigneeId, setAssigneeId] = useState<string | null>(task.assigneeId || null);
+  const [linkedDocs, setLinkedDocs] = useState<LinkedDoc[]>(task.linkedDocs || []);
+  const [linkedEmails, setLinkedEmails] = useState<LinkedEmail[]>(task.linkedEmails || []);
+  const [meetingId, setMeetingId] = useState<string | null>(task.meetingId || null);
+  const [meetingData, setMeetingData] = useState<{ _id: string; title: string; status: string; scheduledAt?: string; code?: string } | null>(null);
+  const [meetingLoading, setMeetingLoading] = useState(false);
+  const [showMeetingSearch, setShowMeetingSearch] = useState(false);
+  const [meetingSearchQuery, setMeetingSearchQuery] = useState("");
+  const [meetingSearchResults, setMeetingSearchResults] = useState<{ _id: string; title: string; status: string; scheduledAt?: string; code?: string }[]>([]);
+  const [meetingSearching, setMeetingSearching] = useState(false);
   const [selectedLabels, setSelectedLabels] = useState<string[]>(task.labels);
   const [subtasks, setSubtasks] = useState<Subtask[]>(task.subtasks);
   const [newSubtask, setNewSubtask] = useState("");
@@ -157,6 +157,12 @@ function TaskDetailInner({
   const [showPriorityMenu, setShowPriorityMenu] = useState(false);
   const [showColumnMenu, setShowColumnMenu] = useState(false);
   const [showLabelMenu, setShowLabelMenu] = useState(false);
+  const [showAssigneeMenu, setShowAssigneeMenu] = useState(false);
+
+  // Linked doc add form
+  const [showAddDoc, setShowAddDoc] = useState(false);
+  const [newDocUrl, setNewDocUrl] = useState("");
+  const [newDocTitle, setNewDocTitle] = useState("");
 
   const titleRef = useRef<HTMLInputElement>(null);
   const descRef = useRef<HTMLTextAreaElement>(null);
@@ -167,18 +173,20 @@ function TaskDetailInner({
     const handler = (e: KeyboardEvent) => {
       if (e.key !== "Escape") return;
       // If a dropdown menu is open, close it first instead of closing the drawer
-      if (showPriorityMenu || showColumnMenu || showLabelMenu || showDeleteConfirm) {
+      if (showPriorityMenu || showColumnMenu || showLabelMenu || showAssigneeMenu || showDeleteConfirm || showMeetingSearch) {
         setShowPriorityMenu(false);
         setShowColumnMenu(false);
         setShowLabelMenu(false);
+        setShowAssigneeMenu(false);
         setShowDeleteConfirm(false);
+        setShowMeetingSearch(false);
         return;
       }
       onClose();
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [onClose, showPriorityMenu, showColumnMenu, showLabelMenu, showDeleteConfirm]);
+  }, [onClose, showPriorityMenu, showColumnMenu, showLabelMenu, showAssigneeMenu, showDeleteConfirm, showMeetingSearch]);
 
   /* ── Focus helpers ── */
   useEffect(() => {
@@ -298,6 +306,123 @@ function TaskDetailInner({
     },
     [persist]
   );
+
+  const changeStartDate = useCallback(
+    (val: string) => {
+      setStartDate(val);
+      persist({ startDate: val || undefined });
+    },
+    [persist]
+  );
+
+  const changeEstimate = useCallback(
+    (val: string) => {
+      const num = val === "" ? null : parseInt(val, 10);
+      setEstimatePoints(num);
+      persist({ estimatePoints: num ?? undefined } as Partial<BoardTask>);
+    },
+    [persist]
+  );
+
+  const changeAssignee = useCallback(
+    (userId: string | null) => {
+      setAssigneeId(userId);
+      setShowAssigneeMenu(false);
+      persist({ assigneeId: userId ?? undefined } as Partial<BoardTask>);
+    },
+    [persist]
+  );
+
+  const addLinkedDoc = useCallback(() => {
+    if (!newDocUrl.trim()) return;
+    const docType = detectDocType(newDocUrl);
+    const doc: LinkedDoc = {
+      googleDocId: newDocUrl, // use URL as ID for non-google docs
+      title: newDocTitle.trim() || new URL(newDocUrl).hostname,
+      url: newDocUrl.trim(),
+      type: docType,
+    };
+    const next = [...linkedDocs, doc];
+    setLinkedDocs(next);
+    setNewDocUrl("");
+    setNewDocTitle("");
+    setShowAddDoc(false);
+    persist({ linkedDocs: next } as Partial<BoardTask>);
+  }, [newDocUrl, newDocTitle, linkedDocs, persist]);
+
+  const removeLinkedDoc = useCallback(
+    (index: number) => {
+      const next = linkedDocs.filter((_, i) => i !== index);
+      setLinkedDocs(next);
+      persist({ linkedDocs: next } as Partial<BoardTask>);
+    },
+    [linkedDocs, persist]
+  );
+
+  const removeLinkedEmail = useCallback(
+    (index: number) => {
+      const next = linkedEmails.filter((_, i) => i !== index);
+      setLinkedEmails(next);
+      persist({ linkedEmails: next } as Partial<BoardTask>);
+    },
+    [linkedEmails, persist]
+  );
+
+  /* ── Related Meeting ── */
+  useEffect(() => {
+    if (!meetingId) { setMeetingData(null); return; }
+    let cancelled = false;
+    setMeetingLoading(true);
+    fetch(`/api/meetings/${meetingId}`, { credentials: "include" })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((json) => {
+        if (!cancelled && json?.data) {
+          setMeetingData({ _id: json.data._id, title: json.data.title, status: json.data.status, scheduledAt: json.data.scheduledAt, code: json.data.code });
+        }
+      })
+      .catch(() => {})
+      .finally(() => { if (!cancelled) setMeetingLoading(false); });
+    return () => { cancelled = true; };
+  }, [meetingId]);
+
+  const meetingSearchDebounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
+
+  const searchMeetings = useCallback((query: string) => {
+    setMeetingSearchQuery(query);
+    if (meetingSearchDebounceRef.current) clearTimeout(meetingSearchDebounceRef.current);
+    if (query.trim().length < 2) { setMeetingSearchResults([]); return; }
+    meetingSearchDebounceRef.current = setTimeout(async () => {
+      setMeetingSearching(true);
+      try {
+        const res = await fetch(`/api/meetings?limit=10`, { credentials: "include" });
+        if (res.ok) {
+          const json = await res.json();
+          const meetings = (json.data || []) as { _id: string; title: string; status: string; scheduledAt?: string; code?: string }[];
+          const q = query.trim().toLowerCase();
+          setMeetingSearchResults(meetings.filter((m) => m.title.toLowerCase().includes(q)));
+        }
+      } catch { /* non-fatal */ }
+      finally { setMeetingSearching(false); }
+    }, 300);
+  }, []);
+
+  const linkMeeting = useCallback(
+    (mId: string, data: { _id: string; title: string; status: string; scheduledAt?: string; code?: string }) => {
+      setMeetingId(mId);
+      setMeetingData(data);
+      setShowMeetingSearch(false);
+      setMeetingSearchQuery("");
+      setMeetingSearchResults([]);
+      persist({ meetingId: mId } as Partial<BoardTask>);
+    },
+    [persist]
+  );
+
+  const unlinkMeeting = useCallback(() => {
+    setMeetingId(null);
+    setMeetingData(null);
+    persist({ meetingId: null } as unknown as Partial<BoardTask>);
+  }, [persist]);
 
   const toggleLabel = useCallback(
     (labelId: string) => {
@@ -551,24 +676,119 @@ function TaskDetailInner({
         {/* ────────── BODY ────────── */}
         <div className="flex-1 overflow-y-auto">
           <div className="px-6 py-5 space-y-6">
+            {/* ── Source badge ── */}
+            {task.source && task.source.type !== "manual" && (
+              <div className="flex items-center gap-1.5 mb-1">
+                <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold border border-[#FFE600]/40 bg-[#FFE600]/10 text-[#B8A200]">
+                  {task.source.type === "ai" && <><Bot size={10} /> Created by AI</>}
+                  {task.source.type === "meeting-mom" && <><Video size={10} /> From meeting</>}
+                  {task.source.type === "email" && <><Mail size={10} /> From email</>}
+                  {task.source.type === "chat" && <><MessageSquare size={10} /> From chat</>}
+                </span>
+              </div>
+            )}
+
             {/* ── Metadata grid ── */}
             <div className="grid grid-cols-2 gap-3">
               {/* Assignee */}
               <MetaField icon={<User size={13} />} label="Assignee">
-                <span className="text-xs text-[var(--text-secondary)] font-medium">
-                  {task.assigneeId || (
-                    <span className="text-[var(--text-secondary)]/50 italic">Assign...</span>
+                <div className="relative">
+                  <button
+                    onClick={() => {
+                      setShowAssigneeMenu((p) => !p);
+                      setShowPriorityMenu(false);
+                      setShowColumnMenu(false);
+                      setShowLabelMenu(false);
+                    }}
+                    className="flex items-center gap-1.5 text-xs text-[var(--text-secondary)] font-medium hover:text-[var(--text-primary)] transition-colors focus-visible:ring-2 focus-visible:ring-[#FFE600] focus-visible:outline-none rounded"
+                  >
+                    {assigneeId ? (
+                      (() => {
+                        const member = boardMembers.find((m) => m._id === assigneeId);
+                        return member ? (
+                          <span className="flex items-center gap-1.5">
+                            {member.avatarUrl ? (
+                              <img src={member.avatarUrl} alt="" className="h-4 w-4 rounded-full border border-[var(--border)]" />
+                            ) : (
+                              <span className="flex h-4 w-4 items-center justify-center rounded-full bg-[#FFE600] text-[8px] font-bold border border-[var(--border-strong)]">
+                                {member.name[0]}
+                              </span>
+                            )}
+                            {member.displayName || member.name}
+                          </span>
+                        ) : (
+                          <span>{assigneeId.slice(0, 8)}…</span>
+                        );
+                      })()
+                    ) : (
+                      <span className="italic text-[var(--text-secondary)]/50">Assign...</span>
+                    )}
+                    <ChevronDown size={10} />
+                  </button>
+                  {showAssigneeMenu && (
+                    <DropdownMenu onClose={() => setShowAssigneeMenu(false)}>
+                      <button
+                        onClick={() => changeAssignee(null)}
+                        className="flex w-full items-center gap-2 px-3 py-2 text-xs font-semibold hover:bg-[var(--surface-hover)] transition-colors text-left font-heading"
+                      >
+                        <span className="h-5 w-5 rounded-full bg-[var(--surface-hover)] border border-[var(--border)] flex items-center justify-center flex-shrink-0">
+                          <X size={10} />
+                        </span>
+                        Unassigned
+                        {!assigneeId && <Check size={12} className="ml-auto text-[var(--text-secondary)]" />}
+                      </button>
+                      {boardMembers.map((member) => (
+                        <button
+                          key={member._id}
+                          onClick={() => changeAssignee(member._id)}
+                          className="flex w-full items-center gap-2 px-3 py-2 text-xs font-semibold hover:bg-[var(--surface-hover)] transition-colors text-left font-heading"
+                        >
+                          {member.avatarUrl ? (
+                            <img src={member.avatarUrl} alt="" className="h-5 w-5 rounded-full border border-[var(--border)] flex-shrink-0" />
+                          ) : (
+                            <span className="flex h-5 w-5 items-center justify-center rounded-full bg-[#FFE600] text-[9px] font-bold border border-[var(--border-strong)] flex-shrink-0">
+                              {member.name[0]}
+                            </span>
+                          )}
+                          {member.displayName || member.name}
+                          {assigneeId === member._id && <Check size={12} className="ml-auto text-[var(--text-secondary)]" />}
+                        </button>
+                      ))}
+                    </DropdownMenu>
                   )}
-                </span>
+                </div>
               </MetaField>
 
               {/* Due date */}
               <MetaField icon={<Calendar size={13} />} label="Due date">
                 <input
                   type="date"
-                  value={dueDate}
-                  onChange={(e) => changeDueDate(e.target.value)}
+                  value={dueDate ? dueDate.split("T")[0] : ""}
+                  onChange={(e) => changeDueDate(e.target.value ? new Date(e.target.value).toISOString() : "")}
                   className="text-xs text-[var(--text-secondary)] font-medium bg-transparent outline-none cursor-pointer focus-visible:ring-2 focus-visible:ring-[#FFE600] rounded font-heading"
+                />
+              </MetaField>
+
+              {/* Start date */}
+              <MetaField icon={<CalendarRange size={13} />} label="Start date">
+                <input
+                  type="date"
+                  value={startDate ? startDate.split("T")[0] : ""}
+                  onChange={(e) => changeStartDate(e.target.value ? new Date(e.target.value).toISOString() : "")}
+                  className="text-xs text-[var(--text-secondary)] font-medium bg-transparent outline-none cursor-pointer focus-visible:ring-2 focus-visible:ring-[#FFE600] rounded font-heading"
+                />
+              </MetaField>
+
+              {/* Estimate points */}
+              <MetaField icon={<Hash size={13} />} label="Estimate">
+                <input
+                  type="number"
+                  min={0}
+                  max={1000}
+                  value={estimatePoints ?? ""}
+                  onChange={(e) => changeEstimate(e.target.value)}
+                  placeholder="Points..."
+                  className="text-xs text-[var(--text-secondary)] font-medium bg-transparent outline-none w-16 focus-visible:ring-2 focus-visible:ring-[#FFE600] rounded font-heading placeholder:text-[var(--text-secondary)]/40 placeholder:italic"
                 />
               </MetaField>
 
@@ -580,6 +800,7 @@ function TaskDetailInner({
                       setShowLabelMenu((p) => !p);
                       setShowPriorityMenu(false);
                       setShowColumnMenu(false);
+                      setShowAssigneeMenu(false);
                     }}
                     className="flex items-center gap-1 text-xs text-[var(--text-secondary)] font-medium hover:text-[var(--text-primary)] transition-colors focus-visible:ring-2 focus-visible:ring-[#FFE600] focus-visible:outline-none rounded"
                   >
@@ -644,6 +865,240 @@ function TaskDetailInner({
                 </span>
               </MetaField>
             </div>
+
+            {/* ── Linked Documents ── */}
+            <section>
+              <div className="flex items-center justify-between mb-2">
+                <h3 className="text-[11px] font-black text-[var(--text-secondary)] uppercase tracking-wider font-heading">
+                  Linked Documents
+                </h3>
+                <button
+                  onClick={() => setShowAddDoc((p) => !p)}
+                  className="text-[10px] font-bold text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors flex items-center gap-1 font-heading"
+                >
+                  <Plus size={10} /> Add
+                </button>
+              </div>
+
+              {showAddDoc && (
+                <motion.div
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: "auto" }}
+                  className="mb-2 space-y-1.5"
+                >
+                  <input
+                    value={newDocUrl}
+                    onChange={(e) => setNewDocUrl(e.target.value)}
+                    placeholder="Paste document URL..."
+                    className="w-full rounded-lg border-2 border-[var(--border)] bg-[var(--surface)] px-3 py-1.5 text-xs outline-none focus:border-[var(--border-strong)] transition-colors placeholder:text-[var(--text-secondary)]/40"
+                  />
+                  <div className="flex gap-1.5">
+                    <input
+                      value={newDocTitle}
+                      onChange={(e) => setNewDocTitle(e.target.value)}
+                      placeholder="Title (optional)"
+                      className="flex-1 rounded-lg border-2 border-[var(--border)] bg-[var(--surface)] px-3 py-1.5 text-xs outline-none focus:border-[var(--border-strong)] transition-colors placeholder:text-[var(--text-secondary)]/40"
+                      onKeyDown={(e) => { if (e.key === "Enter") addLinkedDoc(); }}
+                    />
+                    <button
+                      onClick={addLinkedDoc}
+                      disabled={!newDocUrl.trim()}
+                      className="rounded-lg bg-[#FFE600] text-[#0A0A0A] px-3 py-1.5 text-xs font-bold border-2 border-[var(--border-strong)] shadow-[1px_1px_0_var(--border-strong)] hover:shadow-none hover:translate-x-[1px] hover:translate-y-[1px] transition-all disabled:opacity-40 font-heading"
+                    >
+                      Add
+                    </button>
+                  </div>
+                </motion.div>
+              )}
+
+              {linkedDocs.length === 0 && !showAddDoc ? (
+                <p className="text-[10px] text-[var(--text-secondary)]/50 italic">No linked documents</p>
+              ) : (
+                <div className="space-y-1">
+                  {linkedDocs.map((doc, i) => (
+                    <div key={doc.googleDocId + i} className="flex items-center gap-2 group rounded-lg border border-[var(--border)] bg-[var(--surface)] px-2.5 py-1.5">
+                      <DocTypeIcon type={doc.type} />
+                      <a
+                        href={doc.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex-1 text-xs font-medium text-[var(--text-primary)] hover:text-[#3B82F6] truncate transition-colors"
+                      >
+                        {doc.title}
+                      </a>
+                      <ExternalLink size={10} className="text-[var(--text-secondary)] flex-shrink-0" />
+                      <button
+                        onClick={() => removeLinkedDoc(i)}
+                        className="opacity-0 group-hover:opacity-100 text-[var(--text-secondary)] hover:text-[#EF4444] transition-all flex-shrink-0"
+                      >
+                        <X size={10} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </section>
+
+            {/* ── Linked Emails ── */}
+            {linkedEmails.length > 0 && (
+              <section>
+                <h3 className="text-[11px] font-black text-[var(--text-secondary)] uppercase tracking-wider mb-2 font-heading">
+                  Linked Emails
+                </h3>
+                <div className="space-y-1">
+                  {linkedEmails.map((email, i) => (
+                    <div key={email.gmailId + i} className="flex items-center gap-2 group rounded-lg border border-[var(--border)] bg-[var(--surface)] px-2.5 py-1.5">
+                      <Mail size={12} className="text-[var(--text-secondary)] flex-shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-medium text-[var(--text-primary)] truncate">{email.subject}</p>
+                        <p className="text-[10px] text-[var(--text-secondary)] truncate">from {email.from}</p>
+                      </div>
+                      <button
+                        onClick={() => removeLinkedEmail(i)}
+                        className="opacity-0 group-hover:opacity-100 text-[var(--text-secondary)] hover:text-[#EF4444] transition-all flex-shrink-0"
+                      >
+                        <X size={10} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </section>
+            )}
+
+            {/* ── Related Meeting ── */}
+            <section>
+              <div className="flex items-center justify-between mb-2">
+                <h3 className="text-[11px] font-black text-[var(--text-secondary)] uppercase tracking-wider font-heading">
+                  Related Meeting
+                </h3>
+                {!meetingId && !showMeetingSearch && (
+                  <button
+                    onClick={() => setShowMeetingSearch(true)}
+                    className="text-[10px] font-bold text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors font-heading flex items-center gap-1"
+                  >
+                    <Plus size={10} /> Link
+                  </button>
+                )}
+              </div>
+
+              {meetingLoading ? (
+                <div className="rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3 py-3 animate-pulse">
+                  <div className="h-3 w-32 bg-[var(--border)] rounded" />
+                </div>
+              ) : meetingData ? (
+                <div className="flex items-center gap-2 group rounded-lg border-2 border-[var(--border)] bg-[var(--surface)] px-3 py-2.5 hover:border-[var(--border-strong)] transition-colors">
+                  <Video size={14} className="text-[#7C3AED] flex-shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <a
+                      href={meetingData.code ? `/meeting/${meetingData.code}` : "#"}
+                      className="text-xs font-bold text-[var(--text-primary)] hover:text-[#7C3AED] transition-colors truncate block font-heading"
+                      title={meetingData.title}
+                    >
+                      {meetingData.title}
+                    </a>
+                    <div className="flex items-center gap-2 mt-0.5">
+                      {meetingData.scheduledAt && (
+                        <span className="text-[10px] text-[var(--text-secondary)]">
+                          {new Date(meetingData.scheduledAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+                        </span>
+                      )}
+                      <span className={`text-[9px] font-bold uppercase px-1.5 py-0.5 rounded-full font-heading ${
+                        meetingData.status === "ended"
+                          ? "bg-[#22C55E]/10 text-[#22C55E]"
+                          : meetingData.status === "active"
+                          ? "bg-[#7C3AED]/10 text-[#7C3AED]"
+                          : "bg-[var(--surface-hover)] text-[var(--text-secondary)]"
+                      }`}>
+                        {meetingData.status}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-1 flex-shrink-0">
+                    {meetingData.code && (
+                      <a
+                        href={`/meeting/${meetingData.code}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-[var(--text-secondary)] hover:text-[#7C3AED] transition-colors"
+                        title="Open meeting"
+                      >
+                        <ExternalLink size={12} />
+                      </a>
+                    )}
+                    <button
+                      onClick={unlinkMeeting}
+                      className="opacity-0 group-hover:opacity-100 text-[var(--text-secondary)] hover:text-[#EF4444] transition-all"
+                      title="Unlink meeting"
+                    >
+                      <X size={12} />
+                    </button>
+                  </div>
+                </div>
+              ) : !showMeetingSearch ? (
+                <button
+                  onClick={() => setShowMeetingSearch(true)}
+                  className="w-full rounded-lg border-2 border-dashed border-[var(--border)] bg-[var(--surface)] px-3 py-3 text-xs text-[var(--text-secondary)] hover:border-[var(--border-strong)] hover:text-[var(--text-primary)] transition-colors text-center font-body"
+                >
+                  Link a meeting…
+                </button>
+              ) : null}
+
+              {/* Meeting search */}
+              {showMeetingSearch && (
+                <div className="rounded-lg border-2 border-[var(--border)] bg-[var(--surface)] p-2 space-y-2">
+                  <input
+                    type="text"
+                    value={meetingSearchQuery}
+                    onChange={(e) => searchMeetings(e.target.value)}
+                    placeholder="Search meetings by title…"
+                    autoFocus
+                    className="w-full bg-transparent text-xs text-[var(--text-primary)] outline-none placeholder:text-[var(--text-secondary)] px-2 py-1.5 rounded border border-[var(--border)] focus-visible:ring-2 focus-visible:ring-[#FFE600] font-body"
+                  />
+                  {meetingSearching && (
+                    <p className="text-[10px] text-[var(--text-secondary)] px-2 font-body">Searching…</p>
+                  )}
+                  {meetingSearchResults.length > 0 && (
+                    <div className="max-h-[180px] overflow-y-auto space-y-1">
+                      {meetingSearchResults.map((m) => (
+                        <button
+                          key={m._id}
+                          onClick={() => linkMeeting(m._id, m)}
+                          className="w-full flex items-center gap-2 rounded-lg px-2.5 py-2 text-left hover:bg-[var(--surface-hover)] transition-colors"
+                        >
+                          <Video size={12} className="text-[#7C3AED] flex-shrink-0" />
+                          <div className="flex-1 min-w-0">
+                            <p className="text-xs font-medium text-[var(--text-primary)] truncate">{m.title}</p>
+                            <div className="flex items-center gap-1.5">
+                              {m.scheduledAt && (
+                                <span className="text-[10px] text-[var(--text-secondary)]">
+                                  {new Date(m.scheduledAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+                                </span>
+                              )}
+                              <span className={`text-[9px] font-bold uppercase font-heading ${
+                                m.status === "ended" ? "text-[#22C55E]" : m.status === "active" ? "text-[#7C3AED]" : "text-[var(--text-secondary)]"
+                              }`}>
+                                {m.status}
+                              </span>
+                            </div>
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                  {meetingSearchQuery.trim().length >= 2 && !meetingSearching && meetingSearchResults.length === 0 && (
+                    <p className="text-[10px] text-[var(--text-secondary)] px-2 font-body">No meetings found</p>
+                  )}
+                  <div className="flex justify-end pt-1">
+                    <button
+                      onClick={() => { setShowMeetingSearch(false); setMeetingSearchQuery(""); setMeetingSearchResults([]); }}
+                      className="text-[10px] font-bold text-[var(--text-secondary)] hover:text-[var(--text-primary)] px-2 py-1 rounded-full transition-colors font-heading"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              )}
+            </section>
 
             {/* ── Description ── */}
             <section>
@@ -930,6 +1385,25 @@ function TaskDetailInner({
 /* ────────────────────────────────────────────────────────────
    Sub-components
    ──────────────────────────────────────────────────────────── */
+
+function detectDocType(url: string): LinkedDoc["type"] {
+  if (/docs\.google\.com\/document/.test(url)) return "doc";
+  if (/docs\.google\.com\/spreadsheets/.test(url)) return "sheet";
+  if (/docs\.google\.com\/presentation/.test(url)) return "slide";
+  if (/\.pdf($|\?)/.test(url)) return "pdf";
+  return "file";
+}
+
+function DocTypeIcon({ type }: { type: LinkedDoc["type"] }) {
+  const iconMap = {
+    doc: <FileText size={12} className="text-[#4285F4]" />,
+    sheet: <Hash size={12} className="text-[#0F9D58]" />,
+    slide: <FileText size={12} className="text-[#F4B400]" />,
+    pdf: <FileText size={12} className="text-[#EF4444]" />,
+    file: <Link2 size={12} className="text-[var(--text-secondary)]" />,
+  };
+  return <span className="flex-shrink-0">{iconMap[type]}</span>;
+}
 
 function MetaField({
   icon,

@@ -1,12 +1,20 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Users, Send, UserCheck, Clock } from "lucide-react";
 import Image from "next/image";
 import { motion, AnimatePresence } from "framer-motion";
 import { useConnections, type ConnectionUser } from "@/hooks/useConnections";
 
 type Tab = "yoodlers" | "incoming" | "sent";
+
+interface SearchUser {
+  _id: string;
+  name: string;
+  displayName: string;
+  email: string;
+  avatarUrl: string | null;
+}
 
 const statusDotColor: Record<string, string> = {
   online: "bg-green-500",
@@ -61,6 +69,61 @@ export default function ConnectionsPage() {
   const [email, setEmail] = useState("");
   const [feedback, setFeedback] = useState<{ type: "success" | "error"; message: string } | null>(null);
   const [sending, setSending] = useState(false);
+  const [suggestions, setSuggestions] = useState<SearchUser[]>([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [selectedIndex, setSelectedIndex] = useState(-1);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const wrapperRef = useRef<HTMLDivElement>(null);
+
+  // Debounced search for autocomplete
+  useEffect(() => {
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+
+    const trimmed = email.trim();
+    if (trimmed.length < 2) {
+      setSuggestions([]);
+      setShowSuggestions(false);
+      return;
+    }
+
+    debounceRef.current = setTimeout(async () => {
+      try {
+        const res = await fetch(
+          `/api/users/search?q=${encodeURIComponent(trimmed)}&limit=5`,
+          { credentials: "include" }
+        );
+        const body = await res.json();
+        if (body.success && Array.isArray(body.data)) {
+          setSuggestions(body.data);
+          setShowSuggestions(body.data.length > 0);
+          setSelectedIndex(-1);
+        }
+      } catch {
+        // best effort
+      }
+    }, 300);
+
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    };
+  }, [email]);
+
+  // Close suggestions on outside click
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (wrapperRef.current && !wrapperRef.current.contains(e.target as Node)) {
+        setShowSuggestions(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const selectSuggestion = (user: SearchUser) => {
+    setEmail(user.email);
+    setShowSuggestions(false);
+    setSuggestions([]);
+  };
 
   const handleSend = async () => {
     const trimmed = email.trim();
@@ -111,20 +174,87 @@ export default function ConnectionsPage() {
 
       {/* Send Yoodle Request */}
       <div className="mb-8 rounded-xl border-2 border-[var(--border-strong)] bg-[var(--surface)] p-4 shadow-[4px_4px_0_var(--border-strong)]">
-        <div className="flex gap-2">
-          <input
-            type="email"
-            value={email}
-            onChange={(e) => {
-              setEmail(e.target.value);
-              setFeedback(null);
-            }}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") handleSend();
-            }}
-            placeholder="name@gmail.com"
-            className="flex-1 rounded-lg border-2 border-[var(--border-strong)] bg-[var(--background)] px-3 py-2 text-sm text-[var(--text-primary)] placeholder:text-[var(--text-muted)] font-body focus-visible:ring-2 focus-visible:ring-[#FFE600] focus-visible:outline-none"
-          />
+        <div className="flex gap-2" ref={wrapperRef}>
+          <div className="relative flex-1">
+            <input
+              type="email"
+              value={email}
+              onChange={(e) => {
+                setEmail(e.target.value);
+                setFeedback(null);
+              }}
+              onFocus={() => {
+                if (suggestions.length > 0) setShowSuggestions(true);
+              }}
+              onKeyDown={(e) => {
+                if (showSuggestions && suggestions.length > 0) {
+                  if (e.key === "ArrowDown") {
+                    e.preventDefault();
+                    setSelectedIndex((prev) =>
+                      prev < suggestions.length - 1 ? prev + 1 : 0
+                    );
+                  } else if (e.key === "ArrowUp") {
+                    e.preventDefault();
+                    setSelectedIndex((prev) =>
+                      prev > 0 ? prev - 1 : suggestions.length - 1
+                    );
+                  } else if (e.key === "Enter" && selectedIndex >= 0) {
+                    e.preventDefault();
+                    selectSuggestion(suggestions[selectedIndex]);
+                  } else if (e.key === "Escape") {
+                    setShowSuggestions(false);
+                  } else if (e.key === "Enter") {
+                    handleSend();
+                  }
+                } else if (e.key === "Enter") {
+                  handleSend();
+                }
+              }}
+              placeholder="Search by name or email..."
+              autoComplete="off"
+              className="w-full rounded-lg border-2 border-[var(--border-strong)] bg-[var(--background)] px-3 py-2 text-sm text-[var(--text-primary)] placeholder:text-[var(--text-muted)] font-body focus-visible:ring-2 focus-visible:ring-[#FFE600] focus-visible:outline-none"
+            />
+
+            {/* Autocomplete dropdown */}
+            {showSuggestions && suggestions.length > 0 && (
+              <div className="absolute left-0 right-0 top-full z-50 mt-1 rounded-lg border-2 border-[var(--border-strong)] bg-[var(--surface)] shadow-[4px_4px_0_var(--border-strong)] overflow-hidden">
+                {suggestions.map((user, i) => (
+                  <button
+                    key={user._id}
+                    type="button"
+                    onClick={() => selectSuggestion(user)}
+                    className={`flex w-full items-center gap-2.5 px-3 py-2 text-left transition-colors cursor-pointer ${
+                      i === selectedIndex
+                        ? "bg-[#FFE600]/20"
+                        : "hover:bg-[var(--surface-hover)]"
+                    }`}
+                  >
+                    {user.avatarUrl ? (
+                      <Image
+                        src={user.avatarUrl}
+                        alt={user.displayName}
+                        width={28}
+                        height={28}
+                        className="h-7 w-7 rounded-full border border-[var(--border)] object-cover"
+                      />
+                    ) : (
+                      <div className="flex h-7 w-7 items-center justify-center rounded-full border border-[var(--border)] bg-[#FFE600]/20 font-heading text-xs font-bold">
+                        {user.displayName?.charAt(0)?.toUpperCase() ?? "?"}
+                      </div>
+                    )}
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate font-heading text-sm font-bold text-[var(--text-primary)]">
+                        {user.displayName || user.name}
+                      </p>
+                      <p className="truncate font-body text-xs text-[var(--text-muted)]">
+                        {user.email}
+                      </p>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
           <button
             onClick={handleSend}
             disabled={sending || !email.trim()}

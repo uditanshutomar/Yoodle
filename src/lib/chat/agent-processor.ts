@@ -46,13 +46,32 @@ export async function processAgentResponses(
     const conv = await Conversation.findById(conversationId).select("participants type meetingId").lean();
     if (!conv) return;
 
-    const agentParticipants = conv.participants.filter((p) => p.agentEnabled);
+    // Detect @mention-based yoodler invocations (e.g., "@Alice's Yoodler")
+    const mentionedYoodlerIds = new Set<string>();
+    const yoodlerPattern = /@([^@]+?)(?:'s|'s)\s*yoodler/gi;
+    let yMatch: RegExpExecArray | null;
+    while ((yMatch = yoodlerPattern.exec(triggerMessage.content)) !== null) {
+      const mentionedName = yMatch[1].trim().toLowerCase();
+      for (const p of conv.participants) {
+        const pUser = await User.findById(p.userId).select("name displayName").lean();
+        if (!pUser) continue;
+        const nameLC = (pUser.displayName || pUser.name || "").toLowerCase();
+        if (nameLC === mentionedName || (pUser.name || "").toLowerCase() === mentionedName) {
+          mentionedYoodlerIds.add(p.userId.toString());
+        }
+      }
+    }
+
+    // Agents to process: those with agentEnabled OR those explicitly @mentioned
+    const agentParticipants = conv.participants.filter(
+      (p) => p.agentEnabled || mentionedYoodlerIds.has(p.userId.toString())
+    );
     if (agentParticipants.length === 0) return;
 
     // Process each agent in parallel — pass pre-fetched conversation to avoid redundant DB fetch
     const results = await Promise.allSettled(
       agentParticipants.map((p) =>
-        processOneAgent(conversationId, triggerMessage, p.userId.toString(), conv)
+        processOneAgent(conversationId, triggerMessage, p.userId.toString(), conv, mentionedYoodlerIds)
       )
     );
 
@@ -73,10 +92,14 @@ async function processOneAgent(
   conversationId: string,
   triggerMessage: TriggerMessage,
   agentUserId: string,
-  conv: { type?: string; participants?: { userId: unknown }[]; meetingId?: unknown }
+  conv: { type?: string; participants?: { userId: unknown }[]; meetingId?: unknown },
+  mentionedYoodlerIds: Set<string> = new Set()
 ) {
+  const explicitlyMentioned = mentionedYoodlerIds.has(agentUserId);
+
   // Guard: don't let an agent respond to its own messages (infinite loop)
-  if (triggerMessage.senderId === agentUserId) return;
+  // Exception: allow when user explicitly @mentions their own Yoodler
+  if (triggerMessage.senderId === agentUserId && !explicitlyMentioned) return;
 
   // Guard: don't let agents respond to other agents' messages (multi-agent loop)
   if (triggerMessage.senderType === "agent") return;

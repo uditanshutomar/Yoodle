@@ -84,6 +84,7 @@ export default function MapClient() {
                 id: "self",
                 name: "You",
                 mode,
+                status: userStatus || undefined,
                 distanceKm: 0,
                 location: { coordinates: [geo.longitude!, geo.latitude!] },
               }}

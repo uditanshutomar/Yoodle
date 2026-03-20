@@ -36,7 +36,9 @@ async function ensureMeetingConversation(meetingId: string, meeting: any) {
         };
       });
 
-    if (participants.length < 2) return;
+    // Allow solo meetings to have a conversation — the post-meeting cascade
+    // needs it to post system messages, MoM, and other artifacts.
+    if (participants.length === 0) return;
 
     const hostId = meeting.hostId?._id || meeting.hostId;
 
@@ -140,7 +142,7 @@ function buildRoomSession(
       videoDeviceId: preferences.videoDeviceId,
     },
     permissions: {
-      allowRecording: meeting.settings?.allowRecording ?? false,
+      allowRecording: meeting.settings?.allowRecording ?? true,
       allowScreenShare: meeting.settings?.allowScreenShare ?? true,
     },
   };

@@ -3,7 +3,7 @@
 import { motion } from "framer-motion";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import type { BoardTask } from "@/hooks/useBoard";
+import type { BoardTask, BoardLabel } from "@/hooks/useBoard";
 
 /* ─── Priority colors ─── */
 const PRIORITY_COLORS: Record<BoardTask["priority"], string> = {
@@ -20,6 +20,14 @@ const PRIORITY_LABELS: Record<BoardTask["priority"], string> = {
   medium: "Medium",
   low: "Low",
   none: "None",
+};
+
+/* ─── Source icons ─── */
+const SOURCE_LABELS: Record<string, string> = {
+  ai: "AI",
+  "meeting-mom": "Meeting",
+  email: "Email",
+  chat: "Chat",
 };
 
 /* ─── Helpers ─── */
@@ -53,10 +61,12 @@ interface KanbanCardProps {
   task: BoardTask;
   onClick?: (task: BoardTask) => void;
   isDragOverlay?: boolean;
+  boardLabels?: BoardLabel[];
+  boardMembers?: { _id: string; name: string; displayName?: string; avatarUrl?: string }[];
 }
 
 /* ─── Component ─── */
-export default function KanbanCard({ task, onClick, isDragOverlay }: KanbanCardProps) {
+export default function KanbanCard({ task, onClick, isDragOverlay, boardLabels = [], boardMembers = [] }: KanbanCardProps) {
   const {
     attributes,
     listeners,
@@ -79,8 +89,39 @@ export default function KanbanCard({ task, onClick, isDragOverlay }: KanbanCardP
   const totalSubtasks = task.subtasks.length;
   const subtaskProgress = totalSubtasks > 0 ? doneSubtasks / totalSubtasks : 0;
 
+  const assignee = task.assigneeId ? boardMembers.find((m) => m._id === task.assigneeId) : null;
+  const linkedDocCount = (task.linkedDocs?.length || 0) + (task.linkedEmails?.length || 0);
+
   const cardContent = (
     <div className="space-y-2">
+      {/* Labels row (colored pills) */}
+      {task.labels.length > 0 && (
+        <div className="flex flex-wrap gap-1">
+          {task.labels.slice(0, 4).map((lid) => {
+            const lbl = boardLabels.find((l) => l.id === lid);
+            if (!lbl) return null;
+            return (
+              <span
+                key={lid}
+                className="rounded-full px-1.5 py-px text-[8px] font-bold border leading-tight"
+                style={{
+                  backgroundColor: lbl.color + "20",
+                  borderColor: lbl.color + "40",
+                  color: lbl.color,
+                }}
+              >
+                {lbl.name}
+              </span>
+            );
+          })}
+          {task.labels.length > 4 && (
+            <span className="text-[8px] font-bold text-[var(--text-muted)] leading-tight px-1">
+              +{task.labels.length - 4}
+            </span>
+          )}
+        </div>
+      )}
+
       {/* Title + Priority */}
       <div className="flex items-start gap-2">
         {/* Priority dot */}
@@ -163,25 +204,34 @@ export default function KanbanCard({ task, onClick, isDragOverlay }: KanbanCardP
           </span>
         )}
 
-        {/* Labels count */}
-        {task.labels.length > 0 && (
-          <span
-            className="inline-flex items-center gap-1 text-[9px] font-bold text-[var(--text-muted)] bg-[var(--surface-hover)] border border-[var(--border)] rounded-full px-1.5 py-0.5 font-heading"
-          >
-            <svg
-              width="8"
-              height="8"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2.5"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z" />
-              <line x1="7" y1="7" x2="7.01" y2="7" />
+        {/* Estimate points */}
+        {task.estimatePoints != null && task.estimatePoints > 0 && (
+          <span className="inline-flex items-center gap-1 text-[9px] font-bold text-[var(--text-muted)] bg-[var(--surface-hover)] border border-[var(--border)] rounded-full px-1.5 py-0.5 font-heading">
+            <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <line x1="4" y1="9" x2="20" y2="9" />
+              <line x1="4" y1="15" x2="20" y2="15" />
+              <line x1="10" y1="3" x2="8" y2="21" />
+              <line x1="16" y1="3" x2="14" y2="21" />
             </svg>
-            {task.labels.length}
+            {task.estimatePoints}
+          </span>
+        )}
+
+        {/* Linked docs/emails count */}
+        {linkedDocCount > 0 && (
+          <span className="inline-flex items-center gap-1 text-[9px] font-bold text-[var(--text-muted)] bg-[var(--surface-hover)] border border-[var(--border)] rounded-full px-1.5 py-0.5 font-heading">
+            <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
+              <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
+            </svg>
+            {linkedDocCount}
+          </span>
+        )}
+
+        {/* Source badge */}
+        {task.source && task.source.type !== "manual" && (
+          <span className="inline-flex items-center gap-1 text-[8px] font-bold text-[#B8A200] bg-[#FFE600]/10 border border-[#FFE600]/30 rounded-full px-1.5 py-0.5 font-heading">
+            ✨ {SOURCE_LABELS[task.source.type] || task.source.type}
           </span>
         )}
       </div>
@@ -200,6 +250,22 @@ export default function KanbanCard({ task, onClick, isDragOverlay }: KanbanCardP
               transition={{ type: "spring", stiffness: 300, damping: 30 }}
             />
           </div>
+        </div>
+      )}
+
+      {/* Assignee row (bottom) */}
+      {assignee && (
+        <div className="flex items-center gap-1.5 pl-[18px]">
+          {assignee.avatarUrl ? (
+            <img src={assignee.avatarUrl} alt="" className="h-4 w-4 rounded-full border border-[var(--border)]" />
+          ) : (
+            <span className="flex h-4 w-4 items-center justify-center rounded-full bg-[#FFE600] text-[7px] font-bold border border-[var(--border-strong)]">
+              {assignee.name[0]}
+            </span>
+          )}
+          <span className="text-[9px] text-[var(--text-muted)] font-medium truncate">
+            {assignee.displayName || assignee.name}
+          </span>
         </div>
       )}
     </div>
@@ -228,7 +294,7 @@ export default function KanbanCard({ task, onClick, isDragOverlay }: KanbanCardP
       whileTap={{ scale: 0.98 }}
       transition={{ type: "spring", stiffness: 300, damping: 30 }}
       onClick={() => onClick?.(task)}
-      aria-label={`Task: ${task.title}, priority: ${PRIORITY_LABELS[task.priority]}${task.dueDate ? `, due: ${formatDueDate(task.dueDate)}` : ""}`}
+      aria-label={`Task: ${task.title}, priority: ${PRIORITY_LABELS[task.priority]}${task.dueDate ? `, due: ${formatDueDate(task.dueDate)}` : ""}${assignee ? `, assigned to ${assignee.displayName || assignee.name}` : ""}`}
       className={`rounded-lg border-[1.5px] bg-[var(--surface)] p-2.5 cursor-grab active:cursor-grabbing transition-shadow focus-visible:ring-2 focus-visible:ring-[#FFE600] focus-visible:outline-none ${
         isDragging
           ? "border-[var(--border)] shadow-none"

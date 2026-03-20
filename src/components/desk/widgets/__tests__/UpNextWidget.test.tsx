@@ -127,7 +127,7 @@ describe("UpNextWidget", () => {
 
     await waitFor(() => {
       expect(mockFetch).toHaveBeenCalledWith(
-        "/api/meetings?status=upcoming&limit=5",
+        "/api/meetings?status=scheduled&limit=5",
         expect.objectContaining({ credentials: "include" }),
       );
     });

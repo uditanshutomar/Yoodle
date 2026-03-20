@@ -545,7 +545,7 @@ function AttendeeInput({
   const [searching, setSearching] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
-  const debounceRef = useRef<ReturnType<typeof setTimeout>>();
+  const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
 
   // Search users as the user types
   useEffect(() => {
@@ -898,6 +898,23 @@ function CreateEventModal({
       assist.fetchAgendaSuggestions(form.title, attendeeIds);
     }
   }, [form.attendees.length]);
+
+  // Auto-trigger reference suggestions when agenda text changes (debounced)
+  const agendaDebounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const prevAgendaRef = useRef("");
+  useEffect(() => {
+    if (agendaDebounceRef.current) clearTimeout(agendaDebounceRef.current);
+    const agendaText = form.agenda.trim();
+    // Only trigger if agenda has meaningful content and actually changed
+    if (agendaText.length >= 10 && agendaText !== prevAgendaRef.current && form.title.trim().length >= 3) {
+      agendaDebounceRef.current = setTimeout(() => {
+        prevAgendaRef.current = agendaText;
+        const attendeeIds = form.attendees.filter((a) => a.userId).map((a) => a.userId!);
+        assist.fetchReferenceSuggestions(form.title, attendeeIds, agendaText);
+      }, 1200);
+    }
+    return () => { if (agendaDebounceRef.current) clearTimeout(agendaDebounceRef.current); };
+  }, [form.agenda]);
 
   const update = (field: keyof CreateEventForm, value: string | boolean | AttendeeEntry[]) =>
     setForm((prev) => ({ ...prev, [field]: value }));

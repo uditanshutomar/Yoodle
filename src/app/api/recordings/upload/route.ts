@@ -77,8 +77,10 @@ export const POST = withHandler(async (req: NextRequest) => {
     );
   }
 
-  // Validate MIME type
-  if (!file.type || !ALLOWED_MIME_TYPES.has(file.type)) {
+  // Validate MIME type — strip codec suffixes (e.g. "video/webm;codecs=vp9,opus" → "video/webm")
+  // because browsers include codec info in the MIME type from MediaRecorder.
+  const baseMimeType = (file.type || "").split(";")[0].trim();
+  if (!baseMimeType || !ALLOWED_MIME_TYPES.has(baseMimeType)) {
     throw new BadRequestError(
       `Invalid file type "${file.type || "unknown"}". Allowed types: ${[...ALLOWED_MIME_TYPES].join(", ")}.`
     );
@@ -136,7 +138,7 @@ export const POST = withHandler(async (req: NextRequest) => {
   // Upload to Google Drive
   const driveFile = await uploadRecordingToDrive(userId, meetingId, {
     buffer,
-    mimeType: file.type || `video/${ext}`,
+    mimeType: baseMimeType || `video/${ext}`,
     fileName,
     meetingTitle: meeting.title,
   });

@@ -3,10 +3,16 @@ import mongoose from "mongoose";
 import type { PostMeetingCascadePayload } from "../types";
 import connectDB from "@/lib/infra/db/client";
 import Meeting from "@/lib/infra/db/models/meeting";
+import MeetingAnalytics from "@/lib/infra/db/models/meeting-analytics";
+import Transcript from "@/lib/infra/db/models/transcript";
+import Task from "@/lib/infra/db/models/task";
 import Conversation from "@/lib/infra/db/models/conversation";
 import DirectMessage from "@/lib/infra/db/models/direct-message";
 import { getRedisClient } from "@/lib/infra/redis/client";
 import { updateEvent } from "@/lib/google/calendar";
+import { getClient, getModelName } from "@/lib/ai/gemini";
+import { geminiBreaker } from "@/lib/infra/circuit-breaker";
+import { getPersonalBoard } from "@/lib/board/tools";
 import { createLogger } from "@/lib/infra/logger";
 
 const log = createLogger("worker:post-meeting-cascade");
@@ -21,11 +27,18 @@ interface MeetingMom {
   nextSteps?: string[];
 }
 
+interface MeetingParticipant {
+  userId: mongoose.Types.ObjectId;
+  role: string;
+  status: string;
+}
+
 interface MeetingWithMom {
   _id: mongoose.Types.ObjectId;
   title?: string;
   code?: string;
   hostId: mongoose.Types.ObjectId;
+  participants: MeetingParticipant[];
   mom?: MeetingMom;
   calendarEventId?: string;
   startedAt?: Date;
@@ -60,10 +73,14 @@ async function publishChatEvent(
  * Post-meeting cascade processor.
  *
  * Runs after a meeting ends. Steps:
+ * 0. Sync calendar end time
  * 1. Post "Meeting ended." system message
- * 2. Post MoM (minutes of meeting) if available
- * 3. Extract and propose action items
+ * 1.5. Auto-generate MoM from transcript via Gemini (if copilot didn't generate one)
+ * 2. Post MoM to conversation
+ * 3. Auto-create tasks from action items on host's board
  * 4. Update calendar event with MoM summary
+ * 5. Generate meeting analytics
+ * 6. Suggest follow-up meeting based on next steps
  *
  * Each step is idempotent — safe to retry without creating duplicates.
  */
@@ -84,16 +101,17 @@ export async function processPostMeetingCascade(
     .select("_id")
     .lean();
 
-  if (!conv) {
-    jobLog.info("no conversation linked to meeting, skipping cascade");
-    return;
+  // Conversation may not exist for solo meetings or if the join didn't create one.
+  // Continue anyway — MoM generation, analytics, and calendar sync don't need it.
+  const convId = conv?._id as mongoose.Types.ObjectId | undefined;
+  if (!convId) {
+    jobLog.info("no conversation linked to meeting — chat steps will be skipped");
   }
-  const convId = conv._id as mongoose.Types.ObjectId;
 
   // ── Fetch meeting data ─────────────────────────────────────────────
 
   const meeting = (await Meeting.findById(meetingId)
-    .select("title code hostId mom calendarEventId startedAt scheduledAt createdAt endedAt")
+    .select("title code hostId participants mom calendarEventId startedAt scheduledAt createdAt endedAt")
     .lean()) as MeetingWithMom | null;
 
   if (!meeting) {
@@ -131,6 +149,7 @@ export async function processPostMeetingCascade(
 
   // ── Step 1: Post "Meeting ended." system message (idempotent) ─────
 
+  if (convId) {
   try {
     const existingEndMsg = await DirectMessage.findOne({
       conversationId: convId,
@@ -169,9 +188,100 @@ export async function processPostMeetingCascade(
     jobLog.error({ err }, "step 1 failed: post meeting-ended message");
     stepErrors.push({ step: 1, error: err });
   }
+  }
+
+  // ── Step 1.5: Auto-generate MoM from transcript if missing ────────
+  // If the meeting copilot wasn't used during the meeting, generate MoM
+  // from the real-time STT transcript via Gemini.
+
+  try {
+    if (!meeting.mom?.summary) {
+      const transcript = await Transcript.findOne({
+        meetingId: new mongoose.Types.ObjectId(meetingId),
+      }).lean();
+
+      if (transcript && transcript.segments.length > 0) {
+        const textSegments = transcript.segments
+          .filter((s) => s.text && s.text.trim())
+          .sort((a, b) => a.timestamp - b.timestamp);
+
+        if (textSegments.length > 0) {
+          const transcriptText = textSegments
+            .map((s) => `[${s.speakerName}]: ${s.text}`)
+            .join("\n");
+
+          const ai = getClient();
+          const model = getModelName();
+
+          const prompt = `You are analyzing a meeting transcript. Generate structured minutes of meeting (MOM).
+
+Meeting title: ${meeting.title || "Untitled Meeting"}
+
+Transcript:
+${transcriptText.slice(0, 30000)}
+
+Respond ONLY with valid JSON (no markdown, no code fences):
+{
+  "summary": "Brief 2-3 sentence summary of the meeting",
+  "keyDecisions": ["decision 1", "decision 2"],
+  "discussionPoints": ["point 1", "point 2"],
+  "actionItems": [{"task": "description", "assignee": "speaker name", "dueDate": "suggested date or TBD"}],
+  "nextSteps": ["next step 1", "next step 2"]
+}
+
+If the transcript is too short or unclear, still provide your best analysis.`;
+
+          const result = await geminiBreaker.execute(() =>
+            ai.models.generateContent({
+              model,
+              contents: [{ role: "user", parts: [{ text: prompt }] }],
+            }),
+          );
+
+          const responseText = result.text || "";
+
+          let generatedMom: MeetingMom;
+          try {
+            const cleaned = responseText
+              .replace(/```json\s*/gi, "")
+              .replace(/```\s*/g, "")
+              .trim();
+            generatedMom = JSON.parse(cleaned);
+          } catch {
+            jobLog.warn("failed to parse Gemini MOM response, using raw text");
+            generatedMom = {
+              summary: responseText.slice(0, 500),
+              keyDecisions: [],
+              actionItems: [],
+              nextSteps: [],
+            };
+          }
+
+          // Save MoM to meeting document
+          await Meeting.updateOne(
+            { _id: new mongoose.Types.ObjectId(meetingId) },
+            { $set: { mom: generatedMom } },
+          );
+
+          // Update our local reference so subsequent steps use it
+          meeting.mom = generatedMom;
+
+          jobLog.info("auto-generated MoM from transcript via Gemini");
+        }
+      } else {
+        jobLog.info("no transcript segments available, skipping MoM generation");
+      }
+    } else {
+      jobLog.info("MoM already exists (from copilot), skipping auto-generation");
+    }
+  } catch (err) {
+    jobLog.error({ err }, "step 1.5 failed: auto-generate MoM from transcript");
+    // Non-critical — don't block subsequent steps
+  }
 
   // ── Step 2: Post MoM if available (idempotent) ────────────────────
 
+  if (convId) {
   try {
     if (meeting.mom?.summary) {
       // Check if MoM message already posted
@@ -236,78 +346,112 @@ export async function processPostMeetingCascade(
     jobLog.error({ err }, "step 2 failed: post MoM");
     stepErrors.push({ step: 2, error: err });
   }
+  }
 
-  // ── Step 3: Propose action items (idempotent) ─────────────────────
+  // ── Step 3: Auto-create tasks from action items (idempotent) ──────
 
   try {
     if (meeting.mom?.actionItems?.length) {
-      // Check if action item proposal already posted
-      const existingProposal = await DirectMessage.findOne({
-        conversationId: convId,
-        senderType: "agent",
-        "agentMeta.pendingAction.actionType": "create_tasks_from_meeting",
+      // Check if tasks were already created for this meeting
+      const existingTasks = await Task.findOne({
+        meetingId: new mongoose.Types.ObjectId(meetingId),
+        "source.type": "meeting-mom",
       })
         .select("_id")
         .lean();
 
-      if (!existingProposal) {
+      if (!existingTasks) {
         const actionItems = meeting.mom.actionItems;
-        const taskProposals = actionItems
-          .map((a) => `- **${a.task}** -> ${a.assignee} (due: ${a.dueDate})`)
-          .join("\n");
 
-        const proposalContent = [
-          `**Action Items from "${meeting.title}"**`,
-          "",
-          "I detected these action items from the meeting:",
-          taskProposals,
-          "",
-          "Would you like me to create tasks for these?",
-        ].join("\n");
+        // Get the host's personal board to create tasks on
+        const board = await getPersonalBoard(hostId);
+        if (board) {
+          const firstColumnId = board.columns[0]?.id;
+          if (firstColumnId) {
+            // Get the last position in the column
+            const lastTask = await Task.findOne({
+              boardId: board._id,
+              columnId: firstColumnId,
+            })
+              .sort({ position: -1 })
+              .select("position")
+              .lean();
+            let position = lastTask ? lastTask.position + 1024 : 1024;
 
-        const proposalMsg = await DirectMessage.create({
-          conversationId: convId,
-          senderId: hostObjectId,
-          senderType: "agent",
-          content: proposalContent,
-          type: "agent",
-          agentMeta: {
-            forUserId: hostObjectId,
-            pendingAction: {
-              actionId: `action-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`,
-              actionType: "create_tasks_from_meeting",
-              args: {
-                meetingId: meeting._id.toString(),
-                actionItems,
+            const createdTasks = [];
+            for (const item of actionItems) {
+              const task = await Task.create({
+                boardId: board._id,
+                columnId: firstColumnId,
+                position,
+                title: item.task,
+                description: `From meeting: ${meeting.title || "Untitled"}\nAssignee: ${item.assignee}\nDue: ${item.dueDate}`,
+                priority: "medium",
+                creatorId: hostObjectId,
+                labels: ["meeting-action-item"],
+                meetingId: new mongoose.Types.ObjectId(meetingId),
+                dueDate: item.dueDate && item.dueDate !== "TBD"
+                  ? new Date(item.dueDate)
+                  : undefined,
+                source: { type: "meeting-mom", sourceId: meetingId },
+              });
+              createdTasks.push(task);
+              position += 1024;
+            }
+
+            // Post notification in chat (only if conversation exists)
+            if (convId) {
+            const taskList = createdTasks
+              .map((t) => `- ${t.title}`)
+              .join("\n");
+
+            const notifyContent = [
+              `**Tasks created from "${meeting.title}"**`,
+              "",
+              `I automatically created ${createdTasks.length} task(s) from the meeting action items:`,
+              taskList,
+              "",
+              "Check your board to manage them.",
+            ].join("\n");
+
+            const notifyMsg = await DirectMessage.create({
+              conversationId: convId,
+              senderId: hostObjectId,
+              senderType: "agent",
+              content: notifyContent,
+              type: "agent",
+              agentMeta: { forUserId: hostObjectId },
+            });
+
+            await Conversation.updateOne(
+              { _id: convId },
+              {
+                $set: {
+                  lastMessageAt: notifyMsg.createdAt,
+                  lastMessagePreview: `${createdTasks.length} tasks created from meeting`,
+                  lastMessageSenderId: notifyMsg.senderId,
+                },
               },
-              summary: `Create ${actionItems.length} tasks from meeting "${meeting.title}"`,
-              status: "pending",
-            },
-          },
-        });
+            );
 
-        await Conversation.updateOne(
-          { _id: convId },
-          {
-            $set: {
-              lastMessageAt: proposalMsg.createdAt,
-              lastMessagePreview: "Action items detected from meeting",
-              lastMessageSenderId: proposalMsg.senderId,
-            },
-          },
-        );
-
-        await publishChatEvent(convId, proposalMsg, jobLog);
-        jobLog.info(
-          { count: actionItems.length },
-          "posted action item proposals",
-        );
+            await publishChatEvent(convId, notifyMsg, jobLog);
+            }
+            jobLog.info(
+              { count: createdTasks.length },
+              "auto-created tasks from action items",
+            );
+          } else {
+            jobLog.warn("board has no columns, skipping task creation");
+          }
+        } else {
+          jobLog.warn("could not get personal board for host, skipping task creation");
+        }
       } else {
-        jobLog.info("action item proposal already exists, skipping step 3");
+        jobLog.info("tasks already created for this meeting, skipping step 3");
       }
     }
   } catch (err) {
-    jobLog.error({ err }, "step 3 failed: propose action items");
+    jobLog.error({ err }, "step 3 failed: auto-create tasks");
     stepErrors.push({ step: 3, error: err });
   }
 
@@ -343,6 +487,194 @@ export async function processPostMeetingCascade(
   } catch (err) {
     jobLog.error({ err }, "step 4 failed: update calendar event");
     stepErrors.push({ step: 4, error: err });
+  }
+
+  // ── Step 5: Generate meeting analytics (idempotent) ────────────────
+
+  try {
+    const existingAnalytics = await MeetingAnalytics.findOne({
+      meetingId: new mongoose.Types.ObjectId(meetingId),
+    })
+      .select("_id")
+      .lean();
+
+    if (!existingAnalytics) {
+      const startTime = meeting.startedAt || meeting.scheduledAt || meeting.createdAt;
+      const endedAt = new Date(job.data.endedAt);
+      const durationSeconds = Math.max(0, (endedAt.getTime() - startTime.getTime()) / 1000);
+
+      const participantCount = meeting.participants.filter(
+        (p) => p.status === "joined" || p.status === "left",
+      ).length;
+
+      // Fetch transcript for speaker stats
+      const transcript = await Transcript.findOne({
+        meetingId: new mongoose.Types.ObjectId(meetingId),
+      }).lean();
+
+      const speakerStats: { userId: string; name: string; talkTimeSeconds: number; talkTimePercent: number; wordCount: number; interruptionCount: number; sentimentAvg: number }[] = [];
+
+      if (transcript && transcript.segments.length > 0) {
+        // Aggregate per-speaker stats from transcript segments
+        const speakerMap = new Map<string, { name: string; totalDuration: number; wordCount: number }>();
+        let totalDuration = 0;
+
+        for (const seg of transcript.segments) {
+          if (!seg.text || !seg.text.trim()) continue;
+          const dur = seg.duration || 0;
+          const existing = speakerMap.get(seg.speakerId);
+          if (existing) {
+            existing.totalDuration += dur;
+            existing.wordCount += seg.text.split(/\s+/).length;
+          } else {
+            speakerMap.set(seg.speakerId, {
+              name: seg.speakerName,
+              totalDuration: dur,
+              wordCount: seg.text.split(/\s+/).length,
+            });
+          }
+          totalDuration += dur;
+        }
+
+        for (const [userId, stats] of speakerMap) {
+          speakerStats.push({
+            userId,
+            name: stats.name,
+            talkTimeSeconds: Math.round(stats.totalDuration),
+            talkTimePercent: totalDuration > 0
+              ? Math.round((stats.totalDuration / totalDuration) * 100)
+              : 0,
+            wordCount: stats.wordCount,
+            interruptionCount: 0,
+            sentimentAvg: 0,
+          });
+        }
+      }
+
+      // Compute score breakdown
+      const mom = meeting.mom;
+      const decisionCount = mom?.keyDecisions?.length || 0;
+      const actionItemCount = mom?.actionItems?.length || 0;
+
+      const decisionDensity = Math.min(100, decisionCount * 20);
+      const actionItemClarity = actionItemCount > 0 ? Math.min(100, actionItemCount * 25) : 0;
+      const participationBalance = speakerStats.length > 1
+        ? Math.max(0, 100 - speakerStats.reduce((max, s) => Math.max(max, s.talkTimePercent), 0))
+        : 50;
+      const agendaCoverage = mom?.summary ? 70 : 30;
+
+      const meetingScore = Math.round(
+        (agendaCoverage * 0.25 + decisionDensity * 0.25 + actionItemClarity * 0.25 + participationBalance * 0.25),
+      );
+
+      await MeetingAnalytics.create({
+        meetingId: new mongoose.Types.ObjectId(meetingId),
+        userId: new mongoose.Types.ObjectId(hostId),
+        duration: Math.round(durationSeconds),
+        participantCount,
+        speakerStats,
+        agendaCoverage,
+        decisionCount,
+        actionItemCount,
+        actionItemsCompleted: 0,
+        meetingScore,
+        scoreBreakdown: {
+          agendaCoverage,
+          decisionDensity,
+          actionItemClarity,
+          participationBalance,
+        },
+        highlights: [],
+        sheetRowAppended: false,
+      });
+
+      jobLog.info({ meetingScore, participantCount }, "meeting analytics generated");
+    } else {
+      jobLog.info("meeting analytics already exists, skipping step 5");
+    }
+  } catch (err) {
+    jobLog.error({ err }, "step 5 failed: generate meeting analytics");
+    stepErrors.push({ step: 5, error: err });
+  }
+
+  // ── Step 6: Suggest follow-up meeting (idempotent) ─────────────────
+
+  if (convId) {
+  try {
+    const hasNextSteps = meeting.mom?.nextSteps && meeting.mom.nextSteps.length > 0;
+    const hasActionItems = meeting.mom?.actionItems && meeting.mom.actionItems.length > 0;
+
+    if (hasNextSteps || hasActionItems) {
+      // Check if suggestion already posted
+      const existingSuggestion = await DirectMessage.findOne({
+        conversationId: convId,
+        senderType: "agent",
+        content: { $regex: /^\*\*Follow-up Meeting Suggestion/ },
+      })
+        .select("_id")
+        .lean();
+
+      if (!existingSuggestion) {
+        const nextSteps = meeting.mom?.nextSteps || [];
+        const actionItems = meeting.mom?.actionItems || [];
+
+        // Suggest a follow-up date (~1 week from now)
+        const suggestedDate = new Date();
+        suggestedDate.setDate(suggestedDate.getDate() + 7);
+        const dateStr = suggestedDate.toLocaleDateString("en-US", {
+          weekday: "long",
+          month: "short",
+          day: "numeric",
+        });
+
+        const suggestionContent = [
+          `**Follow-up Meeting Suggestion**`,
+          "",
+          `Based on the outcomes of "${meeting.title}", I recommend scheduling a follow-up:`,
+          "",
+          nextSteps.length > 0
+            ? `**Next Steps to Review:**\n${nextSteps.map((s) => `- ${s}`).join("\n")}`
+            : "",
+          actionItems.length > 0
+            ? `**Action Items to Check:**\n${actionItems.map((a) => `- ${a.task} (${a.assignee})`).join("\n")}`
+            : "",
+          "",
+          `Suggested date: **${dateStr}**`,
+          `You can schedule it from the Rooms page.`,
+        ]
+          .filter(Boolean)
+          .join("\n");
+
+        const suggestionMsg = await DirectMessage.create({
+          conversationId: convId,
+          senderId: hostObjectId,
+          senderType: "agent",
+          content: suggestionContent,
+          type: "agent",
+          agentMeta: { forUserId: hostObjectId },
+        });
+
+        await Conversation.updateOne(
+          { _id: convId },
+          {
+            $set: {
+              lastMessageAt: suggestionMsg.createdAt,
+              lastMessagePreview: "Follow-up meeting suggested",
+              lastMessageSenderId: suggestionMsg.senderId,
+            },
+          },
+        );
+
+        await publishChatEvent(convId, suggestionMsg, jobLog);
+        jobLog.info("posted follow-up meeting suggestion");
+      } else {
+        jobLog.info("follow-up suggestion already exists, skipping step 6");
+      }
+    }
+  } catch (err) {
+    jobLog.error({ err }, "step 6 failed: suggest follow-up meeting");
+    stepErrors.push({ step: 6, error: err });
+  }
   }
 
   // ── Throw if any step failed so BullMQ retries the job ────────────

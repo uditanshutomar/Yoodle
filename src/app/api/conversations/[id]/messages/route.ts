@@ -239,9 +239,12 @@ export const POST = withHandler(async (req: NextRequest, context) => {
     });
   }
 
-  // Fire-and-forget: trigger agent responses (including the sender's own agent)
-  const mentionsDoodle = content.toLowerCase().includes("@doodle");
-  if (mentionsDoodle || conversation.participants.some((p: { agentEnabled?: boolean }) => p.agentEnabled)) {
+  // Fire-and-forget: trigger agent responses
+  // Triggers: @doodle, @user's Yoodler mentions, or any participant with agent enabled
+  const lowerContent = content.toLowerCase();
+  const mentionsDoodle = lowerContent.includes("@doodle");
+  const mentionsYoodler = /yoodler/i.test(content) && /@\S/.test(content);
+  if (mentionsDoodle || mentionsYoodler || conversation.participants.some((p: { agentEnabled?: boolean }) => p.agentEnabled)) {
     import("@/lib/chat/agent-processor").then(({ processAgentResponses }) => {
       processAgentResponses(id, { senderId: userId, content, senderType: "user" }).catch((err) => {
         log.error({ err, conversationId: id }, "Agent processing failed");

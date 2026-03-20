@@ -2,15 +2,25 @@
 
 import { useState, useRef, useEffect } from "react";
 import { motion, useReducedMotion } from "framer-motion";
-import { Video, VideoOff, Mic, MicOff, Monitor, Users, Copy, Check } from "lucide-react";
+import { Video, VideoOff, Mic, MicOff, Monitor, Users, Copy, Check, Circle, MonitorUp, ShieldCheck, VolumeX, Calendar } from "lucide-react";
 import Button from "@/components/ui/Button";
 import { useMediaDevices } from "@/hooks/useMediaDevices";
+
+interface MeetingSettings {
+  allowRecording?: boolean;
+  allowScreenShare?: boolean;
+  waitingRoom?: boolean;
+  muteOnJoin?: boolean;
+  maxParticipants?: number;
+}
 
 interface PreJoinLobbyProps {
   meetingId: string;
   meetingTitle: string;
   meetingCode: string;
   participantCount: number;
+  settings?: MeetingSettings;
+  scheduledAt?: string;
   onJoin: (settings: {
     video: boolean;
     audio: boolean;
@@ -23,6 +33,8 @@ export default function PreJoinLobby({
   meetingTitle,
   meetingCode,
   participantCount,
+  settings,
+  scheduledAt,
   onJoin,
 }: PreJoinLobbyProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -147,6 +159,48 @@ export default function PreJoinLobby({
             {participantCount} participant{participantCount !== 1 ? "s" : ""} waiting
           </span>
         </div>
+
+        {/* Meeting settings badges */}
+        {settings && (
+          <div className="flex flex-wrap items-center justify-center gap-2 mt-3">
+            {scheduledAt && (
+              <span className="inline-flex items-center gap-1 rounded-full border border-[var(--border)] bg-[var(--surface)] px-2.5 py-1 text-[11px] text-[var(--text-muted)] font-body">
+                <Calendar size={11} />
+                {new Date(scheduledAt).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}
+              </span>
+            )}
+            {settings.allowRecording && (
+              <span className="inline-flex items-center gap-1 rounded-full border border-[var(--border)] bg-[var(--surface)] px-2.5 py-1 text-[11px] text-[var(--text-muted)] font-body">
+                <Circle size={11} className="text-[#FF6B6B]" />
+                Recording
+              </span>
+            )}
+            {settings.allowScreenShare && (
+              <span className="inline-flex items-center gap-1 rounded-full border border-[var(--border)] bg-[var(--surface)] px-2.5 py-1 text-[11px] text-[var(--text-muted)] font-body">
+                <MonitorUp size={11} />
+                Screen share
+              </span>
+            )}
+            {settings.waitingRoom && (
+              <span className="inline-flex items-center gap-1 rounded-full border border-[var(--border)] bg-[var(--surface)] px-2.5 py-1 text-[11px] text-[var(--text-muted)] font-body">
+                <ShieldCheck size={11} className="text-[#3B82F6]" />
+                Waiting room
+              </span>
+            )}
+            {settings.muteOnJoin && (
+              <span className="inline-flex items-center gap-1 rounded-full border border-[var(--border)] bg-[var(--surface)] px-2.5 py-1 text-[11px] text-[var(--text-muted)] font-body">
+                <VolumeX size={11} />
+                Muted on join
+              </span>
+            )}
+            {settings.maxParticipants && (
+              <span className="inline-flex items-center gap-1 rounded-full border border-[var(--border)] bg-[var(--surface)] px-2.5 py-1 text-[11px] text-[var(--text-muted)] font-body">
+                <Users size={11} />
+                Max {settings.maxParticipants}
+              </span>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Video preview circle */}

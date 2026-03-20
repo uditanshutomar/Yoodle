@@ -108,6 +108,21 @@ export function useTransport({
 
         if (cancelled) return;
 
+        // Pre-flight connectivity check — gives a clear error instead of
+        // the opaque "could not establish signal connection: Failed to fetch"
+        try {
+          const checkUrl = livekitUrl.replace(/^wss:\/\//, "https://").replace(/^ws:\/\//, "http://");
+          await fetch(checkUrl, { method: "HEAD", mode: "no-cors", signal: AbortSignal.timeout(5000) });
+        } catch {
+          throw new Error(
+            "Cannot reach LiveKit server. Check your network connection and ensure " +
+            "no browser extensions are blocking WebSocket connections to " +
+            livekitUrl,
+          );
+        }
+
+        if (cancelled) return;
+
         const { createLiveKitTransport } = await import(
           "@/lib/transport/transport-factory"
         );
@@ -178,8 +193,12 @@ export function useTransport({
       } catch (err) {
         if (err instanceof DOMException && err.name === "AbortError") return;
         if (!cancelled) {
+          const msg = err instanceof Error ? err.message : "Transport error";
+          console.error("[useTransport] Connection failed:", err);
           setError(
-            err instanceof Error ? err.message : "Transport error",
+            msg.includes("Failed to fetch")
+              ? "Connection error: Unable to reach the meeting server. Check your network and disable any ad-blockers or privacy extensions, then try again."
+              : msg,
           );
         }
       }
