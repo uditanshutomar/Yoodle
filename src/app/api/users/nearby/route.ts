@@ -7,6 +7,7 @@ import { getUserIdFromRequest } from "@/lib/infra/auth/middleware";
 import { BadRequestError } from "@/lib/infra/api/errors";
 import connectDB from "@/lib/infra/db/client";
 import User from "@/lib/infra/db/models/user";
+import Workspace from "@/lib/infra/db/models/workspace";
 import mongoose from "mongoose";
 
 const querySchema = z.object({
@@ -17,11 +18,27 @@ const querySchema = z.object({
 });
 
 /**
+ * Blur coordinates by adding a random offset of ~5km to prevent
+ * exact location disclosure for lockin-mode users.
+ */
+function blurCoordinates(coords: [number, number]): [number, number] {
+  const offset = 0.045; // ~5km at equator
+  const lngBlur = coords[0] + (Math.random() - 0.5) * 2 * offset;
+  const latBlur = coords[1] + (Math.random() - 0.5) * 2 * offset;
+  return [
+    Math.max(-180, Math.min(180, lngBlur)),
+    Math.max(-90, Math.min(90, latBlur)),
+  ];
+}
+
+/**
  * GET /api/users/nearby?lng=...&lat=...&radiusKm=10&limit=20
  *
  * Returns users within a given radius who are in "social" mode
- * and have shared their location. Uses MongoDB $geoNear for efficient
- * geospatial queries on the 2dsphere index.
+ * and have shared their location, plus "lockin" mode users who
+ * share a workspace with the requester (with blurred coordinates).
+ * Uses MongoDB $geoNear for efficient geospatial queries on the
+ * 2dsphere index.
  */
 export const GET = withHandler(async (req: NextRequest) => {
   await checkRateLimit(req, "session");
@@ -40,6 +57,29 @@ export const GET = withHandler(async (req: NextRequest) => {
 
   await connectDB();
 
+  // Find workspaces the requesting user belongs to
+  const userObjectId = new mongoose.Types.ObjectId(userId);
+  const workspaces = await Workspace.find({
+    "members.userId": userObjectId,
+  })
+    .select("members.userId")
+    .lean();
+
+  // Collect all workspace mate user IDs (excluding self)
+  const workspaceMateIds = new Set<string>();
+  for (const ws of workspaces) {
+    for (const member of ws.members) {
+      const memberId = member.userId.toString();
+      if (memberId !== userId) {
+        workspaceMateIds.add(memberId);
+      }
+    }
+  }
+
+  const lockinUserIds = [...workspaceMateIds].map(
+    (id) => new mongoose.Types.ObjectId(id),
+  );
+
   // Use MongoDB aggregation with $geoNear for distance-sorted results
   const nearbyUsers = await User.aggregate([
     {
@@ -49,9 +89,14 @@ export const GET = withHandler(async (req: NextRequest) => {
         maxDistance: radiusKm * 1000, // convert km to meters
         spherical: true,
         query: {
-          _id: { $ne: new mongoose.Types.ObjectId(userId) }, // exclude self
-          mode: "social", // only show users in social mode
+          _id: { $ne: userObjectId }, // exclude self
           "location.coordinates": { $exists: true },
+          $or: [
+            { mode: "social" },
+            ...(lockinUserIds.length > 0
+              ? [{ mode: "lockin", _id: { $in: lockinUserIds } }]
+              : []),
+          ],
         },
       },
     },
@@ -66,6 +111,7 @@ export const GET = withHandler(async (req: NextRequest) => {
         status: 1,
         mode: 1,
         location: {
+          coordinates: "$location.coordinates",
           label: "$location.label",
         },
         distanceKm: {
@@ -75,5 +121,21 @@ export const GET = withHandler(async (req: NextRequest) => {
     },
   ]);
 
-  return successResponse(nearbyUsers);
+  // Blur coordinates for lockin users to protect their exact location
+  const result = nearbyUsers.map((user) => {
+    if (user.mode === "lockin" && user.location?.coordinates) {
+      return {
+        ...user,
+        location: {
+          ...user.location,
+          coordinates: undefined,
+          approximate: true,
+          blurredCoordinates: blurCoordinates(user.location.coordinates),
+        },
+      };
+    }
+    return user;
+  });
+
+  return successResponse(result);
 });
