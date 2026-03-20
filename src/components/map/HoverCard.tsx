@@ -11,7 +11,7 @@ interface HoverCardProps {
   onClose: () => void;
 }
 
-export default function HoverCard({ user, onClose }: HoverCardProps) {
+export default function HoverCard({ user, onClose: _onClose }: HoverCardProps) {
   const router = useRouter();
   const [waving, setWaving] = useState(false);
   const [waved, setWaved] = useState(false);

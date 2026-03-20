@@ -410,13 +410,13 @@ export const POST = withHandler(async (req: NextRequest, context) => {
   ensureMeetingConversation(populated._id.toString(), populated).catch((err) => chatLog.warn({ err }, "ensureMeetingConversation failed"));
 
   // Notify the meeting host that someone joined (fire-and-forget)
-  const hostObj = populated.hostId as any;
+  const hostObj = populated.hostId as { _id?: { toString(): string }; toString(): string };
   const hostId = hostObj?._id?.toString() || hostObj?.toString();
   if (hostId && hostId !== userId) {
     const joinerParticipant = populated.participants.find(
-      (p: any) => (p.userId?._id || p.userId)?.toString() === userId
+      (p: { userId?: { _id?: { toString(): string }; toString(): string; name?: string } }) => (p.userId?._id || p.userId)?.toString() === userId
     );
-    const joinerName = (joinerParticipant?.userId as any)?.name || "Someone";
+    const joinerName = (joinerParticipant?.userId as { name?: string } | undefined)?.name || "Someone";
     publishNotification({
       userId: hostId,
       type: "meeting_invite",

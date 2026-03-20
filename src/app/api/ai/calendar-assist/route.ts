@@ -110,7 +110,7 @@ async function suggestTitles(userId: string, input: z.infer<typeof titlesSchema>
   // Count Yoodle room usage from calendar events
   const yoodleRoomPattern = /\/meetings\/yoo-/i;
   let yoodleRoomCount = 0;
-  let totalMeetingCount = calendarEvents.length + yoodleMeetings.length;
+  const totalMeetingCount = calendarEvents.length + yoodleMeetings.length;
 
   for (const event of calendarEvents) {
     if (

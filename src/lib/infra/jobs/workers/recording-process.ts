@@ -31,7 +31,7 @@ const log = createLogger("worker:recording-process");
 export async function processRecording(
   job: Job<RecordingProcessPayload>,
 ): Promise<void> {
-  const { meetingId, userId, driveFileId, fileName } = job.data;
+  const { meetingId, userId, driveFileId } = job.data;
   const jobLog = log.child({ meetingId, jobId: job.id });
   jobLog.info("starting recording process");
 

@@ -12,7 +12,8 @@ import "@/lib/infra/db/models/user"; // register User schema for .populate("host
 import { generateMeetingCode } from "@/lib/utils/id";
 import { features } from "@/lib/features/flags";
 import { createEvent } from "@/lib/google/calendar";
-import { publishNotificationToMany } from "@/lib/notifications/publish";
+// publishNotificationToMany will be used when multi-participant meeting creation notifications are added
+// import { publishNotificationToMany } from "@/lib/notifications/publish";
 import { createLogger } from "@/lib/infra/logger";
 
 const log = createLogger("meetings:create");

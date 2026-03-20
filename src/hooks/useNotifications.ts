@@ -31,7 +31,7 @@ export function useNotifications() {
       const json = await res.json();
       if (json.success) {
         setNotifications(
-          json.data.notifications.map((n: any) => ({ ...n, id: n._id || n.id }))
+          json.data.notifications.map((n: Record<string, unknown>) => ({ ...n, id: (n._id || n.id) as string }))
         );
         setUnreadCount(json.data.unreadCount);
       }

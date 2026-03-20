@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
-import { MapPin, Navigation, Users } from "lucide-react";
+import { Navigation } from "lucide-react";
 import Image from "next/image";
 import { useUserMode, type UserMode } from "@/hooks/useUserMode";
 import { MASCOT_BY_MODE } from "@/components/ai/constants";

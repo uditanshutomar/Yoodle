@@ -32,22 +32,13 @@ function getRelativeTime(dateStr: string): string {
   return `${diffDay}d ago`;
 }
 
-function getNotificationIcon(type: string) {
-  switch (type) {
-    case "mention":
-      return MessageCircle;
-    case "meeting_invite":
-      return Video;
-    case "task_assigned":
-      return CheckSquare;
-    case "ai_action_complete":
-      return Sparkles;
-    case "ghost_room_expiring":
-      return Ghost;
-    default:
-      return Bell;
-  }
-}
+const NOTIFICATION_ICONS: Record<string, typeof Bell> = {
+  mention: MessageCircle,
+  meeting_invite: Video,
+  task_assigned: CheckSquare,
+  ai_action_complete: Sparkles,
+  ghost_room_expiring: Ghost,
+};
 
 function getNavigationPath(sourceType: string, sourceId: string): string {
   switch (sourceType) {
@@ -69,7 +60,7 @@ function NotificationRow({
   notification: NotificationItem;
   onAction: (n: NotificationItem) => void;
 }) {
-  const Icon = getNotificationIcon(notification.type);
+  const Icon = NOTIFICATION_ICONS[notification.type] ?? Bell;
   const isUrgent = notification.priority === "urgent";
   const isUnread = !notification.read;
 

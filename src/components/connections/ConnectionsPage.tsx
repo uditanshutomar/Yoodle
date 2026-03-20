@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { Users, Send, UserCheck, Clock } from "lucide-react";
 import Image from "next/image";
 import { motion, AnimatePresence } from "framer-motion";
@@ -76,37 +76,36 @@ export default function ConnectionsPage() {
   const wrapperRef = useRef<HTMLDivElement>(null);
 
   // Debounced search for autocomplete
-  useEffect(() => {
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-
-    const trimmed = email.trim();
+  const searchUsers = useCallback(async (query: string) => {
+    const trimmed = query.trim();
     if (trimmed.length < 2) {
       setSuggestions([]);
       setShowSuggestions(false);
       return;
     }
-
-    debounceRef.current = setTimeout(async () => {
-      try {
-        const res = await fetch(
-          `/api/users/search?q=${encodeURIComponent(trimmed)}&limit=5`,
-          { credentials: "include" }
-        );
-        const body = await res.json();
-        if (body.success && Array.isArray(body.data)) {
-          setSuggestions(body.data);
-          setShowSuggestions(body.data.length > 0);
-          setSelectedIndex(-1);
-        }
-      } catch {
-        // best effort
+    try {
+      const res = await fetch(
+        `/api/users/search?q=${encodeURIComponent(trimmed)}&limit=5`,
+        { credentials: "include" }
+      );
+      const body = await res.json();
+      if (body.success && Array.isArray(body.data)) {
+        setSuggestions(body.data);
+        setShowSuggestions(body.data.length > 0);
+        setSelectedIndex(-1);
       }
-    }, 300);
+    } catch {
+      // best effort
+    }
+  }, []);
 
+  useEffect(() => {
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => { void searchUsers(email); }, 300);
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
     };
-  }, [email]);
+  }, [email, searchUsers]);
 
   // Close suggestions on outside click
   useEffect(() => {
