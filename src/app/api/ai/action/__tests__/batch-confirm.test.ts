@@ -22,6 +22,8 @@ function makeReq(body: unknown) {
   });
 }
 
+const emptyCtx = { params: Promise.resolve({}) };
+
 describe("POST /api/ai/action/batch-confirm", () => {
   beforeEach(() => vi.clearAllMocks());
 
@@ -32,7 +34,7 @@ describe("POST /api/ai/action/batch-confirm", () => {
         { id: "t1", args: { status: "done" } },
         { id: "t2", args: { status: "done" } },
       ],
-    }));
+    }), emptyCtx);
 
     expect(res.status).toBe(200);
     const data = await res.json();
@@ -52,7 +54,7 @@ describe("POST /api/ai/action/batch-confirm", () => {
         { id: "t1", args: { status: "done" } },
         { id: "t2", args: { status: "done" } },
       ],
-    }));
+    }), emptyCtx);
 
     const data = await res.json();
     expect(data.data.results[0].success).toBe(true);
@@ -63,7 +65,7 @@ describe("POST /api/ai/action/batch-confirm", () => {
     const res = await POST(makeReq({
       actionType: "drop_database",
       items: [{ id: "t1", args: {} }],
-    }));
+    }), emptyCtx);
     expect(res.status).toBe(400);
   });
 });

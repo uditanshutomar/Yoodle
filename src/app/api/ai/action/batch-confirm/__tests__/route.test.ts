@@ -25,7 +25,7 @@ vi.mock("@/lib/ai/tools", () => ({
 
 function createRequest(body?: unknown): NextRequest {
   const url = "http://localhost:3000/api/ai/action/batch-confirm";
-  const init: RequestInit = {
+  const init: { method: string; headers: Record<string, string>; body?: string } = {
     method: "POST",
     headers: { "Content-Type": "application/json", Origin: "http://localhost:3000" },
   };
@@ -34,6 +34,8 @@ function createRequest(body?: unknown): NextRequest {
 }
 
 const { POST } = await import("../route");
+
+const emptyCtx = { params: Promise.resolve({}) };
 
 describe("POST /api/ai/action/batch-confirm", () => {
   beforeEach(() => vi.clearAllMocks());
@@ -47,7 +49,7 @@ describe("POST /api/ai/action/batch-confirm", () => {
         { id: "t1", args: { title: "Updated" } },
         { id: "t2", args: { title: "Updated 2" } },
       ],
-    }));
+    }), emptyCtx);
     const body = await res.json();
 
     expect(res.status).toBe(200);
@@ -70,7 +72,7 @@ describe("POST /api/ai/action/batch-confirm", () => {
     const res = await POST(createRequest({
       actionType: "update_board_task",
       items: [{ id: "t1", args: {} }],
-    }));
+    }), emptyCtx);
     const body = await res.json();
 
     expect(res.status).toBe(401);
@@ -81,7 +83,7 @@ describe("POST /api/ai/action/batch-confirm", () => {
     const res = await POST(createRequest({
       actionType: "launch_missiles",
       items: [{ id: "t1", args: {} }],
-    }));
+    }), emptyCtx);
     const body = await res.json();
 
     expect(res.status).toBe(400);
@@ -92,7 +94,7 @@ describe("POST /api/ai/action/batch-confirm", () => {
     const res = await POST(createRequest({
       actionType: "update_board_task",
       items: [],
-    }));
+    }), emptyCtx);
     const body = await res.json();
 
     expect(res.status).toBe(400);
@@ -110,7 +112,7 @@ describe("POST /api/ai/action/batch-confirm", () => {
         { id: "t1", args: {} },
         { id: "t2", args: {} },
       ],
-    }));
+    }), emptyCtx);
     const body = await res.json();
 
     expect(res.status).toBe(200);

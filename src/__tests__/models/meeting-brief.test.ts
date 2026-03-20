@@ -18,7 +18,7 @@ describe("MeetingBrief model", () => {
   beforeEach(async () => {
     vi.resetModules();
     const mongoose = await import("mongoose");
-    mongoose.default.models = {};
+    Object.defineProperty(mongoose.default, "models", { value: {}, writable: true });
   });
 
   it("exports a valid Mongoose model", async () => {
