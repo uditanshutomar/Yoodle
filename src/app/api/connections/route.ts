@@ -19,9 +19,10 @@ import Notification from "@/lib/infra/db/models/notification";
 
 // ─── Schemas ────────────────────────────────────────────────────────
 
-const postBodySchema = z.object({
-  email: z.string().email("Invalid email address"),
-});
+const postBodySchema = z.union([
+  z.object({ email: z.string().email("Invalid email address").toLowerCase().trim() }),
+  z.object({ userId: z.string().min(1) }),
+]);
 
 const statusParamSchema = z.enum(["pending", "accepted", "blocked"]).default("accepted");
 
@@ -33,15 +34,28 @@ export const POST = withHandler(async (req: NextRequest) => {
   await connectDB();
 
   const body = await req.json();
-  const { email } = postBodySchema.parse(body);
+  const parsed = postBodySchema.parse(body);
 
-  // Look up target user
-  const targetUser = await User.findOne({ email }).select("_id").lean();
-  if (!targetUser) {
-    throw new NotFoundError("User not found");
+  let recipientId: string;
+
+  if ("email" in parsed) {
+    // Look up target user by email
+    const targetUser = await User.findOne({ email: parsed.email }).select("_id").lean();
+    if (!targetUser) {
+      throw new NotFoundError("User not found");
+    }
+    recipientId = targetUser._id.toString();
+  } else {
+    // Look up target user by userId
+    if (!mongoose.Types.ObjectId.isValid(parsed.userId)) {
+      throw new BadRequestError("Invalid userId");
+    }
+    const targetUser = await User.findById(parsed.userId).select("_id").lean();
+    if (!targetUser) {
+      throw new NotFoundError("User not found");
+    }
+    recipientId = targetUser._id.toString();
   }
-
-  const recipientId = targetUser._id.toString();
 
   // Prevent self-request
   if (recipientId === userId) {

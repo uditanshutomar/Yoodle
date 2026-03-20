@@ -15,6 +15,8 @@ export default function HoverCard({ user, onClose }: HoverCardProps) {
   const router = useRouter();
   const [waving, setWaving] = useState(false);
   const [waved, setWaved] = useState(false);
+  const [yoodling, setYoodling] = useState(false);
+  const [yoodled, setYoodled] = useState(false);
 
   const handleWave = useCallback(async () => {
     if (waving || waved) return;
@@ -33,6 +35,26 @@ export default function HoverCard({ user, onClose }: HoverCardProps) {
       setWaving(false);
     }
   }, [user.id, waving, waved]);
+
+  const handleYoodle = useCallback(async () => {
+    if (yoodling || yoodled) return;
+    setYoodling(true);
+    try {
+      const res = await fetch("/api/connections", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ userId: user.id }),
+      });
+      if (res.ok) {
+        setYoodled(true);
+      }
+    } catch {
+      // Best effort
+    } finally {
+      setYoodling(false);
+    }
+  }, [user.id, yoodling, yoodled]);
 
   const handleChat = useCallback(() => {
     router.push(`/messages?userId=${user.id}`);
@@ -109,6 +131,17 @@ export default function HoverCard({ user, onClose }: HoverCardProps) {
             className="flex-1 flex items-center justify-center gap-1.5 rounded-lg border-2 border-[var(--border-strong)] bg-[var(--surface)] px-3 py-1.5 text-xs font-bold text-[var(--text-primary)] hover:bg-[var(--surface-hover)] hover:shadow-[2px_2px_0_var(--border-strong)] active:shadow-none transition-all cursor-pointer font-heading"
           >
             {"\uD83D\uDCAC"} Chat
+          </button>
+          <button
+            onClick={handleYoodle}
+            disabled={yoodled}
+            className={`flex-1 flex items-center justify-center gap-1.5 rounded-lg border-2 border-[var(--border-strong)] px-3 py-1.5 text-xs font-bold transition-all cursor-pointer font-heading ${
+              yoodled
+                ? "bg-green-100 text-green-700 border-green-300"
+                : "bg-[var(--surface)] text-[var(--text-primary)] hover:bg-[var(--surface-hover)] hover:shadow-[2px_2px_0_var(--border-strong)] active:shadow-none"
+            }`}
+          >
+            {"\uD83E\uDD1D"} {yoodled ? "Yoodled!" : "Yoodle"}
           </button>
         </div>
       </div>
