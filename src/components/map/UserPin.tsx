@@ -13,9 +13,12 @@ interface UserPinProps {
 
 export default function UserPin({ user, isCurrentUser, onClick }: UserPinProps) {
   const isLockin = user.mode === "lockin";
-  const coords = isLockin
-    ? user.location?.blurredCoordinates
-    : user.location?.coordinates;
+  // Current user always uses exact coordinates; other lockin users use blurred
+  const coords = isCurrentUser
+    ? user.location?.coordinates
+    : isLockin
+      ? user.location?.blurredCoordinates
+      : user.location?.coordinates;
 
   if (!coords) return null;
 
@@ -69,6 +72,15 @@ export default function UserPin({ user, isCurrentUser, onClick }: UserPinProps) 
         {isLockin && (
           <div className="absolute -top-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-blue-500 border border-white text-[10px]">
             🎧
+          </div>
+        )}
+
+        {/* Status bubble */}
+        {user.status && (
+          <div className="absolute -top-7 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-lg border-2 border-[var(--border-strong)] bg-[var(--surface)] px-2 py-0.5 shadow-[2px_2px_0_rgba(0,0,0,0.4)]">
+            <span className="text-[10px] text-[var(--text-primary)] font-body">
+              {user.status}
+            </span>
           </div>
         )}
 
