@@ -2,14 +2,16 @@
 
 import { useState, memo } from "react";
 import { motion } from "framer-motion";
-import { User, Mail, Calendar, CheckSquare, Search, FileText, Users, Loader2, Check, X, ClipboardList } from "lucide-react";
+import { User, Mail, Calendar, CheckSquare, Search, FileText, Users, Loader2, Check, X, ClipboardList, ExternalLink } from "lucide-react";
 import Image from "next/image";
+import { useRouter } from "next/navigation";
 import { useAuth } from "@/hooks/useAuth";
 import type { ToolCall } from "@/hooks/useAIChat";
 import { CardRenderer } from "./cards";
 import type { CardData } from "./cards/types";
 import { MASCOT_BY_MODE } from "./constants";
 import SafeMarkdown from "./SafeMarkdown";
+import { dispatchCalendarPrefill } from "@/lib/events/calendar-prefill";
 
 interface ChatBubbleProps {
   id: string;
@@ -113,6 +115,32 @@ function ToolCallIndicator({ toolCall }: { toolCall: ToolCall }) {
   );
 }
 
+/** Calendar action types that should pre-fill the form instead of executing directly */
+const CALENDAR_FORM_ACTIONS = new Set([
+  "create_calendar_event",
+  "update_calendar_event",
+]);
+
+/** Extract calendar pre-fill data from action args */
+function extractCalendarPrefill(args: Record<string, unknown>) {
+  const startDate = args.start ? new Date(args.start as string) : null;
+  const endDate = args.end ? new Date(args.end as string) : null;
+  const pad = (n: number) => n.toString().padStart(2, "0");
+
+  return {
+    title: (args.title as string) || (args.calTitle as string) || undefined,
+    date: startDate ? `${startDate.getFullYear()}-${pad(startDate.getMonth() + 1)}-${pad(startDate.getDate())}` : undefined,
+    startTime: startDate ? `${pad(startDate.getHours())}:${pad(startDate.getMinutes())}` : undefined,
+    endTime: endDate ? `${pad(endDate.getHours())}:${pad(endDate.getMinutes())}` : undefined,
+    location: (args.location as string) || undefined,
+    description: (args.description as string) || undefined,
+    attendees: Array.isArray(args.attendees) ? args.attendees as string[] : undefined,
+    createYoodleRoom: (args.addMeetLink as boolean) || (args.createYoodleRoom as boolean) || false,
+    agenda: (args.agenda as string) || undefined,
+    referenceLinks: (args.referenceLinks as string) || undefined,
+  };
+}
+
 /** Inline action card for propose_action — Accept / Deny right in the chat */
 function InlineActionCard({
   toolCall,
@@ -123,11 +151,13 @@ function InlineActionCard({
   onConfirm?: (actionId: string, actionType: string, args: Record<string, unknown>) => void | Promise<void>;
   onDeny?: (actionId: string) => void;
 }) {
-  const [status, setStatus] = useState<"pending" | "confirming" | "confirmed" | "denied">("pending");
+  const router = useRouter();
+  const [status, setStatus] = useState<"pending" | "confirming" | "confirmed" | "denied" | "opened">("pending");
   const [error, setError] = useState<string | null>(null);
   const pa = toolCall.pendingAction;
   if (!pa) return null;
 
+  const isCalendarAction = CALENDAR_FORM_ACTIONS.has(pa.type);
   const actionIcon = ACTION_ICONS[pa.type] || CheckSquare;
   const ActionIcon = actionIcon;
 
@@ -142,6 +172,16 @@ function InlineActionCard({
       setError("Action failed. Try again.");
       setStatus("pending");
     }
+  };
+
+  const handleOpenInCalendar = () => {
+    const prefillData = extractCalendarPrefill(pa.args);
+    // Navigate to calendar page, then dispatch prefill event after a short delay
+    router.push("/calendar");
+    setTimeout(() => {
+      dispatchCalendarPrefill(prefillData);
+    }, 500);
+    setStatus("opened");
   };
 
   const handleDeny = () => {
@@ -173,14 +213,25 @@ function InlineActionCard({
 
       {status === "pending" && (
         <div className="flex items-center gap-2 mt-2.5">
-          <motion.button
-            whileHover={{ scale: 1.03 }}
-            whileTap={{ scale: 0.97 }}
-            onClick={handleConfirm}
-            className="flex-1 flex items-center justify-center gap-1.5 rounded-lg bg-green-500 text-white text-[11px] font-bold py-1.5 px-3 border-2 border-green-600 shadow-[2px_2px_0_#166534] hover:shadow-[1px_1px_0_#166534] hover:translate-x-[1px] hover:translate-y-[1px] transition-all font-heading"
-          >
-            <Check size={12} /> Accept
-          </motion.button>
+          {isCalendarAction ? (
+            <motion.button
+              whileHover={{ scale: 1.03 }}
+              whileTap={{ scale: 0.97 }}
+              onClick={handleOpenInCalendar}
+              className="flex-1 flex items-center justify-center gap-1.5 rounded-lg bg-[#FFE600] text-[#0A0A0A] text-[11px] font-bold py-1.5 px-3 border-2 border-[var(--border-strong)] shadow-[2px_2px_0_var(--border-strong)] hover:shadow-[1px_1px_0_var(--border-strong)] hover:translate-x-[1px] hover:translate-y-[1px] transition-all font-heading"
+            >
+              <ExternalLink size={12} /> Open in Calendar
+            </motion.button>
+          ) : (
+            <motion.button
+              whileHover={{ scale: 1.03 }}
+              whileTap={{ scale: 0.97 }}
+              onClick={handleConfirm}
+              className="flex-1 flex items-center justify-center gap-1.5 rounded-lg bg-green-500 text-white text-[11px] font-bold py-1.5 px-3 border-2 border-green-600 shadow-[2px_2px_0_#166534] hover:shadow-[1px_1px_0_#166534] hover:translate-x-[1px] hover:translate-y-[1px] transition-all font-heading"
+            >
+              <Check size={12} /> Accept
+            </motion.button>
+          )}
           <motion.button
             whileHover={{ scale: 1.03 }}
             whileTap={{ scale: 0.97 }}
@@ -201,6 +252,12 @@ function InlineActionCard({
       {status === "confirmed" && (
         <div className="flex items-center gap-2 mt-2.5 text-[11px] text-green-500 font-semibold">
           <Check size={12} /> Done
+        </div>
+      )}
+
+      {status === "opened" && (
+        <div className="flex items-center gap-2 mt-2.5 text-[11px] text-[#B8A200] font-semibold">
+          <Calendar size={12} /> Opened in Calendar
         </div>
       )}
 

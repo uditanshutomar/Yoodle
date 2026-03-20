@@ -23,6 +23,7 @@ import {
   Sparkles,
 } from "lucide-react";
 import { useCalendarAssist } from "./useCalendarAssist";
+import { onCalendarPrefill, CalendarPrefillData } from "@/lib/events/calendar-prefill";
 import { AISuggestionChips } from "./AISuggestionChips";
 
 interface CalendarEvent {
@@ -807,6 +808,7 @@ function CreateEventModal({
   prefillDate,
   prefillHour,
   editEvent,
+  aiPrefill,
 }: {
   open: boolean;
   onClose: () => void;
@@ -814,6 +816,7 @@ function CreateEventModal({
   prefillDate?: Date;
   prefillHour?: number;
   editEvent?: CalendarEvent | null;
+  aiPrefill?: CalendarPrefillData | null;
 }) {
   const [form, setForm] = useState<CreateEventForm>(() => getDefaultForm(prefillDate, prefillHour));
   const [submitting, setSubmitting] = useState(false);
@@ -847,13 +850,34 @@ function CreateEventModal({
           agenda: existingAgenda || "",
           referenceLinks: existingLinks.join("\n"),
         });
+      } else if (aiPrefill) {
+        // Pre-fill from AI Drawer
+        const base = getDefaultForm(prefillDate, prefillHour);
+        setForm({
+          ...base,
+          title: aiPrefill.title || base.title,
+          date: aiPrefill.date || base.date,
+          startTime: aiPrefill.startTime || base.startTime,
+          endTime: aiPrefill.endTime || base.endTime,
+          location: aiPrefill.location || base.location,
+          attendees: aiPrefill.attendees
+            ? aiPrefill.attendees.map((email) => ({
+                type: "email" as const,
+                name: email,
+                email,
+              }))
+            : base.attendees,
+          createYoodleRoom: aiPrefill.createYoodleRoom ?? base.createYoodleRoom,
+          agenda: aiPrefill.agenda || base.agenda,
+          referenceLinks: aiPrefill.referenceLinks || base.referenceLinks,
+        });
       } else {
         setForm(getDefaultForm(prefillDate, prefillHour));
       }
       setError(null);
       setTimeout(() => titleRef.current?.focus(), 100);
     }
-  }, [open, prefillDate, prefillHour, editEvent]);
+  }, [open, prefillDate, prefillHour, editEvent, aiPrefill]);
 
   useEffect(() => {
     if (!open) assist.reset();
@@ -1023,11 +1047,11 @@ function CreateEventModal({
           >
             <form
               onSubmit={handleSubmit}
-              className="w-full max-w-lg rounded-2xl border-2 border-[var(--border-strong)] bg-[var(--surface)] shadow-[6px_6px_0_var(--border-strong)] overflow-hidden"
+              className="w-full max-w-lg max-h-[90vh] flex flex-col rounded-2xl border-2 border-[var(--border-strong)] bg-[var(--surface)] shadow-[6px_6px_0_var(--border-strong)] overflow-hidden"
               onClick={(e) => e.stopPropagation()}
             >
               {/* Header */}
-              <div className="flex items-center justify-between border-b-2 border-[var(--border-strong)] px-5 py-4">
+              <div className="flex-shrink-0 flex items-center justify-between border-b-2 border-[var(--border-strong)] px-5 py-4">
                 <h2 className="text-lg font-black text-[var(--text-primary)] font-heading">
                   {isEditing ? "Edit Event" : "New Event"}
                 </h2>
@@ -1041,7 +1065,7 @@ function CreateEventModal({
               </div>
 
               {/* Body */}
-              <div className="px-5 py-4 space-y-4">
+              <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
                 {/* Title */}
                 <div>
                   <label className="block text-xs font-bold text-[var(--text-secondary)] mb-1.5 font-heading">
@@ -1300,7 +1324,7 @@ function CreateEventModal({
               </div>
 
               {/* Footer */}
-              <div className="flex items-center justify-end gap-2 border-t-2 border-[var(--border)] px-5 py-3">
+              <div className="flex-shrink-0 flex items-center justify-end gap-2 border-t-2 border-[var(--border)] px-5 py-3">
                 <button
                   type="button"
                   onClick={onClose}
@@ -1347,6 +1371,7 @@ export default function CalendarPage() {
   const [createPrefillHour, setCreatePrefillHour] = useState<number | undefined>();
   const [editEvent, setEditEvent] = useState<CalendarEvent | null>(null);
   const [detailEvent, setDetailEvent] = useState<CalendarEvent | null>(null);
+  const [aiPrefill, setAiPrefill] = useState<CalendarPrefillData | null>(null);
 
   const mountedRef = useRef(true);
   const controllerRef = useRef<AbortController | null>(null);
@@ -1357,6 +1382,15 @@ export default function CalendarPage() {
       mountedRef.current = false;
       controllerRef.current?.abort();
     };
+  }, []);
+
+  // Listen for AI Drawer calendar prefill events
+  useEffect(() => {
+    return onCalendarPrefill((data) => {
+      setAiPrefill(data);
+      setEditEvent(null);
+      setShowCreateModal(true);
+    });
   }, []);
 
   const fetchEvents = useCallback(async () => {
@@ -1754,11 +1788,12 @@ export default function CalendarPage() {
       {/* Create / Edit Event Modal */}
       <CreateEventModal
         open={showCreateModal}
-        onClose={() => { setShowCreateModal(false); setEditEvent(null); }}
+        onClose={() => { setShowCreateModal(false); setEditEvent(null); setAiPrefill(null); }}
         onCreated={fetchEvents}
         prefillDate={createPrefillDate}
         prefillHour={createPrefillHour}
         editEvent={editEvent}
+        aiPrefill={aiPrefill}
       />
 
       {/* Event Detail Modal */}
