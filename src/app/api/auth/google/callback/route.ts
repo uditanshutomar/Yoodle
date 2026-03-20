@@ -84,7 +84,9 @@ export const GET = withHandler(async (req: NextRequest) => {
     }
 
     // Exchange the authorization code for tokens
+    log.info("OAuth callback: exchanging code for tokens");
     const tokens = await exchangeCodeForTokens(code);
+    log.info("OAuth callback: token exchange successful");
 
     if (!tokens.access_token) {
       const loginUrl = new URL("/login", req.url);
@@ -93,9 +95,13 @@ export const GET = withHandler(async (req: NextRequest) => {
     }
 
     // Get the user's Google profile
+    log.info("OAuth callback: fetching Google profile");
     const profile = await getGoogleUserProfile(tokens.access_token);
+    log.info({ email: profile.email }, "OAuth callback: profile fetched");
 
+    log.info("OAuth callback: connecting to DB");
     await connectDB();
+    log.info("OAuth callback: DB connected");
 
     // Find existing user by googleId or email
     let user = await User.findOne({
@@ -189,10 +195,12 @@ export const GET = withHandler(async (req: NextRequest) => {
     }
 
     const userId = user._id.toString();
+    log.info({ userId }, "OAuth callback: user found/created, signing JWTs");
 
     // Generate JWT session tokens
     const accessToken = await signAccessToken(userId);
     const refreshToken = await signRefreshToken(userId);
+    log.info("OAuth callback: JWTs signed successfully");
 
     // Store hashed refresh token
     const refreshTokenHash = await bcrypt.hash(refreshToken, 10);
@@ -228,7 +236,8 @@ export const GET = withHandler(async (req: NextRequest) => {
 
     return response;
   } catch (err) {
-    log.error({ err }, "Google OAuth callback failed");
+    const errMsg = err instanceof Error ? err.message : String(err);
+    log.error({ err, errMsg }, "Google OAuth callback failed");
 
     const loginUrl = new URL("/login", req.url);
     loginUrl.searchParams.set("error", "google_auth_failed");
