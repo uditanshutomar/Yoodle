@@ -3,13 +3,14 @@ import mongoose, { Schema, Document, Model, Types } from "mongoose";
 export const NOTIFICATION_TYPES = [
   "mention", "reply", "meeting_invite", "meeting_starting",
   "task_assigned", "task_due", "ai_action_complete", "ghost_room_expiring",
+  "connection_request",
 ] as const;
 export type NotificationType = (typeof NOTIFICATION_TYPES)[number];
 
 export const NOTIFICATION_PRIORITIES = ["urgent", "normal", "low"] as const;
 export type NotificationPriority = (typeof NOTIFICATION_PRIORITIES)[number];
 
-export const NOTIFICATION_SOURCE_TYPES = ["meeting", "message", "task", "ai"] as const;
+export const NOTIFICATION_SOURCE_TYPES = ["meeting", "message", "task", "ai", "connection"] as const;
 export type NotificationSourceType = (typeof NOTIFICATION_SOURCE_TYPES)[number];
 
 export interface INotification {
