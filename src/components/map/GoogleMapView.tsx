@@ -64,7 +64,7 @@ interface GoogleMapViewProps {
 }
 
 /** Fallback shown when Google Maps API key is missing or fails to load */
-function MapFallback({ lat, lng }: { lat: number; lng: number }) {
+function MapFallback({ lat, lng, error }: { lat: number; lng: number; error?: string }) {
   return (
     <div className="flex h-full w-full flex-col items-center justify-center bg-[#1a1a2e]">
       <div className="text-center space-y-4 p-6 rounded-xl border-2 border-[var(--border-strong)] bg-[var(--surface)] shadow-[4px_4px_0_var(--border-strong)]">
@@ -76,9 +76,16 @@ function MapFallback({ lat, lng }: { lat: number; lng: number }) {
             Map unavailable
           </p>
           <p className="text-xs text-[var(--text-muted)] font-body mt-1 max-w-[240px]">
-            Google Maps couldn&apos;t load. Make sure the Maps JavaScript API is enabled in your Google Cloud Console.
+            Google Maps couldn&apos;t load. Make sure the Maps JavaScript API is enabled and billing is active in your Google Cloud Console.
           </p>
         </div>
+        {error && (
+          <div className="rounded-lg bg-red-500/10 px-3 py-1.5 border border-red-500/30">
+            <p className="text-[11px] text-red-400 font-mono break-all">
+              {error}
+            </p>
+          </div>
+        )}
         <div className="rounded-lg bg-[var(--background)] px-3 py-1.5 border border-[var(--border)]">
           <p className="text-[11px] text-[var(--text-muted)] font-mono">
             📍 {lat.toFixed(4)}, {lng.toFixed(4)}
@@ -95,16 +102,24 @@ export default function GoogleMapView({
   zoom = 13,
   children,
 }: GoogleMapViewProps) {
-  const [loadError, setLoadError] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
-  if (!GOOGLE_MAPS_KEY || loadError) {
-    return <MapFallback lat={lat} lng={lng} />;
+  if (!GOOGLE_MAPS_KEY) {
+    return <MapFallback lat={lat} lng={lng} error="NEXT_PUBLIC_GOOGLE_MAPS_API_KEY is not set" />;
+  }
+
+  if (loadError) {
+    return <MapFallback lat={lat} lng={lng} error={loadError} />;
   }
 
   return (
     <APIProvider
       apiKey={GOOGLE_MAPS_KEY}
-      onLoad={() => setLoadError(false)}
+      onLoad={() => setLoadError(null)}
+      onError={(err) => {
+        console.error("[GoogleMapView] Maps API load error:", err);
+        setLoadError(String(err instanceof Error ? err.message : err));
+      }}
     >
       <Map
         defaultCenter={{ lat, lng }}
