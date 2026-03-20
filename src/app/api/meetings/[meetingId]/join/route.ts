@@ -215,7 +215,7 @@ export const POST = withHandler(async (req: NextRequest, context) => {
   }
 
   const meetingForAccess = await Meeting.findOne(filter)
-    .select("hostId settings status participants -ghostMessages -ghostNotes")
+    .select("hostId settings status participants")
     .lean();
   if (!meetingForAccess) {
     throw new NotFoundError("Meeting not found.");
