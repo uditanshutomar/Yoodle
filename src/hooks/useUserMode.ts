@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { MASCOT_BY_MODE } from "@/components/ai/constants";
+import { useAuth } from "@/hooks/useAuth";
 
 export type UserMode = "social" | "lockin" | "invisible";
 
@@ -13,6 +14,7 @@ interface UseUserModeReturn {
 }
 
 export function useUserMode(): UseUserModeReturn {
+  const { refreshSession } = useAuth();
   const [mode, setMode] = useState<UserMode>("social");
   const [loading, setLoading] = useState(true);
 
@@ -48,11 +50,15 @@ export function useUserMode(): UseUserModeReturn {
       });
       if (!res.ok) {
         setMode(prev); // rollback
+      } else {
+        // Refresh auth context so the AI FAB mascot and other
+        // components using useAuth() pick up the new mode
+        refreshSession();
       }
     } catch {
       setMode(prev); // rollback
     }
-  }, [mode]);
+  }, [mode, refreshSession]);
 
   return {
     mode,
