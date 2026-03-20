@@ -177,8 +177,7 @@ export default function NewMessageModal({
             {/* Header */}
             <div className="flex items-center justify-between px-5 pt-5 pb-0">
               <h2
-                className="text-lg text-[var(--text-primary)] font-bold"
-                style={{ fontFamily: "var(--font-heading)" }}
+                className="text-lg text-[var(--text-primary)] font-bold font-heading"
               >
                 New Message
               </h2>
@@ -371,8 +370,7 @@ export default function NewMessageModal({
                     !groupName.trim() ||
                     selectedMembers.length === 0
                   }
-                  className="w-full bg-[#FFE600] border-2 border-[var(--border-strong)] rounded-xl px-4 py-2 font-bold text-[#0A0A0A] text-sm transition-opacity disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-                  style={{ fontFamily: "var(--font-heading)" }}
+                  className="w-full bg-[#FFE600] border-2 border-[var(--border-strong)] rounded-xl px-4 py-2 font-bold text-[#0A0A0A] text-sm transition-opacity disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 font-heading"
                 >
                   {creating ? (
                     <Loader2 size={16} className="animate-spin" />

@@ -88,14 +88,12 @@ function LoginContent() {
             </motion.div>
             <div>
               <h1
-                className="text-2xl font-black text-[var(--text-primary)]"
-                style={{ fontFamily: "var(--font-heading)" }}
+                className="text-2xl font-black text-[var(--text-primary)] font-heading"
               >
                 Welcome back!
               </h1>
               <p
-                className="text-sm text-[var(--text-secondary)]"
-                style={{ fontFamily: "var(--font-body)" }}
+                className="text-sm text-[var(--text-secondary)] font-body"
               >
                 Let&apos;s get you back in the vibe
               </p>
@@ -119,8 +117,7 @@ function LoginContent() {
             </Button>
 
             <p
-              className="text-xs text-[var(--text-muted)] text-center leading-relaxed"
-              style={{ fontFamily: "var(--font-body)" }}
+              className="text-xs text-[var(--text-muted)] text-center leading-relaxed font-body"
             >
               We&apos;ll connect your Google Workspace so Yoodle can help manage
               your emails, calendar, drive, and more.
@@ -130,14 +127,12 @@ function LoginContent() {
           {/* Footer */}
           <div className="mt-6 pt-4 border-t border-[var(--border)] text-center">
             <p
-              className="text-sm text-[var(--text-secondary)]"
-              style={{ fontFamily: "var(--font-body)" }}
+              className="text-sm text-[var(--text-secondary)] font-body"
             >
               New here?{" "}
               <Link
                 href="/signup"
-                className="font-bold text-[#7C3AED] hover:underline"
-                style={{ fontFamily: "var(--font-heading)" }}
+                className="font-bold text-[#7C3AED] hover:underline font-heading"
               >
                 Sign up
               </Link>

@@ -20,7 +20,7 @@ Yoodle is a Next.js App Router application for meetings, collaboration, and AI-p
 ## Commands
 
 ```bash
-npx vitest run          # Run all tests (896 tests, ~9s)
+npx vitest run          # Run all tests (903 tests, ~9s)
 npx next build          # Production build with TypeScript + ESLint checks
 npx next dev            # Development server
 ```
@@ -102,6 +102,8 @@ npx next dev            # Development server
 - `useBroadcastPoll` has a `disposed` guard to prevent state updates after unmount
 - `document.visibilityState === "hidden"` guard on all polling intervals
 - React Compiler is active — **never assign ref.current during render**, only in effects/handlers
+- Use `flushSync` from `react-dom` when a state update must be visible to a ref before a subsequent synchronous read (e.g., KanbanBoard drag-end)
+- For callbacks used in event handlers that reference changing state, use refs (`.current`) for stable closures instead of capturing stale values
 - LiveKit transport uses SDK-native `reconnectPolicy` with exponential backoff (1s → 16s, max 5 attempts)
 
 ### Pagination
@@ -186,6 +188,8 @@ src/components/       # React components (desk, board, meeting, chat, ghost, pul
 - Test files live next to source: `__tests__/route.test.ts`
 - Use `vi.mock()` for module mocking, `vi.fn()` for function mocks
 - Mock chain pattern for Mongoose: `{ select: vi.fn().mockReturnThis(), lean: vi.fn() }`
+- Mock chains must include **every** chained method the route uses (`.sort()`, `.limit()`, `.populate()`, etc.) — missing methods break the chain silently
+- Use valid 24-char hex ObjectId strings in test data (e.g., `"607f1f77bcf86cd799439022"`) — short IDs like `"u1"` throw when passed to `new mongoose.Types.ObjectId()`
 - Always mock `@/lib/infra/db/client`, `@/lib/infra/api/rate-limit`, `@/lib/infra/auth/middleware`
 - Always mock `server-only` when testing server modules: `vi.mock('server-only', () => ({}))`
 - Mock `@/lib/infra/redis/cache` with `getCached`, `setCache`, `invalidateCache`
@@ -204,6 +208,8 @@ src/components/       # React components (desk, board, meeting, chat, ghost, pul
 - `Promise.allSettled` for batch operations where partial failure is acceptable
 - AI tool args get runtime type coercion (Gemini sends wrong types)
 - AI memory capped at 200 per user with LRU eviction
+- People search is scoped to conversation contacts only — never query all users (see `src/app/api/search/route.ts`)
+- Meeting invite notifications fire from the **join** route (not creation) — at creation time, only the host exists in participants
 - Health endpoint service details gated behind `HEALTH_DETAIL_SECRET` header
 - Recording speakerId validated against meeting participants
 - `server-only` guards prevent accidental client-side import of secrets

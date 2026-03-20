@@ -219,10 +219,10 @@ export default function GhostRoomPage() {
     return (
       <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex flex-col items-center justify-center py-20 text-center">
         <Ghost size={48} className="text-[#7C3AED] mb-4" />
-        <h2 className="text-xl font-bold text-[var(--text-primary)] mb-2" style={{ fontFamily: "var(--font-heading)" }}>
+        <h2 className="text-xl font-bold text-[var(--text-primary)] mb-2 font-heading">
           {error || "Ghost room vanished 👻"}
         </h2>
-        <p className="text-sm text-[var(--text-secondary)] mb-6" style={{ fontFamily: "var(--font-body)" }}>
+        <p className="text-sm text-[var(--text-secondary)] mb-6 font-body">
           This room has expired or doesn&apos;t exist anymore.
         </p>
         <Link href="/meetings">
@@ -242,13 +242,13 @@ export default function GhostRoomPage() {
       <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-4 h-full">
         {/* Action error */}
         {actionError && (
-          <div className="bg-red-50 border-2 border-red-300 rounded-xl px-4 py-2 text-sm text-red-600" style={{ fontFamily: "var(--font-body)" }}>
+          <div className="bg-red-50 border-2 border-red-300 rounded-xl px-4 py-2 text-sm text-red-600 font-body">
             {actionError}
           </div>
         )}
 
         {/* Back link */}
-        <Link href="/meetings" className="inline-flex items-center gap-1 text-sm text-[var(--text-secondary)] hover:text-[#7C3AED] transition-colors" style={{ fontFamily: "var(--font-body)" }}>
+        <Link href="/meetings" className="inline-flex items-center gap-1 text-sm text-[var(--text-secondary)] hover:text-[#7C3AED] transition-colors font-body">
           <ArrowLeft size={14} /> Back to Ghost Rooms
         </Link>
 
@@ -269,8 +269,7 @@ export default function GhostRoomPage() {
               {room.meetingId ? (
                 <button
                   onClick={handleJoinCall}
-                  className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-[#7C3AED] text-white font-bold rounded-xl border-2 border-[var(--border-strong)] shadow-[3px_3px_0_var(--border-strong)] hover:translate-y-[1px] hover:shadow-[2px_2px_0_var(--border-strong)] transition-all cursor-pointer"
-                  style={{ fontFamily: "var(--font-heading)" }}
+                  className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-[#7C3AED] text-white font-bold rounded-xl border-2 border-[var(--border-strong)] shadow-[3px_3px_0_var(--border-strong)] hover:translate-y-[1px] hover:shadow-[2px_2px_0_var(--border-strong)] transition-all cursor-pointer font-heading"
                 >
                   <Video size={18} />
                   Join Active Call
@@ -279,8 +278,7 @@ export default function GhostRoomPage() {
                 <button
                   onClick={handleStartCall}
                   disabled={startingCall}
-                  className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-[#7C3AED] text-white font-bold rounded-xl border-2 border-[var(--border-strong)] shadow-[3px_3px_0_var(--border-strong)] hover:translate-y-[1px] hover:shadow-[2px_2px_0_var(--border-strong)] transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-                  style={{ fontFamily: "var(--font-heading)" }}
+                  className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-[#7C3AED] text-white font-bold rounded-xl border-2 border-[var(--border-strong)] shadow-[3px_3px_0_var(--border-strong)] hover:translate-y-[1px] hover:shadow-[2px_2px_0_var(--border-strong)] transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed font-heading"
                 >
                   <Video size={18} />
                   {startingCall ? "Starting Call..." : "Start Video Call"}
@@ -302,13 +300,13 @@ export default function GhostRoomPage() {
 
             {/* Participants */}
             <div className="bg-[var(--surface)] border-2 border-[#7C3AED] rounded-2xl shadow-[4px_4px_0_#7C3AED] p-5">
-              <h3 className="text-base font-bold text-[var(--text-primary)] mb-3" style={{ fontFamily: "var(--font-heading)" }}>
+              <h3 className="text-base font-bold text-[var(--text-primary)] mb-3 font-heading">
                 Participants ({totalParticipants})
               </h3>
               <div className="space-y-2">
                 {room.participants?.map((p) => (
                   <div key={p.userId} className="flex items-center justify-between text-sm">
-                    <span className="text-[var(--text-primary)]" style={{ fontFamily: "var(--font-body)" }}>
+                    <span className="text-[var(--text-primary)] font-body">
                       {p.displayName || p.name}
                       {p.userId === room.hostId && (
                         <span className="ml-1 text-[10px] text-[#7C3AED] font-bold">HOST</span>
@@ -322,15 +320,14 @@ export default function GhostRoomPage() {
 
             {/* Shared Notes */}
             <div className="bg-[var(--surface)] border-2 border-[#7C3AED] rounded-2xl shadow-[4px_4px_0_#7C3AED] p-5">
-              <h3 className="text-base font-bold text-[var(--text-primary)] mb-3" style={{ fontFamily: "var(--font-heading)" }}>
+              <h3 className="text-base font-bold text-[var(--text-primary)] mb-3 font-heading">
                 📝 Shared Notes
               </h3>
               <textarea
                 value={localNotes}
                 onChange={(e) => handleNotesChange(e.target.value)}
                 placeholder="Collaborative notes — everyone can edit. Auto-saves..."
-                className="w-full h-28 bg-[var(--surface-hover)] border border-[var(--border)] rounded-xl px-3 py-2 text-xs text-[var(--text-primary)] placeholder:text-[var(--text-muted)] outline-none resize-none focus:border-[#7C3AED] transition-colors"
-                style={{ fontFamily: "var(--font-body)" }}
+                className="w-full h-28 bg-[var(--surface-hover)] border border-[var(--border)] rounded-xl px-3 py-2 text-xs text-[var(--text-primary)] placeholder:text-[var(--text-muted)] outline-none resize-none focus:border-[#7C3AED] transition-colors font-body"
               />
               <p className="text-[10px] text-[var(--text-muted)] mt-1">
                 Notes are saved if everyone votes to keep the room.
@@ -338,7 +335,7 @@ export default function GhostRoomPage() {
             </div>
 
             {/* Room Info */}
-            <div className="bg-[var(--surface)] border-2 border-[var(--border)] rounded-2xl p-4 text-xs text-[var(--text-secondary)]" style={{ fontFamily: "var(--font-body)" }}>
+            <div className="bg-[var(--surface)] border-2 border-[var(--border)] rounded-2xl p-4 text-xs text-[var(--text-secondary)] font-body">
               <p>Room Code: <span className="font-mono font-bold text-[#7C3AED]">{room.code}</span></p>
               <p className="mt-1">Share this code to invite others</p>
             </div>

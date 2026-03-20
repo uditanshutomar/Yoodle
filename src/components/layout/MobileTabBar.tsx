@@ -40,7 +40,7 @@ export default function MobileTabBar() {
             key={tab.href}
             href={tab.href}
             aria-current={active ? "page" : undefined}
-            className={`relative flex flex-col items-center gap-0.5 px-2 py-1.5 rounded-lg transition-colors ${
+            className={`relative flex flex-col items-center gap-0.5 px-2 py-1.5 rounded-lg transition-colors focus-visible:ring-2 focus-visible:ring-[#FFE600] focus-visible:outline-none ${
               active
                 ? "text-[var(--text-primary)]"
                 : "text-[var(--text-muted)]"
@@ -58,8 +58,7 @@ export default function MobileTabBar() {
               )}
             </div>
             <span
-              className={`text-[10px] font-bold ${active ? "text-[var(--text-primary)]" : ""}`}
-              style={{ fontFamily: "var(--font-heading)" }}
+              className={`text-[10px] font-bold ${active ? "text-[var(--text-primary)]" : ""} font-heading`}
             >
               {tab.label}
             </span>

@@ -63,14 +63,12 @@ export default function SignupPage() {
             </motion.div>
             <div>
               <h1
-                className="text-2xl font-black text-[var(--text-primary)]"
-                style={{ fontFamily: "var(--font-heading)" }}
+                className="text-2xl font-black text-[var(--text-primary)] font-heading"
               >
                 Join the vibe
               </h1>
               <p
-                className="text-sm text-[var(--text-secondary)]"
-                style={{ fontFamily: "var(--font-body)" }}
+                className="text-sm text-[var(--text-secondary)] font-body"
               >
                 Create your Yoodle account in one click
               </p>
@@ -94,8 +92,7 @@ export default function SignupPage() {
             </Button>
 
             <p
-              className="text-xs text-[var(--text-muted)] text-center leading-relaxed"
-              style={{ fontFamily: "var(--font-body)" }}
+              className="text-xs text-[var(--text-muted)] text-center leading-relaxed font-body"
             >
               By signing up, you&apos;ll connect your Google Workspace so Yoodle
               can help with your emails, calendar, docs, and everything else.
@@ -105,14 +102,12 @@ export default function SignupPage() {
           {/* Footer */}
           <div className="mt-6 pt-4 border-t border-[var(--border)] text-center">
             <p
-              className="text-sm text-[var(--text-secondary)]"
-              style={{ fontFamily: "var(--font-body)" }}
+              className="text-sm text-[var(--text-secondary)] font-body"
             >
               Already vibing?{" "}
               <Link
                 href="/login"
-                className="font-bold text-[#7C3AED] hover:underline"
-                style={{ fontFamily: "var(--font-heading)" }}
+                className="font-bold text-[#7C3AED] hover:underline font-heading"
               >
                 Log in
               </Link>

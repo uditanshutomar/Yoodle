@@ -141,8 +141,7 @@ export default function RecordingPage() {
           Back
         </Button>
         <h1
-          className="text-2xl font-black text-[var(--text-primary)]"
-          style={{ fontFamily: "var(--font-heading)" }}
+          className="text-2xl font-black text-[var(--text-primary)] font-heading"
         >
           Recording & Transcript
         </h1>
@@ -159,8 +158,7 @@ export default function RecordingPage() {
             <Card>
               <div className="flex items-center justify-between mb-4">
                 <h3
-                  className="text-base font-bold text-[var(--text-primary)]"
-                  style={{ fontFamily: "var(--font-heading)" }}
+                  className="text-base font-bold text-[var(--text-primary)] font-heading"
                 >
                   Recording
                 </h3>
@@ -186,8 +184,7 @@ export default function RecordingPage() {
                     <div className="flex flex-col items-center justify-center h-48 bg-[var(--foreground)] rounded-xl">
                       <Video size={28} className="text-[var(--background)]/40 mb-2" />
                       <span
-                        className="text-sm text-[var(--background)]/60 mb-3"
-                        style={{ fontFamily: "var(--font-body)" }}
+                        className="text-sm text-[var(--background)]/60 mb-3 font-body"
                       >
                         Recording stored in Google Drive
                       </span>
@@ -196,8 +193,7 @@ export default function RecordingPage() {
                           href={latestRecording.viewUrl}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="flex items-center gap-1.5 text-xs font-bold text-[#FFE600] hover:underline"
-                          style={{ fontFamily: "var(--font-heading)" }}
+                          className="flex items-center gap-1.5 text-xs font-bold text-[#FFE600] hover:underline font-heading"
                         >
                           <ExternalLink size={12} />
                           Open in Google Drive
@@ -248,8 +244,7 @@ export default function RecordingPage() {
                 <div className="flex flex-col items-center justify-center h-32 bg-[var(--foreground)] rounded-xl">
                   <Video size={28} className="text-[var(--background)]/20 mb-2" />
                   <span
-                    className="text-sm text-[var(--background)]/40"
-                    style={{ fontFamily: "var(--font-body)" }}
+                    className="text-sm text-[var(--background)]/40 font-body"
                   >
                     No recording available
                   </span>
@@ -257,8 +252,7 @@ export default function RecordingPage() {
               )}
 
               <p
-                className="text-xs text-[var(--text-muted)] mt-2 text-center"
-                style={{ fontFamily: "var(--font-body)" }}
+                className="text-xs text-[var(--text-muted)] mt-2 text-center font-body"
               >
                 {latestRecording
                   ? `Recorded ${latestRecording.createdTime ? new Date(latestRecording.createdTime).toLocaleDateString() : ""}`
@@ -270,8 +264,7 @@ export default function RecordingPage() {
             {recordings.length > 1 && (
               <Card>
                 <h3
-                  className="text-sm font-bold text-[var(--text-primary)] mb-3"
-                  style={{ fontFamily: "var(--font-heading)" }}
+                  className="text-sm font-bold text-[var(--text-primary)] mb-3 font-heading"
                 >
                   All Recordings ({recordings.length})
                 </h3>
@@ -313,8 +306,7 @@ export default function RecordingPage() {
                 <div className="flex items-center gap-2">
                   <FileText size={16} className="text-[var(--text-primary)]" />
                   <h3
-                    className="text-base font-bold text-[var(--text-primary)]"
-                    style={{ fontFamily: "var(--font-heading)" }}
+                    className="text-base font-bold text-[var(--text-primary)] font-heading"
                   >
                     Transcript
                   </h3>
@@ -338,14 +330,12 @@ export default function RecordingPage() {
                     className="mx-auto text-[var(--text-muted)] mb-3"
                   />
                   <p
-                    className="text-sm text-[var(--text-muted)]"
-                    style={{ fontFamily: "var(--font-body)" }}
+                    className="text-sm text-[var(--text-muted)] font-body"
                   >
                     No transcript available for this meeting.
                   </p>
                   <p
-                    className="text-xs text-[var(--text-muted)] mt-1"
-                    style={{ fontFamily: "var(--font-body)" }}
+                    className="text-xs text-[var(--text-muted)] mt-1 font-body"
                   >
                     Enable captions during a meeting to generate a transcript.
                   </p>
@@ -359,14 +349,12 @@ export default function RecordingPage() {
                       </span>
                       <div>
                         <span
-                          className="text-xs font-bold text-[var(--text-primary)]"
-                          style={{ fontFamily: "var(--font-heading)" }}
+                          className="text-xs font-bold text-[var(--text-primary)] font-heading"
                         >
                           {seg.speakerName}
                         </span>
                         <p
-                          className="text-sm text-[var(--text-secondary)]"
-                          style={{ fontFamily: "var(--font-body)" }}
+                          className="text-sm text-[var(--text-secondary)] font-body"
                         >
                           {seg.text}
                         </p>

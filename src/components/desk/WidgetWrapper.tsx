@@ -29,8 +29,7 @@ export default function WidgetWrapper({
           aria-hidden="true"
         />
         <span
-          className="text-sm font-bold text-[var(--text-primary)] flex-1 truncate"
-          style={{ fontFamily: "var(--font-heading)" }}
+          className="text-sm font-bold text-[var(--text-primary)] flex-1 truncate font-heading"
         >
           {meta.title}
         </span>

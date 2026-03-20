@@ -22,8 +22,7 @@ export default function YoodlerSaysWidget() {
             aria-hidden="true"
           />
           <p
-            className="text-xs text-[var(--text-secondary)] leading-relaxed"
-            style={{ fontFamily: "var(--font-body)" }}
+            className="text-xs text-[var(--text-secondary)] leading-relaxed font-body"
           >
             {text}
           </p>

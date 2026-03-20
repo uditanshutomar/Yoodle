@@ -26,8 +26,7 @@ export default function CTA() {
           transition={{ duration: 0.7 }}
         >
           <h2
-            className="text-4xl font-black tracking-tight text-white sm:text-6xl"
-            style={{ fontFamily: "var(--font-heading)" }}
+            className="text-4xl font-black tracking-tight text-white sm:text-6xl font-heading"
           >
             Ready to ditch
             <br />
@@ -42,8 +41,7 @@ export default function CTA() {
           </h2>
 
           <p
-            className="mx-auto mt-6 max-w-md text-lg text-white/50"
-            style={{ fontFamily: "var(--font-body)" }}
+            className="mx-auto mt-6 max-w-md text-lg text-white/50 font-body"
           >
             Join the new workforce. Meetings that feel like hanging out with your team.
           </p>
@@ -53,8 +51,7 @@ export default function CTA() {
               href="/login"
               whileHover={{ scale: 1.05, y: -2 }}
               whileTap={{ scale: 0.97 }}
-              className="inline-flex items-center gap-2 rounded-full bg-[#FFE600] px-10 py-4 text-lg font-bold text-[#0A0A0A] shadow-[5px_5px_0_rgba(255,230,0,0.3)] transition-all hover:shadow-[3px_3px_0_rgba(255,230,0,0.3)]"
-              style={{ fontFamily: "var(--font-heading)" }}
+              className="inline-flex items-center gap-2 rounded-full bg-[#FFE600] px-10 py-4 text-lg font-bold text-[#0A0A0A] shadow-[5px_5px_0_rgba(255,230,0,0.3)] transition-all hover:shadow-[3px_3px_0_rgba(255,230,0,0.3)] font-heading"
             >
               Launch App
               <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
@@ -66,8 +63,7 @@ export default function CTA() {
               href="/waitlist"
               whileHover={{ scale: 1.03 }}
               whileTap={{ scale: 0.97 }}
-              className="text-sm font-semibold text-white/60 underline decoration-[#FFE600] decoration-2 underline-offset-4 transition-colors hover:text-white"
-              style={{ fontFamily: "var(--font-heading)" }}
+              className="text-sm font-semibold text-white/60 underline decoration-[#FFE600] decoration-2 underline-offset-4 transition-colors hover:text-white font-heading"
             >
               or join the waitlist
             </motion.a>

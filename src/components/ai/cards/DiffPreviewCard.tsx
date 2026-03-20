@@ -49,8 +49,7 @@ export default function DiffPreviewCard({ data, onConfirm, onDeny }: DiffPreview
         </div>
         <div className="flex-1 min-w-0">
           <p
-            className="text-xs font-semibold text-[var(--text-primary)] leading-snug"
-            style={{ fontFamily: "var(--font-heading)" }}
+            className="text-xs font-semibold text-[var(--text-primary)] leading-snug font-heading"
           >
             {data.actionSummary}
           </p>
@@ -69,14 +68,12 @@ export default function DiffPreviewCard({ data, onConfirm, onDeny }: DiffPreview
               className="flex items-baseline gap-2 px-2 py-1 rounded-md bg-[var(--surface-hover)]"
             >
               <span
-                className="text-[10px] font-bold uppercase tracking-wide text-[var(--text-muted)] shrink-0"
-                style={{ fontFamily: "var(--font-heading)" }}
+                className="text-[10px] font-bold uppercase tracking-wide text-[var(--text-muted)] shrink-0 font-heading"
               >
                 {field.label}:
               </span>
               <span
-                className="text-[11px] text-[var(--text-primary)] truncate"
-                style={{ fontFamily: "var(--font-body)" }}
+                className="text-[11px] text-[var(--text-primary)] truncate font-body"
                 title={field.value}
               >
                 {field.value}
@@ -101,8 +98,7 @@ export default function DiffPreviewCard({ data, onConfirm, onDeny }: DiffPreview
               whileHover={{ scale: 1.03 }}
               whileTap={{ scale: 0.97 }}
               onClick={handleConfirm}
-              className="flex-1 flex items-center justify-center gap-1.5 rounded-lg bg-green-500 text-white text-[11px] font-bold py-1.5 px-3 border-2 border-green-600 shadow-[2px_2px_0_#166534] hover:shadow-[1px_1px_0_#166534] hover:translate-x-[1px] hover:translate-y-[1px] transition-all"
-              style={{ fontFamily: "var(--font-heading)" }}
+              className="flex-1 flex items-center justify-center gap-1.5 rounded-lg bg-green-500 text-white text-[11px] font-bold py-1.5 px-3 border-2 border-green-600 shadow-[2px_2px_0_#166534] hover:shadow-[1px_1px_0_#166534] hover:translate-x-[1px] hover:translate-y-[1px] transition-all font-heading"
             >
               <Check size={12} /> Confirm
             </motion.button>
@@ -110,8 +106,7 @@ export default function DiffPreviewCard({ data, onConfirm, onDeny }: DiffPreview
               whileHover={{ scale: 1.03 }}
               whileTap={{ scale: 0.97 }}
               onClick={handleDeny}
-              className="flex-1 flex items-center justify-center gap-1.5 rounded-lg bg-[var(--surface-hover)] text-[var(--text-secondary)] text-[11px] font-bold py-1.5 px-3 border-2 border-[var(--border-default)] shadow-[2px_2px_0_var(--border-strong)] hover:shadow-[1px_1px_0_var(--border-strong)] hover:translate-x-[1px] hover:translate-y-[1px] transition-all"
-              style={{ fontFamily: "var(--font-heading)" }}
+              className="flex-1 flex items-center justify-center gap-1.5 rounded-lg bg-[var(--surface-hover)] text-[var(--text-secondary)] text-[11px] font-bold py-1.5 px-3 border-2 border-[var(--border-default)] shadow-[2px_2px_0_var(--border-strong)] hover:shadow-[1px_1px_0_var(--border-strong)] hover:translate-x-[1px] hover:translate-y-[1px] transition-all font-heading"
             >
               <X size={12} /> Cancel
             </motion.button>

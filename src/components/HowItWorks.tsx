@@ -10,9 +10,9 @@ const steps = [
     desc: "One click. You're in the room.",
     icon: (
       <svg width="64" height="64" viewBox="0 0 64 64" fill="none">
-        <circle cx="32" cy="32" r="24" stroke="#1A1A1A" strokeWidth="2.5" fill="none" />
+        <circle cx="32" cy="32" r="24" stroke="var(--doodle)" strokeWidth="2.5" fill="none" />
         <path d="M26 28L32 22L38 28" stroke="#FFE600" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
-        <line x1="32" y1="22" x2="32" y2="42" stroke="#1A1A1A" strokeWidth="2.5" strokeLinecap="round" />
+        <line x1="32" y1="22" x2="32" y2="42" stroke="var(--doodle)" strokeWidth="2.5" strokeLinecap="round" />
       </svg>
     ),
   },
@@ -22,12 +22,12 @@ const steps = [
     desc: "Meet. Code. Brainstorm. Whatever.",
     icon: (
       <svg width="64" height="64" viewBox="0 0 64 64" fill="none">
-        <rect x="10" y="14" width="44" height="32" rx="6" stroke="#1A1A1A" strokeWidth="2.5" fill="none" />
+        <rect x="10" y="14" width="44" height="32" rx="6" stroke="var(--doodle)" strokeWidth="2.5" fill="none" />
         <circle cx="24" cy="28" r="5" fill="#FFE600" />
         <circle cx="40" cy="28" r="5" fill="#FFE600" />
-        <path d="M24 38H40" stroke="#1A1A1A" strokeWidth="2" strokeLinecap="round" strokeDasharray="4 4" />
-        <line x1="32" y1="46" x2="32" y2="52" stroke="#1A1A1A" strokeWidth="2" strokeLinecap="round" />
-        <line x1="24" y1="52" x2="40" y2="52" stroke="#1A1A1A" strokeWidth="2" strokeLinecap="round" />
+        <path d="M24 38H40" stroke="var(--doodle)" strokeWidth="2" strokeLinecap="round" strokeDasharray="4 4" />
+        <line x1="32" y1="46" x2="32" y2="52" stroke="var(--doodle)" strokeWidth="2" strokeLinecap="round" />
+        <line x1="24" y1="52" x2="40" y2="52" stroke="var(--doodle)" strokeWidth="2" strokeLinecap="round" />
       </svg>
     ),
   },
@@ -37,10 +37,10 @@ const steps = [
     desc: "Notes. Tasks. Follow-ups. Done.",
     icon: (
       <svg width="64" height="64" viewBox="0 0 64 64" fill="none">
-        <path d="M20 44L28 36L32 40L44 24" stroke="#1A1A1A" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+        <path d="M20 44L28 36L32 40L44 24" stroke="var(--doodle)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
         <circle cx="44" cy="24" r="4" fill="#FFE600" />
-        <rect x="10" y="12" width="44" height="40" rx="6" stroke="#1A1A1A" strokeWidth="2.5" fill="none" />
-        <path d="M10 20H54" stroke="#1A1A1A" strokeWidth="1.5" />
+        <rect x="10" y="12" width="44" height="40" rx="6" stroke="var(--doodle)" strokeWidth="2.5" fill="none" />
+        <path d="M10 20H54" stroke="var(--doodle)" strokeWidth="1.5" />
         <circle cx="16" cy="16" r="1.5" fill="#FF6B6B" />
         <circle cx="22" cy="16" r="1.5" fill="#FFE600" />
         <circle cx="28" cy="16" r="1.5" fill="#22C55E" />
@@ -61,14 +61,12 @@ export default function HowItWorks() {
           viewport={{ once: true }}
         >
           <h2
-            className="text-4xl font-black tracking-tight text-[#0A0A0A] sm:text-5xl"
-            style={{ fontFamily: "var(--font-heading)" }}
+            className="text-4xl font-black tracking-tight text-[var(--text-primary)] sm:text-5xl font-heading"
           >
             Stupid simple.
           </h2>
           <p
-            className="mt-3 text-lg text-[#0A0A0A]/50"
-            style={{ fontFamily: "var(--font-body)" }}
+            className="mt-3 text-lg text-[var(--text-muted)] font-body"
           >
             Three steps. That&apos;s it.
           </p>
@@ -89,8 +87,7 @@ export default function HowItWorks() {
               <span
                 className="mb-4 text-6xl font-black text-[#FFE600]"
                 style={{
-                  fontFamily: "var(--font-heading)",
-                  WebkitTextStroke: "2px #0A0A0A",
+                  WebkitTextStroke: "2px var(--doodle)",
                 }}
               >
                 {step.num}
@@ -101,16 +98,14 @@ export default function HowItWorks() {
 
               {/* Title */}
               <h3
-                className="mb-2 text-xl font-bold text-[#0A0A0A]"
-                style={{ fontFamily: "var(--font-heading)" }}
+                className="mb-2 text-xl font-bold text-[var(--text-primary)] font-heading"
               >
                 {step.title}
               </h3>
 
               {/* Desc */}
               <p
-                className="text-sm text-[#0A0A0A]/55"
-                style={{ fontFamily: "var(--font-body)" }}
+                className="text-sm text-[var(--text-muted)] font-body"
               >
                 {step.desc}
               </p>

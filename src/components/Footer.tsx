@@ -23,17 +23,13 @@ const socials = [
 
 export default function Footer() {
   return (
-    <footer className="border-t-2 border-[#0A0A0A]/10 px-6 py-12 lg:px-8">
+    <footer className="border-t-2 border-[var(--border)] px-6 py-12 lg:px-8">
       <div className="mx-auto flex max-w-7xl flex-col items-center justify-between gap-6 sm:flex-row">
         {/* Logo */}
-        <Link href="/" className="flex items-center gap-1">
+        <Link href="/" className="flex items-center gap-1 focus-visible:ring-2 focus-visible:ring-[#FFE600] focus-visible:outline-none rounded">
           <span
-            className="text-2xl font-black tracking-tight"
-            style={{
-              fontFamily: "var(--font-heading)",
-              color: "#0A0A0A",
-              textShadow: "2px 2px 0 #FFE600",
-            }}
+            className="text-2xl font-black tracking-tight text-[var(--text-primary)] font-heading"
+            style={{ textShadow: "2px 2px 0 #FFE600" }}
           >
             Yoodle
           </span>
@@ -42,32 +38,28 @@ export default function Footer() {
         {/* Tagline + Legal */}
         <div className="flex flex-col items-center gap-2 sm:flex-row sm:gap-4">
           <p
-            className="text-sm text-[#0A0A0A]/60"
-            style={{ fontFamily: "var(--font-body)" }}
+            className="text-sm text-[var(--text-muted)] font-body"
           >
             Made for the new workforce.
           </p>
-          <span className="text-sm text-[#0A0A0A]/60">|</span>
+          <span className="text-sm text-[var(--text-muted)]">|</span>
           <div className="flex items-center gap-3">
             <Link
               href="/privacy"
-              className="text-sm text-[#0A0A0A]/60 hover:text-[#0A0A0A]/70 transition-colors"
-              style={{ fontFamily: "var(--font-body)" }}
+              className="text-sm text-[var(--text-muted)] hover:text-[var(--text-secondary)] transition-colors focus-visible:ring-2 focus-visible:ring-[#FFE600] focus-visible:outline-none focus-visible:rounded font-body"
             >
               Privacy
             </Link>
             <Link
               href="/terms"
-              className="text-sm text-[#0A0A0A]/60 hover:text-[#0A0A0A]/70 transition-colors"
-              style={{ fontFamily: "var(--font-body)" }}
+              className="text-sm text-[var(--text-muted)] hover:text-[var(--text-secondary)] transition-colors focus-visible:ring-2 focus-visible:ring-[#FFE600] focus-visible:outline-none focus-visible:rounded font-body"
             >
               Terms
             </Link>
           </div>
-          <span className="text-sm text-[#0A0A0A]/60">|</span>
+          <span className="text-sm text-[var(--text-muted)]">|</span>
           <p
-            className="text-sm text-[#0A0A0A]/60"
-            style={{ fontFamily: "var(--font-body)" }}
+            className="text-sm text-[var(--text-muted)] font-body"
           >
             MIT License
           </p>
@@ -75,8 +67,7 @@ export default function Footer() {
             href="https://github.com/uditanshutomar/Yoodle"
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex items-center gap-1.5 rounded-full border-2 border-[#0A0A0A]/20 px-3 py-1 text-xs font-bold text-[#0A0A0A]/60 transition-colors hover:border-[#0A0A0A] hover:bg-[#FFE600] hover:text-[#0A0A0A]"
-            style={{ fontFamily: "var(--font-heading)" }}
+            className="inline-flex items-center gap-1.5 rounded-full border-2 border-[var(--border)] px-3 py-1 text-xs font-bold text-[var(--text-muted)] transition-colors hover:border-[var(--border-strong)] hover:bg-[#FFE600] hover:text-[#0A0A0A] focus-visible:ring-2 focus-visible:ring-[#FFE600] focus-visible:outline-none font-heading"
           >
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none">
               <path
@@ -98,11 +89,11 @@ export default function Footer() {
               rel="noopener noreferrer"
               whileHover={{ y: -2, scale: 1.1 }}
               whileTap={{ scale: 0.95 }}
-              className="flex h-10 w-10 items-center justify-center rounded-full border-2 border-[#0A0A0A]/20 transition-colors hover:border-[#0A0A0A] hover:bg-[#FFE600]"
+              className="flex h-10 w-10 items-center justify-center rounded-full border-2 border-[var(--border)] transition-colors hover:border-[var(--border-strong)] hover:bg-[#FFE600] focus-visible:ring-2 focus-visible:ring-[#FFE600] focus-visible:outline-none"
               aria-label={social.label}
             >
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-                <path d={social.path} stroke="#0A0A0A" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                <path d={social.path} stroke="var(--text-primary)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
               </svg>
             </motion.a>
           ))}

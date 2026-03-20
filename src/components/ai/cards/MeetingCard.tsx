@@ -54,8 +54,7 @@ export default function MeetingCard({ data, onJoin }: MeetingCardProps) {
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
             <p
-              className="text-xs font-medium leading-snug text-[var(--text-primary)] truncate"
-              style={{ fontFamily: "var(--font-body)" }}
+              className="text-xs font-medium leading-snug text-[var(--text-primary)] truncate font-body"
             >
               {data.title}
             </p>

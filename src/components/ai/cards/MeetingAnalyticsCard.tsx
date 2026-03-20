@@ -41,8 +41,7 @@ export default function MeetingAnalyticsCard({ data }: Props) {
         <div className="flex items-center gap-2">
           <BarChart3 size={16} className="text-[var(--text-muted)]" />
           <h4
-            className="text-xs font-bold text-[var(--text-primary)]"
-            style={{ fontFamily: "var(--font-heading)" }}
+            className="text-xs font-bold text-[var(--text-primary)] font-heading"
           >
             {data.meetingTitle}
           </h4>
@@ -78,8 +77,7 @@ export default function MeetingAnalyticsCard({ data }: Props) {
       {data.speakerStats.length > 0 && (
         <div className="space-y-1.5">
           <p
-            className="text-[10px] font-bold uppercase tracking-wide text-[var(--text-secondary)]"
-            style={{ fontFamily: "var(--font-heading)" }}
+            className="text-[10px] font-bold uppercase tracking-wide text-[var(--text-secondary)] font-heading"
           >
             Speaker Stats
           </p>
@@ -106,8 +104,7 @@ export default function MeetingAnalyticsCard({ data }: Props) {
       {data.highlights.length > 0 && (
         <div className="space-y-1">
           <p
-            className="text-[10px] font-bold uppercase tracking-wide text-[var(--text-secondary)]"
-            style={{ fontFamily: "var(--font-heading)" }}
+            className="text-[10px] font-bold uppercase tracking-wide text-[var(--text-secondary)] font-heading"
           >
             Highlights
           </p>

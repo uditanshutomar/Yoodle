@@ -43,17 +43,15 @@ export default function ReconnectionOverlay({
                   <WifiOff size={28} className="text-white" />
                 </div>
                 <h2
-                  className="text-xl font-bold text-[#0A0A0A] mb-2"
-                  style={{ fontFamily: "var(--font-heading)" }}
+                  className="text-xl font-bold text-[var(--text-primary)] mb-2 font-heading"
                 >
                   Connection Lost
                 </h2>
-                <p className="text-sm text-[#0A0A0A]/60 mb-6">
+                <p className="text-sm text-[var(--text-muted)] mb-6">
                   Unable to reconnect after {maxAttempts} attempts. Please rejoin the meeting.
                 </p>
                 <motion.button
-                  className="w-full py-3 rounded-xl border-2 border-[var(--border-strong)] bg-[#FF6B6B] text-white font-bold shadow-[3px_3px_0_var(--border-strong)] cursor-pointer flex items-center justify-center gap-2"
-                  style={{ fontFamily: "var(--font-heading)" }}
+                  className="w-full py-3 rounded-xl border-2 border-[var(--border-strong)] bg-[#FF6B6B] text-white font-bold shadow-[3px_3px_0_var(--border-strong)] cursor-pointer flex items-center justify-center gap-2 font-heading"
                   whileHover={{ scale: 1.02 }}
                   whileTap={{ scale: 0.98 }}
                   onClick={onLeave}
@@ -74,12 +72,11 @@ export default function ReconnectionOverlay({
                   </motion.div>
                 </div>
                 <h2
-                  className="text-xl font-bold text-[#0A0A0A] mb-2"
-                  style={{ fontFamily: "var(--font-heading)" }}
+                  className="text-xl font-bold text-[var(--text-primary)] mb-2 font-heading"
                 >
                   Reconnecting...
                 </h2>
-                <p className="text-sm text-[#0A0A0A]/60 mb-4">
+                <p className="text-sm text-[var(--text-muted)] mb-4">
                   Attempting to restore your connection
                 </p>
                 <div className="flex items-center justify-center gap-1 mb-6" aria-hidden="true">
@@ -89,12 +86,12 @@ export default function ReconnectionOverlay({
                       className={`h-2 w-2 rounded-full border border-[var(--border-strong)]/20 ${
                         i < attemptCount
                           ? "bg-[#FFE600]"
-                          : "bg-[#0A0A0A]/10"
+                          : "bg-[var(--text-primary)]/10"
                       }`}
                     />
                   ))}
                 </div>
-                <p className="text-xs text-[#0A0A0A]/40">
+                <p className="text-xs text-[var(--text-muted)]">
                   Attempt {attemptCount} of {maxAttempts}
                 </p>
               </>

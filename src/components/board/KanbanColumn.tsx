@@ -73,8 +73,7 @@ export default function KanbanColumn({ column, tasks, onCreateTask, onTaskClick 
         />
         {/* Title */}
         <h3
-          className="text-sm font-bold text-[var(--text-primary)] truncate flex-1"
-          style={{ fontFamily: "var(--font-heading)" }}
+          className="text-sm font-bold text-[var(--text-primary)] truncate flex-1 font-heading"
         >
           {column.title}
         </h3>
@@ -84,8 +83,7 @@ export default function KanbanColumn({ column, tasks, onCreateTask, onTaskClick 
             isAtWipLimit
               ? "text-[#EF4444] bg-[#EF4444]/10 border border-[#EF4444]/30"
               : "text-[var(--text-muted)] bg-[var(--surface-hover)] border border-[var(--border)]"
-          }`}
-          style={{ fontFamily: "var(--font-heading)" }}
+          } font-heading`}
         >
           {tasks.length}
           {column.wipLimit ? `/${column.wipLimit}` : ""}
@@ -95,7 +93,7 @@ export default function KanbanColumn({ column, tasks, onCreateTask, onTaskClick 
           whileHover={{ scale: 1.1 }}
           whileTap={{ scale: 0.9 }}
           onClick={() => setShowAddInput(!showAddInput)}
-          className="flex h-6 w-6 items-center justify-center rounded-full border border-[var(--border)] text-[var(--text-muted)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)] hover:border-[var(--border-strong)] transition-colors"
+          className="flex h-6 w-6 items-center justify-center rounded-full border border-[var(--border)] text-[var(--text-muted)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)] hover:border-[var(--border-strong)] transition-colors focus-visible:ring-2 focus-visible:ring-[#FFE600] focus-visible:outline-none"
           title="Add task"
           aria-label={`Add task to ${column.title}`}
           aria-expanded={showAddInput}
@@ -143,7 +141,7 @@ export default function KanbanColumn({ column, tasks, onCreateTask, onTaskClick 
             animate={{ opacity: 1 }}
             className="flex items-center justify-center h-20"
           >
-            <p className="text-[11px] text-[var(--text-muted)]" style={{ fontFamily: "var(--font-body)" }}>
+            <p className="text-[11px] text-[var(--text-muted)] font-body">
               No tasks yet
             </p>
           </motion.div>
@@ -156,7 +154,7 @@ export default function KanbanColumn({ column, tasks, onCreateTask, onTaskClick 
             animate={{ opacity: 1, scale: 1 }}
             className="h-12 rounded-lg border-2 border-dashed border-[var(--border-strong)] bg-[var(--surface)]/50 flex items-center justify-center"
           >
-            <p className="text-[10px] font-bold text-[var(--text-muted)]" style={{ fontFamily: "var(--font-heading)" }}>
+            <p className="text-[10px] font-bold text-[var(--text-muted)] font-heading">
               Drop here
             </p>
           </motion.div>
@@ -182,8 +180,7 @@ export default function KanbanColumn({ column, tasks, onCreateTask, onTaskClick 
                 placeholder="Task title..."
                 aria-label={`New task title for ${column.title}`}
                 autoFocus
-                className="w-full bg-transparent text-xs text-[var(--text-primary)] outline-none placeholder:text-[var(--text-muted)] mb-2"
-                style={{ fontFamily: "var(--font-body)" }}
+                className="w-full bg-transparent text-xs text-[var(--text-primary)] outline-none placeholder:text-[var(--text-muted)] mb-2 focus-visible:ring-2 focus-visible:ring-[#FFE600] rounded font-body"
               />
               <div className="flex items-center justify-between">
                 <motion.button
@@ -192,8 +189,7 @@ export default function KanbanColumn({ column, tasks, onCreateTask, onTaskClick 
                     setShowAddInput(false);
                     setNewTaskTitle("");
                   }}
-                  className="text-[10px] font-bold text-[var(--text-muted)] hover:text-[var(--text-primary)] px-2 py-1 rounded-full transition-colors"
-                  style={{ fontFamily: "var(--font-heading)" }}
+                  className="text-[10px] font-bold text-[var(--text-muted)] hover:text-[var(--text-primary)] px-2 py-1 rounded-full transition-colors focus-visible:ring-2 focus-visible:ring-[#FFE600] focus-visible:outline-none font-heading"
                 >
                   Cancel
                 </motion.button>
@@ -201,8 +197,7 @@ export default function KanbanColumn({ column, tasks, onCreateTask, onTaskClick 
                   whileTap={{ scale: 0.9 }}
                   onClick={handleAddTask}
                   disabled={creating || !newTaskTitle.trim()}
-                  className="text-[10px] font-bold text-white bg-[var(--text-primary)] rounded-full px-3 py-1 hover:opacity-80 disabled:opacity-40 transition-opacity"
-                  style={{ fontFamily: "var(--font-heading)" }}
+                  className="text-[10px] font-bold text-white bg-[var(--text-primary)] rounded-full px-3 py-1 hover:opacity-80 disabled:opacity-40 transition-opacity focus-visible:ring-2 focus-visible:ring-[#FFE600] focus-visible:outline-none font-heading"
                 >
                   {creating ? "Adding..." : "Add Task"}
                 </motion.button>

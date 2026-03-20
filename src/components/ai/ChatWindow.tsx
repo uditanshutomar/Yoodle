@@ -84,10 +84,10 @@ export default function ChatWindow({
             <Image src={mascotSrc} alt="Yoodle" width={20} height={20} className="mix-blend-multiply" />
           </motion.div>
           <div>
-            <h3 className="text-sm font-bold text-[var(--text-primary)]" style={{ fontFamily: "var(--font-heading)" }}>
+            <h3 className="text-sm font-bold text-[var(--text-primary)] font-heading">
               Yoodler
             </h3>
-            <p className="text-[10px] text-[var(--text-secondary)]" style={{ fontFamily: "var(--font-body)" }}>
+            <p className="text-[10px] text-[var(--text-secondary)] font-body">
               {isStreaming ? "Typing…" : "Your AI workspace companion"}
             </p>
           </div>
@@ -171,8 +171,7 @@ export default function ChatWindow({
             onKeyDown={(e) => e.key === "Enter" && handleSend()}
             placeholder="Ask Yoodler anything…"
             disabled={isStreaming}
-            className="flex-1 px-4 py-2.5 text-sm border-2 border-[var(--border)] rounded-xl bg-[var(--surface)] focus:border-[#FFE600] focus:outline-none transition-colors disabled:opacity-50"
-            style={{ fontFamily: "var(--font-body)" }}
+            className="flex-1 px-4 py-2.5 text-sm border-2 border-[var(--border)] rounded-xl bg-[var(--surface)] focus:border-[#FFE600] focus:outline-none transition-colors disabled:opacity-50 font-body"
             aria-label="Message to AI assistant"
           />
           <VoiceInputButton
@@ -201,8 +200,7 @@ export default function ChatWindow({
         </div>
         {voiceInterim && (
           <p
-            className="text-[10px] text-[var(--text-muted)] mt-1 italic truncate px-4"
-            style={{ fontFamily: "var(--font-body)" }}
+            className="text-[10px] text-[var(--text-muted)] mt-1 italic truncate px-4 font-body"
           >
             🎙️ {voiceInterim}
           </p>

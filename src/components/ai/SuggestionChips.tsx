@@ -109,8 +109,7 @@ export default function SuggestionChips({
         <button
           key={chip.label}
           onClick={() => onSelect(chip.prompt)}
-          className="shrink-0 text-[10px] font-medium px-2.5 py-1.5 rounded-full border border-[var(--border)] bg-[var(--surface)] hover:border-[#FFE600] hover:bg-[#FFE600]/10 text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors"
-          style={{ fontFamily: "var(--font-body)" }}
+          className="shrink-0 text-[10px] font-medium px-2.5 py-1.5 rounded-full border border-[var(--border)] bg-[var(--surface)] hover:border-[#FFE600] hover:bg-[#FFE600]/10 text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors font-body"
         >
           {chip.label}
         </button>

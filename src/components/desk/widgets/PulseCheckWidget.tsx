@@ -81,15 +81,13 @@ export default function PulseCheckWidget() {
     return (
       <div className="flex flex-col items-center gap-2 py-4 text-center">
         <p
-          className="text-xs text-[#FF6B6B]"
-          style={{ fontFamily: "var(--font-body)" }}
+          className="text-xs text-[#FF6B6B] font-body"
         >
           {error}
         </p>
         <button
           onClick={fetchTrends}
-          className="flex items-center gap-1 rounded-lg border border-[var(--border)] px-3 py-1 text-xs font-bold text-[var(--text-secondary)] hover:border-[#FFE600] transition-colors"
-          style={{ fontFamily: "var(--font-heading)" }}
+          className="flex items-center gap-1 rounded-lg border border-[var(--border)] px-3 py-1 text-xs font-bold text-[var(--text-secondary)] hover:border-[#FFE600] transition-colors font-heading"
         >
           <RefreshCw size={12} aria-hidden="true" />
           Retry
@@ -122,14 +120,12 @@ export default function PulseCheckWidget() {
           className="flex flex-col items-center justify-center rounded-xl border border-[var(--border)] px-2 py-3"
         >
           <span
-            className={`text-lg font-black ${s.className ?? "text-[var(--text-primary)]"}`}
-            style={{ fontFamily: "var(--font-heading)" }}
+            className={`text-lg font-black ${s.className ?? "text-[var(--text-primary)]"} font-heading`}
           >
             {s.value}
           </span>
           <span
-            className="text-[10px] text-[var(--text-muted)]"
-            style={{ fontFamily: "var(--font-body)" }}
+            className="text-[10px] text-[var(--text-muted)] font-body"
           >
             {s.label}
           </span>

@@ -83,8 +83,7 @@ export default function ScreenShareView({
                         <span className="relative inline-flex h-2 w-2 rounded-full bg-[#FF6B6B]" />
                     </span>
                     <span
-                        className="text-xs font-bold text-[#0A0A0A]"
-                        style={{ fontFamily: "var(--font-heading)" }}
+                        className="text-xs font-bold text-[#0A0A0A] font-heading"
                     >
                         {presenter.id === selfId ? "You are presenting" : `${presenter.name} is presenting`}
                     </span>
@@ -94,8 +93,7 @@ export default function ScreenShareView({
                             whileTap={{ scale: 0.95 }}
                             onClick={onStopSharing}
                             aria-label="Stop screen sharing"
-                            className="ml-1 rounded-full border-2 border-[var(--border-strong)] bg-[#FF6B6B] px-3 py-0.5 text-[11px] font-bold text-white shadow-[2px_2px_0_var(--border-strong)] hover:shadow-[1px_1px_0_var(--border-strong)] hover:translate-x-[1px] hover:translate-y-[1px] transition-all"
-                            style={{ fontFamily: "var(--font-heading)" }}
+                            className="ml-1 rounded-full border-2 border-[var(--border-strong)] bg-[#FF6B6B] px-3 py-0.5 text-[11px] font-bold text-white shadow-[2px_2px_0_var(--border-strong)] hover:shadow-[1px_1px_0_var(--border-strong)] hover:translate-x-[1px] hover:translate-y-[1px] transition-all font-heading"
                         >
                             Stop
                         </motion.button>
@@ -120,7 +118,7 @@ export default function ScreenShareView({
                                 <line x1="12" y1="17" x2="12" y2="21" />
                                 <line x1="2" y1="3" x2="22" y2="17" />
                             </svg>
-                            <p className="text-sm text-[var(--text-secondary)]" style={{ fontFamily: "var(--font-body)" }}>
+                            <p className="text-sm text-[var(--text-secondary)] font-body">
                                 Screen share unavailable
                             </p>
                         </div>
@@ -177,8 +175,7 @@ export default function ScreenShareView({
                         className="absolute -bottom-2 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full border-2 border-[var(--border-strong)] bg-[#FFE600] px-2.5 py-0.5 shadow-[2px_2px_0_var(--border-strong)]"
                     >
                         <span
-                            className="text-[10px] font-bold text-[#0A0A0A]"
-                            style={{ fontFamily: "var(--font-heading)" }}
+                            className="text-[10px] font-bold text-[#0A0A0A] font-heading"
                         >
                             {presenter.id === selfId ? "You" : presenter.name}
                         </span>
@@ -189,7 +186,7 @@ export default function ScreenShareView({
                         initial={{ opacity: 0 }}
                         className="absolute -top-2 -right-2 flex h-6 w-6 items-center justify-center rounded-full border-2 border-[var(--border-strong)] bg-[var(--surface)] shadow-[2px_2px_0_var(--border-strong)] opacity-0 group-hover:opacity-100 transition-opacity"
                     >
-                        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#0A0A0A" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="var(--doodle)" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
                             <path d="M5 9l-3 3 3 3" />
                             <path d="M9 5l3-3 3 3" />
                             <path d="M15 19l-3 3-3-3" />
@@ -233,8 +230,7 @@ export default function ScreenShareView({
                 whileTap={{ scale: 0.93 }}
                 onClick={() => setShowParticipants(!showParticipants)}
                 className={`absolute bottom-28 right-6 z-40 flex h-11 items-center gap-2 rounded-full px-4 ${showParticipants ? "yellow-btn" : "control-btn"
-                    }`}
-                style={{ fontFamily: "var(--font-heading)" }}
+                    } font-heading`}
                 title={showParticipants ? "Hide participants" : "Show participants"}
                 aria-label={showParticipants ? "Hide participants" : "Show participants"}
                 aria-expanded={showParticipants}
@@ -270,7 +266,7 @@ export default function ScreenShareView({
                         transition={{ type: "spring", stiffness: 250, damping: 25 }}
                         className="absolute right-5 top-8 bottom-28 z-30 flex items-center"
                     >
-                        <div className="flex flex-col items-center gap-3 rounded-2xl border-2 border-[var(--border-strong)] bg-white/90 px-2.5 py-3 shadow-[4px_4px_0_var(--border-strong)] backdrop-blur-sm max-h-full overflow-y-auto">
+                        <div className="flex flex-col items-center gap-3 rounded-2xl border-2 border-[var(--border-strong)] bg-[var(--surface)]/90 px-2.5 py-3 shadow-[4px_4px_0_var(--border-strong)] backdrop-blur-sm max-h-full overflow-y-auto">
                             <DoodleStar color="#FFE600" size={16} className="flex-shrink-0" />
 
                             {otherParticipants.map((p, i) => (
@@ -290,7 +286,7 @@ export default function ScreenShareView({
                                         style={{
                                             boxShadow: p.isSpeaking
                                                 ? "0 0 0 2px #FFE600, 0 0 12px rgba(255,230,0,0.4)"
-                                                : "2px 2px 0 #0A0A0A",
+                                                : "2px 2px 0 var(--doodle)",
                                         }}
                                     >
                                         <Image
@@ -313,8 +309,7 @@ export default function ScreenShareView({
 
                                     <div className="absolute left-0 -translate-x-full pl-1 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
                                         <span
-                                            className="whitespace-nowrap rounded-full border-2 border-[var(--border-strong)] bg-[var(--surface)] px-2 py-0.5 text-[10px] font-bold shadow-[2px_2px_0_var(--border-strong)]"
-                                            style={{ fontFamily: "var(--font-heading)" }}
+                                            className="whitespace-nowrap rounded-full border-2 border-[var(--border-strong)] bg-[var(--surface)] px-2 py-0.5 text-[10px] font-bold shadow-[2px_2px_0_var(--border-strong)] font-heading"
                                         >
                                             {p.name}
                                         </span>

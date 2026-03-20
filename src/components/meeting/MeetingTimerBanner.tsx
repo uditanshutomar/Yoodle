@@ -116,9 +116,9 @@ export default function MeetingTimerBanner({
                       rounded-full border-2 border-[var(--border-strong)] px-2.5 py-0.5 text-xs font-bold
                       shadow-[1px_1px_0_var(--border-strong)] transition-all
                       hover:shadow-none hover:translate-x-[1px] hover:translate-y-[1px]
+                      focus-visible:ring-2 focus-visible:ring-[#FFE600] focus-visible:outline-none
                       ${extending ? "opacity-50 cursor-wait" : "bg-[var(--surface)] text-[var(--text-primary)]"}
-                    `}
-                    style={{ fontFamily: "var(--font-heading)" }}
+                     font-heading`}
                   >
                     +{min}m
                   </button>
@@ -126,16 +126,15 @@ export default function MeetingTimerBanner({
                 <button
                   onClick={() => setShowExtendOptions(false)}
                   aria-label="Close extend options"
-                  className="ml-1 rounded-full p-1 hover:bg-[var(--surface-hover)]"
+                  className="ml-1 rounded-full p-1 hover:bg-[var(--surface-hover)] focus-visible:ring-2 focus-visible:ring-[#FFE600] focus-visible:outline-none"
                 >
-                  <X size={12} className="text-[#0A0A0A]/40" />
+                  <X size={12} className="text-[var(--text-muted)]" />
                 </button>
               </div>
             ) : (
               <button
                 onClick={() => setShowExtendOptions(true)}
-                className="flex items-center gap-1 rounded-full border-2 border-[var(--border-strong)] bg-[var(--surface)] px-3 py-1 text-xs font-bold shadow-[2px_2px_0_var(--border-strong)] transition-all hover:shadow-none hover:translate-x-[2px] hover:translate-y-[2px]"
-                style={{ fontFamily: "var(--font-heading)" }}
+                className="flex items-center gap-1 rounded-full border-2 border-[var(--border-strong)] bg-[var(--surface)] px-3 py-1 text-xs font-bold shadow-[2px_2px_0_var(--border-strong)] transition-all hover:shadow-none hover:translate-x-[2px] hover:translate-y-[2px] focus-visible:ring-2 focus-visible:ring-[#FFE600] focus-visible:outline-none font-heading"
               >
                 <Plus size={12} />
                 Extend
@@ -149,9 +148,9 @@ export default function MeetingTimerBanner({
           <button
             onClick={onDismiss}
             aria-label="Dismiss timer warning"
-            className="rounded-full p-1 hover:bg-black/5"
+            className="rounded-full p-1 hover:bg-[var(--surface-hover)] focus-visible:ring-2 focus-visible:ring-[#FFE600] focus-visible:outline-none"
           >
-            <X size={14} className="text-[#0A0A0A]/30" />
+            <X size={14} className="text-[var(--text-muted)]" />
           </button>
         )}
       </motion.div>

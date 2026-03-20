@@ -260,8 +260,7 @@ export default function CommandPalette() {
                     value={query}
                     onChange={(e) => setQuery(e.target.value)}
                     placeholder="Search across meetings, messages, tasks, and more…"
-                    className="flex-1 bg-transparent text-sm text-[var(--text-primary)] placeholder:text-[var(--text-muted)] outline-none"
-                    style={{ fontFamily: "var(--font-body)" }}
+                    className="flex-1 bg-transparent text-sm text-[var(--text-primary)] placeholder:text-[var(--text-muted)] outline-none font-body"
                   />
                   {query && (
                     <button
@@ -302,16 +301,14 @@ export default function CommandPalette() {
                   {!loading && !hasQuery && (
                     <div className="px-3 py-6 text-center">
                       <p
-                        className="text-sm text-[var(--text-muted)]"
-                        style={{ fontFamily: "var(--font-body)" }}
+                        className="text-sm text-[var(--text-muted)] font-body"
                       >
                         Search across meetings, messages, tasks, and more
                       </p>
                       {recentSearches.length > 0 && (
                         <div className="mt-4">
                           <p
-                            className="mb-2 flex items-center justify-center gap-1.5 text-xs text-[var(--text-muted)]"
-                            style={{ fontFamily: "var(--font-heading)" }}
+                            className="mb-2 flex items-center justify-center gap-1.5 text-xs text-[var(--text-muted)] font-heading"
                           >
                             <Clock size={12} />
                             Recent searches
@@ -321,8 +318,7 @@ export default function CommandPalette() {
                               <button
                                 key={q}
                                 onClick={() => setQuery(q)}
-                                className="rounded-lg border border-[var(--border)] bg-[var(--surface-hover)] px-2.5 py-1 text-xs text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:border-[var(--border-strong)] focus-visible:ring-2 focus-visible:ring-[#FFE600] focus-visible:outline-none transition-colors cursor-pointer"
-                                style={{ fontFamily: "var(--font-body)" }}
+                                className="rounded-lg border border-[var(--border)] bg-[var(--surface-hover)] px-2.5 py-1 text-xs text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:border-[var(--border-strong)] focus-visible:ring-2 focus-visible:ring-[#FFE600] focus-visible:outline-none transition-colors cursor-pointer font-body"
                               >
                                 {q}
                               </button>
@@ -337,8 +333,7 @@ export default function CommandPalette() {
                   {!loading && hasQuery && results && !hasResults && (
                     <div className="px-3 py-8 text-center">
                       <p
-                        className="text-sm text-[var(--text-muted)]"
-                        style={{ fontFamily: "var(--font-body)" }}
+                        className="text-sm text-[var(--text-muted)] font-body"
                       >
                         No results for &ldquo;{query.trim()}&rdquo;
                       </p>
@@ -357,8 +352,7 @@ export default function CommandPalette() {
                       return (
                         <div key={cat} className="mb-1">
                           <p
-                            className="px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-[var(--text-muted)]"
-                            style={{ fontFamily: "var(--font-heading)" }}
+                            className="px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-[var(--text-muted)] font-heading"
                           >
                             {label}
                           </p>
@@ -390,8 +384,7 @@ export default function CommandPalette() {
                                   <Icon size={16} aria-hidden="true" />
                                 </div>
                                 <span
-                                  className="truncate text-sm text-[var(--text-primary)]"
-                                  style={{ fontFamily: "var(--font-body)" }}
+                                  className="truncate text-sm text-[var(--text-primary)] font-body"
                                 >
                                   {getItemLabel(item)}
                                 </span>
@@ -407,42 +400,36 @@ export default function CommandPalette() {
                 <div className="flex items-center gap-4 border-t-2 border-[var(--border)] px-4 py-2.5">
                   <div className="flex items-center gap-1.5 text-[var(--text-muted)]">
                     <kbd
-                      className="rounded border border-[var(--border)] bg-[var(--surface-hover)] px-1.5 py-0.5 text-[10px] font-bold"
-                      style={{ fontFamily: "var(--font-heading)" }}
+                      className="rounded border border-[var(--border)] bg-[var(--surface-hover)] px-1.5 py-0.5 text-[10px] font-bold font-heading"
                     >
                       &uarr;&darr;
                     </kbd>
                     <span
-                      className="text-[11px]"
-                      style={{ fontFamily: "var(--font-body)" }}
+                      className="text-[11px] font-body"
                     >
                       Navigate
                     </span>
                   </div>
                   <div className="flex items-center gap-1.5 text-[var(--text-muted)]">
                     <kbd
-                      className="rounded border border-[var(--border)] bg-[var(--surface-hover)] px-1.5 py-0.5 text-[10px] font-bold"
-                      style={{ fontFamily: "var(--font-heading)" }}
+                      className="rounded border border-[var(--border)] bg-[var(--surface-hover)] px-1.5 py-0.5 text-[10px] font-bold font-heading"
                     >
                       &crarr;
                     </kbd>
                     <span
-                      className="text-[11px]"
-                      style={{ fontFamily: "var(--font-body)" }}
+                      className="text-[11px] font-body"
                     >
                       Open
                     </span>
                   </div>
                   <div className="flex items-center gap-1.5 text-[var(--text-muted)]">
                     <kbd
-                      className="rounded border border-[var(--border)] bg-[var(--surface-hover)] px-1.5 py-0.5 text-[10px] font-bold"
-                      style={{ fontFamily: "var(--font-heading)" }}
+                      className="rounded border border-[var(--border)] bg-[var(--surface-hover)] px-1.5 py-0.5 text-[10px] font-bold font-heading"
                     >
                       Esc
                     </kbd>
                     <span
-                      className="text-[11px]"
-                      style={{ fontFamily: "var(--font-body)" }}
+                      className="text-[11px] font-body"
                     >
                       Close
                     </span>

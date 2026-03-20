@@ -18,8 +18,7 @@ const Input = forwardRef<HTMLInputElement, InputProps>(
         {label && (
           <label
             htmlFor={inputId}
-            className="text-sm font-bold text-[var(--text-primary)]"
-            style={{ fontFamily: "var(--font-heading)" }}
+            className="text-sm font-bold text-[var(--text-primary)] font-heading"
           >
             {label}
           </label>
@@ -38,16 +37,14 @@ const Input = forwardRef<HTMLInputElement, InputProps>(
             aria-describedby={error ? errorId : undefined}
             className={`w-full border-2 border-[var(--border-strong)] rounded-xl px-4 py-3 text-sm bg-[var(--surface)] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:ring-2 focus:ring-[#FFE600] focus:ring-offset-0 transition-all ${
               Icon ? "pl-10" : ""
-            } ${error ? "border-[#FF6B6B] focus:ring-[#FF6B6B]" : ""} ${className}`}
-            style={{ fontFamily: "var(--font-body)" }}
+            } ${error ? "border-[#FF6B6B] focus:ring-[#FF6B6B]" : ""} ${className} font-body`}
             {...props}
           />
         </div>
         {error && (
           <span
             id={errorId}
-            className="text-xs font-medium text-[#FF6B6B]"
-            style={{ fontFamily: "var(--font-body)" }}
+            className="text-xs font-medium text-[#FF6B6B] font-body"
           >
             {error}
           </span>
@@ -73,8 +70,7 @@ const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(
         {label && (
           <label
             htmlFor={textareaId}
-            className="text-sm font-bold text-[var(--text-primary)]"
-            style={{ fontFamily: "var(--font-heading)" }}
+            className="text-sm font-bold text-[var(--text-primary)] font-heading"
           >
             {label}
           </label>
@@ -86,15 +82,13 @@ const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(
           aria-describedby={error ? errorId : undefined}
           className={`w-full border-2 border-[var(--border-strong)] rounded-xl px-4 py-3 text-sm bg-[var(--surface)] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:ring-2 focus:ring-[#FFE600] focus:ring-offset-0 transition-all resize-none ${
             error ? "border-[#FF6B6B] focus:ring-[#FF6B6B]" : ""
-          } ${className}`}
-          style={{ fontFamily: "var(--font-body)" }}
+          } ${className} font-body`}
           {...props}
         />
         {error && (
           <span
             id={errorId}
-            className="text-xs font-medium text-[#FF6B6B]"
-            style={{ fontFamily: "var(--font-body)" }}
+            className="text-xs font-medium text-[#FF6B6B] font-body"
           >
             {error}
           </span>

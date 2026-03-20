@@ -39,16 +39,14 @@ export default function Modal({ open, onOpenChange, title, description, children
                   <div>
                     {title && (
                       <Dialog.Title
-                        className="text-xl font-bold text-[var(--text-primary)]"
-                        style={{ fontFamily: "var(--font-heading)" }}
+                        className="text-xl font-bold text-[var(--text-primary)] font-heading"
                       >
                         {title}
                       </Dialog.Title>
                     )}
                     {description && (
                       <Dialog.Description
-                        className="mt-1 text-sm text-[var(--text-secondary)]"
-                        style={{ fontFamily: "var(--font-body)" }}
+                        className="mt-1 text-sm text-[var(--text-secondary)] font-body"
                       >
                         {description}
                       </Dialog.Description>
@@ -56,7 +54,7 @@ export default function Modal({ open, onOpenChange, title, description, children
                   </div>
                   <Dialog.Close asChild>
                     <button
-                      className="rounded-lg p-1.5 text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-hover)] transition-colors cursor-pointer"
+                      className="rounded-lg p-1.5 text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-hover)] transition-colors cursor-pointer focus-visible:ring-2 focus-visible:ring-[#FFE600] focus-visible:outline-none"
                       aria-label="Close"
                     >
                       <X size={18} />

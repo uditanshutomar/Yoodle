@@ -11,14 +11,12 @@ export default function TheFeedWidget() {
         aria-hidden="true"
       />
       <p
-        className="text-sm font-bold text-[var(--text-secondary)]"
-        style={{ fontFamily: "var(--font-heading)" }}
+        className="text-sm font-bold text-[var(--text-secondary)] font-heading"
       >
         Workspace activity will appear here
       </p>
       <p
-        className="text-xs text-[var(--text-muted)]"
-        style={{ fontFamily: "var(--font-body)" }}
+        className="text-xs text-[var(--text-muted)] font-body"
       >
         Coming soon
       </p>

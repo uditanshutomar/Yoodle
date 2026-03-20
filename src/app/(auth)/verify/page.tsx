@@ -67,14 +67,12 @@ function VerifyContent() {
           <div className="space-y-4">
             <LoadingSpinner size="lg" />
             <h2
-              className="text-lg font-bold text-[var(--text-primary)]"
-              style={{ fontFamily: "var(--font-heading)" }}
+              className="text-lg font-bold text-[var(--text-primary)] font-heading"
             >
               Verifying your session...
             </h2>
             <p
-              className="text-sm text-[var(--text-secondary)]"
-              style={{ fontFamily: "var(--font-body)" }}
+              className="text-sm text-[var(--text-secondary)] font-body"
             >
               Hang tight, we&apos;re finishing up
             </p>
@@ -95,14 +93,12 @@ function VerifyContent() {
               <CheckCircle size={32} className="text-green-600" />
             </motion.div>
             <h2
-              className="text-lg font-bold text-[var(--text-primary)]"
-              style={{ fontFamily: "var(--font-heading)" }}
+              className="text-lg font-bold text-[var(--text-primary)] font-heading"
             >
               You&apos;re in!
             </h2>
             <p
-              className="text-sm text-[var(--text-secondary)]"
-              style={{ fontFamily: "var(--font-body)" }}
+              className="text-sm text-[var(--text-secondary)] font-body"
             >
               Redirecting you to your dashboard...
             </p>
@@ -119,14 +115,12 @@ function VerifyContent() {
               <XCircle size={32} className="text-[#FF6B6B]" />
             </div>
             <h2
-              className="text-lg font-bold text-[var(--text-primary)]"
-              style={{ fontFamily: "var(--font-heading)" }}
+              className="text-lg font-bold text-[var(--text-primary)] font-heading"
             >
               Oops, that didn&apos;t work
             </h2>
             <p
-              className="text-sm text-[var(--text-secondary)] max-w-xs mx-auto"
-              style={{ fontFamily: "var(--font-body)" }}
+              className="text-sm text-[var(--text-secondary)] max-w-xs mx-auto font-body"
             >
               {errorMessage}
             </p>
@@ -146,8 +140,7 @@ function VerifyFallback() {
       <div className="space-y-4">
         <LoadingSpinner size="lg" />
         <h2
-          className="text-lg font-bold text-[var(--text-primary)]"
-          style={{ fontFamily: "var(--font-heading)" }}
+          className="text-lg font-bold text-[var(--text-primary)] font-heading"
         >
           Verifying...
         </h2>

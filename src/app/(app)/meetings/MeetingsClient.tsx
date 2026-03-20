@@ -94,10 +94,10 @@ function MeetingCard({ meeting, isPast }: { meeting: MeetingSummary; isPast?: bo
             <Badge variant="info">Ghost</Badge>
           )}
         </div>
-        <h3 className="text-base font-bold text-[var(--text-primary)] mb-1" style={{ fontFamily: "var(--font-heading)" }}>
+        <h3 className="text-base font-bold text-[var(--text-primary)] mb-1 font-heading">
           {meeting.title}
         </h3>
-        <p className="text-xs text-[var(--text-muted)] font-mono mb-3" style={{ fontFamily: "var(--font-body)" }}>
+        <p className="text-xs text-[var(--text-muted)] font-mono mb-3 font-body">
           {meeting.code}
         </p>
         <div className="flex items-center gap-4 text-xs text-[var(--text-secondary)]">
@@ -148,7 +148,7 @@ function GhostRoomCard({ room }: { room: GhostRoomSummary }) {
             <Clock size={12} /> {timeRemaining}
           </span>
         </div>
-        <h3 className="text-base font-bold text-[var(--text-primary)] mb-1" style={{ fontFamily: "var(--font-heading)" }}>
+        <h3 className="text-base font-bold text-[var(--text-primary)] mb-1 font-heading">
           {room.title}
         </h3>
         <p className="text-xs text-[var(--text-secondary)] font-mono mb-3">{room.code}</p>
@@ -285,12 +285,12 @@ export default function MeetingsClient() {
       {/* Page Header */}
       <motion.div variants={itemVariants}>
         <h1
-          className="text-2xl sm:text-3xl lg:text-4xl font-black text-[var(--text-primary)] leading-tight"
-          style={{ fontFamily: "var(--font-heading)", textShadow: "2px 2px 0 #FFE600" }}
+          className="text-2xl sm:text-3xl lg:text-4xl font-black text-[var(--text-primary)] leading-tight font-heading"
+          style={{ textShadow: "2px 2px 0 #FFE600" }}
         >
           Rooms
         </h1>
-        <p className="mt-1 text-sm text-[var(--text-muted)]" style={{ fontFamily: "var(--font-body)" }}>
+        <p className="mt-1 text-sm text-[var(--text-muted)] font-body">
           Start, join, and revisit your meeting rooms
         </p>
       </motion.div>
@@ -301,8 +301,7 @@ export default function MeetingsClient() {
         <DropdownMenu.Root>
           <DropdownMenu.Trigger asChild>
             <button
-              className="flex items-center gap-3 rounded-2xl bg-[#FFE600] border-2 border-[var(--border-strong)] px-6 py-4 shadow-[4px_4px_0_var(--border-strong)] hover:shadow-[2px_2px_0_var(--border-strong)] hover:translate-x-[2px] hover:translate-y-[2px] transition-all text-left w-full"
-              style={{ fontFamily: "var(--font-heading)" }}
+              className="flex items-center gap-3 rounded-2xl bg-[#FFE600] border-2 border-[var(--border-strong)] px-6 py-4 shadow-[4px_4px_0_var(--border-strong)] hover:shadow-[2px_2px_0_var(--border-strong)] hover:translate-x-[2px] hover:translate-y-[2px] transition-all text-left w-full font-heading"
             >
               <DoorOpen size={20} className="text-[#0A0A0A] flex-shrink-0" />
               <span className="text-base font-bold text-[#0A0A0A]">Start a Room</span>
@@ -311,16 +310,16 @@ export default function MeetingsClient() {
           </DropdownMenu.Trigger>
           <DropdownMenu.Portal>
             <DropdownMenu.Content sideOffset={8} align="start" className="z-50 min-w-[200px] bg-[var(--surface)] border-2 border-[var(--border-strong)] rounded-xl shadow-[var(--shadow-card)] p-1.5">
-              <DropdownMenu.Item onSelect={handleInstantMeeting} className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)] transition-colors cursor-pointer outline-none" style={{ fontFamily: "var(--font-heading)" }}>
+              <DropdownMenu.Item onSelect={handleInstantMeeting} className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)] transition-colors cursor-pointer outline-none font-heading">
                 <Video size={14} /> Instant Meeting
               </DropdownMenu.Item>
               <DropdownMenu.Item asChild>
-                <Link href="/meetings/new" className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)] transition-colors cursor-pointer outline-none" style={{ fontFamily: "var(--font-heading)" }}>
+                <Link href="/meetings/new" className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)] transition-colors cursor-pointer outline-none font-heading">
                   <Calendar size={14} /> Schedule Meeting
                 </Link>
               </DropdownMenu.Item>
               <DropdownMenu.Separator className="my-1 h-px bg-[var(--border)]" />
-              <DropdownMenu.Item onSelect={handleCreateGhostRoom} className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)] transition-colors cursor-pointer outline-none" style={{ fontFamily: "var(--font-heading)" }}>
+              <DropdownMenu.Item onSelect={handleCreateGhostRoom} className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)] transition-colors cursor-pointer outline-none font-heading">
                 <Ghost size={14} /> Ghost Room
               </DropdownMenu.Item>
             </DropdownMenu.Content>
@@ -340,14 +339,12 @@ export default function MeetingsClient() {
               onKeyDown={(e) => e.key === "Enter" && handleJoin()}
               placeholder="Enter room code"
               aria-label="Enter room code to join a meeting"
-              className="bg-transparent text-sm text-[var(--text-primary)] outline-none placeholder:text-[var(--text-muted)] w-full"
-              style={{ fontFamily: "var(--font-body)" }}
+              className="bg-transparent text-sm text-[var(--text-primary)] outline-none placeholder:text-[var(--text-muted)] w-full font-body"
             />
           </div>
           <button
             onClick={handleJoin}
-            className="h-full bg-[var(--foreground)] px-6 py-4 text-sm font-bold text-[var(--background)] border-l-2 border-[var(--border-strong)] hover:opacity-90 transition-opacity"
-            style={{ fontFamily: "var(--font-heading)" }}
+            className="h-full bg-[var(--foreground)] px-6 py-4 text-sm font-bold text-[var(--background)] border-l-2 border-[var(--border-strong)] hover:opacity-90 transition-opacity font-heading"
           >
             Join
           </button>
@@ -364,8 +361,7 @@ export default function MeetingsClient() {
               activeTab === tab
                 ? "bg-[#FFE600] text-[#0A0A0A] shadow-[2px_2px_0_var(--border-strong)]"
                 : "text-[var(--text-muted)] hover:bg-[var(--surface-hover)]"
-            }`}
-            style={{ fontFamily: "var(--font-heading)" }}
+            } font-heading`}
           >
             {tab === "upcoming" ? "Upcoming" : tab === "past" ? "Past" : "Blueprints"}
           </button>
@@ -378,13 +374,12 @@ export default function MeetingsClient() {
           variants={itemVariants}
           className="bg-[#FF6B6B]/10 border-2 border-[#FF6B6B] rounded-xl px-4 py-3 flex items-center justify-between"
         >
-          <p className="text-sm font-bold text-[#FF6B6B]" style={{ fontFamily: "var(--font-heading)" }}>
+          <p className="text-sm font-bold text-[#FF6B6B] font-heading">
             {error}
           </p>
           <button
             onClick={handleRetry}
-            className="text-sm font-bold text-[#FF6B6B] underline cursor-pointer hover:text-[#FF6B6B]/80 transition-colors"
-            style={{ fontFamily: "var(--font-heading)" }}
+            className="text-sm font-bold text-[#FF6B6B] underline cursor-pointer hover:text-[#FF6B6B]/80 transition-colors font-heading"
           >
             Retry
           </button>
@@ -428,13 +423,12 @@ export default function MeetingsClient() {
 
           {activeTab === "blueprints" && (
             <div className="flex flex-col items-center gap-4 py-12">
-              <p className="text-sm text-[var(--text-secondary)]" style={{ fontFamily: "var(--font-body)" }}>
+              <p className="text-sm text-[var(--text-secondary)] font-body">
                 Create reusable meeting blueprints with agendas, timers, and auto-assigned roles.
               </p>
               <Link
                 href="/meetings/templates"
-                className="inline-flex items-center gap-2 rounded-xl border-2 border-[var(--border-strong)] bg-[#FFE600] px-5 py-2.5 text-sm font-bold text-[#0A0A0A] shadow-[2px_2px_0_var(--border-strong)] transition-all hover:shadow-[4px_4px_0_var(--border-strong)] hover:translate-x-[-2px] hover:translate-y-[-2px]"
-                style={{ fontFamily: "var(--font-heading)" }}
+                className="inline-flex items-center gap-2 rounded-xl border-2 border-[var(--border-strong)] bg-[#FFE600] px-5 py-2.5 text-sm font-bold text-[#0A0A0A] shadow-[2px_2px_0_var(--border-strong)] transition-all hover:shadow-[4px_4px_0_var(--border-strong)] hover:translate-x-[-2px] hover:translate-y-[-2px] font-heading"
               >
                 <Plus size={16} />
                 Manage Templates

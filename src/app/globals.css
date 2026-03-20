@@ -12,6 +12,7 @@
   --doodle: #1A1A1A;
   --surface: #FFFFFF;
   --surface-hover: #F5F5F3;
+  --surface-elevated: #FFFFFF;
   --border: rgba(10, 10, 10, 0.15);
   --border-strong: #0A0A0A;
   --text-primary: #0A0A0A;
@@ -31,6 +32,7 @@
   --doodle: #E5E5E5;
   --surface: #1A1A1A;
   --surface-hover: #242424;
+  --surface-elevated: #262626;
   --border: rgba(255, 255, 255, 0.12);
   --border-strong: #3A3A3A;
   --text-primary: #ECECEC;
@@ -51,6 +53,7 @@
   --color-doodle: var(--doodle);
   --color-surface: var(--surface);
   --color-surface-hover: var(--surface-hover);
+  --color-surface-elevated: var(--surface-elevated);
   --color-border: var(--border);
   --color-border-strong: var(--border-strong);
   --color-text-primary: var(--text-primary);
@@ -84,12 +87,12 @@ html {
 /* Selection color */
 ::selection {
   background: rgba(255, 230, 0, 0.35);
-  color: #0A0A0A;
+  color: var(--text-primary);
 }
 
 .dark ::selection {
   background: rgba(255, 230, 0, 0.25);
-  color: #ECECEC;
+  color: var(--text-primary);
 }
 
 /* Scrollbar */

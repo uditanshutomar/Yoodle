@@ -253,22 +253,21 @@ function NewMeetingPageInner() {
             <Check size={32} className="text-white" />
           </motion.div>
 
-          <h2 className="text-2xl font-black text-[var(--text-primary)] mb-1" style={{ fontFamily: "var(--font-heading)" }}>
+          <h2 className="text-2xl font-black text-[var(--text-primary)] mb-1 font-heading">
             Meeting Created!
           </h2>
-          <p className="text-sm text-[var(--text-secondary)] mb-6" style={{ fontFamily: "var(--font-body)" }}>
+          <p className="text-sm text-[var(--text-secondary)] mb-6 font-body">
             Share this code with others so they can join
           </p>
 
           {/* Meeting code display */}
           <div className="bg-[var(--surface-hover)] border-2 border-[var(--border)] rounded-xl p-4 mb-4">
-            <p className="text-xs font-bold text-[var(--text-muted)] mb-1" style={{ fontFamily: "var(--font-heading)" }}>
+            <p className="text-xs font-bold text-[var(--text-muted)] mb-1 font-heading">
               MEETING CODE
             </p>
             <div className="flex items-center justify-center gap-3">
               <span
-                className="text-2xl font-black font-mono tracking-widest text-[var(--text-primary)]"
-                style={{ fontFamily: "var(--font-heading)" }}
+                className="text-2xl font-black font-mono tracking-widest text-[var(--text-primary)] font-heading"
               >
                 {createdMeeting.code}
               </span>
@@ -286,14 +285,13 @@ function NewMeetingPageInner() {
           {/* Copy full link */}
           <button
             onClick={copyMeetingLink}
-            className="w-full flex items-center justify-center gap-2 py-3 rounded-xl border-2 border-[var(--border)] bg-[var(--surface)] hover:border-[var(--border-strong)] transition-all cursor-pointer mb-6 text-sm font-bold text-[var(--text-secondary)]"
-            style={{ fontFamily: "var(--font-heading)" }}
+            className="w-full flex items-center justify-center gap-2 py-3 rounded-xl border-2 border-[var(--border)] bg-[var(--surface)] hover:border-[var(--border-strong)] transition-all cursor-pointer mb-6 text-sm font-bold text-[var(--text-secondary)] font-heading"
           >
             <Link2 size={16} />
             {copied ? "Copied!" : "Copy Meeting Link"}
           </button>
 
-          <p className="text-xs text-[var(--text-muted)] mb-4" style={{ fontFamily: "var(--font-body)" }}>
+          <p className="text-xs text-[var(--text-muted)] mb-4 font-body">
             Others can join at <span className="font-mono">/meetings/join</span> using the code above
           </p>
 
@@ -320,7 +318,7 @@ function NewMeetingPageInner() {
         <Button variant="ghost" size="sm" icon={ArrowLeft} href="/meetings">
           Back
         </Button>
-        <h1 className="text-2xl font-black text-[var(--text-primary)]" style={{ fontFamily: "var(--font-heading)" }}>
+        <h1 className="text-2xl font-black text-[var(--text-primary)] font-heading">
           New Meeting
         </h1>
       </div>
@@ -342,7 +340,7 @@ function NewMeetingPageInner() {
           />
 
           <div>
-            <label className="text-sm font-bold text-[var(--text-primary)] mb-1.5 block" style={{ fontFamily: "var(--font-heading)" }}>
+            <label className="text-sm font-bold text-[var(--text-primary)] mb-1.5 block font-heading">
               Description (optional)
             </label>
             <textarea
@@ -350,15 +348,14 @@ function NewMeetingPageInner() {
               onChange={(e) => setDescription(e.target.value)}
               placeholder="What's this meeting about?"
               rows={3}
-              className="w-full rounded-xl border-2 border-[var(--border)] bg-[var(--surface)] py-2.5 px-4 text-sm text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:border-[var(--border-strong)] focus:outline-none focus:ring-2 focus:ring-[#FFE600] transition-all resize-none"
-              style={{ fontFamily: "var(--font-body)" }}
+              className="w-full rounded-xl border-2 border-[var(--border)] bg-[var(--surface)] py-2.5 px-4 text-sm text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:border-[var(--border-strong)] focus:outline-none focus:ring-2 focus:ring-[#FFE600] transition-all resize-none font-body"
             />
           </div>
 
           {/* Template picker */}
           {templates.length > 0 && (
             <div>
-              <label className="text-sm font-bold text-[var(--text-primary)] mb-1.5 block" style={{ fontFamily: "var(--font-heading)" }}>
+              <label className="text-sm font-bold text-[var(--text-primary)] mb-1.5 block font-heading">
                 Template (optional)
               </label>
               <div className="relative">
@@ -371,8 +368,7 @@ function NewMeetingPageInner() {
                     selectedTemplate
                       ? "border-[#FFE600] ring-2 ring-[#FFE600]/30"
                       : "border-[var(--border)] hover:border-[var(--border-strong)]"
-                  }`}
-                  style={{ fontFamily: "var(--font-body)" }}
+                  } font-body`}
                 >
                   <span className="flex items-center gap-2">
                     <FileText size={14} className="text-[var(--text-muted)]" />
@@ -418,15 +414,15 @@ function NewMeetingPageInner() {
                             selectedTemplate?._id === t._id ? "bg-[#FFE600]/10" : ""
                           }`}
                         >
-                          <p className="text-sm font-bold text-[var(--text-primary)]" style={{ fontFamily: "var(--font-heading)" }}>
+                          <p className="text-sm font-bold text-[var(--text-primary)] font-heading">
                             {t.name}
                           </p>
                           {t.description && (
-                            <p className="text-xs text-[var(--text-secondary)] mt-0.5 line-clamp-1" style={{ fontFamily: "var(--font-body)" }}>
+                            <p className="text-xs text-[var(--text-secondary)] mt-0.5 line-clamp-1 font-body">
                               {t.description}
                             </p>
                           )}
-                          <p className="text-[10px] text-[var(--text-muted)] mt-0.5" style={{ fontFamily: "var(--font-body)" }}>
+                          <p className="text-[10px] text-[var(--text-muted)] mt-0.5 font-body">
                             {t.defaultDuration} min
                             {t.meetingSettings.waitingRoom && " \u00B7 Waiting room"}
                             {t.meetingSettings.muteOnJoin && " \u00B7 Mute on join"}
@@ -442,7 +438,7 @@ function NewMeetingPageInner() {
 
           {/* Schedule toggle */}
           <div>
-            <label className="text-sm font-bold text-[var(--text-primary)] mb-2 block" style={{ fontFamily: "var(--font-heading)" }}>
+            <label className="text-sm font-bold text-[var(--text-primary)] mb-2 block font-heading">
               When
             </label>
             <div className="flex gap-3">
@@ -453,8 +449,7 @@ function NewMeetingPageInner() {
                   startingNow
                     ? "border-[var(--border-strong)] bg-[#FFE600]/70 shadow-[3px_3px_0_var(--border-strong)] opacity-70"
                     : "border-[var(--border-strong)] bg-[#FFE600] shadow-[3px_3px_0_var(--border-strong)] hover:shadow-[1px_1px_0_var(--border-strong)] hover:translate-x-[2px] hover:translate-y-[2px]"
-                }`}
-                style={{ fontFamily: "var(--font-heading)" }}
+                } font-heading`}
               >
                 <Video size={16} /> {startingNow ? "Starting..." : "Start Now"}
               </button>
@@ -464,8 +459,7 @@ function NewMeetingPageInner() {
                   scheduleMode === "later"
                     ? "border-[var(--border-strong)] bg-[#FFE600] shadow-[3px_3px_0_var(--border-strong)]"
                     : "border-[var(--border)] bg-[var(--surface)] hover:border-[var(--border-strong)]"
-                }`}
-                style={{ fontFamily: "var(--font-heading)" }}
+                } font-heading`}
               >
                 <Clock size={16} /> Schedule for Later
               </button>
@@ -478,8 +472,7 @@ function NewMeetingPageInner() {
                   aria-label="Schedule date and time"
                   value={scheduledAt}
                   onChange={(e) => setScheduledAt(e.target.value)}
-                  className="w-full rounded-xl border-2 border-[var(--border)] bg-[var(--surface)] py-2.5 px-4 text-sm text-[var(--text-primary)] focus:border-[var(--border-strong)] focus:outline-none"
-                  style={{ fontFamily: "var(--font-body)" }}
+                  className="w-full rounded-xl border-2 border-[var(--border)] bg-[var(--surface)] py-2.5 px-4 text-sm text-[var(--text-primary)] focus:border-[var(--border-strong)] focus:outline-none font-body"
                 />
               </motion.div>
             )}
@@ -489,7 +482,7 @@ function NewMeetingPageInner() {
 
       {/* Settings */}
       <Card>
-        <h3 className="text-base font-bold text-[var(--text-primary)] mb-4" style={{ fontFamily: "var(--font-heading)" }}>
+        <h3 className="text-base font-bold text-[var(--text-primary)] mb-4 font-heading">
           Meeting Settings
         </h3>
         <div className="space-y-3">
@@ -500,7 +493,7 @@ function NewMeetingPageInner() {
             { key: "muteOnJoin", icon: Mic, label: "Mute on Join" },
           ].map(({ key, icon: Icon, label }) => (
             <label key={key} className="flex items-center justify-between py-2 cursor-pointer">
-              <span className="flex items-center gap-2 text-sm text-[var(--text-secondary)]" style={{ fontFamily: "var(--font-heading)" }}>
+              <span className="flex items-center gap-2 text-sm text-[var(--text-secondary)] font-heading">
                 <Icon size={16} /> {label}
               </span>
               <button
@@ -531,7 +524,7 @@ function NewMeetingPageInner() {
           animate={{ opacity: 1, y: 0 }}
           className="bg-[#FF6B6B]/10 border-2 border-[#FF6B6B] rounded-xl px-4 py-3 text-center"
         >
-          <p className="text-sm font-bold text-[#FF6B6B]" style={{ fontFamily: "var(--font-heading)" }}>
+          <p className="text-sm font-bold text-[#FF6B6B] font-heading">
             {error}
           </p>
         </motion.div>

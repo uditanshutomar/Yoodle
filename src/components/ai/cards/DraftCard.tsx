@@ -74,8 +74,7 @@ export default function DraftCard({ data, onSend, onPolish }: DraftCardProps) {
             key="sent"
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
-            className="flex items-center gap-2 py-1 text-[11px] text-green-500 font-semibold"
-            style={{ fontFamily: "var(--font-heading)" }}
+            className="flex items-center gap-2 py-1 text-[11px] text-green-500 font-semibold font-heading"
           >
             <Check size={14} /> Sent
           </motion.div>
@@ -97,14 +96,12 @@ export default function DraftCard({ data, onSend, onPolish }: DraftCardProps) {
             {data.recipient && (
               <div className="flex items-center gap-1.5 mb-2">
                 <span
-                  className="text-[10px] font-bold uppercase tracking-wide text-[var(--text-muted)]"
-                  style={{ fontFamily: "var(--font-heading)" }}
+                  className="text-[10px] font-bold uppercase tracking-wide text-[var(--text-muted)] font-heading"
                 >
                   To:
                 </span>
                 <span
-                  className="text-[11px] font-semibold text-[var(--text-secondary)]"
-                  style={{ fontFamily: "var(--font-body)" }}
+                  className="text-[11px] font-semibold text-[var(--text-secondary)] font-body"
                 >
                   {data.recipient}
                 </span>
@@ -117,8 +114,7 @@ export default function DraftCard({ data, onSend, onPolish }: DraftCardProps) {
               value={content}
               onChange={(e) => setContent(e.target.value)}
               rows={4}
-              className="w-full resize-none rounded-lg border border-[var(--border-default)] bg-[var(--surface-hover)] px-3 py-2 text-xs text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:border-[#FFE600]/50 transition-colors"
-              style={{ fontFamily: "var(--font-body)" }}
+              className="w-full resize-none rounded-lg border border-[var(--border-default)] bg-[var(--surface-hover)] px-3 py-2 text-xs text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:border-[#FFE600]/50 transition-colors font-body"
             />
 
             {/* Action buttons */}
@@ -128,8 +124,7 @@ export default function DraftCard({ data, onSend, onPolish }: DraftCardProps) {
                 whileHover={{ scale: 1.03 }}
                 whileTap={{ scale: 0.97 }}
                 onClick={handleSend}
-                className="flex-1 flex items-center justify-center gap-1.5 rounded-lg bg-green-500 text-white text-[11px] font-bold py-1.5 px-3 border-2 border-green-600 shadow-[2px_2px_0_#166534] hover:shadow-[1px_1px_0_#166534] hover:translate-x-[1px] hover:translate-y-[1px] transition-all"
-                style={{ fontFamily: "var(--font-heading)" }}
+                className="flex-1 flex items-center justify-center gap-1.5 rounded-lg bg-green-500 text-white text-[11px] font-bold py-1.5 px-3 border-2 border-green-600 shadow-[2px_2px_0_#166534] hover:shadow-[1px_1px_0_#166534] hover:translate-x-[1px] hover:translate-y-[1px] transition-all font-heading"
               >
                 <Send size={12} /> Send
               </motion.button>
@@ -137,8 +132,7 @@ export default function DraftCard({ data, onSend, onPolish }: DraftCardProps) {
                 whileHover={{ scale: 1.03 }}
                 whileTap={{ scale: 0.97 }}
                 onClick={handlePolish}
-                className="flex items-center justify-center gap-1.5 rounded-lg bg-[#FFE600]/20 text-[#B8A200] text-[11px] font-bold py-1.5 px-3 border-2 border-[#FFE600]/40 hover:bg-[#FFE600]/30 transition-all"
-                style={{ fontFamily: "var(--font-heading)" }}
+                className="flex items-center justify-center gap-1.5 rounded-lg bg-[#FFE600]/20 text-[#B8A200] text-[11px] font-bold py-1.5 px-3 border-2 border-[#FFE600]/40 hover:bg-[#FFE600]/30 transition-all font-heading"
               >
                 <Sparkles size={12} /> Polish
               </motion.button>

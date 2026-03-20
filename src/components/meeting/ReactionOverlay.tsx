@@ -76,8 +76,7 @@ export default function ReactionOverlay({ onReactionRef }: ReactionOverlayProps)
           >
             <span className="text-4xl">{reaction.emoji}</span>
             <span
-              className="text-[10px] font-bold text-white bg-[#0A0A0A]/50 rounded-full px-2 py-0.5 mt-1 whitespace-nowrap"
-              style={{ fontFamily: "var(--font-heading)" }}
+              className="text-[10px] font-bold text-white bg-black/50 rounded-full px-2 py-0.5 mt-1 whitespace-nowrap font-heading"
             >
               {reaction.userName}
             </span>

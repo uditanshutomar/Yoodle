@@ -39,7 +39,7 @@ export default function LoadingSpinner({ size = "md", className = "" }: LoadingS
             cx="25"
             cy="25"
             r="12"
-            stroke="#0A0A0A"
+            stroke="var(--doodle)"
             strokeWidth={s.stroke}
             strokeLinecap="round"
             strokeDasharray="50 25"

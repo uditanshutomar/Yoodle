@@ -38,8 +38,7 @@ export default function DataSummaryCard({ data }: DataSummaryCardProps) {
           <BarChart3 size={12} />
         </div>
         <p
-          className="text-xs font-medium leading-snug text-[var(--text-primary)]"
-          style={{ fontFamily: "var(--font-heading)" }}
+          className="text-xs font-medium leading-snug text-[var(--text-primary)] font-heading"
         >
           {data.title}
         </p>
@@ -60,8 +59,7 @@ export default function DataSummaryCard({ data }: DataSummaryCardProps) {
                 {stat.label}
               </p>
               <p
-                className="text-xs font-semibold text-[var(--text-primary)]"
-                style={{ fontFamily: "var(--font-body)" }}
+                className="text-xs font-semibold text-[var(--text-primary)] font-body"
               >
                 {stat.value}
               </p>

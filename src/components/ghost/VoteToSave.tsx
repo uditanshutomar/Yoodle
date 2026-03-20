@@ -29,12 +29,12 @@ export default function VoteToSave({
     >
       <div className="flex items-center gap-2 mb-3">
         <Save size={18} className="text-[#7C3AED]" />
-        <h3 className="text-base font-bold text-[var(--text-primary)]" style={{ fontFamily: "var(--font-heading)" }}>
+        <h3 className="text-base font-bold text-[var(--text-primary)] font-heading">
           Vote to Save
         </h3>
       </div>
 
-      <p className="text-xs text-[var(--text-secondary)] mb-4" style={{ fontFamily: "var(--font-body)" }}>
+      <p className="text-xs text-[var(--text-secondary)] mb-4 font-body">
         All participants must unanimously vote to save this ghost room&apos;s data. Otherwise, everything vanishes.
       </p>
 
@@ -63,7 +63,7 @@ export default function VoteToSave({
           className="flex items-center justify-center gap-2 py-3 bg-green-50 border-2 border-green-500 rounded-xl"
         >
           <Check size={18} className="text-green-600" />
-          <span className="text-sm font-bold text-green-700" style={{ fontFamily: "var(--font-heading)" }}>
+          <span className="text-sm font-bold text-green-700 font-heading">
             Unanimous! Data saved ✨
           </span>
         </motion.div>

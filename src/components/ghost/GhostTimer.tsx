@@ -29,13 +29,12 @@ export default function GhostTimer({ expiresAt }: GhostTimerProps) {
       style={{
         borderColor: color,
         color,
-        fontFamily: "var(--font-heading)",
-      }}
+        }}
       animate={isUrgent ? { scale: [1, 1.05, 1] } : {}}
       transition={{ duration: 1, repeat: Infinity }}
     >
       <motion.div
-        className="w-2.5 h-2.5 rounded-full"
+        className="w-2.5 h-2.5 rounded-full font-heading"
         style={{ backgroundColor: color }}
         animate={{ opacity: [1, 0.3, 1] }}
         transition={{ duration: 1.5, repeat: Infinity }}

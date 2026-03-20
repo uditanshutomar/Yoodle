@@ -92,8 +92,7 @@ export default function KanbanCard({ task, onClick, isDragOverlay }: KanbanCardP
           role="img"
         />
         <p
-          className="flex-1 text-[12px] font-semibold text-[var(--text-primary)] leading-snug line-clamp-2"
-          style={{ fontFamily: "var(--font-body)" }}
+          className="flex-1 text-[12px] font-semibold text-[var(--text-primary)] leading-snug line-clamp-2 font-body"
         >
           {task.title}
         </p>
@@ -117,8 +116,7 @@ export default function KanbanCard({ task, onClick, isDragOverlay }: KanbanCardP
                 : dueStatus === "today"
                   ? "text-[#F97316] bg-[#F97316]/10 border border-[#F97316]/30"
                   : "text-[var(--text-muted)] bg-[var(--surface-hover)] border border-[var(--border)]"
-            }`}
-            style={{ fontFamily: "var(--font-heading)" }}
+            } font-heading`}
           >
             <svg
               width="8"
@@ -146,8 +144,7 @@ export default function KanbanCard({ task, onClick, isDragOverlay }: KanbanCardP
               subtaskProgress === 1
                 ? "text-[#22C55E] bg-[#22C55E]/10 border-[#22C55E]/30"
                 : "text-[var(--text-muted)] bg-[var(--surface-hover)] border-[var(--border)]"
-            }`}
-            style={{ fontFamily: "var(--font-heading)" }}
+            } font-heading`}
           >
             <svg
               width="8"
@@ -169,8 +166,7 @@ export default function KanbanCard({ task, onClick, isDragOverlay }: KanbanCardP
         {/* Labels count */}
         {task.labels.length > 0 && (
           <span
-            className="inline-flex items-center gap-1 text-[9px] font-bold text-[var(--text-muted)] bg-[var(--surface-hover)] border border-[var(--border)] rounded-full px-1.5 py-0.5"
-            style={{ fontFamily: "var(--font-heading)" }}
+            className="inline-flex items-center gap-1 text-[9px] font-bold text-[var(--text-muted)] bg-[var(--surface-hover)] border border-[var(--border)] rounded-full px-1.5 py-0.5 font-heading"
           >
             <svg
               width="8"
@@ -233,7 +229,7 @@ export default function KanbanCard({ task, onClick, isDragOverlay }: KanbanCardP
       transition={{ type: "spring", stiffness: 300, damping: 30 }}
       onClick={() => onClick?.(task)}
       aria-label={`Task: ${task.title}, priority: ${PRIORITY_LABELS[task.priority]}${task.dueDate ? `, due: ${formatDueDate(task.dueDate)}` : ""}`}
-      className={`rounded-lg border-[1.5px] bg-[var(--surface)] p-2.5 cursor-grab active:cursor-grabbing transition-shadow ${
+      className={`rounded-lg border-[1.5px] bg-[var(--surface)] p-2.5 cursor-grab active:cursor-grabbing transition-shadow focus-visible:ring-2 focus-visible:ring-[#FFE600] focus-visible:outline-none ${
         isDragging
           ? "border-[var(--border)] shadow-none"
           : "border-[var(--border)] hover:border-[var(--border-strong)] hover:shadow-[2px_2px_0_var(--border-strong)]"

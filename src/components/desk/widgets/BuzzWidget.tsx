@@ -73,15 +73,13 @@ export default function BuzzWidget() {
     return (
       <div className="flex flex-col items-center gap-2 py-4 text-center">
         <p
-          className="text-xs text-[#FF6B6B]"
-          style={{ fontFamily: "var(--font-body)" }}
+          className="text-xs text-[#FF6B6B] font-body"
         >
           {error}
         </p>
         <button
           onClick={fetchConversations}
-          className="flex items-center gap-1 rounded-lg border border-[var(--border)] px-3 py-1 text-xs font-bold text-[var(--text-secondary)] hover:border-[#FFE600] transition-colors"
-          style={{ fontFamily: "var(--font-heading)" }}
+          className="flex items-center gap-1 rounded-lg border border-[var(--border)] px-3 py-1 text-xs font-bold text-[var(--text-secondary)] hover:border-[#FFE600] transition-colors font-heading"
         >
           <RefreshCw size={12} aria-hidden="true" />
           Retry
@@ -99,8 +97,7 @@ export default function BuzzWidget() {
           aria-hidden="true"
         />
         <p
-          className="text-sm font-bold text-[var(--text-secondary)]"
-          style={{ fontFamily: "var(--font-heading)" }}
+          className="text-sm font-bold text-[var(--text-secondary)] font-heading"
         >
           No conversations yet
         </p>
@@ -125,15 +122,13 @@ export default function BuzzWidget() {
           >
             <div className="flex-1 min-w-0">
               <p
-                className="text-xs font-bold text-[var(--text-primary)] truncate"
-                style={{ fontFamily: "var(--font-heading)" }}
+                className="text-xs font-bold text-[var(--text-primary)] truncate font-heading"
               >
                 {label}
               </p>
               {c.lastMessage && (
                 <p
-                  className="text-[10px] text-[var(--text-muted)] truncate"
-                  style={{ fontFamily: "var(--font-body)" }}
+                  className="text-[10px] text-[var(--text-muted)] truncate font-body"
                 >
                   {c.lastMessage.content}
                 </p>

@@ -64,8 +64,7 @@ function TrendsAndBreakdown({ data }: { data: AnalyticsSummary }) {
         <div className="flex items-center gap-2 mb-4">
           <BarChart3 size={18} className="text-[var(--text-secondary)]" />
           <h2
-            className="text-base font-bold text-[var(--text-primary)]"
-            style={{ fontFamily: "var(--font-heading)" }}
+            className="text-base font-bold text-[var(--text-primary)] font-heading"
           >
             Meeting Trends
           </h2>
@@ -75,8 +74,7 @@ function TrendsAndBreakdown({ data }: { data: AnalyticsSummary }) {
             <span className="text-sm text-[var(--text-secondary)]">Last 7 days</span>
             <div className="flex items-center gap-2">
               <span
-                className="text-lg font-bold"
-                style={{ fontFamily: "var(--font-heading)" }}
+                className="text-lg font-bold font-heading"
               >
                 {data.trends.meetingsLast7d}
               </span>
@@ -91,8 +89,7 @@ function TrendsAndBreakdown({ data }: { data: AnalyticsSummary }) {
           <div className="flex items-center justify-between">
             <span className="text-sm text-[var(--text-secondary)]">Last 30 days</span>
             <span
-              className="text-lg font-bold"
-              style={{ fontFamily: "var(--font-heading)" }}
+              className="text-lg font-bold font-heading"
             >
               {data.trends.meetingsLast30d}
             </span>
@@ -104,8 +101,7 @@ function TrendsAndBreakdown({ data }: { data: AnalyticsSummary }) {
         <div className="flex items-center gap-2 mb-4">
           <Activity size={18} className="text-[var(--text-secondary)]" />
           <h2
-            className="text-base font-bold text-[var(--text-primary)]"
-            style={{ fontFamily: "var(--font-heading)" }}
+            className="text-base font-bold text-[var(--text-primary)] font-heading"
           >
             Event Breakdown (30d)
           </h2>
@@ -129,7 +125,7 @@ function TrendsAndBreakdown({ data }: { data: AnalyticsSummary }) {
                     transition={{ delay: 0.3, duration: 0.5 }}
                   />
                 </div>
-                <span className="text-sm font-bold w-8 text-right" style={{ fontFamily: "var(--font-heading)" }}>
+                <span className="text-sm font-bold w-8 text-right font-heading">
                   {event.count}
                 </span>
               </div>
@@ -228,14 +224,13 @@ export default function AdminClient() {
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4">
         <ShieldAlert size={48} className="text-[#FF6B6B]" />
-        <h2 className="text-xl font-bold text-[var(--text-primary)]" style={{ fontFamily: "var(--font-heading)" }}>
+        <h2 className="text-xl font-bold text-[var(--text-primary)] font-heading">
           Access Denied
         </h2>
         <p className="text-sm text-[var(--text-secondary)]">You don&apos;t have admin privileges to view this page.</p>
         <button
           onClick={() => router.push("/dashboard")}
-          className="px-4 py-2 rounded-lg border-2 border-[var(--border-strong)] bg-[var(--surface)] text-[var(--text-primary)] font-bold text-sm hover:bg-[var(--surface-hover)] transition-colors"
-          style={{ fontFamily: "var(--font-heading)" }}
+          className="px-4 py-2 rounded-lg border-2 border-[var(--border-strong)] bg-[var(--surface)] text-[var(--text-primary)] font-bold text-sm hover:bg-[var(--surface-hover)] transition-colors font-heading"
         >
           Go to Dashboard
         </button>
@@ -247,8 +242,7 @@ export default function AdminClient() {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
         <p
-          className="text-lg text-[#FF6B6B] font-bold"
-          style={{ fontFamily: "var(--font-heading)" }}
+          className="text-lg text-[#FF6B6B] font-bold font-heading"
         >
           {error || "No data available"}
         </p>
@@ -264,14 +258,12 @@ export default function AdminClient() {
           <Shield size={20} />
         </div>
         <h1
-          className="text-2xl font-bold text-[var(--text-primary)]"
-          style={{ fontFamily: "var(--font-heading)" }}
+          className="text-2xl font-bold text-[var(--text-primary)] font-heading"
         >
           Admin Dashboard
           <span
             className="ml-3 inline-flex items-center rounded-full border-2 border-[var(--border-strong)] px-3 py-0.5 text-xs font-bold"
             style={{
-              fontFamily: "var(--font-heading)",
               backgroundColor: features.isCloud ? "#06B6D4" : "#22C55E",
               color: features.isCloud ? "white" : "#0A0A0A",
             }}
@@ -311,21 +303,19 @@ export default function AdminClient() {
             >
               <div className="flex items-center gap-3 mb-3">
                 <div
-                  className="flex items-center justify-center w-8 h-8 rounded-lg border-2 border-[var(--border-strong)]"
+                  className="flex items-center justify-center w-8 h-8 rounded-lg border-2 border-[var(--border-strong)] font-heading"
                   style={{ backgroundColor: card.color }}
                 >
                   <Icon size={16} className={iconColor} />
                 </div>
                 <span
-                  className="text-xs font-bold text-[var(--text-secondary)] uppercase tracking-wide"
-                  style={{ fontFamily: "var(--font-heading)" }}
+                  className="text-xs font-bold text-[var(--text-secondary)] uppercase tracking-wide font-heading"
                 >
                   {card.label}
                 </span>
               </div>
               <p
-                className="text-3xl font-bold text-[var(--text-primary)]"
-                style={{ fontFamily: "var(--font-heading)" }}
+                className="text-3xl font-bold text-[var(--text-primary)] font-heading"
               >
                 {(value ?? 0).toLocaleString()}
               </p>

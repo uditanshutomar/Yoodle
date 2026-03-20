@@ -98,7 +98,7 @@ function JoinMeetingContent() {
         className="flex flex-col items-center justify-center min-h-[60vh] gap-4"
       >
         <div className="h-10 w-10 rounded-full border-4 border-[#FFE600] border-t-transparent animate-spin" />
-        <p className="text-sm text-[var(--text-secondary)]" style={{ fontFamily: "var(--font-body)" }}>
+        <p className="text-sm text-[var(--text-secondary)] font-body">
           Joining meeting…
         </p>
       </motion.div>
@@ -120,14 +120,12 @@ function JoinMeetingContent() {
             </div>
             <div>
               <h1
-                className="text-2xl font-black text-[var(--text-primary)]"
-                style={{ fontFamily: "var(--font-heading)" }}
+                className="text-2xl font-black text-[var(--text-primary)] font-heading"
               >
                 Join Meeting
               </h1>
               <p
-                className="text-sm text-[var(--text-secondary)]"
-                style={{ fontFamily: "var(--font-body)" }}
+                className="text-sm text-[var(--text-secondary)] font-body"
               >
                 Enter the meeting code to drop in
               </p>
@@ -147,16 +145,14 @@ function JoinMeetingContent() {
                   setCode(e.target.value.toLowerCase());
                   setError("");
                 }}
-                className="w-full rounded-xl border-2 border-[var(--border)] bg-[var(--surface)] py-3 px-4 text-center text-lg font-mono font-bold tracking-widest text-[var(--text-primary)] placeholder:text-[var(--text-muted)] placeholder:tracking-normal placeholder:font-normal placeholder:text-sm focus:border-[var(--border-strong)] focus:outline-none focus:ring-2 focus:ring-[#FFE600] transition-all"
-                style={{ fontFamily: "var(--font-body)" }}
+                className="w-full rounded-xl border-2 border-[var(--border)] bg-[var(--surface)] py-3 px-4 text-center text-lg font-mono font-bold tracking-widest text-[var(--text-primary)] placeholder:text-[var(--text-muted)] placeholder:tracking-normal placeholder:font-normal placeholder:text-sm focus:border-[var(--border-strong)] focus:outline-none focus:ring-2 focus:ring-[#FFE600] transition-all font-body"
                 autoFocus
               />
               {error && (
                 <p
                   id="join-error"
                   role="alert"
-                  className="mt-2 text-sm text-[#FF6B6B] font-medium"
-                  style={{ fontFamily: "var(--font-body)" }}
+                  className="mt-2 text-sm text-[#FF6B6B] font-medium font-body"
                 >
                   {error}
                 </p>
@@ -177,8 +173,7 @@ function JoinMeetingContent() {
 
           <div className="mt-6 pt-4 border-t border-[var(--border)] text-center">
             <p
-              className="text-xs text-[var(--text-muted)]"
-              style={{ fontFamily: "var(--font-body)" }}
+              className="text-xs text-[var(--text-muted)] font-body"
             >
               Don&apos;t have a code?{" "}
               <button

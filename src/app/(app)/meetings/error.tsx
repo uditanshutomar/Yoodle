@@ -25,8 +25,7 @@ export default function MeetingsError({
           📹
         </span>
         <h2
-          className="text-xl font-black text-[var(--text-primary)] mb-2"
-          style={{ fontFamily: "var(--font-heading)" }}
+          className="text-xl font-black text-[var(--text-primary)] mb-2 font-heading"
         >
           Meetings unavailable
         </h2>
@@ -40,8 +39,7 @@ export default function MeetingsError({
         )}
         <button
           onClick={reset}
-          className="inline-flex items-center gap-2 rounded-xl bg-[var(--foreground)] text-[var(--background)] px-5 py-2.5 text-sm font-bold border-2 border-[var(--border-strong)] shadow-[3px_3px_0_var(--border-strong)] hover:shadow-[1px_1px_0_var(--border-strong)] hover:translate-x-[2px] hover:translate-y-[2px] transition-all"
-          style={{ fontFamily: "var(--font-heading)" }}
+          className="inline-flex items-center gap-2 rounded-xl bg-[var(--foreground)] text-[var(--background)] px-5 py-2.5 text-sm font-bold border-2 border-[var(--border-strong)] shadow-[3px_3px_0_var(--border-strong)] hover:shadow-[1px_1px_0_var(--border-strong)] hover:translate-x-[2px] hover:translate-y-[2px] transition-all font-heading"
         >
           Try again
         </button>

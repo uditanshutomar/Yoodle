@@ -92,8 +92,7 @@ function NotificationRow({
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2">
           <p
-            className={`truncate text-sm ${isUnread ? "font-bold text-[var(--text-primary)]" : "font-normal text-[var(--text-secondary)]"}`}
-            style={{ fontFamily: "var(--font-heading)" }}
+            className={`truncate text-sm ${isUnread ? "font-bold text-[var(--text-primary)]" : "font-normal text-[var(--text-secondary)]"} font-heading`}
           >
             {notification.title}
           </p>
@@ -102,14 +101,12 @@ function NotificationRow({
           )}
         </div>
         <p
-          className="truncate text-xs text-[var(--text-muted)] mt-0.5"
-          style={{ fontFamily: "var(--font-body)" }}
+          className="truncate text-xs text-[var(--text-muted)] mt-0.5 font-body"
         >
           {notification.body}
         </p>
         <p
-          className="text-[10px] text-[var(--text-muted)] mt-1"
-          style={{ fontFamily: "var(--font-body)" }}
+          className="text-[10px] text-[var(--text-muted)] mt-1 font-body"
         >
           {getRelativeTime(notification.createdAt)}
         </p>
@@ -149,8 +146,7 @@ export default function NotificationBell() {
                 initial={{ scale: 0 }}
                 animate={{ scale: 1 }}
                 exit={{ scale: 0 }}
-                className="absolute -top-0.5 -right-0.5 flex h-5 min-w-5 items-center justify-center rounded-full bg-[#FF6B6B] px-1 text-[10px] font-bold text-white"
-                style={{ fontFamily: "var(--font-heading)" }}
+                className="absolute -top-0.5 -right-0.5 flex h-5 min-w-5 items-center justify-center rounded-full bg-[#FF6B6B] px-1 text-[10px] font-bold text-white font-heading"
               >
                 {badgeLabel}
               </motion.span>
@@ -171,16 +167,14 @@ export default function NotificationBell() {
             {/* Header */}
             <div className="flex items-center justify-between border-b-2 border-[var(--border)] px-4 py-3">
               <h3
-                className="text-sm font-bold text-[var(--text-primary)]"
-                style={{ fontFamily: "var(--font-heading)" }}
+                className="text-sm font-bold text-[var(--text-primary)] font-heading"
               >
                 Notifications
               </h3>
               {unreadCount > 0 && (
                 <button
                   onClick={markAllRead}
-                  className="flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-bold text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)] focus-visible:ring-2 focus-visible:ring-[#FFE600] focus-visible:outline-none transition-colors cursor-pointer"
-                  style={{ fontFamily: "var(--font-heading)" }}
+                  className="flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-bold text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)] focus-visible:ring-2 focus-visible:ring-[#FFE600] focus-visible:outline-none transition-colors cursor-pointer font-heading"
                 >
                   <CheckCheck size={14} />
                   Mark all read
@@ -206,8 +200,7 @@ export default function NotificationBell() {
                 <div className="flex flex-col items-center justify-center py-10 text-[var(--text-muted)]">
                   <Bell size={32} className="mb-2 opacity-40" aria-hidden="true" />
                   <p
-                    className="text-sm"
-                    style={{ fontFamily: "var(--font-body)" }}
+                    className="text-sm font-body"
                   >
                     No notifications yet
                   </p>

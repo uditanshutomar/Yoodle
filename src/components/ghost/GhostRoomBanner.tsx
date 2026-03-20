@@ -35,14 +35,14 @@ export default function GhostRoomBanner({ expiresAt, title }: GhostRoomBannerPro
           </motion.div>
           <div>
             <div className="flex items-center gap-2">
-              <h2 className="text-base font-bold text-[var(--text-primary)]" style={{ fontFamily: "var(--font-heading)" }}>
+              <h2 className="text-base font-bold text-[var(--text-primary)] font-heading">
                 {title}
               </h2>
-              <span className="px-2 py-0.5 text-[10px] font-bold bg-[#7C3AED] text-white rounded-full" style={{ fontFamily: "var(--font-heading)" }}>
+              <span className="px-2 py-0.5 text-[10px] font-bold bg-[#7C3AED] text-white rounded-full font-heading">
                 GHOST
               </span>
             </div>
-            <p className="flex items-center gap-1 text-xs text-[var(--text-secondary)]" style={{ fontFamily: "var(--font-body)" }}>
+            <p className="flex items-center gap-1 text-xs text-[var(--text-secondary)] font-body">
               <AlertTriangle size={10} /> Everything vanishes when this ends
             </p>
           </div>

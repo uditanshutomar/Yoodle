@@ -10,8 +10,8 @@ const features = [
     color: "#FFE600",
     icon: (
       <svg width="48" height="48" viewBox="0 0 48 48" fill="none">
-        <rect x="6" y="12" width="26" height="20" rx="4" stroke="#1A1A1A" strokeWidth="2.5" strokeLinecap="round" fill="none" />
-        <path d="M32 18L42 12V36L32 30" stroke="#1A1A1A" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+        <rect x="6" y="12" width="26" height="20" rx="4" stroke="var(--doodle)" strokeWidth="2.5" strokeLinecap="round" fill="none" />
+        <path d="M32 18L42 12V36L32 30" stroke="var(--doodle)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" fill="none" />
         <circle cx="19" cy="22" r="4" fill="#FFE600" />
       </svg>
     ),
@@ -22,11 +22,11 @@ const features = [
     color: "#7C3AED",
     icon: (
       <svg width="48" height="48" viewBox="0 0 48 48" fill="none">
-        <circle cx="24" cy="24" r="16" stroke="#1A1A1A" strokeWidth="2.5" fill="none" />
-        <path d="M16 24C16 20 20 16 24 16C28 16 32 20 32 24" stroke="#1A1A1A" strokeWidth="2" strokeLinecap="round" fill="none" />
+        <circle cx="24" cy="24" r="16" stroke="var(--doodle)" strokeWidth="2.5" fill="none" />
+        <path d="M16 24C16 20 20 16 24 16C28 16 32 20 32 24" stroke="var(--doodle)" strokeWidth="2" strokeLinecap="round" fill="none" />
         <circle cx="20" cy="22" r="2" fill="#7C3AED" />
         <circle cx="28" cy="22" r="2" fill="#7C3AED" />
-        <path d="M20 28C20 28 22 31 24 31C26 31 28 28 28 28" stroke="#1A1A1A" strokeWidth="2" strokeLinecap="round" fill="none" />
+        <path d="M20 28C20 28 22 31 24 31C26 31 28 28 28 28" stroke="var(--doodle)" strokeWidth="2" strokeLinecap="round" fill="none" />
         <path d="M10 16L6 12" stroke="#7C3AED" strokeWidth="2" strokeLinecap="round" />
         <path d="M38 16L42 12" stroke="#7C3AED" strokeWidth="2" strokeLinecap="round" />
         <path d="M24 6V2" stroke="#7C3AED" strokeWidth="2" strokeLinecap="round" />
@@ -39,10 +39,10 @@ const features = [
     color: "#FF6B6B",
     icon: (
       <svg width="48" height="48" viewBox="0 0 48 48" fill="none">
-        <path d="M12 38V14C12 8 17 4 24 4C31 4 36 8 36 14V38L32 34L28 38L24 34L20 38L16 34L12 38Z" stroke="#1A1A1A" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+        <path d="M12 38V14C12 8 17 4 24 4C31 4 36 8 36 14V38L32 34L28 38L24 34L20 38L16 34L12 38Z" stroke="var(--doodle)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" fill="none" />
         <circle cx="19" cy="18" r="2.5" fill="#FF6B6B" />
         <circle cx="29" cy="18" r="2.5" fill="#FF6B6B" />
-        <path d="M19 26C19 26 21 29 24 29C27 29 29 26 29 26" stroke="#1A1A1A" strokeWidth="2" strokeLinecap="round" fill="none" />
+        <path d="M19 26C19 26 21 29 24 29C27 29 29 26 29 26" stroke="var(--doodle)" strokeWidth="2" strokeLinecap="round" fill="none" />
         <motion.path
           d="M8 20C5 18 3 14 5 10"
           stroke="#FF6B6B"
@@ -74,12 +74,12 @@ const features = [
     color: "#06B6D4",
     icon: (
       <svg width="48" height="48" viewBox="0 0 48 48" fill="none">
-        <rect x="6" y="8" width="36" height="28" rx="4" stroke="#1A1A1A" strokeWidth="2.5" fill="none" />
+        <rect x="6" y="8" width="36" height="28" rx="4" stroke="var(--doodle)" strokeWidth="2.5" fill="none" />
         <path d="M16 20L12 24L16 28" stroke="#06B6D4" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
         <path d="M32 20L36 24L32 28" stroke="#06B6D4" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
-        <path d="M26 18L22 30" stroke="#1A1A1A" strokeWidth="2" strokeLinecap="round" />
-        <line x1="6" y1="40" x2="20" y2="40" stroke="#1A1A1A" strokeWidth="2" strokeLinecap="round" />
-        <line x1="28" y1="40" x2="42" y2="40" stroke="#1A1A1A" strokeWidth="2" strokeLinecap="round" />
+        <path d="M26 18L22 30" stroke="var(--doodle)" strokeWidth="2" strokeLinecap="round" />
+        <line x1="6" y1="40" x2="20" y2="40" stroke="var(--doodle)" strokeWidth="2" strokeLinecap="round" />
+        <line x1="28" y1="40" x2="42" y2="40" stroke="var(--doodle)" strokeWidth="2" strokeLinecap="round" />
         <circle cx="24" cy="40" r="2" fill="#06B6D4" />
       </svg>
     ),
@@ -103,15 +103,14 @@ export default function Features() {
         <div className="relative mb-16 text-center">
           <DoodleLightning className="absolute -top-8 left-1/2 -translate-x-12" color="#FFE600" />
           <motion.h2
-            className="text-4xl font-black tracking-tight text-[#0A0A0A] sm:text-5xl"
-            style={{ fontFamily: "var(--font-heading)" }}
+            className="text-4xl font-black tracking-tight text-[var(--text-primary)] sm:text-5xl font-heading"
             initial={{ opacity: 0, y: 20 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
           >
             Everything you need.
             <br />
-            <span className="text-[#0A0A0A]/40">Nothing you don&apos;t.</span>
+            <span className="text-[var(--text-muted)]">Nothing you don&apos;t.</span>
           </motion.h2>
         </div>
 
@@ -138,16 +137,14 @@ export default function Features() {
 
               {/* Title */}
               <h3
-                className="mb-2 text-xl font-bold text-[#0A0A0A]"
-                style={{ fontFamily: "var(--font-heading)" }}
+                className="mb-2 text-xl font-bold text-[var(--text-primary)] font-heading"
               >
                 {feature.title}
               </h3>
 
               {/* Description */}
               <p
-                className="text-sm leading-relaxed text-[#0A0A0A]/55"
-                style={{ fontFamily: "var(--font-body)" }}
+                className="text-sm leading-relaxed text-[var(--text-muted)] font-body"
               >
                 {feature.desc}
               </p>
@@ -157,7 +154,7 @@ export default function Features() {
 
         {/* Floating doodles */}
         <DoodleStar className="absolute top-20 right-12 hidden lg:block" color="#FFE600" size={28} />
-        <DoodleStar className="absolute bottom-20 left-8 hidden lg:block" color="#1A1A1A" size={18} />
+        <DoodleStar className="absolute bottom-20 left-8 hidden lg:block" color="var(--doodle)" size={18} />
       </div>
     </section>
   );

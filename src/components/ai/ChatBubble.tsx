@@ -160,7 +160,7 @@ function InlineActionCard({
           <ActionIcon size={14} className="text-[#B8A200]" />
         </div>
         <div className="flex-1 min-w-0">
-          <p className="text-xs font-semibold text-[var(--text-primary)] leading-snug" style={{ fontFamily: "var(--font-heading)" }}>
+          <p className="text-xs font-semibold text-[var(--text-primary)] leading-snug font-heading">
             {pa.summary}
           </p>
           <p className="text-[10px] text-[var(--text-muted)] mt-0.5 capitalize">
@@ -177,8 +177,7 @@ function InlineActionCard({
             whileHover={{ scale: 1.03 }}
             whileTap={{ scale: 0.97 }}
             onClick={handleConfirm}
-            className="flex-1 flex items-center justify-center gap-1.5 rounded-lg bg-green-500 text-white text-[11px] font-bold py-1.5 px-3 border-2 border-green-600 shadow-[2px_2px_0_#166534] hover:shadow-[1px_1px_0_#166534] hover:translate-x-[1px] hover:translate-y-[1px] transition-all"
-            style={{ fontFamily: "var(--font-heading)" }}
+            className="flex-1 flex items-center justify-center gap-1.5 rounded-lg bg-green-500 text-white text-[11px] font-bold py-1.5 px-3 border-2 border-green-600 shadow-[2px_2px_0_#166534] hover:shadow-[1px_1px_0_#166534] hover:translate-x-[1px] hover:translate-y-[1px] transition-all font-heading"
           >
             <Check size={12} /> Accept
           </motion.button>
@@ -186,8 +185,7 @@ function InlineActionCard({
             whileHover={{ scale: 1.03 }}
             whileTap={{ scale: 0.97 }}
             onClick={handleDeny}
-            className="flex-1 flex items-center justify-center gap-1.5 rounded-lg bg-[var(--surface-hover)] text-[var(--text-secondary)] text-[11px] font-bold py-1.5 px-3 border-2 border-[var(--border-default)] shadow-[2px_2px_0_var(--border-strong)] hover:shadow-[1px_1px_0_var(--border-strong)] hover:translate-x-[1px] hover:translate-y-[1px] transition-all"
-            style={{ fontFamily: "var(--font-heading)" }}
+            className="flex-1 flex items-center justify-center gap-1.5 rounded-lg bg-[var(--surface-hover)] text-[var(--text-secondary)] text-[11px] font-bold py-1.5 px-3 border-2 border-[var(--border-default)] shadow-[2px_2px_0_var(--border-strong)] hover:shadow-[1px_1px_0_var(--border-strong)] hover:translate-x-[1px] hover:translate-y-[1px] transition-all font-heading"
           >
             <X size={12} /> Deny
           </motion.button>
@@ -259,14 +257,12 @@ function ChatBubble({ id, role, content, timestamp, isStreaming, toolCalls, card
         className="max-w-[90%]"
       >
         <div
-          className="border-l-[3px] border-l-[#FFE600] rounded-lg bg-[var(--surface-elevated)] px-4 py-3"
-          style={{ fontFamily: "var(--font-body)" }}
+          className="border-l-[3px] border-l-[#FFE600] rounded-lg bg-[var(--surface-elevated)] px-4 py-3 font-body"
         >
           <div className="flex items-center gap-1.5 mb-1.5">
             <ClipboardList size={12} className="text-[#FFE600]" />
             <span
-              className="text-[10px] font-bold uppercase tracking-wide text-[var(--text-secondary)]"
-              style={{ fontFamily: "var(--font-heading)" }}
+              className="text-[10px] font-bold uppercase tracking-wide text-[var(--text-secondary)] font-heading"
             >
               Morning Briefing
             </span>
@@ -340,8 +336,7 @@ function ChatBubble({ id, role, content, timestamp, isStreaming, toolCalls, card
             isAssistant
               ? "bg-[var(--surface-hover)] text-[var(--text-primary)] rounded-tl-md"
               : "bg-[#FFE600] text-[#0A0A0A] border-2 border-[var(--border-strong)] rounded-tr-md"
-          }`}
-          style={{ fontFamily: "var(--font-body)" }}
+          } font-body`}
         >
           {content ? (
             <div className="prose prose-sm prose-invert max-w-none prose-headings:text-sm prose-headings:font-bold prose-headings:mt-3 prose-headings:mb-1 prose-p:my-1.5 prose-ul:my-1.5 prose-ol:my-1.5 prose-li:my-0.5 prose-strong:text-[var(--text-primary)] prose-a:text-[#FFE600] prose-a:no-underline hover:prose-a:underline [&>*:first-child]:mt-0">

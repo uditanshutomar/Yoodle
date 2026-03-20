@@ -61,7 +61,7 @@ const Button = forwardRef<HTMLButtonElement, ButtonBaseProps>(
     ref
   ) => {
     const baseStyles =
-      "inline-flex items-center justify-center font-bold transition-all duration-150 cursor-pointer select-none disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none";
+      "inline-flex items-center justify-center font-bold font-heading transition-all duration-150 cursor-pointer select-none disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none focus-visible:ring-2 focus-visible:ring-[#FFE600] focus-visible:outline-none";
 
     const combinedClassName = `${baseStyles} ${variantStyles[variant]} ${sizeStyles[size]} ${className}`;
 
@@ -72,7 +72,7 @@ const Button = forwardRef<HTMLButtonElement, ButtonBaseProps>(
         ) : Icon ? (
           <Icon size={iconSizes[size]} />
         ) : null}
-        <span style={{ fontFamily: "var(--font-heading)" }}>{children}</span>
+        <span>{children}</span>
       </>
     );
 
@@ -102,7 +102,6 @@ const Button = forwardRef<HTMLButtonElement, ButtonBaseProps>(
         onClick={onClick as React.MouseEventHandler<HTMLButtonElement>}
         whileHover={disabled || loading ? {} : { scale: 1.03, y: -1 }}
         whileTap={disabled || loading ? {} : { scale: 0.97 }}
-        style={{ fontFamily: "var(--font-heading)" }}
       >
         {content}
       </m.button>

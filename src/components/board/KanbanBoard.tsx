@@ -249,8 +249,7 @@ export default function KanbanBoard({
           <div className="flex flex-col items-center gap-3">
             <div className="h-8 w-8 border-3 border-[var(--text-primary)] border-t-transparent rounded-full animate-spin" />
             <p
-              className="text-sm font-bold text-[var(--text-muted)]"
-              style={{ fontFamily: "var(--font-heading)" }}
+              className="text-sm font-bold text-[var(--text-muted)] font-heading"
             >
               Loading board...
             </p>
@@ -283,8 +282,7 @@ export default function KanbanBoard({
               </svg>
             </div>
             <p
-              className="text-sm font-bold text-[var(--text-primary)]"
-              style={{ fontFamily: "var(--font-heading)" }}
+              className="text-sm font-bold text-[var(--text-primary)] font-heading"
             >
               {error || "Board not found"}
             </p>
@@ -292,8 +290,7 @@ export default function KanbanBoard({
               whileHover={{ scale: 1.03 }}
               whileTap={{ scale: 0.97 }}
               onClick={() => refetch()}
-              className="text-xs font-bold text-[#3B82F6] bg-[#3B82F6]/10 border border-[#3B82F6]/30 rounded-full px-4 py-1.5 hover:bg-[#3B82F6]/20 transition-colors"
-              style={{ fontFamily: "var(--font-heading)" }}
+              className="text-xs font-bold text-[#3B82F6] bg-[#3B82F6]/10 border border-[#3B82F6]/30 rounded-full px-4 py-1.5 hover:bg-[#3B82F6]/20 transition-colors font-heading"
             >
               Retry
             </motion.button>
@@ -311,14 +308,12 @@ export default function KanbanBoard({
       <div className="flex items-center justify-between mb-4 px-1">
         <div className="flex items-center gap-3">
           <h1
-            className="text-lg font-bold text-[var(--text-primary)] truncate"
-            style={{ fontFamily: "var(--font-heading)" }}
+            className="text-lg font-bold text-[var(--text-primary)] truncate font-heading"
           >
             {board.title}
           </h1>
           <span
-            className="text-[10px] font-bold text-[var(--text-muted)] bg-[var(--surface-hover)] border border-[var(--border)] rounded-full px-2 py-0.5"
-            style={{ fontFamily: "var(--font-heading)" }}
+            className="text-[10px] font-bold text-[var(--text-muted)] bg-[var(--surface-hover)] border border-[var(--border)] rounded-full px-2 py-0.5 font-heading"
           >
             {columns.length} columns
           </span>
@@ -351,8 +346,7 @@ export default function KanbanBoard({
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Search tasks..."
             aria-label="Search tasks"
-            className="w-full pl-8 pr-3 py-1.5 text-xs text-[var(--text-primary)] bg-[var(--surface)] border-[1.5px] border-[var(--border)] rounded-lg outline-none placeholder:text-[var(--text-muted)] focus:border-[var(--border-strong)] transition-colors"
-            style={{ fontFamily: "var(--font-body)" }}
+            className="w-full pl-8 pr-3 py-1.5 text-xs text-[var(--text-primary)] bg-[var(--surface)] border-[1.5px] border-[var(--border)] rounded-lg outline-none placeholder:text-[var(--text-muted)] focus:border-[var(--border-strong)] transition-colors font-body"
           />
         </div>
 
@@ -365,7 +359,6 @@ export default function KanbanBoard({
           aria-label="Filter by priority"
           className="text-xs text-[var(--text-primary)] bg-[var(--surface)] border-[1.5px] border-[var(--border)] rounded-lg px-2.5 py-1.5 outline-none focus:border-[var(--border-strong)] transition-colors cursor-pointer appearance-none pr-7"
           style={{
-            fontFamily: "var(--font-heading)",
             backgroundImage: `url("data:image/svg+xml,%3Csvg width='10' height='10' viewBox='0 0 24 24' fill='none' stroke='%230A0A0A' stroke-width='2.5' xmlns='http://www.w3.org/2000/svg'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E")`,
             backgroundRepeat: "no-repeat",
             backgroundPosition: "right 8px center",
@@ -390,8 +383,7 @@ export default function KanbanBoard({
                 setSearchQuery("");
                 setPriorityFilter("all");
               }}
-              className="text-[10px] font-bold text-[var(--text-muted)] hover:text-[var(--text-primary)] bg-[var(--surface-hover)] border border-[var(--border)] rounded-full px-2.5 py-1 transition-colors"
-              style={{ fontFamily: "var(--font-heading)" }}
+              className="text-[10px] font-bold text-[var(--text-muted)] hover:text-[var(--text-primary)] bg-[var(--surface-hover)] border border-[var(--border)] rounded-full px-2.5 py-1 transition-colors font-heading"
             >
               Clear filters
             </motion.button>
@@ -400,8 +392,7 @@ export default function KanbanBoard({
 
         {/* Task count */}
         <span
-          className="text-[10px] font-bold text-[var(--text-muted)] ml-auto"
-          style={{ fontFamily: "var(--font-heading)" }}
+          className="text-[10px] font-bold text-[var(--text-muted)] ml-auto font-heading"
         >
           {filteredTasks.length} task{filteredTasks.length !== 1 ? "s" : ""}
           {hasActiveFilters ? " (filtered)" : ""}
@@ -475,8 +466,7 @@ export default function KanbanBoard({
               </svg>
             </div>
             <p
-              className="text-sm font-bold text-[var(--text-primary)] mb-1"
-              style={{ fontFamily: "var(--font-heading)" }}
+              className="text-sm font-bold text-[var(--text-primary)] mb-1 font-heading"
             >
               No columns yet
             </p>
@@ -516,8 +506,7 @@ function BoardShell({
             whileTap={{ scale: 0.95 }}
             onClick={onClose}
             aria-label="Close fullscreen board"
-            className="flex items-center gap-1.5 text-xs font-bold text-[var(--text-secondary)] hover:text-[var(--text-primary)] bg-[var(--surface)] border-[1.5px] border-[var(--border)] hover:border-[var(--border-strong)] rounded-lg px-3 py-1.5 hover:shadow-[2px_2px_0_var(--border-strong)] transition-all"
-            style={{ fontFamily: "var(--font-heading)" }}
+            className="flex items-center gap-1.5 text-xs font-bold text-[var(--text-secondary)] hover:text-[var(--text-primary)] bg-[var(--surface)] border-[1.5px] border-[var(--border)] hover:border-[var(--border-strong)] rounded-lg px-3 py-1.5 hover:shadow-[2px_2px_0_var(--border-strong)] transition-all font-heading"
           >
             <svg
               width="14"

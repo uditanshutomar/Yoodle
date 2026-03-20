@@ -31,7 +31,7 @@ export default function CardRenderer({ cards, onAction }: CardRendererProps) {
             return (
               <div key={key} className="flex flex-col gap-1.5">
                 {card.title && (
-                  <p className="text-[10px] font-bold uppercase tracking-wide text-[var(--text-secondary)] px-1" style={{ fontFamily: "var(--font-heading)" }}>
+                  <p className="text-[10px] font-bold uppercase tracking-wide text-[var(--text-secondary)] px-1 font-heading">
                     {card.title}
                   </p>
                 )}

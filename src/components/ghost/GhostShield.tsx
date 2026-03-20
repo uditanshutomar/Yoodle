@@ -73,7 +73,6 @@ export default function GhostShield({ children, userName }: GhostShieldProps) {
               key={i}
               className="whitespace-nowrap text-[var(--text-primary)]"
               style={{
-                fontFamily: "var(--font-body)",
                 fontSize: "13px",
                 fontWeight: 600,
                 opacity: 0.04,
@@ -111,16 +110,14 @@ export default function GhostShield({ children, userName }: GhostShieldProps) {
             <div className="flex items-center gap-2 mb-2">
               <ShieldAlert size={18} className="text-[#7C3AED]" />
               <h2
-                className="text-xl font-black text-[var(--text-primary)]"
-                style={{ fontFamily: "var(--font-heading)" }}
+                className="text-xl font-black text-[var(--text-primary)] font-heading"
               >
                 Content Protected
               </h2>
             </div>
 
             <p
-              className="text-sm text-[var(--text-secondary)]"
-              style={{ fontFamily: "var(--font-body)" }}
+              className="text-sm text-[var(--text-secondary)] font-body"
             >
               Switch back to this tab to view ghost room
             </p>

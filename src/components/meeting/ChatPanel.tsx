@@ -35,7 +35,6 @@ export default function ChatPanel({ isOpen, onClose, messages, onSendMessage, cu
 
     useEffect(() => {
         if (isOpen) {
-            // Small delay to allow the panel animation to start
             const t = setTimeout(() => inputRef.current?.focus(), 100);
             return () => clearTimeout(t);
         }
@@ -67,8 +66,7 @@ export default function ChatPanel({ isOpen, onClose, messages, onSendMessage, cu
                     {/* Header */}
                     <div className="flex items-center justify-between border-b-2 border-[var(--border-strong)] px-5 py-4">
                         <h3
-                            className="text-sm font-bold text-[#0A0A0A] tracking-wide"
-                            style={{ fontFamily: "var(--font-heading)" }}
+                            className="text-sm font-bold text-[var(--text-primary)] tracking-wide font-heading"
                         >
                             💬 Chat
                         </h3>
@@ -77,7 +75,7 @@ export default function ChatPanel({ isOpen, onClose, messages, onSendMessage, cu
                             whileTap={{ scale: 0.9 }}
                             onClick={onClose}
                             aria-label="Close chat"
-                            className="flex h-7 w-7 items-center justify-center rounded-full border-2 border-[var(--border-strong)] bg-[var(--surface)] text-[#0A0A0A] shadow-[2px_2px_0_var(--border-strong)] hover:shadow-[1px_1px_0_var(--border-strong)] hover:translate-x-[1px] hover:translate-y-[1px] transition-all"
+                            className="flex h-7 w-7 items-center justify-center rounded-full border-2 border-[var(--border-strong)] bg-[var(--surface)] text-[var(--text-primary)] shadow-[2px_2px_0_var(--border-strong)] hover:shadow-[1px_1px_0_var(--border-strong)] hover:translate-x-[1px] hover:translate-y-[1px] transition-all focus-visible:ring-2 focus-visible:ring-[#FFE600] focus-visible:outline-none"
                         >
                             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
                                 <line x1="18" y1="6" x2="6" y2="18" />
@@ -90,7 +88,7 @@ export default function ChatPanel({ isOpen, onClose, messages, onSendMessage, cu
                     <div ref={scrollRef} className="chat-messages flex-1 overflow-y-auto px-4 py-3 space-y-4" role="log" aria-live="polite">
                         {messages.length === 0 && (
                             <div className="flex items-center justify-center h-full">
-                                <p className="text-sm text-[#0A0A0A]/25 text-center">
+                                <p className="text-sm text-[var(--text-muted)] text-center">
                                     No messages yet.<br />Be the first to say something! 💬
                                 </p>
                             </div>
@@ -113,20 +111,20 @@ export default function ChatPanel({ isOpen, onClose, messages, onSendMessage, cu
                                         className="relative h-7 w-7 flex-shrink-0 overflow-hidden rounded-full border-2 border-[var(--border-strong)] flex items-center justify-center"
                                         style={{ backgroundColor: color }}
                                     >
-                                        <span className="text-[10px] font-bold text-[#0A0A0A]" style={{ fontFamily: "var(--font-heading)" }}>
+                                        <span className="text-[10px] font-bold text-[#0A0A0A] font-heading">
                                             {initial}
                                         </span>
                                     </div>
                                     <div className="min-w-0 flex-1">
                                         <div className="flex items-baseline gap-2">
-                                            <span className="text-xs font-bold text-[#0A0A0A]" style={{ fontFamily: "var(--font-heading)" }}>
+                                            <span className="text-xs font-bold text-[var(--text-primary)] font-heading">
                                                 {isMe ? "You" : msg.senderName}
                                             </span>
-                                            <span className="text-[10px] text-[#0A0A0A]/35">
+                                            <span className="text-[10px] text-[var(--text-muted)]">
                                                 {new Date(msg.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
                                             </span>
                                         </div>
-                                        <p className="mt-0.5 text-sm text-[#0A0A0A]/70 leading-relaxed">{msg.content}</p>
+                                        <p className="mt-0.5 text-sm text-[var(--text-secondary)] leading-relaxed">{msg.content}</p>
                                     </div>
                                 </motion.div>
                             );
@@ -144,8 +142,7 @@ export default function ChatPanel({ isOpen, onClose, messages, onSendMessage, cu
                                 onKeyDown={(e) => e.key === "Enter" && handleSend()}
                                 placeholder="Type a message..."
                                 aria-label="Type a chat message"
-                                className="flex-1 bg-transparent text-sm text-[#0A0A0A] outline-none placeholder:text-[#0A0A0A]/30"
-                                style={{ fontFamily: "var(--font-body)" }}
+                                className="flex-1 bg-transparent text-sm text-[var(--text-primary)] outline-none placeholder:text-[var(--text-muted)] font-body"
                             />
                             <VoiceInputButton
                                 onTranscript={handleVoiceTranscript}
@@ -158,7 +155,7 @@ export default function ChatPanel({ isOpen, onClose, messages, onSendMessage, cu
                                 whileTap={{ scale: 0.9 }}
                                 onClick={handleSend}
                                 aria-label="Send message"
-                                className="flex h-8 w-8 items-center justify-center rounded-full bg-[#FFE600] border-2 border-[var(--border-strong)] shadow-[2px_2px_0_var(--border-strong)] hover:shadow-[1px_1px_0_var(--border-strong)] transition-all"
+                                className="flex h-8 w-8 items-center justify-center rounded-full bg-[#FFE600] border-2 border-[var(--border-strong)] shadow-[2px_2px_0_var(--border-strong)] hover:shadow-[1px_1px_0_var(--border-strong)] transition-all focus-visible:ring-2 focus-visible:ring-[var(--text-primary)] focus-visible:outline-none"
                             >
                                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#0A0A0A" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                                     <line x1="22" y1="2" x2="11" y2="13" />
@@ -167,7 +164,7 @@ export default function ChatPanel({ isOpen, onClose, messages, onSendMessage, cu
                             </motion.button>
                         </div>
                         {voiceInterim && (
-                            <p className="text-[10px] text-[#0A0A0A]/40 mt-1 italic truncate px-1">
+                            <p className="text-[10px] text-[var(--text-muted)] mt-1 italic truncate px-1">
                                 🎙️ {voiceInterim}
                             </p>
                         )}

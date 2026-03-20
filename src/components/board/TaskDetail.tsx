@@ -413,8 +413,7 @@ function TaskDetailInner({
                       setEditingTitle(false);
                     }
                   }}
-                  className="w-full text-xl font-black text-[var(--text-primary)] bg-transparent border-b-2 border-[var(--yellow)] outline-none pb-0.5"
-                  style={{ fontFamily: "var(--font-heading)" }}
+                  className="w-full text-xl font-black text-[var(--text-primary)] bg-transparent border-b-2 border-[var(--yellow)] outline-none pb-0.5 focus-visible:ring-2 focus-visible:ring-[#FFE600] font-heading"
                 />
               ) : (
                 <h1
@@ -422,8 +421,7 @@ function TaskDetailInner({
                   tabIndex={0}
                   onClick={() => setEditingTitle(true)}
                   onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setEditingTitle(true); } }}
-                  className="text-xl font-black text-[var(--text-primary)] cursor-text hover:bg-[var(--surface-hover)] rounded px-1 -mx-1 py-0.5 transition-colors truncate"
-                  style={{ fontFamily: "var(--font-heading)" }}
+                  className="text-xl font-black text-[var(--text-primary)] cursor-text hover:bg-[var(--surface-hover)] rounded px-1 -mx-1 py-0.5 transition-colors truncate focus-visible:ring-2 focus-visible:ring-[#FFE600] focus-visible:outline-none font-heading"
                   title="Click to edit"
                   aria-label={`Task title: ${title}. Press Enter to edit.`}
                 >
@@ -444,13 +442,12 @@ function TaskDetailInner({
                     aria-label={`Priority: ${pCfg.label}. Click to change.`}
                     aria-expanded={showPriorityMenu}
                     aria-haspopup="menu"
-                    className="flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-bold border transition-colors hover:opacity-80"
+                    className="flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-bold border transition-colors hover:opacity-80 focus-visible:ring-2 focus-visible:ring-[#FFE600] focus-visible:outline-none"
                     style={{
                       backgroundColor: pCfg.bg,
                       borderColor: pCfg.color + "40",
                       color: pCfg.color,
-                      fontFamily: "var(--font-heading)",
-                    }}
+                      }}
                   >
                     <span
                       className="h-2 w-2 rounded-full"
@@ -467,8 +464,7 @@ function TaskDetailInner({
                           <button
                             key={p}
                             onClick={() => changePriority(p)}
-                            className="flex w-full items-center gap-2 px-3 py-2 text-xs font-semibold hover:bg-[var(--surface-hover)] transition-colors text-left"
-                            style={{ fontFamily: "var(--font-heading)" }}
+                            className="flex w-full items-center gap-2 px-3 py-2 text-xs font-semibold hover:bg-[var(--surface-hover)] transition-colors text-left focus-visible:ring-2 focus-visible:ring-[#FFE600] focus-visible:outline-none font-heading"
                           >
                             <span
                               className="h-2.5 w-2.5 rounded-full flex-shrink-0"
@@ -497,8 +493,7 @@ function TaskDetailInner({
                       aria-label={`Status: ${col?.title || "Status"}. Click to change.`}
                       aria-expanded={showColumnMenu}
                       aria-haspopup="menu"
-                      className="flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-bold border border-[var(--border)] bg-[var(--surface-hover)] text-[var(--text-secondary)] hover:border-[var(--border-strong)] transition-colors"
-                      style={{ fontFamily: "var(--font-heading)" }}
+                      className="flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-bold border border-[var(--border)] bg-[var(--surface-hover)] text-[var(--text-secondary)] hover:border-[var(--border-strong)] transition-colors focus-visible:ring-2 focus-visible:ring-[#FFE600] focus-visible:outline-none font-heading"
                     >
                       {col && (
                         <span
@@ -518,8 +513,7 @@ function TaskDetailInner({
                             <button
                               key={c.id}
                               onClick={() => changeColumn(c.id)}
-                              className="flex w-full items-center gap-2 px-3 py-2 text-xs font-semibold hover:bg-[var(--surface-hover)] transition-colors text-left"
-                              style={{ fontFamily: "var(--font-heading)" }}
+                              className="flex w-full items-center gap-2 px-3 py-2 text-xs font-semibold hover:bg-[var(--surface-hover)] transition-colors text-left focus-visible:ring-2 focus-visible:ring-[#FFE600] focus-visible:outline-none font-heading"
                             >
                               <span
                                 className="h-2.5 w-2.5 rounded-full flex-shrink-0"
@@ -547,7 +541,7 @@ function TaskDetailInner({
               whileTap={{ scale: 0.9 }}
               onClick={onClose}
               aria-label="Close task details"
-              className="flex h-8 w-8 items-center justify-center rounded-full border-[1.5px] border-[var(--border)] text-[var(--text-secondary)] hover:bg-[#FFE600]/20 hover:border-[var(--border-strong)] transition-colors flex-shrink-0"
+              className="flex h-8 w-8 items-center justify-center rounded-full border-[1.5px] border-[var(--border)] text-[var(--text-secondary)] hover:bg-[#FFE600]/20 hover:border-[var(--border-strong)] transition-colors flex-shrink-0 focus-visible:ring-2 focus-visible:ring-[#FFE600] focus-visible:outline-none"
             >
               <X size={14} aria-hidden="true" />
             </motion.button>
@@ -574,8 +568,7 @@ function TaskDetailInner({
                   type="date"
                   value={dueDate}
                   onChange={(e) => changeDueDate(e.target.value)}
-                  className="text-xs text-[var(--text-secondary)] font-medium bg-transparent outline-none cursor-pointer"
-                  style={{ fontFamily: "var(--font-heading)" }}
+                  className="text-xs text-[var(--text-secondary)] font-medium bg-transparent outline-none cursor-pointer focus-visible:ring-2 focus-visible:ring-[#FFE600] rounded font-heading"
                 />
               </MetaField>
 
@@ -588,7 +581,7 @@ function TaskDetailInner({
                       setShowPriorityMenu(false);
                       setShowColumnMenu(false);
                     }}
-                    className="flex items-center gap-1 text-xs text-[var(--text-secondary)] font-medium hover:text-[var(--text-primary)] transition-colors"
+                    className="flex items-center gap-1 text-xs text-[var(--text-secondary)] font-medium hover:text-[var(--text-primary)] transition-colors focus-visible:ring-2 focus-visible:ring-[#FFE600] focus-visible:outline-none rounded"
                   >
                     {selectedLabels.length > 0 ? (
                       <span className="flex flex-wrap gap-1">
@@ -603,8 +596,7 @@ function TaskDetailInner({
                                 backgroundColor: lbl.color + "20",
                                 borderColor: lbl.color + "40",
                                 color: lbl.color,
-                                fontFamily: "var(--font-heading)",
-                              }}
+                                }}
                             >
                               {lbl.name}
                             </span>
@@ -627,8 +619,7 @@ function TaskDetailInner({
                           <button
                             key={lbl.id}
                             onClick={() => toggleLabel(lbl.id)}
-                            className="flex w-full items-center gap-2 px-3 py-2 text-xs font-semibold hover:bg-[var(--surface-hover)] transition-colors text-left"
-                            style={{ fontFamily: "var(--font-heading)" }}
+                            className="flex w-full items-center gap-2 px-3 py-2 text-xs font-semibold hover:bg-[var(--surface-hover)] transition-colors text-left focus-visible:ring-2 focus-visible:ring-[#FFE600] focus-visible:outline-none font-heading"
                           >
                             <span
                               className="h-2.5 w-2.5 rounded-full flex-shrink-0"
@@ -657,8 +648,7 @@ function TaskDetailInner({
             {/* ── Description ── */}
             <section>
               <h3
-                className="text-[11px] font-black text-[var(--text-secondary)] uppercase tracking-wider mb-2"
-                style={{ fontFamily: "var(--font-heading)" }}
+                className="text-[11px] font-black text-[var(--text-secondary)] uppercase tracking-wider mb-2 font-heading"
               >
                 Description
               </h3>
@@ -675,7 +665,7 @@ function TaskDetailInner({
                     }
                   }}
                   rows={4}
-                  className="w-full rounded-lg border-2 border-[var(--yellow)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--text-primary)] outline-none resize-y min-h-[80px]"
+                  className="w-full rounded-lg border-2 border-[var(--yellow)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--text-primary)] outline-none resize-y min-h-[80px] focus-visible:ring-2 focus-visible:ring-[#FFE600]"
                   placeholder="Add a description..."
                 />
               ) : (
@@ -685,7 +675,7 @@ function TaskDetailInner({
                   onClick={() => setEditingDesc(true)}
                   onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setEditingDesc(true); } }}
                   aria-label={description ? "Edit description" : "Add a description"}
-                  className="w-full rounded-lg border-2 border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-sm min-h-[60px] cursor-text hover:border-[var(--border-strong)] transition-colors"
+                  className="w-full rounded-lg border-2 border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-sm min-h-[60px] cursor-text hover:border-[var(--border-strong)] transition-colors focus-visible:ring-2 focus-visible:ring-[#FFE600] focus-visible:outline-none"
                 >
                   {description ? (
                     <p className="text-[var(--text-primary)] whitespace-pre-wrap">{description}</p>
@@ -700,15 +690,13 @@ function TaskDetailInner({
             <section>
               <div className="flex items-center justify-between mb-2">
                 <h3
-                  className="text-[11px] font-black text-[var(--text-secondary)] uppercase tracking-wider"
-                  style={{ fontFamily: "var(--font-heading)" }}
+                  className="text-[11px] font-black text-[var(--text-secondary)] uppercase tracking-wider font-heading"
                 >
                   Subtasks
                 </h3>
                 {subtasks.length > 0 && (
                   <span
-                    className="text-[10px] font-bold text-[var(--text-secondary)]"
-                    style={{ fontFamily: "var(--font-heading)" }}
+                    className="text-[10px] font-bold text-[var(--text-secondary)] font-heading"
                   >
                     {doneCount}/{subtasks.length} ({subtaskPercent}%)
                   </span>
@@ -742,7 +730,7 @@ function TaskDetailInner({
                       <button
                         onClick={() => toggleSubtask(st.id)}
                         aria-label={`Mark subtask "${st.title}" as ${st.done ? "incomplete" : "complete"}`}
-                        className="flex-shrink-0 text-[var(--text-secondary)] hover:text-[#7C3AED] transition-colors"
+                        className="flex-shrink-0 text-[var(--text-secondary)] hover:text-[#7C3AED] transition-colors rounded focus-visible:ring-2 focus-visible:ring-[#FFE600] focus-visible:outline-none"
                       >
                         {st.done ? (
                           <CheckCircle2 size={16} className="text-[#22C55E]" aria-hidden="true" />
@@ -762,7 +750,7 @@ function TaskDetailInner({
                       <button
                         onClick={() => removeSubtask(st.id)}
                         aria-label={`Remove subtask "${st.title}"`}
-                        className="opacity-0 group-hover:opacity-100 text-[var(--text-secondary)] hover:text-[#EF4444] transition-all flex-shrink-0"
+                        className="opacity-0 group-hover:opacity-100 focus:opacity-100 text-[var(--text-secondary)] hover:text-[#EF4444] transition-all flex-shrink-0 rounded focus-visible:ring-2 focus-visible:ring-[#FFE600] focus-visible:outline-none"
                       >
                         <X size={12} aria-hidden="true" />
                       </button>
@@ -782,7 +770,7 @@ function TaskDetailInner({
                     if (e.key === "Enter") addSubtask();
                   }}
                   placeholder="Add subtask..."
-                  className="flex-1 text-sm bg-transparent outline-none text-[var(--text-primary)] placeholder:text-[var(--text-secondary)]/40"
+                  className="flex-1 text-sm bg-transparent outline-none text-[var(--text-primary)] placeholder:text-[var(--text-secondary)]/40 focus-visible:ring-2 focus-visible:ring-[#FFE600] rounded"
                 />
                 {newSubtask.trim() && (
                   <motion.button
@@ -790,7 +778,7 @@ function TaskDetailInner({
                     animate={{ scale: 1 }}
                     onClick={addSubtask}
                     aria-label="Add subtask"
-                    className="flex h-6 w-6 items-center justify-center rounded-full bg-[#7C3AED] text-white"
+                    className="flex h-6 w-6 items-center justify-center rounded-full bg-[#7C3AED] text-white focus-visible:ring-2 focus-visible:ring-[#FFE600] focus-visible:outline-none"
                   >
                     <Plus size={12} aria-hidden="true" />
                   </motion.button>
@@ -805,12 +793,11 @@ function TaskDetailInner({
                   <button
                     key={t}
                     onClick={() => setTab(t)}
-                    className={`flex items-center gap-1.5 px-4 py-2.5 text-xs font-semibold border-b-2 transition-all ${
+                    className={`flex items-center gap-1.5 px-4 py-2.5 text-xs font-semibold border-b-2 transition-all focus-visible:ring-2 focus-visible:ring-[#FFE600] focus-visible:outline-none ${
                       tab === t
                         ? "border-[var(--border-strong)] text-[var(--text-primary)]"
                         : "border-transparent text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
-                    }`}
-                    style={{ fontFamily: "var(--font-heading)" }}
+                    } font-heading`}
                   >
                     {t === "comments" ? <MessageSquare size={12} /> : <Activity size={12} />}
                     {t === "comments" ? "Comments" : "Activity"}
@@ -828,7 +815,7 @@ function TaskDetailInner({
                       <div className="flex items-center gap-2 text-xs text-[#EF4444] bg-[#EF4444]/5 rounded-lg px-3 py-2 mb-2">
                         <AlertTriangle size={12} className="flex-shrink-0" />
                         <span>{commentsError}</span>
-                        <button onClick={fetchComments} className="ml-auto font-bold hover:underline" style={{ fontFamily: "var(--font-heading)" }}>Retry</button>
+                        <button onClick={fetchComments} className="ml-auto font-bold hover:underline rounded focus-visible:ring-2 focus-visible:ring-[#FFE600] focus-visible:outline-none font-heading">Retry</button>
                       </div>
                     )}
                     {commentsLoading ? (
@@ -882,7 +869,7 @@ function TaskDetailInner({
                             onChange={(e) => setCommentText(e.target.value)}
                             placeholder="Write a comment..."
                             aria-label="Write a comment"
-                            className="flex-1 rounded-lg border-2 border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-xs outline-none focus:border-[var(--border-strong)] transition-colors placeholder:text-[var(--text-secondary)]/40"
+                            className="flex-1 rounded-lg border-2 border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-xs outline-none focus:border-[var(--border-strong)] transition-colors placeholder:text-[var(--text-secondary)]/40 focus-visible:ring-2 focus-visible:ring-[#FFE600]"
                             onKeyDown={(e) => {
                               if (e.key === "Enter" && commentText.trim()) {
                                 submitComment();
@@ -912,16 +899,14 @@ function TaskDetailInner({
                 </span>
                 <button
                   onClick={() => setShowDeleteConfirm(false)}
-                  className="text-xs font-bold text-[var(--text-secondary)] hover:text-[var(--text-primary)] px-3 py-1.5 rounded-lg border border-[var(--border)] transition-colors"
-                  style={{ fontFamily: "var(--font-heading)" }}
+                  className="text-xs font-bold text-[var(--text-secondary)] hover:text-[var(--text-primary)] px-3 py-1.5 rounded-lg border border-[var(--border)] transition-colors focus-visible:ring-2 focus-visible:ring-[#FFE600] focus-visible:outline-none font-heading"
                 >
                   Cancel
                 </button>
                 <button
                   onClick={handleDelete}
                   disabled={deleting}
-                  className="text-xs font-bold text-white bg-[#EF4444] hover:bg-[#DC2626] px-3 py-1.5 rounded-lg border-2 border-[#EF4444] shadow-[2px_2px_0_var(--border-strong)] active:shadow-none active:translate-x-[2px] active:translate-y-[2px] transition-all disabled:opacity-50"
-                  style={{ fontFamily: "var(--font-heading)" }}
+                  className="text-xs font-bold text-white bg-[#EF4444] hover:bg-[#DC2626] px-3 py-1.5 rounded-lg border-2 border-[#EF4444] shadow-[2px_2px_0_var(--border-strong)] active:shadow-none active:translate-x-[2px] active:translate-y-[2px] transition-all disabled:opacity-50 focus-visible:ring-2 focus-visible:ring-[#FFE600] focus-visible:outline-none font-heading"
                 >
                   {deleting ? "Deleting..." : "Delete"}
                 </button>
@@ -929,8 +914,7 @@ function TaskDetailInner({
             ) : (
               <button
                 onClick={() => setShowDeleteConfirm(true)}
-                className="flex items-center gap-2 text-xs font-bold text-[#EF4444]/70 hover:text-[#EF4444] transition-colors"
-                style={{ fontFamily: "var(--font-heading)" }}
+                className="flex items-center gap-2 text-xs font-bold text-[#EF4444]/70 hover:text-[#EF4444] transition-colors rounded focus-visible:ring-2 focus-visible:ring-[#FFE600] focus-visible:outline-none font-heading"
               >
                 <Trash2 size={13} />
                 Delete task
@@ -961,8 +945,7 @@ function MetaField({
       <span className="text-[var(--text-secondary)]">{icon}</span>
       <div className="flex flex-col min-w-0">
         <span
-          className="text-[9px] font-black text-[var(--text-secondary)] uppercase tracking-wider"
-          style={{ fontFamily: "var(--font-heading)" }}
+          className="text-[9px] font-black text-[var(--text-secondary)] uppercase tracking-wider font-heading"
         >
           {label}
         </span>

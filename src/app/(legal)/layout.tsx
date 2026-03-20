@@ -10,7 +10,6 @@ export default function LegalLayout({ children }: { children: React.ReactNode })
             <span
               className="text-xl font-black tracking-tight"
               style={{
-                fontFamily: "var(--font-heading)",
                 color: "var(--text-primary)",
                 textShadow: "2px 2px 0 #FFE600",
               }}
@@ -29,10 +28,10 @@ export default function LegalLayout({ children }: { children: React.ReactNode })
       {/* Minimal footer */}
       <footer className="border-t-2 border-[var(--border)] px-6 py-8">
         <div className="mx-auto flex max-w-3xl items-center justify-between text-sm text-[var(--text-muted)]">
-          <span style={{ fontFamily: "var(--font-body)" }}>
+          <span className="font-body">
             &copy; {new Date().getFullYear()} Yoodle
           </span>
-          <div className="flex gap-4" style={{ fontFamily: "var(--font-body)" }}>
+          <div className="flex gap-4 font-body">
             <Link href="/privacy" className="hover:text-[var(--text-secondary)] transition-colors">
               Privacy
             </Link>

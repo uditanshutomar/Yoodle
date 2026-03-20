@@ -70,12 +70,12 @@ export default function BoardPage() {
       {/* Page Header */}
       <div>
         <h1
-          className="text-2xl sm:text-3xl lg:text-4xl font-black text-[var(--text-primary)] leading-tight"
-          style={{ fontFamily: "var(--font-heading)", textShadow: "2px 2px 0 #FFE600" }}
+          className="text-2xl sm:text-3xl lg:text-4xl font-black text-[var(--text-primary)] leading-tight font-heading"
+          style={{ textShadow: "2px 2px 0 #FFE600" }}
         >
           The Board
         </h1>
-        <p className="mt-1 text-sm text-[var(--text-muted)]" style={{ fontFamily: "var(--font-body)" }}>
+        <p className="mt-1 text-sm text-[var(--text-muted)] font-body">
           Stickies, lanes, and auto-stickies from your meetings
         </p>
       </div>
@@ -88,8 +88,7 @@ export default function BoardPage() {
             view === "board"
               ? "bg-[#FFE600] text-[#0A0A0A] shadow-[2px_2px_0_var(--border-strong)]"
               : "text-[var(--text-muted)] hover:bg-[var(--surface-hover)]"
-          }`}
-          style={{ fontFamily: "var(--font-heading)" }}
+          } font-heading`}
         >
           <Kanban size={14} /> Board
         </button>
@@ -99,8 +98,7 @@ export default function BoardPage() {
             view === "list"
               ? "bg-[#FFE600] text-[#0A0A0A] shadow-[2px_2px_0_var(--border-strong)]"
               : "text-[var(--text-muted)] hover:bg-[var(--surface-hover)]"
-          }`}
-          style={{ fontFamily: "var(--font-heading)" }}
+          } font-heading`}
         >
           <List size={14} /> List
         </button>
@@ -112,15 +110,14 @@ export default function BoardPage() {
       ) : error ? (
         <div className="flex flex-col items-center justify-center py-20 gap-4">
           <div className="rounded-2xl border-2 border-[#FF6B6B] bg-[#FF6B6B]/10 px-6 py-4 text-center">
-            <p className="text-sm font-bold text-[#FF6B6B] mb-3" style={{ fontFamily: "var(--font-heading)" }}>
+            <p className="text-sm font-bold text-[#FF6B6B] mb-3 font-heading">
               {error}
             </p>
             <motion.button
               whileHover={{ scale: 1.03 }}
               whileTap={{ scale: 0.97 }}
               onClick={fetchBoards}
-              className="inline-flex items-center gap-1.5 text-sm font-bold text-[#FF6B6B] bg-[#FF6B6B]/10 border border-[#FF6B6B]/30 rounded-xl px-4 py-2 hover:bg-[#FF6B6B]/20 transition-colors"
-              style={{ fontFamily: "var(--font-heading)" }}
+              className="inline-flex items-center gap-1.5 text-sm font-bold text-[#FF6B6B] bg-[#FF6B6B]/10 border border-[#FF6B6B]/30 rounded-xl px-4 py-2 hover:bg-[#FF6B6B]/20 transition-colors font-heading"
             >
               <RefreshCw size={14} /> Retry
             </motion.button>
@@ -131,7 +128,7 @@ export default function BoardPage() {
           <div className="flex h-16 w-16 items-center justify-center rounded-2xl border-2 border-[var(--border-strong)] bg-[var(--surface)] shadow-[4px_4px_0_var(--border-strong)]">
             <Kanban size={28} className="text-[var(--text-muted)]" />
           </div>
-          <p className="text-sm font-bold text-[var(--text-primary)]" style={{ fontFamily: "var(--font-heading)" }}>
+          <p className="text-sm font-bold text-[var(--text-primary)] font-heading">
             No board found
           </p>
           <p className="text-xs text-[var(--text-muted)]">
@@ -143,7 +140,7 @@ export default function BoardPage() {
           <div className="flex h-16 w-16 items-center justify-center rounded-2xl border-2 border-[var(--border-strong)] bg-[var(--surface)] shadow-[4px_4px_0_var(--border-strong)]">
             <List size={28} className="text-[var(--text-muted)]" />
           </div>
-          <p className="text-sm font-bold text-[var(--text-primary)]" style={{ fontFamily: "var(--font-heading)" }}>
+          <p className="text-sm font-bold text-[var(--text-primary)] font-heading">
             List view coming soon
           </p>
           <p className="text-xs text-[var(--text-muted)]">

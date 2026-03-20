@@ -46,8 +46,7 @@ export default function MeetingCascadeCard({ data, onUndo }: Props) {
         <div className="flex items-center gap-2">
           <Zap size={16} className="text-[var(--text-muted)]" />
           <h4
-            className="text-xs font-bold text-[var(--text-primary)]"
-            style={{ fontFamily: "var(--font-heading)" }}
+            className="text-xs font-bold text-[var(--text-primary)] font-heading"
           >
             Post-Meeting Actions: {data.meetingTitle}
           </h4>
@@ -71,8 +70,7 @@ export default function MeetingCascadeCard({ data, onUndo }: Props) {
               <StatusIcon status={step.status} />
               <div className="flex-1 min-w-0">
                 <span
-                  className={`text-[11px] text-[var(--text-primary)] ${isUndone ? "line-through" : ""}`}
-                  style={{ fontFamily: "var(--font-body)" }}
+                  className={`text-[11px] text-[var(--text-primary)] ${isUndone ? "line-through" : ""} font-body`}
                 >
                   {step.step}
                 </span>

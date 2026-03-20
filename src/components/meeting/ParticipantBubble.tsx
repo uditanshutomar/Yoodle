@@ -87,8 +87,8 @@ export default function ParticipantBubble({
                 style={{
                     border: isSpeaking
                         ? "3px solid #FFE600"
-                        : "2.5px solid #0A0A0A",
-                    background: "white",
+                        : "2.5px solid var(--doodle)",
+                    background: "var(--surface)",
                 }}
             >
                 {showVideo ? (
@@ -118,7 +118,7 @@ export default function ParticipantBubble({
                         animate={{ scale: 1 }}
                         role="img"
                         aria-label={`${name} is muted`}
-                        className="absolute bottom-1 right-1 flex h-6 w-6 items-center justify-center rounded-full border-2 border-[#0A0A0A] bg-[#FF6B6B]"
+                        className="absolute bottom-1 right-1 flex h-6 w-6 items-center justify-center rounded-full border-2 border-[var(--doodle)] bg-[#FF6B6B]"
                     >
                         <svg
                             aria-hidden="true"
@@ -143,7 +143,7 @@ export default function ParticipantBubble({
                 {/* Hand raised indicator */}
                 {isHandRaised && (
                     <motion.div
-                        className="absolute top-0 right-0 flex h-7 w-7 items-center justify-center rounded-full border-2 border-[#0A0A0A] bg-[#FFE600] shadow-[2px_2px_0_#0A0A0A] z-10"
+                        className="absolute top-0 right-0 flex h-7 w-7 items-center justify-center rounded-full border-2 border-[var(--doodle)] bg-[#FFE600] shadow-[2px_2px_0_var(--doodle)] z-10"
                         role="img"
                         aria-label={`${name} has raised their hand`}
                         initial={{ scale: 0, y: 10 }}
@@ -162,7 +162,7 @@ export default function ParticipantBubble({
                 {/* Speaking wave bars */}
                 {isSpeaking && (
                     <motion.div
-                        className="absolute bottom-1.5 left-1.5 flex items-end gap-[2px] rounded-full border-2 border-[#0A0A0A] bg-[#FFE600] px-1.5 py-1"
+                        className="absolute bottom-1.5 left-1.5 flex items-end gap-[2px] rounded-full border-2 border-[var(--doodle)] bg-[#FFE600] px-1.5 py-1"
                         role="status"
                         aria-label={`${name} is speaking`}
                         initial={{ opacity: 0, scale: 0 }}
@@ -171,7 +171,7 @@ export default function ParticipantBubble({
                         {[0, 1, 2].map((i) => (
                             <motion.div
                                 key={i}
-                                className="w-[3px] rounded-full bg-[#0A0A0A]"
+                                className="w-[3px] rounded-full bg-[var(--doodle)]"
                                 animate={!shouldReduceMotion ? { height: [3, 10, 3] } : { height: 6 }}
                                 transition={!shouldReduceMotion ? {
                                     repeat: Infinity,
@@ -195,9 +195,8 @@ export default function ParticipantBubble({
                 <span
                     className="text-xs font-bold tracking-wide whitespace-nowrap"
                     style={{
-                        fontFamily: "var(--font-heading)",
                         fontSize: isSpeaking ? "0.75rem" : "0.65rem",
-                        color: "#0A0A0A",
+                        color: "var(--text-primary)",
                         textShadow: isSpeaking ? "1px 1px 0 #FFE600" : "none",
                     }}
                 >

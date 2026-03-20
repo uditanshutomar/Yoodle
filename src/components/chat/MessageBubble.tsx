@@ -64,7 +64,7 @@ export default function MessageBubble({
     return (
       <div className="flex justify-center py-2">
         <span
-          className="text-sm italic"
+          className="text-sm italic font-heading"
           style={{ color: "var(--text-muted)" }}
           title={formatTime(message.createdAt)}
         >
@@ -114,8 +114,7 @@ export default function MessageBubble({
             className="text-sm font-bold"
             style={{
               color: "var(--text-primary)",
-              fontFamily: "var(--font-heading)",
-            }}
+              }}
           >
             {isAgent ? `${senderDisplayName}'s Yoodler 🤖` : senderDisplayName}
           </span>
@@ -146,7 +145,7 @@ export default function MessageBubble({
             type="button"
             aria-label="Reply to message"
             onClick={() => onReply(message)}
-            className="ml-0.5 p-1 rounded hover:bg-[var(--surface-hover)] transition-colors cursor-pointer"
+            className="ml-0.5 p-1 rounded hover:bg-[var(--surface-hover)] transition-colors cursor-pointer font-heading"
             style={{ color: "var(--text-muted)" }}
           >
             <CornerUpLeft size={14} />
@@ -176,7 +175,7 @@ export default function MessageBubble({
           {/* Message content */}
           {message.deleted ? (
             <p
-              className="text-sm italic"
+              className="text-sm italic font-heading"
               style={{ color: "var(--text-muted)" }}
             >
               This message was deleted
@@ -184,7 +183,7 @@ export default function MessageBubble({
           ) : (
             <>
               <div
-                className="prose prose-sm prose-invert max-w-none"
+                className="prose prose-sm prose-invert max-w-none font-heading"
                 style={{ color: "var(--text-primary)" }}
               >
                 <SafeMarkdown>{displayContent}</SafeMarkdown>
@@ -194,7 +193,7 @@ export default function MessageBubble({
                 <button
                   type="button"
                   onClick={() => setExpanded((v) => !v)}
-                  className="text-xs mt-1 cursor-pointer hover:underline"
+                  className="text-xs mt-1 cursor-pointer hover:underline font-heading"
                   style={{ color: "var(--text-muted)" }}
                 >
                   {expanded ? "Show less" : "Show more"}
@@ -203,7 +202,7 @@ export default function MessageBubble({
 
               {message.edited && (
                 <span
-                  className="text-[10px] ml-1"
+                  className="text-[10px] ml-1 font-heading"
                   style={{ color: "var(--text-muted)" }}
                 >
                   (edited)
@@ -350,7 +349,7 @@ function AgentActionCard({ action }: AgentActionCardProps) {
     >
       <div className="flex items-start gap-2">
         <Zap size={14} className="mt-0.5 text-yellow-500 flex-shrink-0" />
-        <div className="flex-1 min-w-0">
+        <div className="flex-1 min-w-0 font-heading">
           <p className="text-xs font-medium" style={{ color: "var(--text-primary)" }}>
             {action.summary}
           </p>
@@ -364,7 +363,7 @@ function AgentActionCard({ action }: AgentActionCardProps) {
           <button
             type="button"
             onClick={handleConfirm}
-            className="flex-1 text-xs font-medium py-1.5 rounded-md transition-colors"
+            className="flex-1 text-xs font-medium py-1.5 rounded-md transition-colors font-heading"
             style={{ backgroundColor: "#FFE600", color: "#000" }}
           >
             Accept
@@ -372,7 +371,7 @@ function AgentActionCard({ action }: AgentActionCardProps) {
           <button
             type="button"
             onClick={handleDeny}
-            className="flex-1 text-xs font-medium py-1.5 rounded-md transition-colors"
+            className="flex-1 text-xs font-medium py-1.5 rounded-md transition-colors font-heading"
             style={{ backgroundColor: "var(--surface)", color: "var(--text-secondary)" }}
           >
             Deny
@@ -397,7 +396,7 @@ function AgentActionCard({ action }: AgentActionCardProps) {
           <button
             type="button"
             onClick={handleRetry}
-            className="text-[10px] underline"
+            className="text-[10px] underline font-heading"
             style={{ color: "var(--text-muted)" }}
           >
             Retry

@@ -5,6 +5,7 @@ import { motion } from "framer-motion";
 import { Settings, User, Bell, Palette, Shield, Save, Sun, Moon, Monitor, Link2, ExternalLink } from "lucide-react";
 import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
+import Input from "@/components/ui/Input";
 import WorkspaceSection from "@/components/settings/WorkspaceSection";
 import { useAuth } from "@/hooks/useAuth";
 import { useTheme, type Theme } from "@/providers/ThemeProvider";
@@ -109,7 +110,7 @@ export default function SettingsClient() {
         <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[var(--foreground)] border-2 border-[var(--border-strong)]">
           <Settings size={20} className="text-[var(--background)]" />
         </div>
-        <h1 className="text-2xl font-black text-[var(--text-primary)]" style={{ fontFamily: "var(--font-heading)" }}>
+        <h1 className="text-2xl font-black text-[var(--text-primary)] font-heading">
           Settings
         </h1>
       </motion.div>
@@ -117,34 +118,23 @@ export default function SettingsClient() {
       {/* Profile */}
       <motion.div variants={itemVariants}>
         <Card className="!p-6">
-          <h2 className="flex items-center gap-2 text-base font-bold text-[var(--text-primary)] mb-4" style={{ fontFamily: "var(--font-heading)" }}>
+          <h2 className="flex items-center gap-2 text-base font-bold text-[var(--text-primary)] mb-4 font-heading">
             <User size={16} /> Profile
           </h2>
           <div className="space-y-4">
-            <div>
-              <label className="text-xs font-bold text-[var(--text-secondary)] mb-1 block" style={{ fontFamily: "var(--font-heading)" }}>
-                Display Name
-              </label>
-              <input
-                type="text"
-                value={displayName}
-                onChange={(e) => setDisplayName(e.target.value)}
-                className="w-full px-4 py-2.5 text-sm border-2 border-[var(--border)] rounded-xl bg-[var(--surface)] text-[var(--text-primary)] focus:border-[#FFE600] focus:outline-none"
-                style={{ fontFamily: "var(--font-body)" }}
-              />
-            </div>
-            <div>
-              <label className="text-xs font-bold text-[var(--text-secondary)] mb-1 block" style={{ fontFamily: "var(--font-heading)" }}>
-                Email
-              </label>
-              <input
-                type="email"
-                value={user?.email || ""}
-                disabled
-                className="w-full px-4 py-2.5 text-sm border-2 border-[var(--border)] rounded-xl bg-[var(--surface-hover)] text-[var(--text-muted)] cursor-not-allowed"
-                style={{ fontFamily: "var(--font-body)" }}
-              />
-            </div>
+            <Input
+              label="Display Name"
+              value={displayName}
+              onChange={(e) => setDisplayName(e.target.value)}
+              placeholder="Enter your display name"
+            />
+            <Input
+              label="Email"
+              type="email"
+              value={user?.email || ""}
+              disabled
+              className="bg-[var(--surface-hover)] text-[var(--text-muted)] cursor-not-allowed"
+            />
           </div>
         </Card>
       </motion.div>
@@ -152,7 +142,7 @@ export default function SettingsClient() {
       {/* Notifications */}
       <motion.div variants={itemVariants}>
         <Card className="!p-6">
-          <h2 className="flex items-center gap-2 text-base font-bold text-[var(--text-primary)] mb-4" style={{ fontFamily: "var(--font-heading)" }}>
+          <h2 className="flex items-center gap-2 text-base font-bold text-[var(--text-primary)] mb-4 font-heading">
             <Bell size={16} /> Notifications
           </h2>
           <ToggleSetting
@@ -167,14 +157,14 @@ export default function SettingsClient() {
       {/* Appearance */}
       <motion.div variants={itemVariants}>
         <Card className="!p-6">
-          <h2 className="flex items-center gap-2 text-base font-bold text-[var(--text-primary)] mb-4" style={{ fontFamily: "var(--font-heading)" }}>
+          <h2 className="flex items-center gap-2 text-base font-bold text-[var(--text-primary)] mb-4 font-heading">
             <Palette size={16} /> Appearance
           </h2>
           <div>
-            <p className="text-sm font-bold text-[var(--text-primary)] mb-1" style={{ fontFamily: "var(--font-heading)" }}>
+            <p className="text-sm font-bold text-[var(--text-primary)] mb-1 font-heading">
               Theme
             </p>
-            <p className="text-xs text-[var(--text-secondary)] mb-3" style={{ fontFamily: "var(--font-body)" }}>
+            <p className="text-xs text-[var(--text-secondary)] mb-3 font-body">
               Choose your preferred color scheme
             </p>
             <div className="flex gap-2">
@@ -198,8 +188,7 @@ export default function SettingsClient() {
                       isActive
                         ? "border-[#FFE600] bg-[#FFE600]/10 text-[var(--text-primary)]"
                         : "border-[var(--border)] bg-[var(--surface)] text-[var(--text-secondary)] hover:border-[var(--text-muted)]"
-                    }`}
-                    style={{ fontFamily: "var(--font-heading)" }}
+                    } font-heading`}
                   >
                     <Icon size={14} />
                     {opt.label}
@@ -214,7 +203,7 @@ export default function SettingsClient() {
       {/* Connected Accounts */}
       <motion.div variants={itemVariants}>
         <Card className="!p-6">
-          <h2 className="flex items-center gap-2 text-base font-bold text-[var(--text-primary)] mb-4" style={{ fontFamily: "var(--font-heading)" }}>
+          <h2 className="flex items-center gap-2 text-base font-bold text-[var(--text-primary)] mb-4 font-heading">
             <Link2 size={16} /> Connected Accounts
           </h2>
           <div className="flex items-center justify-between">
@@ -229,10 +218,10 @@ export default function SettingsClient() {
                 </svg>
               </div>
               <div>
-                <p className="text-sm font-bold text-[var(--text-primary)]" style={{ fontFamily: "var(--font-heading)" }}>
+                <p className="text-sm font-bold text-[var(--text-primary)] font-heading">
                   Google Workspace
                 </p>
-                <p className="text-xs text-[var(--text-secondary)]" style={{ fontFamily: "var(--font-body)" }}>
+                <p className="text-xs text-[var(--text-secondary)] font-body">
                   {user?.hasGoogleAccess
                     ? "Connected \u2014 Calendar, Tasks, and Drive access enabled"
                     : "Connect for Calendar, Tasks, and Drive features"}
@@ -241,8 +230,7 @@ export default function SettingsClient() {
             </div>
             {user?.hasGoogleAccess ? (
               <span
-                className="text-xs font-bold text-[#22C55E] bg-[#22C55E]/10 border border-[#22C55E]/30 rounded-full px-3 py-1"
-                style={{ fontFamily: "var(--font-heading)" }}
+                className="text-xs font-bold text-[#22C55E] bg-[#22C55E]/10 border border-[#22C55E]/30 rounded-full px-3 py-1 font-heading"
               >
                 Connected
               </span>
@@ -256,10 +244,10 @@ export default function SettingsClient() {
       {/* Security */}
       <motion.div variants={itemVariants}>
         <Card className="!p-6">
-          <h2 className="flex items-center gap-2 text-base font-bold text-[var(--text-primary)] mb-4" style={{ fontFamily: "var(--font-heading)" }}>
+          <h2 className="flex items-center gap-2 text-base font-bold text-[var(--text-primary)] mb-4 font-heading">
             <Shield size={16} /> Security
           </h2>
-          <p className="text-xs text-[var(--text-secondary)]" style={{ fontFamily: "var(--font-body)" }}>
+          <p className="text-xs text-[var(--text-secondary)] font-body">
             Your account uses passwordless magic link authentication. No password to manage.
           </p>
         </Card>
@@ -276,12 +264,12 @@ export default function SettingsClient() {
           {saving ? "Saving\u2026" : "Save Changes"}
         </Button>
         {saveStatus === "success" && (
-          <span className="text-sm font-bold text-green-600" style={{ fontFamily: "var(--font-body)" }}>
+          <span className="text-sm font-bold text-green-600 font-body">
             Saved!
           </span>
         )}
         {saveStatus === "error" && (
-          <span className="text-sm font-bold text-[#FF6B6B]" style={{ fontFamily: "var(--font-body)" }}>
+          <span className="text-sm font-bold text-[#FF6B6B] font-body">
             Failed to save. Try again.
           </span>
         )}
@@ -316,8 +304,7 @@ function GoogleConnectButton() {
     <button
       onClick={handleConnect}
       disabled={connecting}
-      className="flex items-center gap-1.5 text-xs font-bold text-[#3B82F6] bg-[#3B82F6]/10 border border-[#3B82F6]/30 rounded-full px-3 py-1 hover:bg-[#3B82F6]/20 transition-colors disabled:opacity-50"
-      style={{ fontFamily: "var(--font-heading)" }}
+      className="flex items-center gap-1.5 text-xs font-bold text-[#3B82F6] bg-[#3B82F6]/10 border border-[#3B82F6]/30 rounded-full px-3 py-1 hover:bg-[#3B82F6]/20 transition-colors disabled:opacity-50 font-heading"
     >
       <ExternalLink size={10} />
       {connecting ? "Connecting\u2026" : "Connect"}
@@ -339,12 +326,15 @@ function ToggleSetting({
   return (
     <div className="flex items-center justify-between">
       <div>
-        <p className="text-sm font-bold text-[var(--text-primary)]" style={{ fontFamily: "var(--font-heading)" }}>{label}</p>
-        <p className="text-xs text-[var(--text-secondary)]" style={{ fontFamily: "var(--font-body)" }}>{description}</p>
+        <p className="text-sm font-bold text-[var(--text-primary)] font-heading">{label}</p>
+        <p className="text-xs text-[var(--text-secondary)] font-body">{description}</p>
       </div>
       <button
+        role="switch"
+        aria-checked={checked}
+        aria-label={label}
         onClick={() => onChange(!checked)}
-        className={`relative w-11 h-6 rounded-full border-2 border-[var(--border-strong)] transition-colors ${
+        className={`relative w-11 h-6 rounded-full border-2 border-[var(--border-strong)] transition-colors cursor-pointer focus-visible:ring-2 focus-visible:ring-[#FFE600] focus-visible:outline-none ${
           checked ? "bg-[#FFE600]" : "bg-[var(--text-muted)]"
         }`}
       >

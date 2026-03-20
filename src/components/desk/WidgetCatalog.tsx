@@ -16,8 +16,7 @@ export default function WidgetCatalog({ activeIds, onAdd }: WidgetCatalogProps) 
   return (
     <div className="rounded-2xl border-2 border-dashed border-[var(--border-strong)] bg-[var(--surface)] p-4">
       <p
-        className="text-sm font-bold text-[var(--text-primary)] mb-3"
-        style={{ fontFamily: "var(--font-heading)" }}
+        className="text-sm font-bold text-[var(--text-primary)] mb-3 font-heading"
       >
         Add widgets
       </p>
@@ -38,14 +37,12 @@ export default function WidgetCatalog({ activeIds, onAdd }: WidgetCatalogProps) 
                 aria-hidden="true"
               />
               <span
-                className="text-xs font-bold text-[var(--text-primary)]"
-                style={{ fontFamily: "var(--font-heading)" }}
+                className="text-xs font-bold text-[var(--text-primary)] font-heading"
               >
                 {meta.title}
               </span>
               <span
-                className="text-[10px] text-[var(--text-muted)] leading-tight"
-                style={{ fontFamily: "var(--font-body)" }}
+                className="text-[10px] text-[var(--text-muted)] leading-tight font-body"
               >
                 {meta.description}
               </span>

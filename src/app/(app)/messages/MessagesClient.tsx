@@ -2,9 +2,10 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { MessageSquare } from "lucide-react";
+import { motion } from "framer-motion";
 import ConversationList from "@/components/chat/ConversationList";
 import NewMessageModal from "@/components/chat/NewMessageModal";
+import { YoodleMascotSmall } from "@/components/YoodleMascot";
 
 export default function MessagesClient() {
   const router = useRouter();
@@ -19,13 +20,28 @@ export default function MessagesClient() {
       />
       {/* Desktop empty state */}
       <div className="hidden lg:flex flex-1 items-center justify-center text-[var(--text-muted)]">
-        <div className="text-center">
-          <MessageSquare size={48} className="mx-auto mb-3 opacity-30" />
-          <p className="text-lg font-bold" style={{ fontFamily: "var(--font-heading)" }}>
+        <motion.div
+          className="text-center"
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5 }}
+        >
+          <motion.div
+            animate={{ y: [0, -6, 0] }}
+            transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
+            className="mb-4"
+          >
+            <div className="flex h-20 w-20 mx-auto items-center justify-center rounded-full bg-[#FFE600]/20 border-2 border-dashed border-[var(--border)]">
+              <YoodleMascotSmall className="h-12 w-12" />
+            </div>
+          </motion.div>
+          <p className="text-lg font-bold text-[var(--text-primary)] font-heading">
             Select a conversation
           </p>
-          <p className="text-sm mt-1">Or start a new one</p>
-        </div>
+          <p className="text-sm text-[var(--text-secondary)] mt-1 font-body">
+            Or start a new one
+          </p>
+        </motion.div>
       </div>
       <NewMessageModal
         isOpen={showNewMessage}

@@ -71,7 +71,7 @@ function ControlButton({
 }) {
   return (
     <motion.button
-      className={`relative h-11 w-11 sm:h-12 sm:w-12 rounded-full border-2 border-[var(--border-strong)] flex items-center justify-center transition-colors ${
+      className={`relative h-11 w-11 sm:h-12 sm:w-12 rounded-full border-2 border-[var(--border-strong)] flex items-center justify-center transition-colors focus-visible:ring-2 focus-visible:ring-[#FFE600] focus-visible:outline-none ${
         disabled
           ? "cursor-not-allowed opacity-40"
           : "cursor-pointer"
@@ -146,7 +146,7 @@ export default function MeetingControls({
             {REACTIONS.map((emoji) => (
               <motion.button
                 key={emoji}
-                className="text-xl cursor-pointer hover:scale-125 transition-transform p-1"
+                className="text-xl cursor-pointer hover:scale-125 transition-transform p-1 rounded-lg focus-visible:ring-2 focus-visible:ring-[#FFE600] focus-visible:outline-none"
                 role="menuitem"
                 aria-label={`React with ${emoji}`}
                 whileHover={{ scale: 1.3 }}
@@ -165,7 +165,7 @@ export default function MeetingControls({
 
       {/* Control bar */}
       <motion.div
-        className="flex items-center gap-1.5 sm:gap-3 rounded-2xl bg-white/95 backdrop-blur-sm border-2 border-[var(--border-strong)] shadow-[3px_3px_0_var(--border-strong)] sm:shadow-[4px_4px_0_var(--border-strong)] px-3 py-2 sm:px-5 sm:py-3"
+        className="flex items-center gap-1.5 sm:gap-3 rounded-2xl bg-[var(--surface)]/95 backdrop-blur-sm border-2 border-[var(--border-strong)] shadow-[3px_3px_0_var(--border-strong)] sm:shadow-[4px_4px_0_var(--border-strong)] px-3 py-2 sm:px-5 sm:py-3"
         role="toolbar"
         aria-label="Meeting controls"
         initial={{ y: 100, opacity: 0 }}
@@ -207,7 +207,7 @@ export default function MeetingControls({
         </ControlButton>
 
         {/* Divider */}
-        <div className="hidden sm:block h-8 w-px bg-[#0A0A0A]/15 mx-1" />
+        <div className="hidden sm:block h-8 w-px bg-[var(--border)] mx-1" />
 
         {/* Screen share */}
         <ControlButton
@@ -327,7 +327,7 @@ export default function MeetingControls({
         </ControlButton>
 
         {/* Divider */}
-        <div className="hidden sm:block h-8 w-px bg-[#0A0A0A]/15 mx-1" />
+        <div className="hidden sm:block h-8 w-px bg-[var(--border)] mx-1" />
 
         {/* Leave call */}
         <ControlButton onClick={onLeave} danger label="Leave call">

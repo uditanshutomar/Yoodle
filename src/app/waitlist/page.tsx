@@ -183,7 +183,6 @@ export default function WaitlistPage() {
           <span
             className="text-2xl font-black tracking-tight"
             style={{
-              fontFamily: "var(--font-heading)",
               color: "var(--text-primary)",
               textShadow: "2px 2px 0 #FFE600",
             }}
@@ -194,8 +193,7 @@ export default function WaitlistPage() {
 
         <Link
           href="/"
-          className="text-sm font-medium text-[var(--text-secondary)] transition-colors hover:text-[var(--text-primary)]"
-          style={{ fontFamily: "var(--font-heading)" }}
+          className="text-sm font-medium text-[var(--text-secondary)] transition-colors hover:text-[var(--text-primary)] font-heading"
         >
           Back to Home
         </Link>
@@ -219,8 +217,7 @@ export default function WaitlistPage() {
             <div className="inline-flex items-center gap-2 rounded-full border-2 border-[var(--border-strong)] bg-[var(--surface)] px-4 py-1.5">
               <span className="h-2 w-2 animate-pulse rounded-full bg-[#22C55E]" />
               <span
-                className="text-xs font-semibold tracking-wide text-[var(--text-primary)]"
-                style={{ fontFamily: "var(--font-heading)" }}
+                className="text-xs font-semibold tracking-wide text-[var(--text-primary)] font-heading"
               >
                 EARLY ACCESS
               </span>
@@ -229,8 +226,7 @@ export default function WaitlistPage() {
 
           {/* Heading */}
           <h1
-            className="text-center text-4xl font-black leading-tight tracking-tight text-[var(--text-primary)] sm:text-5xl"
-            style={{ fontFamily: "var(--font-heading)" }}
+            className="text-center text-4xl font-black leading-tight tracking-tight text-[var(--text-primary)] sm:text-5xl font-heading"
           >
             Get in before
             <br />
@@ -252,8 +248,7 @@ export default function WaitlistPage() {
           </h1>
 
           <p
-            className="mx-auto mt-4 max-w-sm text-center text-base leading-relaxed text-[var(--text-secondary)]"
-            style={{ fontFamily: "var(--font-body)" }}
+            className="mx-auto mt-4 max-w-sm text-center text-base leading-relaxed text-[var(--text-secondary)] font-body"
           >
             Yoodle is invite-only for now. Drop your email and
             we&apos;ll let you in when your spot opens up.
@@ -262,8 +257,7 @@ export default function WaitlistPage() {
           {/* Waitlist count */}
           {waitlistCount != null && waitlistCount > 0 && status === "idle" && (
             <motion.p
-              className="mt-3 text-center text-sm font-medium text-[var(--text-muted)]"
-              style={{ fontFamily: "var(--font-body)" }}
+              className="mt-3 text-center text-sm font-medium text-[var(--text-muted)] font-body"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               transition={{ delay: 0.6 }}
@@ -310,8 +304,7 @@ export default function WaitlistPage() {
                   </div>
 
                   <h2
-                    className="text-center text-2xl font-black text-[var(--text-primary)]"
-                    style={{ fontFamily: "var(--font-heading)" }}
+                    className="text-center text-2xl font-black text-[var(--text-primary)] font-heading"
                   >
                     {status === "already"
                       ? "You're already in!"
@@ -319,8 +312,7 @@ export default function WaitlistPage() {
                   </h2>
 
                   <p
-                    className="mt-2 text-center text-sm text-[var(--text-secondary)]"
-                    style={{ fontFamily: "var(--font-body)" }}
+                    className="mt-2 text-center text-sm text-[var(--text-secondary)] font-body"
                   >
                     {status === "already"
                       ? "We already have your email. We'll reach out when your spot is ready."
@@ -332,8 +324,7 @@ export default function WaitlistPage() {
                   {/* Share section */}
                   <div className="mt-6 rounded-xl border-2 border-dashed border-[var(--border)] p-4">
                     <p
-                      className="text-center text-xs font-semibold uppercase tracking-wide text-[var(--text-muted)]"
-                      style={{ fontFamily: "var(--font-heading)" }}
+                      className="text-center text-xs font-semibold uppercase tracking-wide text-[var(--text-muted)] font-heading"
                     >
                       Tell your friends
                     </p>
@@ -380,8 +371,7 @@ export default function WaitlistPage() {
 
                   <Link
                     href="/"
-                    className="mt-6 block text-center text-sm font-medium text-[var(--text-secondary)] underline decoration-[#FFE600] decoration-2 underline-offset-4 transition-colors hover:text-[var(--text-primary)]"
-                    style={{ fontFamily: "var(--font-heading)" }}
+                    className="mt-6 block text-center text-sm font-medium text-[var(--text-secondary)] underline decoration-[#FFE600] decoration-2 underline-offset-4 transition-colors hover:text-[var(--text-primary)] font-heading"
                   >
                     Back to homepage
                   </Link>
@@ -402,8 +392,7 @@ export default function WaitlistPage() {
                   <div className="mb-4">
                     <label
                       htmlFor="waitlist-name"
-                      className="mb-1.5 block text-sm font-semibold text-[var(--text-primary)]"
-                      style={{ fontFamily: "var(--font-heading)" }}
+                      className="mb-1.5 block text-sm font-semibold text-[var(--text-primary)] font-heading"
                     >
                       Name{" "}
                       <span className="text-[var(--text-muted)] font-normal">
@@ -416,8 +405,7 @@ export default function WaitlistPage() {
                       value={name}
                       onChange={(e) => setName(e.target.value)}
                       placeholder="Your name"
-                      className="w-full rounded-xl border-2 border-[var(--border)] bg-[var(--background)] px-4 py-3 text-sm text-[var(--text-primary)] placeholder-[var(--text-muted)] outline-none transition-all focus:border-[var(--border-strong)] focus:shadow-[3px_3px_0_#FFE600]"
-                      style={{ fontFamily: "var(--font-body)" }}
+                      className="w-full rounded-xl border-2 border-[var(--border)] bg-[var(--background)] px-4 py-3 text-sm text-[var(--text-primary)] placeholder-[var(--text-muted)] outline-none transition-all focus:border-[var(--border-strong)] focus:shadow-[3px_3px_0_#FFE600] font-body"
                     />
                   </div>
 
@@ -425,8 +413,7 @@ export default function WaitlistPage() {
                   <div className="mb-5">
                     <label
                       htmlFor="waitlist-email"
-                      className="mb-1.5 block text-sm font-semibold text-[var(--text-primary)]"
-                      style={{ fontFamily: "var(--font-heading)" }}
+                      className="mb-1.5 block text-sm font-semibold text-[var(--text-primary)] font-heading"
                     >
                       Email <span className="text-[#FF6B6B]">*</span>
                     </label>
@@ -445,15 +432,13 @@ export default function WaitlistPage() {
                         errorMsg
                           ? "border-[#FF6B6B] focus:border-[#FF6B6B]"
                           : "border-[var(--border)] focus:border-[var(--border-strong)]"
-                      }`}
-                      style={{ fontFamily: "var(--font-body)" }}
+                      } font-body`}
                     />
                     {errorMsg && (
                       <motion.p
                         initial={{ opacity: 0, y: -5 }}
                         animate={{ opacity: 1, y: 0 }}
-                        className="mt-1.5 text-xs font-medium text-[#FF6B6B]"
-                        style={{ fontFamily: "var(--font-body)" }}
+                        className="mt-1.5 text-xs font-medium text-[#FF6B6B] font-body"
                       >
                         {errorMsg}
                       </motion.p>
@@ -466,8 +451,7 @@ export default function WaitlistPage() {
                     disabled={status === "loading"}
                     whileHover={{ scale: 1.02, y: -1 }}
                     whileTap={{ scale: 0.98 }}
-                    className="w-full rounded-xl bg-[#FFE600] px-6 py-3.5 text-base font-bold text-[#0A0A0A] shadow-[4px_4px_0_var(--border-strong)] transition-all hover:shadow-[2px_2px_0_var(--border-strong)] disabled:opacity-60 disabled:cursor-not-allowed"
-                    style={{ fontFamily: "var(--font-heading)" }}
+                    className="w-full rounded-xl bg-[#FFE600] px-6 py-3.5 text-base font-bold text-[#0A0A0A] shadow-[4px_4px_0_var(--border-strong)] transition-all hover:shadow-[2px_2px_0_var(--border-strong)] disabled:opacity-60 disabled:cursor-not-allowed font-heading"
                   >
                     {status === "loading" ? (
                       <span className="flex items-center justify-center gap-2">
@@ -504,8 +488,7 @@ export default function WaitlistPage() {
                   </motion.button>
 
                   <p
-                    className="mt-4 text-center text-xs text-[var(--text-muted)]"
-                    style={{ fontFamily: "var(--font-body)" }}
+                    className="mt-4 text-center text-xs text-[var(--text-muted)] font-body"
                   >
                     No spam, ever. We&apos;ll only email you when your spot is
                     ready.
@@ -534,8 +517,7 @@ export default function WaitlistPage() {
               >
                 <span className="text-base">{feature.icon}</span>
                 <span
-                  className="text-xs font-medium text-[var(--text-secondary)]"
-                  style={{ fontFamily: "var(--font-heading)" }}
+                  className="text-xs font-medium text-[var(--text-secondary)] font-heading"
                 >
                   {feature.text}
                 </span>

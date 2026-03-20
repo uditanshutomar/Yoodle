@@ -32,8 +32,7 @@ export default function AIAssistant() {
             <div className="text-center">
               <YoodleMascotLarge className="w-full max-w-[300px] mx-auto" />
               <p
-                className="mt-3 text-lg font-bold italic text-[#0A0A0A]/80"
-                style={{ fontFamily: "var(--font-heading)" }}
+                className="mt-3 text-lg font-bold italic text-[#0A0A0A]/80 font-heading"
               >
                 Your AI-powered executive assistant.
               </p>
@@ -51,16 +50,14 @@ export default function AIAssistant() {
               <div className="mb-2 flex items-center gap-2">
                 <DoodleSparkles className="inline-block" />
                 <span
-                  className="text-sm font-bold tracking-wider text-[#0A0A0A]/70"
-                  style={{ fontFamily: "var(--font-heading)" }}
+                  className="text-sm font-bold tracking-wider text-[#0A0A0A]/70 font-heading"
                 >
                   YOUR AI SIDEKICK
                 </span>
               </div>
 
               <h2
-                className="mb-8 text-4xl font-black tracking-tight text-[#0A0A0A] sm:text-5xl"
-                style={{ fontFamily: "var(--font-heading)" }}
+                className="mb-8 text-4xl font-black tracking-tight text-[#0A0A0A] sm:text-5xl font-heading"
               >
                 It just gets you.
               </h2>
@@ -75,12 +72,11 @@ export default function AIAssistant() {
                   whileInView={{ opacity: 1, x: 0 }}
                   viewport={{ once: true }}
                   transition={{ delay: i * 0.1, duration: 0.5 }}
-                  whileHover={{ x: -3, boxShadow: "1px 1px 0 #0A0A0A" }}
+                  whileHover={{ x: -3, boxShadow: "1px 1px 0 var(--border-strong)" }}
                 >
-                  <DoodleCheckmark color="#0A0A0A" />
+                  <DoodleCheckmark color="var(--doodle)" />
                   <span
-                    className="text-sm font-medium text-[#0A0A0A]"
-                    style={{ fontFamily: "var(--font-body)" }}
+                    className="text-sm font-medium text-[var(--text-primary)] font-body"
                   >
                     {text}
                   </span>
@@ -91,7 +87,7 @@ export default function AIAssistant() {
         </div>
       </div>
 
-      <DoodleStar className="absolute top-8 right-20 hidden lg:block" color="#0A0A0A" size={24} />
+      <DoodleStar className="absolute top-8 right-20 hidden lg:block" color="var(--doodle)" size={24} />
     </section>
   );
 }

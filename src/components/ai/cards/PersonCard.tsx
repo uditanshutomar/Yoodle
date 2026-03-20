@@ -35,8 +35,7 @@ export default function PersonCard({ data, onMessage }: PersonCardProps) {
 
       <div className="flex-1 min-w-0">
         <p
-          className="text-xs font-medium leading-snug text-[var(--text-primary)] truncate"
-          style={{ fontFamily: "var(--font-body)" }}
+          className="text-xs font-medium leading-snug text-[var(--text-primary)] truncate font-body"
         >
           {data.name}
         </p>

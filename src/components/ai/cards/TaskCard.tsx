@@ -58,8 +58,7 @@ export default function TaskCard({ data, onToggle, compact }: TaskCardProps) {
         <p
           className={`text-xs font-medium leading-snug ${
             isDone ? "line-through text-[var(--text-muted)]" : "text-[var(--text-primary)]"
-          }`}
-          style={{ fontFamily: "var(--font-body)" }}
+          } font-body`}
         >
           {data.title}
         </p>

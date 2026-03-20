@@ -341,7 +341,7 @@ export default function ChatThread({
           <button
             onClick={onBack}
             aria-label="Go back to conversation list"
-            className="lg:hidden p-1 rounded-md hover:bg-[var(--surface-hover)] transition-colors"
+            className="lg:hidden p-1 rounded-md hover:bg-[var(--surface-hover)] transition-colors focus-visible:ring-2 focus-visible:ring-[#FFE600] focus-visible:outline-none"
           >
             <ArrowLeft className="h-5 w-5 text-[var(--text-primary)]" />
           </button>
@@ -358,8 +358,7 @@ export default function ChatThread({
         ) : (
           <div className="h-10 w-10 rounded-full bg-[#FFE600] border-2 border-[var(--border-strong)] flex items-center justify-center">
             <span
-              className="text-sm font-bold text-[#0A0A0A]"
-              style={{ fontFamily: "var(--font-heading)" }}
+              className="text-sm font-bold text-[#0A0A0A] font-heading"
             >
               {(convoInfo?.name ?? "G").charAt(0).toUpperCase()}
             </span>
@@ -368,14 +367,12 @@ export default function ChatThread({
 
         <div className="flex-1 min-w-0">
           <h3
-            className="text-sm font-semibold text-[var(--text-primary)] truncate"
-            style={{ fontFamily: "var(--font-heading)" }}
+            className="text-sm font-semibold text-[var(--text-primary)] truncate font-heading"
           >
             {headerTitle}
           </h3>
           <p
-            className="text-xs text-[var(--text-muted)] truncate"
-            style={{ fontFamily: "var(--font-body)" }}
+            className="text-xs text-[var(--text-muted)] truncate font-body"
           >
             {headerSubtitle}
           </p>
@@ -385,7 +382,7 @@ export default function ChatThread({
         <div className="flex items-center gap-1">
           <button
             onClick={handleAgentToggle}
-            className={`p-2 rounded-lg transition-colors ${
+            className={`p-2 rounded-lg transition-colors focus-visible:ring-2 focus-visible:ring-[#FFE600] focus-visible:outline-none ${
               agentEnabled
                 ? "bg-[#FFE600] text-[#0A0A0A]"
                 : "text-[var(--text-muted)] hover:bg-[var(--surface-hover)]"
@@ -408,13 +405,12 @@ export default function ChatThread({
           >
             <div className="flex items-center gap-2 bg-[#EF4444]/10 border-b border-[#EF4444]/30 px-4 py-2">
               <WifiOff className="h-4 w-4 text-[#EF4444] flex-shrink-0" />
-              <span className="text-xs text-[#EF4444] font-medium" style={{ fontFamily: "var(--font-body)" }}>
+              <span className="text-xs text-[#EF4444] font-medium font-body">
                 Connection lost. Reconnecting…
               </span>
               <button
                 onClick={() => window.location.reload()}
-                className="ml-auto text-xs font-bold text-[#EF4444] hover:underline"
-                style={{ fontFamily: "var(--font-heading)" }}
+                className="ml-auto text-xs font-bold text-[#EF4444] hover:underline focus-visible:ring-2 focus-visible:ring-[#FFE600] focus-visible:outline-none rounded font-heading"
               >
                 Retry
               </button>
@@ -432,17 +428,16 @@ export default function ChatThread({
           >
             <div className="flex items-center gap-2 bg-[#F59E0B]/10 border-b border-[#F59E0B]/30 px-4 py-2">
               <AlertCircle className="h-4 w-4 text-[#F59E0B] flex-shrink-0" />
-              <span className="text-xs text-[#F59E0B] font-medium flex-1" style={{ fontFamily: "var(--font-body)" }}>
+              <span className="text-xs text-[#F59E0B] font-medium flex-1 font-body">
                 {sendError}
               </span>
               <button
                 onClick={() => { clearSendError(); /* re-send last message if possible */ }}
-                className="text-xs font-bold text-[#F59E0B] hover:underline"
-                style={{ fontFamily: "var(--font-heading)" }}
+                className="text-xs font-bold text-[#F59E0B] hover:underline focus-visible:ring-2 focus-visible:ring-[#FFE600] focus-visible:outline-none rounded font-heading"
               >
                 Retry
               </button>
-              <button onClick={clearSendError} className="p-0.5 rounded hover:bg-[#F59E0B]/20 transition-colors">
+              <button onClick={clearSendError} className="p-0.5 rounded hover:bg-[#F59E0B]/20 transition-colors focus-visible:ring-2 focus-visible:ring-[#FFE600] focus-visible:outline-none">
                 <X className="h-3.5 w-3.5 text-[#F59E0B]" />
               </button>
             </div>
@@ -470,8 +465,7 @@ export default function ChatThread({
         {!loading && messages.length === 0 && (
           <div className="flex flex-col items-center justify-center h-full text-center">
             <p
-              className="text-[var(--text-muted)] text-sm"
-              style={{ fontFamily: "var(--font-body)" }}
+              className="text-[var(--text-muted)] text-sm font-body"
             >
               No messages yet. Start the conversation!
             </p>
@@ -485,8 +479,7 @@ export default function ChatThread({
             {timeDivider && (
               <div className="flex items-center justify-center my-4">
                 <span
-                  className="text-[10px] text-[var(--text-muted)] bg-[var(--surface-hover)] px-3 py-1 rounded-full"
-                  style={{ fontFamily: "var(--font-body)" }}
+                  className="text-[10px] text-[var(--text-muted)] bg-[var(--surface-hover)] px-3 py-1 rounded-full font-body"
                 >
                   {formatTimeDivider(new Date(msg.createdAt))}
                 </span>
@@ -516,8 +509,7 @@ export default function ChatThread({
               className="flex items-center gap-2 py-1"
             >
               <span
-                className="text-xs text-[var(--text-muted)] italic"
-                style={{ fontFamily: "var(--font-body)" }}
+                className="text-xs text-[var(--text-muted)] italic font-body"
               >
                 {entry.isAgent
                   ? `${entry.name}'s Yoodler is thinking`
@@ -554,12 +546,11 @@ export default function ChatThread({
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 0.8 }}
             onClick={scrollToBottom}
-            className="absolute bottom-24 right-6 z-10 flex items-center gap-1 rounded-full bg-[var(--surface)] border-2 border-[var(--border)] px-3 py-1.5 shadow-lg hover:bg-[var(--surface-hover)] transition-colors"
+            className="absolute bottom-24 right-6 z-10 flex items-center gap-1 rounded-full bg-[var(--surface)] border-2 border-[var(--border)] px-3 py-1.5 shadow-lg hover:bg-[var(--surface-hover)] transition-colors focus-visible:ring-2 focus-visible:ring-[#FFE600] focus-visible:outline-none"
           >
             <ChevronDown className="h-4 w-4 text-[var(--text-secondary)]" />
             <span
-              className="text-xs text-[var(--text-secondary)]"
-              style={{ fontFamily: "var(--font-body)" }}
+              className="text-xs text-[var(--text-secondary)] font-body"
             >
               Jump to bottom
             </span>
@@ -581,21 +572,19 @@ export default function ChatThread({
               <div className="flex items-start justify-between gap-2 bg-[var(--surface-hover)] border-l-2 border-[#FFE600] px-3 py-2 mb-2 rounded-r-md">
                 <div className="min-w-0">
                   <p
-                    className="text-xs font-semibold text-[var(--text-secondary)]"
-                    style={{ fontFamily: "var(--font-heading)" }}
+                    className="text-xs font-semibold text-[var(--text-secondary)] font-heading"
                   >
                     Replying to {replyingTo.sender.displayName ?? replyingTo.sender.name}
                   </p>
                   <p
-                    className="text-xs text-[var(--text-muted)] truncate"
-                    style={{ fontFamily: "var(--font-body)" }}
+                    className="text-xs text-[var(--text-muted)] truncate font-body"
                   >
                     {replyingTo.content}
                   </p>
                 </div>
                 <button
                   onClick={() => setReplyingTo(null)}
-                  className="shrink-0 p-0.5 rounded hover:bg-[var(--border)] transition-colors"
+                  className="shrink-0 p-0.5 rounded hover:bg-[var(--border)] transition-colors focus-visible:ring-2 focus-visible:ring-[#FFE600] focus-visible:outline-none"
                 >
                   <X className="h-3.5 w-3.5 text-[var(--text-muted)]" />
                 </button>
@@ -613,8 +602,7 @@ export default function ChatThread({
             onKeyDown={handleKeyDown}
             placeholder={voiceInterim ? "" : "Type a message..."}
             rows={1}
-            className="flex-1 bg-transparent border-none outline-none resize-none text-sm text-[var(--text-primary)] placeholder:text-[var(--text-muted)] max-h-[120px]"
-            style={{ fontFamily: "var(--font-body)" }}
+            className="flex-1 bg-transparent border-none outline-none resize-none text-sm text-[var(--text-primary)] placeholder:text-[var(--text-muted)] max-h-[120px] font-body"
           />
           <VoiceInputButton
             onTranscript={handleVoiceTranscript}
@@ -626,7 +614,7 @@ export default function ChatThread({
             onClick={handleSend}
             disabled={!inputValue.trim()}
             aria-label="Send message"
-            className={`shrink-0 p-2 rounded-lg transition-colors ${
+            className={`shrink-0 p-2 rounded-lg transition-colors focus-visible:ring-2 focus-visible:ring-[#FFE600] focus-visible:outline-none ${
               inputValue.trim()
                 ? "bg-[#FFE600] text-[#0A0A0A] hover:brightness-95"
                 : "bg-[var(--border)] text-[var(--text-muted)] cursor-not-allowed"
@@ -638,8 +626,7 @@ export default function ChatThread({
         {/* Voice interim preview */}
         {voiceInterim && (
           <p
-            className="text-xs text-[var(--text-muted)] mt-1 italic truncate"
-            style={{ fontFamily: "var(--font-body)" }}
+            className="text-xs text-[var(--text-muted)] mt-1 italic truncate font-body"
           >
             🎙️ {voiceInterim}
           </p>

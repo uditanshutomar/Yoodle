@@ -72,8 +72,7 @@ export default function Avatar({ src, name = "", size = "md", status, className 
         className={`${s.container} rounded-full border-2 border-[var(--border-strong)] overflow-hidden flex items-center justify-center font-bold`}
         style={{
           backgroundColor: src ? "transparent" : getAvatarColor(name),
-          fontFamily: "var(--font-heading)",
-        }}
+          }}
       >
         {src ? (
           <Image

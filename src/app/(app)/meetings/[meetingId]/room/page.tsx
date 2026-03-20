@@ -807,7 +807,7 @@ export default function MeetingRoomPage() {
               <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-white opacity-75" />
               <span className="relative inline-flex h-2 w-2 rounded-full bg-white" />
             </span>
-            <span className="text-[9px] sm:text-[11px] font-bold text-white" style={{ fontFamily: "var(--font-heading)" }}>LIVE</span>
+            <span className="text-[9px] sm:text-[11px] font-bold text-white font-heading">LIVE</span>
           </div>
           <span className={`text-sm font-mono ${meetingTimer.isOvertime ? "text-[#FF6B6B]" : meetingTimer.isWarningZone ? "text-[#FFB800]" : "text-[var(--text-muted)]"}`}>
             {meetingTimer.elapsedFormatted}
@@ -835,7 +835,7 @@ export default function MeetingRoomPage() {
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-[var(--text-muted)]" aria-hidden="true">
               <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M23 21v-2a4 4 0 0 0-3-3.87" /><path d="M16 3.13a4 4 0 0 1 0 7.75" />
             </svg>
-            <span className="text-xs font-bold text-[var(--text-secondary)]" style={{ fontFamily: "var(--font-heading)" }}>
+            <span className="text-xs font-bold text-[var(--text-secondary)] font-heading">
               {participants.length}
             </span>
           </div>
@@ -848,7 +848,7 @@ export default function MeetingRoomPage() {
               transition={{ duration: 1.5, repeat: Infinity }}
             >
               <span className="h-2 w-2 rounded-full bg-[#FF6B6B]" />
-              <span className="text-[10px] font-bold text-[#FF6B6B]" style={{ fontFamily: "var(--font-heading)" }}>REC</span>
+              <span className="text-[10px] font-bold text-[#FF6B6B] font-heading">REC</span>
             </motion.div>
           )}
         </div>
@@ -997,8 +997,7 @@ export default function MeetingRoomPage() {
             exit={{ opacity: 0, y: 20, scale: 0.9 }}
           >
             <span
-              className="text-sm font-bold text-[#0A0A0A]"
-              style={{ fontFamily: "var(--font-heading)" }}
+              className="text-sm font-bold text-[#0A0A0A] font-heading"
             >
               🎤 You&apos;re muted — press D to unmute
             </span>
@@ -1017,7 +1016,7 @@ export default function MeetingRoomPage() {
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: -20, scale: 0.9 }}
           >
-            <span className="text-sm font-bold text-white" style={{ fontFamily: "var(--font-heading)" }}>
+            <span className="text-sm font-bold text-white font-heading">
               Room converted to regular — recording & transcription now available
             </span>
             <button

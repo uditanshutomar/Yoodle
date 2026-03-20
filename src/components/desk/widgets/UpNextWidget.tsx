@@ -67,7 +67,7 @@ export default function UpNextWidget() {
 
   if (error) {
     return (
-      <p className="text-sm text-[#FF6B6B]" style={{ fontFamily: "var(--font-body)" }}>
+      <p className="text-sm text-[#FF6B6B] font-body">
         {error}
       </p>
     );
@@ -82,15 +82,13 @@ export default function UpNextWidget() {
           aria-hidden="true"
         />
         <p
-          className="text-sm font-bold text-[var(--text-secondary)]"
-          style={{ fontFamily: "var(--font-heading)" }}
+          className="text-sm font-bold text-[var(--text-secondary)] font-heading"
         >
           No upcoming meetings
         </p>
         <Link
           href="/meetings/new"
-          className="text-xs font-bold text-[#A855F7] hover:underline"
-          style={{ fontFamily: "var(--font-heading)" }}
+          className="text-xs font-bold text-[#A855F7] hover:underline font-heading"
         >
           Start a Room &rarr;
         </Link>
@@ -117,15 +115,13 @@ export default function UpNextWidget() {
           >
             <div className="flex-1 min-w-0">
               <p
-                className="text-sm font-bold text-[var(--text-primary)] truncate"
-                style={{ fontFamily: "var(--font-heading)" }}
+                className="text-sm font-bold text-[var(--text-primary)] truncate font-heading"
               >
                 {m.title}
               </p>
               {formatted && (
                 <p
-                  className="text-xs text-[var(--text-muted)]"
-                  style={{ fontFamily: "var(--font-body)" }}
+                  className="text-xs text-[var(--text-muted)] font-body"
                 >
                   {formatted}
                 </p>

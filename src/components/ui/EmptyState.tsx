@@ -36,14 +36,12 @@ export default function EmptyState({ title, description, action, className = "" 
       </m.div>
 
       <h3
-        className="text-lg font-bold text-[var(--text-primary)] mb-1"
-        style={{ fontFamily: "var(--font-heading)" }}
+        className="text-lg font-bold text-[var(--text-primary)] mb-1 font-heading"
       >
         {title}
       </h3>
       <p
-        className="text-sm text-[var(--text-secondary)] max-w-xs mb-5"
-        style={{ fontFamily: "var(--font-body)" }}
+        className="text-sm text-[var(--text-secondary)] max-w-xs mb-5 font-body"
       >
         {description}
       </p>

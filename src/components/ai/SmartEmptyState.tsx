@@ -59,11 +59,11 @@ export default function SmartEmptyState({ onSend, briefingMetadata }: SmartEmpty
 
       <div className="flex items-center gap-1.5 mb-1">
         <GreetingIcon size={14} className="text-[#FFE600]" />
-        <p className="text-sm font-bold text-[var(--text-primary)]" style={{ fontFamily: "var(--font-heading)" }}>
+        <p className="text-sm font-bold text-[var(--text-primary)] font-heading">
           {greeting}{firstName ? `, ${firstName}` : ""}
         </p>
       </div>
-      <p className="text-[11px] text-[var(--text-muted)] mb-4" style={{ fontFamily: "var(--font-body)" }}>
+      <p className="text-[11px] text-[var(--text-muted)] mb-4 font-body">
         How can I help you today?
       </p>
 
@@ -76,7 +76,7 @@ export default function SmartEmptyState({ onSend, briefingMetadata }: SmartEmpty
               className="w-full flex items-center gap-2 px-3 py-2 rounded-lg border border-[var(--border)] bg-[var(--surface-elevated)] hover:border-[#FFE600] transition-colors text-left"
             >
               <span className="text-sm">{insight.emoji}</span>
-              <span className="text-[11px] text-[var(--text-primary)]" style={{ fontFamily: "var(--font-body)" }}>
+              <span className="text-[11px] text-[var(--text-primary)] font-body">
                 {insight.text}
               </span>
             </button>
@@ -85,7 +85,7 @@ export default function SmartEmptyState({ onSend, briefingMetadata }: SmartEmpty
       )}
 
       <div className="w-full max-w-xs">
-        <p className="text-[10px] text-[var(--text-muted)] mb-2 text-center" style={{ fontFamily: "var(--font-body)" }}>
+        <p className="text-[10px] text-[var(--text-muted)] mb-2 text-center font-body">
           Quick actions
         </p>
         <SuggestionChips onSelect={onSend} />

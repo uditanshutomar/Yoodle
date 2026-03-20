@@ -43,8 +43,7 @@ export default function Pricing() {
         <div className="relative mb-16 text-center">
           <DoodleSparkles className="absolute -top-6 left-1/2 -translate-x-16" />
           <motion.h2
-            className="text-4xl font-black tracking-tight text-[#0A0A0A] sm:text-5xl"
-            style={{ fontFamily: "var(--font-heading)" }}
+            className="text-4xl font-black tracking-tight text-[var(--text-primary)] sm:text-5xl font-heading"
             initial={{ opacity: 0, y: 20 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
@@ -52,8 +51,7 @@ export default function Pricing() {
             Free. Like, actually free.
           </motion.h2>
           <motion.p
-            className="mt-4 text-lg text-[#0A0A0A]/50"
-            style={{ fontFamily: "var(--font-body)" }}
+            className="mt-4 text-lg text-[var(--text-muted)] font-body"
             initial={{ opacity: 0, y: 10 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
@@ -79,28 +77,25 @@ export default function Pricing() {
             <div className="mb-6 text-center">
               <div className="flex items-baseline justify-center gap-1">
                 <span
-                  className="text-7xl font-black text-[#0A0A0A]"
-                  style={{ fontFamily: "var(--font-heading)" }}
+                  className="text-7xl font-black text-[var(--text-primary)] font-heading"
                 >
                   $0
                 </span>
                 <span
-                  className="text-xl text-[#0A0A0A]/40"
-                  style={{ fontFamily: "var(--font-body)" }}
+                  className="text-xl text-[var(--text-muted)] font-body"
                 >
                   /forever
                 </span>
               </div>
               <p
-                className="mt-2 text-sm font-bold uppercase tracking-widest text-[#0A0A0A]/50"
-                style={{ fontFamily: "var(--font-heading)" }}
+                className="mt-2 text-sm font-bold uppercase tracking-widest text-[var(--text-muted)] font-heading"
               >
                 Yoodle Community
               </p>
             </div>
 
             {/* Divider */}
-            <div className="mb-6 border-t-2 border-dashed border-[#0A0A0A]/15" />
+            <div className="mb-6 border-t-2 border-dashed border-[var(--border)]" />
 
             {/* Feature list */}
             <ul className="mb-8 space-y-3">
@@ -125,8 +120,7 @@ export default function Pricing() {
                     </svg>
                   </span>
                   <span
-                    className="text-sm text-[#0A0A0A]/70"
-                    style={{ fontFamily: "var(--font-body)" }}
+                    className="text-sm text-[var(--text-secondary)] font-body"
                   >
                     {feature}
                   </span>
@@ -137,8 +131,7 @@ export default function Pricing() {
             {/* CTA button */}
             <Link href="/login">
               <motion.button
-                className="w-full rounded-xl border-2 border-[var(--border-strong)] bg-[#FFE600] px-6 py-3.5 text-base font-bold text-[#0A0A0A] shadow-[4px_4px_0_var(--border-strong)] transition-shadow hover:shadow-[2px_2px_0_var(--border-strong)]"
-                style={{ fontFamily: "var(--font-heading)" }}
+                className="w-full rounded-xl border-2 border-[var(--border-strong)] bg-[#FFE600] px-6 py-3.5 text-base font-bold text-[#0A0A0A] shadow-[4px_4px_0_var(--border-strong)] transition-shadow hover:shadow-[2px_2px_0_var(--border-strong)] focus-visible:ring-2 focus-visible:ring-[var(--text-primary)] focus-visible:outline-none font-heading"
                 whileHover={{ y: -2 }}
                 whileTap={{ scale: 0.98 }}
               >
@@ -157,24 +150,21 @@ export default function Pricing() {
           transition={{ delay: 0.2, duration: 0.6 }}
         >
           <h3
-            className="mb-6 text-center text-xl font-bold text-[#0A0A0A]"
-            style={{ fontFamily: "var(--font-heading)" }}
+            className="mb-6 text-center text-xl font-bold text-[var(--text-primary)] font-heading"
           >
             Community vs Cloud
           </h3>
 
           <div className="overflow-hidden rounded-2xl border-2 border-[var(--border-strong)] bg-[var(--surface)] shadow-[4px_4px_0_var(--border-strong)]">
             {/* Table header */}
-            <div className="grid grid-cols-3 border-b-2 border-[var(--border-strong)] bg-[#0A0A0A]/5">
+            <div className="grid grid-cols-3 border-b-2 border-[var(--border-strong)] bg-[var(--surface-hover)]">
               <div
-                className="px-4 py-3 text-sm font-bold text-[#0A0A0A]/50"
-                style={{ fontFamily: "var(--font-heading)" }}
+                className="px-4 py-3 text-sm font-bold text-[var(--text-muted)] font-heading"
               >
                 Feature
               </div>
               <div
-                className="border-l-2 border-[#0A0A0A]/10 px-4 py-3 text-center text-sm font-bold text-[#0A0A0A]"
-                style={{ fontFamily: "var(--font-heading)" }}
+                className="border-l-2 border-[var(--border)] px-4 py-3 text-center text-sm font-bold text-[var(--text-primary)] font-heading"
               >
                 Community
                 <span className="ml-1.5 inline-block rounded-full border border-[#22C55E] bg-[#22C55E]/10 px-2 py-0.5 text-[10px] font-bold uppercase text-[#22C55E]">
@@ -182,8 +172,7 @@ export default function Pricing() {
                 </span>
               </div>
               <div
-                className="relative border-l-2 border-[#0A0A0A]/10 px-4 py-3 text-center text-sm font-bold text-[#0A0A0A]/30"
-                style={{ fontFamily: "var(--font-heading)" }}
+                className="relative border-l-2 border-[var(--border)] px-4 py-3 text-center text-sm font-bold text-[var(--text-muted)] font-heading"
               >
                 Cloud
                 <span className="ml-1.5 inline-block rounded-full border border-[#A855F7] bg-[#A855F7]/10 px-2 py-0.5 text-[10px] font-bold uppercase text-[#A855F7]">
@@ -197,24 +186,21 @@ export default function Pricing() {
               <div
                 key={row.feature}
                 className={`grid grid-cols-3 ${
-                  i < comparisonRows.length - 1 ? "border-b border-[#0A0A0A]/10" : ""
+                  i < comparisonRows.length - 1 ? "border-b border-[var(--border)]" : ""
                 }`}
               >
                 <div
-                  className="px-4 py-3 text-sm text-[#0A0A0A]/60"
-                  style={{ fontFamily: "var(--font-body)" }}
+                  className="px-4 py-3 text-sm text-[var(--text-muted)] font-body"
                 >
                   {row.feature}
                 </div>
                 <div
-                  className="border-l-2 border-[#0A0A0A]/10 px-4 py-3 text-center text-sm font-medium text-[#0A0A0A]"
-                  style={{ fontFamily: "var(--font-body)" }}
+                  className="border-l-2 border-[var(--border)] px-4 py-3 text-center text-sm font-medium text-[var(--text-primary)] font-body"
                 >
                   {row.community}
                 </div>
                 <div
-                  className="border-l-2 border-[#0A0A0A]/10 px-4 py-3 text-center text-sm text-[#0A0A0A]/30"
-                  style={{ fontFamily: "var(--font-body)" }}
+                  className="border-l-2 border-[var(--border)] px-4 py-3 text-center text-sm text-[var(--text-muted)] font-body"
                 >
                   {row.cloud}
                 </div>

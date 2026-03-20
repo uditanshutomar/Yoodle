@@ -10,7 +10,8 @@ interface CardProps {
 }
 
 export default function Card({ children, className = "", hover = false, onClick }: CardProps) {
-  const base = `bg-[var(--surface)] border-2 border-[var(--border-strong)] rounded-2xl shadow-[var(--shadow-card)] p-6 ${className}`;
+  const interactiveStyles = onClick ? " focus-visible:ring-2 focus-visible:ring-[#FFE600] focus-visible:outline-none" : "";
+  const base = `bg-[var(--surface)] border-2 border-[var(--border-strong)] rounded-2xl shadow-[var(--shadow-card)] p-6${interactiveStyles} ${className}`;
 
   // When clickable, add keyboard accessibility (Enter/Space to activate)
   const interactiveProps = onClick

@@ -35,8 +35,7 @@ export default function Hero() {
               >
                 <span className="h-2 w-2 animate-pulse rounded-full bg-[#22C55E]" />
                 <span
-                  className="text-xs font-semibold tracking-wide text-[#0A0A0A]"
-                  style={{ fontFamily: "var(--font-heading)" }}
+                  className="text-xs font-semibold tracking-wide text-[var(--text-primary)] font-heading"
                 >
                   MEETINGS REIMAGINED
                 </span>
@@ -44,8 +43,7 @@ export default function Hero() {
 
               {/* Headline */}
               <h1
-                className="text-5xl font-black leading-[1.05] tracking-tight text-[#0A0A0A] sm:text-6xl lg:text-7xl drop-shadow-[0_2px_4px_rgba(255,255,255,0.9)]"
-                style={{ fontFamily: "var(--font-heading)" }}
+                className="text-5xl font-black leading-[1.05] tracking-tight text-[var(--text-primary)] sm:text-6xl lg:text-7xl font-heading"
               >
                 Meetings
                 <br />
@@ -63,8 +61,7 @@ export default function Hero() {
 
               {/* Subtext */}
               <motion.p
-                className="mt-6 mx-auto max-w-md text-lg leading-relaxed text-[#0A0A0A]/80 drop-shadow-[0_1px_2px_rgba(255,255,255,0.8)]"
-                style={{ fontFamily: "var(--font-body)" }}
+                className="mt-6 mx-auto max-w-md text-lg leading-relaxed text-[var(--text-secondary)] font-body"
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 transition={{ delay: 0.5 }}
@@ -85,8 +82,7 @@ export default function Hero() {
                   href="/login"
                   whileHover={{ scale: 1.05, y: -2 }}
                   whileTap={{ scale: 0.97 }}
-                  className="inline-flex items-center gap-2 rounded-full bg-[#FFE600] px-8 py-4 text-lg font-bold text-[#0A0A0A] shadow-[5px_5px_0_var(--border-strong)] transition-all hover:shadow-[3px_3px_0_var(--border-strong)]"
-                  style={{ fontFamily: "var(--font-heading)" }}
+                  className="inline-flex items-center gap-2 rounded-full bg-[#FFE600] px-8 py-4 text-lg font-bold text-[#0A0A0A] shadow-[5px_5px_0_var(--border-strong)] transition-all hover:shadow-[3px_3px_0_var(--border-strong)] focus-visible:ring-2 focus-visible:ring-[var(--text-primary)] focus-visible:outline-none font-heading"
                 >
                   Launch App
                   <svg
@@ -107,8 +103,7 @@ export default function Hero() {
 
                 <a
                   href="/waitlist"
-                  className="text-sm font-semibold text-[#0A0A0A] underline decoration-[#FFE600] decoration-2 underline-offset-4 transition-colors hover:text-[#0A0A0A]"
-                  style={{ fontFamily: "var(--font-heading)" }}
+                  className="text-sm font-semibold text-[var(--text-primary)] underline decoration-[#FFE600] decoration-2 underline-offset-4 transition-colors hover:text-[var(--text-primary)] focus-visible:ring-2 focus-visible:ring-[#FFE600] focus-visible:outline-none focus-visible:rounded font-heading"
                 >
                   Join Waitlist
                 </a>

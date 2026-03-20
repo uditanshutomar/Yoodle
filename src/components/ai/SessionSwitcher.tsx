@@ -31,8 +31,7 @@ export default function SessionSwitcher({ sessions, activeSessionId, onSwitch }:
               isActive
                 ? "bg-[#FFE600]/20 text-[#B8A200] border border-[#FFE600]/30"
                 : "text-[var(--text-muted)] hover:text-[var(--text-secondary)] hover:bg-[var(--surface-hover)]"
-            }`}
-            style={{ fontFamily: "var(--font-body)" }}
+            } font-body`}
           >
             {label}
           </button>

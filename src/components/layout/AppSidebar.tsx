@@ -74,7 +74,6 @@ export default function AppSidebar({ mobile }: AppSidebarProps) {
         <span
           className="text-2xl font-black tracking-tight text-[var(--text-primary)]"
           style={{
-            fontFamily: "var(--font-heading)",
             textShadow: "2px 2px 0 #FFE600",
           }}
         >
@@ -86,17 +85,15 @@ export default function AppSidebar({ mobile }: AppSidebarProps) {
       <div className="px-3 py-3 border-b-2 border-[var(--border)]" ref={wsRef}>
         <button
           onClick={() => setWsOpen(!wsOpen)}
-          className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2 hover:bg-[var(--surface-hover)] transition-colors cursor-pointer"
+          className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2 hover:bg-[var(--surface-hover)] transition-colors cursor-pointer focus-visible:ring-2 focus-visible:ring-[#FFE600] focus-visible:outline-none"
         >
           <div
-            className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-[#FFE600]/20 border-2 border-[var(--border-strong)] text-xs font-black text-[var(--text-primary)]"
-            style={{ fontFamily: "var(--font-heading)" }}
+            className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-[#FFE600]/20 border-2 border-[var(--border-strong)] text-xs font-black text-[var(--text-primary)] font-heading"
           >
             {currentWs ? currentWs.name.charAt(0).toUpperCase() : "W"}
           </div>
           <span
-            className="flex-1 truncate text-left text-sm font-bold text-[var(--text-primary)]"
-            style={{ fontFamily: "var(--font-heading)" }}
+            className="flex-1 truncate text-left text-sm font-bold text-[var(--text-primary)] font-heading"
           >
             {currentWs?.name || "Workspace"}
           </span>
@@ -115,8 +112,7 @@ export default function AppSidebar({ mobile }: AppSidebarProps) {
                   setSelectedWsId(ws._id);
                   setWsOpen(false);
                 }}
-                className="flex w-full items-center gap-2.5 px-3 py-2 text-sm hover:bg-[var(--surface-hover)] transition-colors cursor-pointer"
-                style={{ fontFamily: "var(--font-heading)" }}
+                className="flex w-full items-center gap-2.5 px-3 py-2 text-sm hover:bg-[var(--surface-hover)] transition-colors cursor-pointer focus-visible:ring-2 focus-visible:ring-[#FFE600] focus-visible:outline-none font-heading"
               >
                 <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-[#FFE600]/20 border border-[var(--border)] text-[10px] font-black text-[var(--text-primary)]">
                   {ws.name.charAt(0).toUpperCase()}
@@ -142,12 +138,11 @@ export default function AppSidebar({ mobile }: AppSidebarProps) {
               key={item.href}
               href={item.href}
               aria-current={active ? "page" : undefined}
-              className={`group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm transition-all ${
+              className={`group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm transition-all focus-visible:ring-2 focus-visible:ring-[#FFE600] focus-visible:outline-none ${
                 active
                   ? "bg-[#FFE600]/20 text-[var(--text-primary)] font-bold"
                   : "text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)] font-medium"
-              }`}
-              style={{ fontFamily: "var(--font-heading)" }}
+              } font-heading`}
             >
               <item.icon
                 size={18}

@@ -111,8 +111,7 @@ export default function ConversationList({
             placeholder="Search conversations..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="w-full rounded-lg border-2 border-[var(--border)] bg-[var(--surface)] py-2 pl-9 pr-3 text-sm text-[var(--text-primary)] placeholder:text-[var(--text-muted)] outline-none focus:border-[#FFE600] transition-colors"
-            style={{ fontFamily: "var(--font-body)" }}
+            className="w-full rounded-lg border-2 border-[var(--border)] bg-[var(--surface)] py-2 pl-9 pr-3 text-sm text-[var(--text-primary)] placeholder:text-[var(--text-muted)] outline-none focus:border-[#FFE600] transition-colors font-body"
           />
         </div>
       </div>
@@ -129,14 +128,12 @@ export default function ConversationList({
             >
               <MessageCircle className="h-12 w-12 text-[var(--text-muted)] mb-3" />
               <p
-                className="text-[var(--text-secondary)] text-sm"
-                style={{ fontFamily: "var(--font-body)" }}
+                className="text-[var(--text-secondary)] text-sm font-body"
               >
                 No conversations yet
               </p>
               <p
-                className="text-[var(--text-muted)] text-xs mt-1"
-                style={{ fontFamily: "var(--font-body)" }}
+                className="text-[var(--text-muted)] text-xs mt-1 font-body"
               >
                 Start a new message to get chatting
               </p>
@@ -164,16 +161,14 @@ function Header({ onNewMessage }: { onNewMessage?: () => void }) {
   return (
     <div className="flex items-center justify-between px-4 py-3">
       <h2
-        className="text-lg font-bold text-[var(--text-primary)]"
-        style={{ fontFamily: "var(--font-heading)" }}
+        className="text-lg font-bold text-[var(--text-primary)] font-heading"
       >
         Messages
       </h2>
       {onNewMessage && (
         <button
           onClick={onNewMessage}
-          className="flex items-center gap-1.5 rounded-lg bg-[#FFE600] px-3 py-1.5 text-sm font-semibold text-[#0A0A0A] border-2 border-[var(--border-strong)] shadow-[2px_2px_0px_var(--border-strong)] hover:shadow-[1px_1px_0px_var(--border-strong)] hover:translate-x-[1px] hover:translate-y-[1px] active:shadow-none active:translate-x-[2px] active:translate-y-[2px] transition-all"
-          style={{ fontFamily: "var(--font-heading)" }}
+          className="flex items-center gap-1.5 rounded-lg bg-[#FFE600] px-3 py-1.5 text-sm font-semibold text-[#0A0A0A] border-2 border-[var(--border-strong)] shadow-[2px_2px_0px_var(--border-strong)] hover:shadow-[1px_1px_0px_var(--border-strong)] hover:translate-x-[1px] hover:translate-y-[1px] active:shadow-none active:translate-x-[2px] active:translate-y-[2px] transition-all font-heading"
         >
           <Plus className="h-4 w-4" />
           New
@@ -237,15 +232,13 @@ function ConversationItem({
       <div className="flex-1 min-w-0">
         <div className="flex items-center justify-between gap-2">
           <span
-            className="truncate text-sm font-semibold text-[var(--text-primary)]"
-            style={{ fontFamily: "var(--font-heading)" }}
+            className="truncate text-sm font-semibold text-[var(--text-primary)] font-heading"
           >
             {displayName}
           </span>
           {lastTime && (
             <span
-              className="shrink-0 text-xs text-[var(--text-muted)]"
-              style={{ fontFamily: "var(--font-body)" }}
+              className="shrink-0 text-xs text-[var(--text-muted)] font-body"
             >
               {formatRelativeTime(lastTime)}
             </span>
@@ -254,8 +247,7 @@ function ConversationItem({
 
         <div className="flex items-center justify-between gap-2 mt-0.5">
           <p
-            className="truncate text-xs text-[var(--text-muted)]"
-            style={{ fontFamily: "var(--font-body)" }}
+            className="truncate text-xs text-[var(--text-muted)] font-body"
           >
             {preview ?? "No messages yet"}
           </p>

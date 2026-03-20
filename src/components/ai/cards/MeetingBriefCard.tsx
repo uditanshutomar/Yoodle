@@ -17,8 +17,7 @@ export default function MeetingBriefCard({ data }: Props) {
         <div className="flex items-center gap-2">
           <FileText size={16} className="text-[var(--text-muted)]" />
           <h4
-            className="text-xs font-bold text-[var(--text-primary)]"
-            style={{ fontFamily: "var(--font-heading)" }}
+            className="text-xs font-bold text-[var(--text-primary)] font-heading"
           >
             {data.meetingTitle}
           </h4>
@@ -40,8 +39,7 @@ export default function MeetingBriefCard({ data }: Props) {
       {(data.sources?.length ?? 0) > 0 && (
         <div className="space-y-1.5">
           <p
-            className="text-[10px] font-bold uppercase tracking-wide text-[var(--text-secondary)]"
-            style={{ fontFamily: "var(--font-heading)" }}
+            className="text-[10px] font-bold uppercase tracking-wide text-[var(--text-secondary)] font-heading"
           >
             Sources
           </p>
@@ -69,8 +67,7 @@ export default function MeetingBriefCard({ data }: Props) {
           <div className="flex items-center gap-1.5">
             <CheckSquare size={12} className="text-[var(--text-muted)]" />
             <p
-              className="text-[10px] font-bold uppercase tracking-wide text-[var(--text-secondary)]"
-              style={{ fontFamily: "var(--font-heading)" }}
+              className="text-[10px] font-bold uppercase tracking-wide text-[var(--text-secondary)] font-heading"
             >
               Carryover Items
             </p>
@@ -92,8 +89,7 @@ export default function MeetingBriefCard({ data }: Props) {
           <div className="flex items-center gap-1.5">
             <Lightbulb size={12} className="text-[var(--text-muted)]" />
             <p
-              className="text-[10px] font-bold uppercase tracking-wide text-[var(--text-secondary)]"
-              style={{ fontFamily: "var(--font-heading)" }}
+              className="text-[10px] font-bold uppercase tracking-wide text-[var(--text-secondary)] font-heading"
             >
               Suggested Agenda
             </p>

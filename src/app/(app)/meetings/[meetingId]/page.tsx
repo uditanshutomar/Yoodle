@@ -192,13 +192,12 @@ export default function MeetingLobbyPage() {
     return (
       <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex flex-col items-center justify-center min-h-[60vh] gap-4">
         <div className="text-6xl">😵</div>
-        <h2 className="text-xl font-bold text-[var(--text-primary)]" style={{ fontFamily: "var(--font-heading)" }}>
+        <h2 className="text-xl font-bold text-[var(--text-primary)] font-heading">
           {error || "Meeting not found"}
         </h2>
         <button
           onClick={() => router.push("/meetings")}
-          className="text-sm text-[var(--text-secondary)] underline cursor-pointer"
-          style={{ fontFamily: "var(--font-body)" }}
+          className="text-sm text-[var(--text-secondary)] underline cursor-pointer font-body"
         >
           Back to meetings
         </button>
@@ -215,14 +214,12 @@ export default function MeetingLobbyPage() {
       >
         <div className="h-12 w-12 rounded-full border-4 border-[#FFE600] border-t-transparent animate-spin" />
         <h2
-          className="text-2xl font-black text-[var(--text-primary)]"
-          style={{ fontFamily: "var(--font-heading)" }}
+          className="text-2xl font-black text-[var(--text-primary)] font-heading"
         >
           Waiting for host approval
         </h2>
         <p
-          className="max-w-md text-sm text-[var(--text-secondary)]"
-          style={{ fontFamily: "var(--font-body)" }}
+          className="max-w-md text-sm text-[var(--text-secondary)] font-body"
         >
           Your request has been sent to the host. Keep this page open and you
           will be let in automatically when they admit you.
@@ -238,8 +235,7 @@ export default function MeetingLobbyPage() {
         Object.values(meeting.artifacts).some(Boolean) && (
           <div className="rounded-2xl border-2 border-[var(--border-strong)] bg-[var(--surface)] p-4 space-y-3 mb-4">
             <h3
-              className="text-sm font-bold text-[var(--text-primary)]"
-              style={{ fontFamily: "var(--font-heading)" }}
+              className="text-sm font-bold text-[var(--text-primary)] font-heading"
             >
               Meeting Artifacts
             </h3>
@@ -301,8 +297,7 @@ export default function MeetingLobbyPage() {
             <div className="flex items-center gap-2">
               <FileText size={16} className="text-[#3B82F6]" />
               <span
-                className="text-sm font-bold text-[var(--text-primary)]"
-                style={{ fontFamily: "var(--font-heading)" }}
+                className="text-sm font-bold text-[var(--text-primary)] font-heading"
               >
                 Meeting Brief
               </span>
@@ -333,8 +328,7 @@ export default function MeetingLobbyPage() {
                   {Array.isArray(brief.agendaSuggestions) && (brief.agendaSuggestions as string[]).length > 0 && (
                     <div>
                       <p
-                        className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider mb-2"
-                        style={{ fontFamily: "var(--font-heading)" }}
+                        className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider mb-2 font-heading"
                       >
                         Suggested Agenda
                       </p>
@@ -353,8 +347,7 @@ export default function MeetingLobbyPage() {
                   {Array.isArray(brief.carryoverItems) && (brief.carryoverItems as { task: string; fromMeetingTitle: string }[]).length > 0 && (
                     <div>
                       <p
-                        className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider mb-2"
-                        style={{ fontFamily: "var(--font-heading)" }}
+                        className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider mb-2 font-heading"
                       >
                         Carryover Items
                       </p>
@@ -374,8 +367,7 @@ export default function MeetingLobbyPage() {
                   {Array.isArray(brief.sources) && (brief.sources as { type: string; title: string; summary: string }[]).length > 0 && (
                     <div>
                       <p
-                        className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider mb-2"
-                        style={{ fontFamily: "var(--font-heading)" }}
+                        className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider mb-2 font-heading"
                       >
                         Relevant Sources
                       </p>

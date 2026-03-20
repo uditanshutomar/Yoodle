@@ -65,7 +65,6 @@ export default function DeskPage() {
         <h1
           className="text-2xl sm:text-3xl lg:text-4xl font-black text-[var(--text-primary)] leading-tight"
           style={{
-            fontFamily: "var(--font-heading)",
             textShadow: "2px 2px 0 #FFE600",
           }}
         >
@@ -77,16 +76,14 @@ export default function DeskPage() {
             <>
               <button
                 onClick={resetLayout}
-                className="flex items-center gap-1.5 rounded-xl border-2 border-[var(--border-strong)] bg-[var(--surface)] px-3 py-2 text-xs font-bold text-[var(--text-secondary)] shadow-[3px_3px_0_var(--border-strong)] hover:shadow-[1px_1px_0_var(--border-strong)] hover:translate-x-[2px] hover:translate-y-[2px] transition-all"
-                style={{ fontFamily: "var(--font-heading)" }}
+                className="flex items-center gap-1.5 rounded-xl border-2 border-[var(--border-strong)] bg-[var(--surface)] px-3 py-2 text-xs font-bold text-[var(--text-secondary)] shadow-[3px_3px_0_var(--border-strong)] hover:shadow-[1px_1px_0_var(--border-strong)] hover:translate-x-[2px] hover:translate-y-[2px] transition-all font-heading"
               >
                 <RotateCcw size={14} aria-hidden="true" />
                 Reset
               </button>
               <button
                 onClick={() => setEditMode(false)}
-                className="flex items-center gap-1.5 rounded-xl border-2 border-[var(--border-strong)] bg-[#FFE600] px-3 py-2 text-xs font-bold text-[#0A0A0A] shadow-[3px_3px_0_var(--border-strong)] hover:shadow-[1px_1px_0_var(--border-strong)] hover:translate-x-[2px] hover:translate-y-[2px] transition-all"
-                style={{ fontFamily: "var(--font-heading)" }}
+                className="flex items-center gap-1.5 rounded-xl border-2 border-[var(--border-strong)] bg-[#FFE600] px-3 py-2 text-xs font-bold text-[#0A0A0A] shadow-[3px_3px_0_var(--border-strong)] hover:shadow-[1px_1px_0_var(--border-strong)] hover:translate-x-[2px] hover:translate-y-[2px] transition-all font-heading"
               >
                 <Check size={14} aria-hidden="true" />
                 Done
@@ -95,8 +92,7 @@ export default function DeskPage() {
           ) : (
             <button
               onClick={() => setEditMode(true)}
-              className="flex items-center gap-1.5 rounded-xl border-2 border-[var(--border-strong)] bg-[var(--surface)] px-3 py-2 text-xs font-bold text-[var(--text-secondary)] shadow-[3px_3px_0_var(--border-strong)] hover:shadow-[1px_1px_0_var(--border-strong)] hover:translate-x-[2px] hover:translate-y-[2px] transition-all"
-              style={{ fontFamily: "var(--font-heading)" }}
+              className="flex items-center gap-1.5 rounded-xl border-2 border-[var(--border-strong)] bg-[var(--surface)] px-3 py-2 text-xs font-bold text-[var(--text-secondary)] shadow-[3px_3px_0_var(--border-strong)] hover:shadow-[1px_1px_0_var(--border-strong)] hover:translate-x-[2px] hover:translate-y-[2px] transition-all font-heading"
             >
               <Pencil size={14} aria-hidden="true" />
               Make it yours

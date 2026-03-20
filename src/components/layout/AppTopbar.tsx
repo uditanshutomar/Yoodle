@@ -35,8 +35,8 @@ export default function AppTopbar({ onMenuToggle, menuOpen }: AppTopbarProps) {
           aria-label="Open search (⌘K)"
         >
           <Search size={16} aria-hidden="true" />
-          <span className="hidden text-sm sm:inline" style={{ fontFamily: "var(--font-body)" }}>Search</span>
-          <kbd className="ml-auto rounded-md border border-[var(--border)] bg-[var(--surface-hover)] px-1.5 py-0.5 text-[10px] font-bold text-[var(--text-muted)]" style={{ fontFamily: "var(--font-heading)" }}>⌘&nbsp;K</kbd>
+          <span className="hidden text-sm sm:inline font-body">Search</span>
+          <kbd className="ml-auto rounded-md border border-[var(--border)] bg-[var(--surface-hover)] px-1.5 py-0.5 text-[10px] font-bold text-[var(--text-muted)] font-heading">⌘&nbsp;K</kbd>
         </button>
       </div>
 
@@ -54,8 +54,7 @@ export default function AppTopbar({ onMenuToggle, menuOpen }: AppTopbarProps) {
                 status={user?.mode === "lockin" ? "dnd" : user?.mode === "invisible" ? "offline" : "online"}
               />
               <span
-                className="hidden text-sm font-bold text-[var(--text-primary)] sm:block"
-                style={{ fontFamily: "var(--font-heading)" }}
+                className="hidden text-sm font-bold text-[var(--text-primary)] sm:block font-heading"
               >
                 {user?.name || "User"}
               </span>
@@ -75,14 +74,12 @@ export default function AppTopbar({ onMenuToggle, menuOpen }: AppTopbarProps) {
                 >
                   <div className="px-3 py-2 border-b border-[var(--border)] mb-1">
                     <p
-                      className="text-sm font-bold text-[var(--text-primary)]"
-                      style={{ fontFamily: "var(--font-heading)" }}
+                      className="text-sm font-bold text-[var(--text-primary)] font-heading"
                     >
                       {user?.name || "User"}
                     </p>
                     <p
-                      className="text-xs text-[var(--text-secondary)]"
-                      style={{ fontFamily: "var(--font-body)" }}
+                      className="text-xs text-[var(--text-secondary)] font-body"
                     >
                       {user?.email || ""}
                     </p>
@@ -91,8 +88,7 @@ export default function AppTopbar({ onMenuToggle, menuOpen }: AppTopbarProps) {
                   <DropdownMenu.Item asChild>
                     <Link
                       href="/settings#profile"
-                      className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)] transition-colors cursor-pointer outline-none"
-                      style={{ fontFamily: "var(--font-heading)" }}
+                      className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)] transition-colors cursor-pointer outline-none font-heading"
                     >
                       <User size={14} />
                       Profile
@@ -102,8 +98,7 @@ export default function AppTopbar({ onMenuToggle, menuOpen }: AppTopbarProps) {
                   <DropdownMenu.Item asChild>
                     <Link
                       href="/settings"
-                      className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)] transition-colors cursor-pointer outline-none"
-                      style={{ fontFamily: "var(--font-heading)" }}
+                      className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)] transition-colors cursor-pointer outline-none font-heading"
                     >
                       <Settings size={14} />
                       Preferences
@@ -114,8 +109,7 @@ export default function AppTopbar({ onMenuToggle, menuOpen }: AppTopbarProps) {
 
                   <DropdownMenu.Item
                     onSelect={logout}
-                    className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-[#FF6B6B] hover:bg-[#FF6B6B]/10 transition-colors cursor-pointer outline-none"
-                    style={{ fontFamily: "var(--font-heading)" }}
+                    className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-[#FF6B6B] hover:bg-[#FF6B6B]/10 transition-colors cursor-pointer outline-none font-heading"
                   >
                     <LogOut size={14} />
                     Log out

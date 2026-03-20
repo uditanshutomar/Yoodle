@@ -27,7 +27,7 @@ export function DoodleArrow({ className = "", direction = "right" }: { className
     >
       <motion.path
         d="M5 25C15 20 30 15 50 18C55 19 60 20 65 18"
-        stroke="#1A1A1A"
+        stroke="var(--doodle)"
         strokeWidth="2.5"
         strokeLinecap="round"
         fill="none"
@@ -35,7 +35,7 @@ export function DoodleArrow({ className = "", direction = "right" }: { className
       />
       <motion.path
         d="M58 12L67 18L58 24"
-        stroke="#1A1A1A"
+        stroke="var(--doodle)"
         strokeWidth="2.5"
         strokeLinecap="round"
         strokeLinejoin="round"
@@ -120,7 +120,7 @@ export function DoodleLightning({ className = "", color = "#FFE600" }: { classNa
   );
 }
 
-export function DoodleCheckmark({ className = "", color = "#1A1A1A" }: { className?: string; color?: string }) {
+export function DoodleCheckmark({ className = "", color = "var(--doodle)" }: { className?: string; color?: string }) {
   return (
     <motion.svg
       className={className}

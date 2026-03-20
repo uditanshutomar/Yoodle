@@ -56,8 +56,7 @@ function RoleBadge({ role }: { role: string }) {
   };
   return (
     <span
-      className={`inline-block text-[10px] font-bold uppercase px-2 py-0.5 rounded-full ${styles[role] || styles.member}`}
-      style={{ fontFamily: "var(--font-heading)" }}
+      className={`inline-block text-[10px] font-bold uppercase px-2 py-0.5 rounded-full ${styles[role] || styles.member} font-heading`}
     >
       {role}
     </span>
@@ -116,29 +115,28 @@ export default function WorkspaceSection() {
   return (
     <Card className="!p-6">
       <h2
-        className="flex items-center gap-2 text-base font-bold text-[var(--text-primary)] mb-4"
-        style={{ fontFamily: "var(--font-heading)" }}
+        className="flex items-center gap-2 text-base font-bold text-[var(--text-primary)] mb-4 font-heading"
       >
         <Building2 size={16} /> Workspaces
       </h2>
 
       {/* Error */}
       {error && (
-        <div className="text-sm text-[#FF6B6B] mb-3" style={{ fontFamily: "var(--font-body)" }}>
+        <div className="text-sm text-[#FF6B6B] mb-3 font-body">
           {error}
         </div>
       )}
 
       {/* Loading */}
       {loading && workspaces.length === 0 && (
-        <p className="text-sm text-[var(--text-muted)]" style={{ fontFamily: "var(--font-body)" }}>
+        <p className="text-sm text-[var(--text-muted)] font-body">
           Loading workspaces...
         </p>
       )}
 
       {/* Empty */}
       {!loading && workspaces.length === 0 && !error && (
-        <p className="text-sm text-[var(--text-muted)]" style={{ fontFamily: "var(--font-body)" }}>
+        <p className="text-sm text-[var(--text-muted)] font-body">
           No workspaces yet
         </p>
       )}
@@ -166,8 +164,7 @@ export default function WorkspaceSection() {
       {!showCreate ? (
         <button
           onClick={() => setShowCreate(true)}
-          className="flex items-center gap-2 text-sm font-bold text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors"
-          style={{ fontFamily: "var(--font-heading)" }}
+          className="flex items-center gap-2 text-sm font-bold text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors font-heading"
         >
           <Plus size={14} /> Create Workspace
         </button>
@@ -178,33 +175,29 @@ export default function WorkspaceSection() {
             placeholder="Workspace name"
             value={newName}
             onChange={(e) => setNewName(e.target.value)}
-            className="w-full px-4 py-2.5 text-sm border-2 border-[var(--border)] rounded-xl bg-[var(--surface)] text-[var(--text-primary)] focus:border-[#FFE600] focus:outline-none"
-            style={{ fontFamily: "var(--font-body)" }}
+            className="w-full px-4 py-2.5 text-sm border-2 border-[var(--border)] rounded-xl bg-[var(--surface)] text-[var(--text-primary)] focus:border-[#FFE600] focus:outline-none font-body"
           />
           <input
             type="text"
             placeholder="Description (optional)"
             value={newDesc}
             onChange={(e) => setNewDesc(e.target.value)}
-            className="w-full px-4 py-2.5 text-sm border-2 border-[var(--border)] rounded-xl bg-[var(--surface)] text-[var(--text-primary)] focus:border-[#FFE600] focus:outline-none"
-            style={{ fontFamily: "var(--font-body)" }}
+            className="w-full px-4 py-2.5 text-sm border-2 border-[var(--border)] rounded-xl bg-[var(--surface)] text-[var(--text-primary)] focus:border-[#FFE600] focus:outline-none font-body"
           />
           {createError && (
-            <p className="text-xs text-[#FF6B6B]" style={{ fontFamily: "var(--font-body)" }}>{createError}</p>
+            <p className="text-xs text-[#FF6B6B] font-body">{createError}</p>
           )}
           <div className="flex gap-2">
             <button
               onClick={handleCreate}
               disabled={creating || !newName.trim()}
-              className="px-4 py-2 text-sm font-bold rounded-xl bg-[#FFE600] text-[#1a1a1a] hover:bg-[#FFE600]/90 transition-colors disabled:opacity-50"
-              style={{ fontFamily: "var(--font-heading)" }}
+              className="px-4 py-2 text-sm font-bold rounded-xl bg-[#FFE600] text-[#1a1a1a] hover:bg-[#FFE600]/90 transition-colors disabled:opacity-50 font-heading"
             >
               {creating ? "Creating..." : "Create"}
             </button>
             <button
               onClick={() => { setShowCreate(false); setNewName(""); setNewDesc(""); setCreateError(null); }}
-              className="px-4 py-2 text-sm font-bold rounded-xl border-2 border-[var(--border)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors"
-              style={{ fontFamily: "var(--font-heading)" }}
+              className="px-4 py-2 text-sm font-bold rounded-xl border-2 border-[var(--border)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors font-heading"
             >
               Cancel
             </button>
@@ -392,14 +385,13 @@ function WorkspaceItem({
         <div className="flex items-center gap-3">
           {isExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
           <span
-            className="text-sm font-bold text-[var(--text-primary)]"
-            style={{ fontFamily: "var(--font-heading)" }}
+            className="text-sm font-bold text-[var(--text-primary)] font-heading"
           >
             {workspace.name}
           </span>
           {role && <RoleBadge role={role} />}
         </div>
-        <span className="text-xs text-[var(--text-muted)]" style={{ fontFamily: "var(--font-body)" }}>
+        <span className="text-xs text-[var(--text-muted)] font-body">
           {workspace.members.length} member{workspace.members.length !== 1 ? "s" : ""}
         </span>
       </button>
@@ -417,7 +409,7 @@ function WorkspaceItem({
             <div className="px-4 pb-4 space-y-5 border-t-2 border-[var(--border)] pt-4">
               {/* Operation error banner */}
               {opError && (
-                <div className="text-xs text-[#FF6B6B] bg-[#FF6B6B]/5 border border-[#FF6B6B]/20 rounded-lg px-3 py-2" style={{ fontFamily: "var(--font-body)" }}>
+                <div className="text-xs text-[#FF6B6B] bg-[#FF6B6B]/5 border border-[#FF6B6B]/20 rounded-lg px-3 py-2 font-body">
                   {opError}
                 </div>
               )}
@@ -425,34 +417,32 @@ function WorkspaceItem({
               {/* Edit name/description */}
               {canEdit && (
                 <div className="space-y-3">
-                  <label className="text-xs font-bold text-[var(--text-secondary)] block" style={{ fontFamily: "var(--font-heading)" }}>
+                  <label className="text-xs font-bold text-[var(--text-secondary)] block font-heading">
                     Name
                   </label>
                   <input
                     type="text"
                     value={editName}
                     onChange={(e) => setEditName(e.target.value)}
-                    className="w-full px-4 py-2.5 text-sm border-2 border-[var(--border)] rounded-xl bg-[var(--surface)] text-[var(--text-primary)] focus:border-[#FFE600] focus:outline-none"
-                    style={{ fontFamily: "var(--font-body)" }}
+                    className="w-full px-4 py-2.5 text-sm border-2 border-[var(--border)] rounded-xl bg-[var(--surface)] text-[var(--text-primary)] focus:border-[#FFE600] focus:outline-none font-body"
                   />
-                  <label className="text-xs font-bold text-[var(--text-secondary)] block" style={{ fontFamily: "var(--font-heading)" }}>
+                  <label className="text-xs font-bold text-[var(--text-secondary)] block font-heading">
                     Description
                   </label>
                   <input
                     type="text"
                     value={editDesc}
                     onChange={(e) => setEditDesc(e.target.value)}
-                    className="w-full px-4 py-2.5 text-sm border-2 border-[var(--border)] rounded-xl bg-[var(--surface)] text-[var(--text-primary)] focus:border-[#FFE600] focus:outline-none"
-                    style={{ fontFamily: "var(--font-body)" }}
+                    className="w-full px-4 py-2.5 text-sm border-2 border-[var(--border)] rounded-xl bg-[var(--surface)] text-[var(--text-primary)] focus:border-[#FFE600] focus:outline-none font-body"
                   />
 
                   {/* Auto-shutdown settings */}
                   <div className="flex items-center justify-between">
                     <div>
-                      <p className="text-sm font-bold text-[var(--text-primary)]" style={{ fontFamily: "var(--font-heading)" }}>
+                      <p className="text-sm font-bold text-[var(--text-primary)] font-heading">
                         Auto-shutdown
                       </p>
-                      <p className="text-xs text-[var(--text-secondary)]" style={{ fontFamily: "var(--font-body)" }}>
+                      <p className="text-xs text-[var(--text-secondary)] font-body">
                         Automatically shut down idle rooms
                       </p>
                     </div>
@@ -472,7 +462,7 @@ function WorkspaceItem({
 
                   {autoShutdown && (
                     <div>
-                      <label className="text-xs font-bold text-[var(--text-secondary)] block mb-1" style={{ fontFamily: "var(--font-heading)" }}>
+                      <label className="text-xs font-bold text-[var(--text-secondary)] block mb-1 font-heading">
                         Shutdown after (minutes)
                       </label>
                       <input
@@ -480,8 +470,7 @@ function WorkspaceItem({
                         min={5}
                         value={shutdownMinutes}
                         onChange={(e) => setShutdownMinutes(Math.max(5, Number(e.target.value) || 5))}
-                        className="w-32 px-4 py-2.5 text-sm border-2 border-[var(--border)] rounded-xl bg-[var(--surface)] text-[var(--text-primary)] focus:border-[#FFE600] focus:outline-none"
-                        style={{ fontFamily: "var(--font-body)" }}
+                        className="w-32 px-4 py-2.5 text-sm border-2 border-[var(--border)] rounded-xl bg-[var(--surface)] text-[var(--text-primary)] focus:border-[#FFE600] focus:outline-none font-body"
                       />
                     </div>
                   )}
@@ -489,8 +478,7 @@ function WorkspaceItem({
                   <button
                     onClick={handleSave}
                     disabled={saving}
-                    className="px-4 py-2 text-sm font-bold rounded-xl bg-[#FFE600] text-[#1a1a1a] hover:bg-[#FFE600]/90 transition-colors disabled:opacity-50"
-                    style={{ fontFamily: "var(--font-heading)" }}
+                    className="px-4 py-2 text-sm font-bold rounded-xl bg-[#FFE600] text-[#1a1a1a] hover:bg-[#FFE600]/90 transition-colors disabled:opacity-50 font-heading"
                   >
                     {saving ? "Saving..." : "Save"}
                   </button>
@@ -499,16 +487,16 @@ function WorkspaceItem({
 
               {/* Members list */}
               <div>
-                <h3 className="text-xs font-bold text-[var(--text-secondary)] mb-2" style={{ fontFamily: "var(--font-heading)" }}>
+                <h3 className="text-xs font-bold text-[var(--text-secondary)] mb-2 font-heading">
                   Members
                 </h3>
                 {!membersLoaded && !membersError && (
-                  <p className="text-xs text-[var(--text-muted)]" style={{ fontFamily: "var(--font-body)" }}>
+                  <p className="text-xs text-[var(--text-muted)] font-body">
                     Loading members...
                   </p>
                 )}
                 {membersError && (
-                  <div className="flex items-center gap-2 text-xs text-[#FF6B6B] mb-2" style={{ fontFamily: "var(--font-body)" }}>
+                  <div className="flex items-center gap-2 text-xs text-[#FF6B6B] mb-2 font-body">
                     <span>{membersError}</span>
                     <button
                       onClick={() => { setMembersLoaded(false); setMembersError(null); }}
@@ -526,11 +514,11 @@ function WorkspaceItem({
                     return (
                       <div key={mid} className="flex items-center justify-between py-1.5">
                         <div className="flex items-center gap-2">
-                          <span className="text-sm text-[var(--text-primary)]" style={{ fontFamily: "var(--font-body)" }}>
+                          <span className="text-sm text-[var(--text-primary)] font-body">
                             {getMemberName(m)}
                           </span>
                           {getMemberEmail(m) && (
-                            <span className="text-xs text-[var(--text-muted)]" style={{ fontFamily: "var(--font-body)" }}>
+                            <span className="text-xs text-[var(--text-muted)] font-body">
                               ({getMemberEmail(m)})
                             </span>
                           )}
@@ -558,14 +546,12 @@ function WorkspaceItem({
                       placeholder="Email address"
                       value={memberEmail}
                       onChange={(e) => setMemberEmail(e.target.value)}
-                      className="flex-1 px-3 py-2 text-sm border-2 border-[var(--border)] rounded-xl bg-[var(--surface)] text-[var(--text-primary)] focus:border-[#FFE600] focus:outline-none"
-                      style={{ fontFamily: "var(--font-body)" }}
+                      className="flex-1 px-3 py-2 text-sm border-2 border-[var(--border)] rounded-xl bg-[var(--surface)] text-[var(--text-primary)] focus:border-[#FFE600] focus:outline-none font-body"
                     />
                     <select
                       value={memberRole}
                       onChange={(e) => setMemberRole(e.target.value as "member" | "admin")}
-                      className="px-3 py-2 text-sm border-2 border-[var(--border)] rounded-xl bg-[var(--surface)] text-[var(--text-primary)] focus:border-[#FFE600] focus:outline-none"
-                      style={{ fontFamily: "var(--font-body)" }}
+                      className="px-3 py-2 text-sm border-2 border-[var(--border)] rounded-xl bg-[var(--surface)] text-[var(--text-primary)] focus:border-[#FFE600] focus:outline-none font-body"
                     >
                       <option value="member">Member</option>
                       <option value="admin">Admin</option>
@@ -573,8 +559,7 @@ function WorkspaceItem({
                     <button
                       onClick={handleAddMember}
                       disabled={addingMember || !memberEmail.trim()}
-                      className="flex items-center gap-1 px-3 py-2 text-sm font-bold rounded-xl bg-[#FFE600] text-[#1a1a1a] hover:bg-[#FFE600]/90 transition-colors disabled:opacity-50"
-                      style={{ fontFamily: "var(--font-heading)" }}
+                      className="flex items-center gap-1 px-3 py-2 text-sm font-bold rounded-xl bg-[#FFE600] text-[#1a1a1a] hover:bg-[#FFE600]/90 transition-colors disabled:opacity-50 font-heading"
                     >
                       <UserPlus size={12} />
                       {addingMember ? "Adding..." : "Add"}
@@ -588,8 +573,7 @@ function WorkspaceItem({
                 <div>
                   <button
                     onClick={handleToggleAudit}
-                    className="flex items-center gap-2 text-xs font-bold text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors"
-                    style={{ fontFamily: "var(--font-heading)" }}
+                    className="flex items-center gap-2 text-xs font-bold text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors font-heading"
                   >
                     <ScrollText size={12} />
                     {showAudit ? "Hide" : "Show"} Audit Log
@@ -604,7 +588,7 @@ function WorkspaceItem({
                         className="overflow-hidden"
                       >
                         {auditError ? (
-                          <div className="flex items-center gap-2 text-xs text-[#FF6B6B] mt-2" style={{ fontFamily: "var(--font-body)" }}>
+                          <div className="flex items-center gap-2 text-xs text-[#FF6B6B] mt-2 font-body">
                             <span>{auditError}</span>
                             <button
                               onClick={() => { setAuditLoaded(false); setAuditError(null); handleToggleAudit(); }}
@@ -614,7 +598,7 @@ function WorkspaceItem({
                             </button>
                           </div>
                         ) : auditLogs.length === 0 ? (
-                          <p className="text-xs text-[var(--text-muted)] mt-2" style={{ fontFamily: "var(--font-body)" }}>
+                          <p className="text-xs text-[var(--text-muted)] mt-2 font-body">
                             No audit logs
                           </p>
                         ) : (
@@ -622,21 +606,21 @@ function WorkspaceItem({
                             <table className="w-full text-xs">
                               <thead>
                                 <tr className="text-left text-[var(--text-muted)] border-b border-[var(--border)]">
-                                  <th className="pb-1 pr-4" style={{ fontFamily: "var(--font-heading)" }}>Action</th>
-                                  <th className="pb-1 pr-4" style={{ fontFamily: "var(--font-heading)" }}>User</th>
-                                  <th className="pb-1" style={{ fontFamily: "var(--font-heading)" }}>Timestamp</th>
+                                  <th className="pb-1 pr-4 font-heading">Action</th>
+                                  <th className="pb-1 pr-4 font-heading">User</th>
+                                  <th className="pb-1 font-heading">Timestamp</th>
                                 </tr>
                               </thead>
                               <tbody>
                                 {auditLogs.map((log) => (
                                   <tr key={log._id} className="border-b border-[var(--border)]">
-                                    <td className="py-1.5 pr-4 text-[var(--text-primary)]" style={{ fontFamily: "var(--font-body)" }}>
+                                    <td className="py-1.5 pr-4 text-[var(--text-primary)] font-body">
                                       {log.action}
                                     </td>
-                                    <td className="py-1.5 pr-4 text-[var(--text-secondary)]" style={{ fontFamily: "var(--font-body)" }}>
+                                    <td className="py-1.5 pr-4 text-[var(--text-secondary)] font-body">
                                       {log.userName || log.userId}
                                     </td>
-                                    <td className="py-1.5 text-[var(--text-muted)]" style={{ fontFamily: "var(--font-body)" }}>
+                                    <td className="py-1.5 text-[var(--text-muted)] font-body">
                                       {new Date(log.createdAt).toLocaleString()}
                                     </td>
                                   </tr>
@@ -657,28 +641,25 @@ function WorkspaceItem({
                   {!confirmDelete ? (
                     <button
                       onClick={() => setConfirmDelete(true)}
-                      className="flex items-center gap-2 text-sm font-bold text-[#FF6B6B] hover:text-[#FF4444] transition-colors"
-                      style={{ fontFamily: "var(--font-heading)" }}
+                      className="flex items-center gap-2 text-sm font-bold text-[#FF6B6B] hover:text-[#FF4444] transition-colors font-heading"
                     >
                       <Trash2 size={14} /> Delete Workspace
                     </button>
                   ) : (
                     <div className="flex items-center gap-3">
-                      <span className="text-sm text-[#FF6B6B]" style={{ fontFamily: "var(--font-body)" }}>
+                      <span className="text-sm text-[#FF6B6B] font-body">
                         Are you sure? This cannot be undone.
                       </span>
                       <button
                         onClick={handleDelete}
                         disabled={deleting}
-                        className="px-3 py-1.5 text-sm font-bold rounded-xl bg-[#FF6B6B] text-white hover:bg-[#FF4444] transition-colors disabled:opacity-50"
-                        style={{ fontFamily: "var(--font-heading)" }}
+                        className="px-3 py-1.5 text-sm font-bold rounded-xl bg-[#FF6B6B] text-white hover:bg-[#FF4444] transition-colors disabled:opacity-50 font-heading"
                       >
                         {deleting ? "Deleting..." : "Confirm Delete"}
                       </button>
                       <button
                         onClick={() => setConfirmDelete(false)}
-                        className="text-sm font-bold text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors"
-                        style={{ fontFamily: "var(--font-heading)" }}
+                        className="text-sm font-bold text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors font-heading"
                       >
                         Cancel
                       </button>
