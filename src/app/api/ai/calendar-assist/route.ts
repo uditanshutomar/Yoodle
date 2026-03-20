@@ -315,9 +315,10 @@ async function suggestAgenda(userId: string, input: z.infer<typeof agendaSchema>
       .lean(),
   ]);
 
-  const tasks = tasksResult.status === "fulfilled" && tasksResult.value.success
-    ? tasksResult.value.data || []
-    : [];
+  const tasks: { title: string; priority?: string; dueDate?: string }[] =
+    tasksResult.status === "fulfilled" && tasksResult.value.success && Array.isArray(tasksResult.value.data)
+      ? tasksResult.value.data
+      : [];
   const meetings = meetingsResult.status === "fulfilled" ? meetingsResult.value : [];
 
   // Build context string
@@ -325,8 +326,7 @@ async function suggestAgenda(userId: string, input: z.infer<typeof agendaSchema>
 
   if (tasks.length > 0) {
     contextParts.push("Relevant board tasks:");
-    for (const task of tasks.slice(0, 10)) {
-      const t = task as { title: string; priority?: string; dueDate?: string };
+    for (const t of tasks.slice(0, 10)) {
       contextParts.push(`- ${t.title}${t.priority ? ` [${t.priority}]` : ""}${t.dueDate ? ` (due: ${t.dueDate})` : ""}`);
     }
   }
