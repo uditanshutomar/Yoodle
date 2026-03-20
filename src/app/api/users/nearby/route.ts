@@ -7,7 +7,7 @@ import { getUserIdFromRequest } from "@/lib/infra/auth/middleware";
 import { BadRequestError } from "@/lib/infra/api/errors";
 import connectDB from "@/lib/infra/db/client";
 import User from "@/lib/infra/db/models/user";
-import Workspace from "@/lib/infra/db/models/workspace";
+import Connection from "@/lib/infra/db/models/connection";
 import mongoose from "mongoose";
 
 const querySchema = z.object({
@@ -36,9 +36,9 @@ function blurCoordinates(coords: [number, number]): [number, number] {
  *
  * Returns users within a given radius who are in "social" mode
  * and have shared their location, plus "lockin" mode users who
- * share a workspace with the requester (with blurred coordinates).
- * Uses MongoDB $geoNear for efficient geospatial queries on the
- * 2dsphere index.
+ * have an accepted connection with the requester (with blurred
+ * coordinates). Uses MongoDB $geoNear for efficient geospatial
+ * queries on the 2dsphere index.
  */
 export const GET = withHandler(async (req: NextRequest) => {
   await checkRateLimit(req, "session");
@@ -57,28 +57,30 @@ export const GET = withHandler(async (req: NextRequest) => {
 
   await connectDB();
 
-  // Find workspaces the requesting user belongs to
+  // Find accepted connections for the requesting user
   const userObjectId = new mongoose.Types.ObjectId(userId);
-  const workspaces = await Workspace.find({
-    "members.userId": userObjectId,
+  const connections = await Connection.find({
+    $or: [
+      { requesterId: userObjectId, status: "accepted" },
+      { recipientId: userObjectId, status: "accepted" },
+    ],
   })
-    .select("members.userId")
+    .select("requesterId recipientId")
     .lean();
 
-  // Collect all workspace mate user IDs (excluding self)
-  const workspaceMateIds = new Set<string>();
-  for (const ws of workspaces) {
-    for (const member of ws.members) {
-      const memberId = member.userId.toString();
-      if (memberId !== userId) {
-        workspaceMateIds.add(memberId);
-      }
-    }
+  // Collect connected user IDs (excluding self)
+  const connectedIds: mongoose.Types.ObjectId[] = [];
+  for (const conn of connections) {
+    const otherId =
+      conn.requesterId.toString() === userId
+        ? conn.recipientId
+        : conn.requesterId;
+    connectedIds.push(
+      otherId instanceof mongoose.Types.ObjectId
+        ? otherId
+        : new mongoose.Types.ObjectId(otherId.toString()),
+    );
   }
-
-  const lockinUserIds = [...workspaceMateIds].map(
-    (id) => new mongoose.Types.ObjectId(id),
-  );
 
   // Use MongoDB aggregation with $geoNear for distance-sorted results
   const nearbyUsers = await User.aggregate([
@@ -93,8 +95,8 @@ export const GET = withHandler(async (req: NextRequest) => {
           "location.coordinates": { $exists: true },
           $or: [
             { mode: "social" },
-            ...(lockinUserIds.length > 0
-              ? [{ mode: "lockin", _id: { $in: lockinUserIds } }]
+            ...(connectedIds.length > 0
+              ? [{ mode: "lockin", _id: { $in: connectedIds } }]
               : []),
           ],
         },

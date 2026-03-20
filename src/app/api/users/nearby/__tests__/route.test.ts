@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { NextRequest } from "next/server";
 
 const TEST_USER_ID = "507f1f77bcf86cd799439011";
-const WORKSPACE_MATE_ID = "607f1f77bcf86cd799439022";
+const CONNECTED_USER_ID = "607f1f77bcf86cd799439022";
 
 // ── Mock dependencies before importing the route ──────────────────
 
@@ -35,10 +35,10 @@ vi.mock("@/lib/infra/db/models/user", () => ({
   },
 }));
 
-const mockWorkspaceFind = vi.fn();
-vi.mock("@/lib/infra/db/models/workspace", () => ({
+const mockConnectionFind = vi.fn();
+vi.mock("@/lib/infra/db/models/connection", () => ({
   default: {
-    find: (...args: unknown[]) => mockWorkspaceFind(...args),
+    find: (...args: unknown[]) => mockConnectionFind(...args),
   },
 }));
 
@@ -63,8 +63,8 @@ describe("GET /api/users/nearby", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockedGetUserId.mockResolvedValue(TEST_USER_ID);
-    // Default: user belongs to no workspaces
-    mockWorkspaceFind.mockReturnValue({
+    // Default: user has no accepted connections
+    mockConnectionFind.mockReturnValue({
       select: vi.fn().mockReturnValue({
         lean: vi.fn().mockResolvedValue([]),
       }),
@@ -100,16 +100,14 @@ describe("GET /api/users/nearby", () => {
     expect(body.success).toBe(false);
   });
 
-  it("$geoNear query includes both social and lockin modes when user has workspace mates", async () => {
-    // User belongs to a workspace with a mate
-    mockWorkspaceFind.mockReturnValue({
+  it("$geoNear query includes both social and lockin modes when user has connections", async () => {
+    // User has an accepted connection
+    mockConnectionFind.mockReturnValue({
       select: vi.fn().mockReturnValue({
         lean: vi.fn().mockResolvedValue([
           {
-            members: [
-              { userId: { toString: () => TEST_USER_ID } },
-              { userId: { toString: () => WORKSPACE_MATE_ID } },
-            ],
+            requesterId: { toString: () => TEST_USER_ID },
+            recipientId: { toString: () => CONNECTED_USER_ID },
           },
         ]),
       }),
@@ -135,7 +133,7 @@ describe("GET /api/users/nearby", () => {
     expect(queryFilter.$or[1]._id.$in).toBeDefined();
   });
 
-  it("$geoNear query only has social mode when user has no workspace mates", async () => {
+  it("$geoNear query only has social mode when user has no connections", async () => {
     mockAggregate.mockResolvedValue([]);
 
     await GET(
@@ -152,15 +150,13 @@ describe("GET /api/users/nearby", () => {
   });
 
   it("lockin users do not have exact coordinates exposed", async () => {
-    // User has workspace mates
-    mockWorkspaceFind.mockReturnValue({
+    // User has an accepted connection
+    mockConnectionFind.mockReturnValue({
       select: vi.fn().mockReturnValue({
         lean: vi.fn().mockResolvedValue([
           {
-            members: [
-              { userId: { toString: () => TEST_USER_ID } },
-              { userId: { toString: () => WORKSPACE_MATE_ID } },
-            ],
+            requesterId: { toString: () => TEST_USER_ID },
+            recipientId: { toString: () => CONNECTED_USER_ID },
           },
         ]),
       }),
@@ -168,7 +164,7 @@ describe("GET /api/users/nearby", () => {
 
     mockAggregate.mockResolvedValue([
       {
-        id: WORKSPACE_MATE_ID,
+        id: CONNECTED_USER_ID,
         name: "Bob",
         mode: "lockin",
         location: { coordinates: [-73.9, 40.7], label: "NYC" },
