@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { getUserIdFromRequest } from "@/lib/infra/auth/middleware";
 import { checkRateLimit } from "@/lib/infra/api/rate-limit";
+import { UnauthorizedError } from "@/lib/infra/api/errors";
 import { sharedSubscriber } from "@/lib/infra/redis/pubsub";
 import { createLogger } from "@/lib/infra/logger";
 
@@ -88,8 +89,7 @@ export async function GET(req: NextRequest) {
       );
     }
   } catch (err) {
-    const isAuthError =
-      err instanceof Error && (err.name === "UnauthorizedError" || err.message === "Unauthorized");
+    const isAuthError = err instanceof UnauthorizedError;
 
     if (!isAuthError) {
       log.error({ err, url: req.nextUrl?.pathname }, "Notification SSE stream setup failed");

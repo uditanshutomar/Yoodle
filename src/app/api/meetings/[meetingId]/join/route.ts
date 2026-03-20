@@ -15,6 +15,7 @@ import DirectMessage from "@/lib/infra/db/models/direct-message";
 import { getRedisClient } from "@/lib/infra/redis/client";
 import { createLogger } from "@/lib/infra/logger";
 import { buildMeetingFilter } from "@/lib/meetings/helpers";
+import { publishNotification } from "@/lib/notifications/publish";
 
 const chatLog = createLogger("meetings:chat-link");
 
@@ -261,7 +262,7 @@ export const POST = withHandler(async (req: NextRequest, context) => {
   }
 
   // ── 2. Rejoin (participant exists with status left/invited). ────
-  // Include $expr capacity guard so rejoins also respect maxParticipants.
+  // Capacity guard: allow rejoin if under capacity OR if the user is the host.
   const rejoined = await Meeting.findOneAndUpdate(
     {
       ...filter,
@@ -269,20 +270,27 @@ export const POST = withHandler(async (req: NextRequest, context) => {
       participants: {
         $elemMatch: { userId: userObjectId, status: { $ne: "joined" } },
       },
-      $expr: {
-        $lt: [
-          {
-            $size: {
-              $filter: {
-                input: "$participants",
-                as: "p",
-                cond: { $eq: ["$$p.status", "joined"] },
+      $or: [
+        // Host is always allowed to rejoin
+        { hostId: userObjectId },
+        // Non-host: enforce capacity guard
+        {
+          $expr: {
+            $lt: [
+              {
+                $size: {
+                  $filter: {
+                    input: "$participants",
+                    as: "p",
+                    cond: { $eq: ["$$p.status", "joined"] },
+                  },
+                },
               },
-            },
+              "$settings.maxParticipants",
+            ],
           },
-          "$settings.maxParticipants",
-        ],
-      },
+        },
+      ],
     },
     {
       $set: {
@@ -398,6 +406,25 @@ export const POST = withHandler(async (req: NextRequest, context) => {
 
   // Fire-and-forget: ensure meeting conversation exists
   ensureMeetingConversation(populated._id.toString(), populated).catch((err) => chatLog.warn({ err }, "ensureMeetingConversation failed"));
+
+  // Notify the meeting host that someone joined (fire-and-forget)
+  const hostObj = populated.hostId as any;
+  const hostId = hostObj?._id?.toString() || hostObj?.toString();
+  if (hostId && hostId !== userId) {
+    const joinerParticipant = populated.participants.find(
+      (p: any) => (p.userId?._id || p.userId)?.toString() === userId
+    );
+    const joinerName = (joinerParticipant?.userId as any)?.name || "Someone";
+    publishNotification({
+      userId: hostId,
+      type: "meeting_invite",
+      title: `${joinerName} joined: ${populated.title}`,
+      body: "A participant joined your meeting",
+      sourceType: "meeting",
+      sourceId: populated._id.toString(),
+      priority: "normal",
+    }).catch(() => {});
+  }
 
   return successResponse({
     meeting: populated,

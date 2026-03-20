@@ -46,32 +46,41 @@ export const GET = withHandler(async (req: NextRequest) => {
     // The auth code is single-use; if we exchange it first and then fail
     // the CSRF check, the user has to re-authorize.
     let redirectTo = "/dashboard";
-    if (state) {
-      try {
-        const stateObj = oauthStateSchema.parse(JSON.parse(decodeURIComponent(state)));
-        const storedNonce = req.cookies.get("yoodle-oauth-nonce")?.value;
 
-        if (!storedNonce || !stateObj.nonce || storedNonce !== stateObj.nonce) {
-          const loginUrl = new URL("/login", req.url);
-          loginUrl.searchParams.set("error", "google_csrf_failed");
-          return NextResponse.redirect(loginUrl);
-        }
+    // CSRF nonce is mandatory — reject if state is missing or unparsable
+    if (!state) {
+      const loginUrl = new URL("/login", req.url);
+      loginUrl.searchParams.set("error", "google_csrf_failed");
+      return NextResponse.redirect(loginUrl);
+    }
 
-        // Extract redirect target and validate it
-        const redirect = stateObj.redirect || "/dashboard";
-        if (
-          typeof redirect === "string" &&
-          redirect.startsWith("/") &&
-          !redirect.startsWith("//") &&
-          !redirect.includes("://") &&
-          !redirect.includes("\\") &&
-          !/^\/[^/]*@/.test(redirect)
-        ) {
-          redirectTo = redirect;
-        }
-      } catch {
-        // Invalid state — use default redirect
-      }
+    let stateObj: z.infer<typeof oauthStateSchema>;
+    try {
+      stateObj = oauthStateSchema.parse(JSON.parse(decodeURIComponent(state)));
+    } catch {
+      const loginUrl = new URL("/login", req.url);
+      loginUrl.searchParams.set("error", "google_csrf_failed");
+      return NextResponse.redirect(loginUrl);
+    }
+
+    const storedNonce = req.cookies.get("yoodle-oauth-nonce")?.value;
+    if (!storedNonce || !stateObj.nonce || storedNonce !== stateObj.nonce) {
+      const loginUrl = new URL("/login", req.url);
+      loginUrl.searchParams.set("error", "google_csrf_failed");
+      return NextResponse.redirect(loginUrl);
+    }
+
+    // Extract redirect target and validate it
+    const redirect = stateObj.redirect || "/dashboard";
+    if (
+      typeof redirect === "string" &&
+      redirect.startsWith("/") &&
+      !redirect.startsWith("//") &&
+      !redirect.includes("://") &&
+      !redirect.includes("\\") &&
+      !/^\/[^/]*@/.test(redirect)
+    ) {
+      redirectTo = redirect;
     }
 
     // Exchange the authorization code for tokens

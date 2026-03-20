@@ -56,7 +56,7 @@ function getNavigationPath(sourceType: string, sourceId: string): string {
     case "message":
       return `/messages/${sourceId}`;
     case "task":
-      return "/board";
+      return `/board?task=${sourceId}`;
     default:
       return "#";
   }

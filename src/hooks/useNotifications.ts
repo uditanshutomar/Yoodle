@@ -80,10 +80,14 @@ export function useNotifications() {
 
   const markRead = useCallback(
     async (id: string) => {
-      setNotifications((prev) =>
-        prev.map((n) => (n.id === id ? { ...n, read: true } : n))
-      );
-      setUnreadCount((prev) => Math.max(0, prev - 1));
+      // Only decrement unread count if the notification was actually unread
+      setNotifications((prev) => {
+        const target = prev.find((n) => n.id === id);
+        if (target && !target.read) {
+          setUnreadCount((c) => Math.max(0, c - 1));
+        }
+        return prev.map((n) => (n.id === id ? { ...n, read: true } : n));
+      });
       try {
         await fetch(`/api/notifications/${id}`, {
           method: "PATCH",

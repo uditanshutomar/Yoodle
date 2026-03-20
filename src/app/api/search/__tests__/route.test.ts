@@ -2,6 +2,8 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { NextRequest } from "next/server";
 
 const TEST_USER_ID = "507f1f77bcf86cd799439011";
+const TEST_CONTACT_U1 = "607f1f77bcf86cd799439022";
+const TEST_CONTACT_U2 = "607f1f77bcf86cd799439033";
 
 // ── Mock dependencies before importing the route ──────────────────
 
@@ -47,6 +49,8 @@ vi.mock("@/lib/infra/db/models/meeting", () => ({
 // ── Conversation model mock ──
 const mockConvoChain = {
   select: vi.fn().mockReturnThis(),
+  sort: vi.fn().mockReturnThis(),
+  limit: vi.fn().mockReturnThis(),
   lean: vi.fn().mockResolvedValue([]),
 };
 vi.mock("@/lib/infra/db/models/conversation", () => ({
@@ -127,9 +131,20 @@ describe("GET /api/search", () => {
   });
 
   it("returns 200 with grouped results structure", async () => {
+    // Mock conversations so scoped people search finds contacts
+    mockConvoChain.lean.mockResolvedValue([
+      {
+        _id: { toString: () => "conv1" },
+        participants: [
+          { userId: { toString: () => TEST_USER_ID } },
+          { userId: { toString: () => TEST_CONTACT_U1 } },
+        ],
+      },
+    ]);
+
     mockUserChain.lean.mockResolvedValue([
       {
-        _id: { toString: () => "u1" },
+        _id: { toString: () => TEST_CONTACT_U1 },
         name: "Alice Smith",
         displayName: "Alice",
         avatarUrl: "https://example.com/a.png",
@@ -178,9 +193,20 @@ describe("GET /api/search", () => {
   });
 
   it("respects invisible mode for people", async () => {
+    // Mock conversations so scoped people search finds contacts
+    mockConvoChain.lean.mockResolvedValue([
+      {
+        _id: { toString: () => "conv2" },
+        participants: [
+          { userId: { toString: () => TEST_USER_ID } },
+          { userId: { toString: () => TEST_CONTACT_U2 } },
+        ],
+      },
+    ]);
+
     mockUserChain.lean.mockResolvedValue([
       {
-        _id: { toString: () => "u2" },
+        _id: { toString: () => TEST_CONTACT_U2 },
         name: "Bob",
         displayName: "Bob",
         avatarUrl: null,

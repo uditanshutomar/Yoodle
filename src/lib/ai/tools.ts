@@ -2091,7 +2091,7 @@ export async function executeWorkspaceTool(
 
         // Validate category against the schema's allowed values.
         // Must stay in sync with MEMORY_CATEGORIES in ai-memory.ts.
-        const VALID_CATEGORIES = ["preference", "context", "task", "relationship", "habit"];
+        const VALID_CATEGORIES = ["preference", "context", "task", "relationship", "habit", "project", "workflow"];
         const safeCategory = VALID_CATEGORIES.includes(category) ? category : "context";
 
         // Validate content is non-empty and not excessively long
@@ -2189,8 +2189,8 @@ export async function executeWorkspaceTool(
             {
               userId: new mongoose.Types.ObjectId(userId),
               role: "host",
-              status: "joined",
-              joinedAt: new Date(),
+              status: scheduledAt ? "invited" : "joined",
+              ...(scheduledAt ? {} : { joinedAt: new Date() }),
             },
           ],
           settings: {
@@ -2705,8 +2705,9 @@ export async function executeWorkspaceTool(
           return { success: false, summary: "Content required, max 2000 chars" };
         }
 
+        const MAX_MEMORIES_PER_USER = 200;
         const memCount = await AIMemory.countDocuments({ userId: new mongoose.Types.ObjectId(userId) });
-        if (memCount >= 100) {
+        if (memCount >= MAX_MEMORIES_PER_USER) {
           const toEvict = await AIMemory.findOne({
             userId: new mongoose.Types.ObjectId(userId),
             userExplicit: { $ne: true },

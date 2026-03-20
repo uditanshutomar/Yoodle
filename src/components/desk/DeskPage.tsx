@@ -35,6 +35,9 @@ export default function DeskPage() {
 
   const handleLayoutChange = useCallback(
     (newLayout: Layout) => {
+      // Only persist layout changes when user is actively editing
+      if (!editMode) return;
+
       const merged: LayoutItem[] = newLayout.map((gl) => {
         const existing = layout.find((l) => l.i === gl.i);
         return {
@@ -49,7 +52,7 @@ export default function DeskPage() {
       });
       updateLayout(merged);
     },
-    [layout, updateLayout],
+    [editMode, layout, updateLayout],
   );
 
   return (

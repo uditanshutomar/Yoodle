@@ -197,7 +197,7 @@ export const POST = withHandler(
             })),
             nextSteps: mom.nextSteps,
             generatedAt: new Date(),
-            generatedBy: userId,
+            generatedBy: new mongoose.Types.ObjectId(userId),
           },
         },
       }
@@ -221,9 +221,9 @@ export const POST = withHandler(
         const msg = await DirectMessage.create({
           conversationId: conversation._id,
           senderId: meeting.hostId,
-          senderType: "agent",
+          senderType: "system",
           content,
-          type: "agent",
+          type: "system",
           agentMeta: { forUserId: meeting.hostId },
         });
 

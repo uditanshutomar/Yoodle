@@ -301,14 +301,14 @@ describe("GET /api/auth/google/callback", () => {
     expect(location).toContain("/settings");
   });
 
-  // ── No state (graceful handling without CSRF check) ─────────────────
-  it("proceeds without CSRF check when state is absent and defaults to /dashboard", async () => {
+  // ── No state → CSRF rejection ─────────────────────────────────────
+  it("rejects requests with missing state parameter as CSRF failure", async () => {
     const req = createCallbackRequest({ code: "auth-code" });
     const res = await GET(req, { params: Promise.resolve({}) });
 
     expect(res.status).toBe(307);
     const location = res.headers.get("location");
-    expect(location).toContain("/dashboard");
+    expect(location).toContain("google_csrf_failed");
   });
 
   // ── User mode → status mapping ─────────────────────────────────────

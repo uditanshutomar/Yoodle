@@ -277,10 +277,7 @@ export default function MeetingsClient() {
   const TWENTY_FOUR_HOURS = 24 * 60 * 60 * 1000;
   const upcoming = meetings.filter((m) => m.status === "scheduled" || m.status === "live");
   const past = meetings.filter((m) => {
-    if (m.status !== "ended" && m.status !== "cancelled") return false;
-    const endTime = m.endedAt || m.startedAt || m.createdAt;
-    if (!endTime) return false;
-    return now - new Date(endTime).getTime() < TWENTY_FOUR_HOURS;
+    return m.status === "ended" || m.status === "cancelled";
   });
 
   return (

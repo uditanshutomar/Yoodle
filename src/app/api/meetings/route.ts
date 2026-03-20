@@ -214,21 +214,8 @@ export const POST = withHandler(async (req: NextRequest) => {
     }
   }
 
-  // Notify invited participants (non-blocking)
-  const invitedUserIds = (meeting.participants || [])
-    .map((p: any) => p.userId?.toString())
-    .filter((pid: string | undefined): pid is string => !!pid && pid !== userId);
-
-  if (invitedUserIds.length > 0) {
-    publishNotificationToMany(invitedUserIds, {
-      type: "meeting_invite",
-      title: `Invited to: ${meeting.title}`,
-      body: "You've been invited to a meeting",
-      sourceType: "meeting",
-      sourceId: meeting._id.toString(),
-      priority: "urgent",
-    }).catch(() => {}); // Fire-and-forget
-  }
+  // Notify invited participants when they join (handled in the join route).
+  // At creation time, only the host is in participants[], so we skip fan-out here.
 
   // Populate host info before returning
   await meeting.populate("hostId", "name displayName avatarUrl");

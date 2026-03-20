@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useMemo, useCallback, useRef } from "react";
+import { flushSync } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   DndContext,
@@ -171,56 +172,62 @@ export default function KanbanBoard({
       // inside the updater (which is a side-effect that breaks under Strict Mode).
       pendingUpdatesRef.current = null;
 
+      // Use flushSync so the state updater runs synchronously and
+      // pendingUpdatesRef.current is populated before we read it.
       // Reorder within same column
       if (activeColumnId === overColumnId && !overId.startsWith("column-")) {
-        setTasks((prev) => {
-          const columnTasks = prev
-            .filter((t) => t.columnId === activeColumnId)
-            .sort((a, b) => a.position - b.position);
-          const oldIndex = columnTasks.findIndex((t) => t._id === activeTaskId);
-          const newIndex = columnTasks.findIndex((t) => t._id === overId);
+        flushSync(() => {
+          setTasks((prev) => {
+            const columnTasks = prev
+              .filter((t) => t.columnId === activeColumnId)
+              .sort((a, b) => a.position - b.position);
+            const oldIndex = columnTasks.findIndex((t) => t._id === activeTaskId);
+            const newIndex = columnTasks.findIndex((t) => t._id === overId);
 
-          if (oldIndex === -1 || newIndex === -1 || oldIndex === newIndex) return prev;
+            if (oldIndex === -1 || newIndex === -1 || oldIndex === newIndex) return prev;
 
-          const reordered = arrayMove(columnTasks, oldIndex, newIndex);
-          pendingUpdatesRef.current = reordered.map((t, i) => ({
-            taskId: t._id,
-            columnId: activeColumnId,
-            position: i,
-          }));
+            const reordered = arrayMove(columnTasks, oldIndex, newIndex);
+            pendingUpdatesRef.current = reordered.map((t, i) => ({
+              taskId: t._id,
+              columnId: activeColumnId,
+              position: i,
+            }));
 
-          const otherTasks = prev.filter((t) => t.columnId !== activeColumnId);
-          return [...otherTasks, ...reordered.map((t, i) => ({ ...t, position: i }))];
+            const otherTasks = prev.filter((t) => t.columnId !== activeColumnId);
+            return [...otherTasks, ...reordered.map((t, i) => ({ ...t, position: i }))];
+          });
         });
       } else {
         // Cross-column move
-        setTasks((prev) => {
-          const movedTask = prev.find((t) => t._id === activeTaskId);
-          if (!movedTask) return prev;
+        flushSync(() => {
+          setTasks((prev) => {
+            const movedTask = prev.find((t) => t._id === activeTaskId);
+            if (!movedTask) return prev;
 
-          const targetColumnTasks = prev
-            .filter((t) => t.columnId === overColumnId && t._id !== activeTaskId)
-            .sort((a, b) => a.position - b.position);
+            const targetColumnTasks = prev
+              .filter((t) => t.columnId === overColumnId && t._id !== activeTaskId)
+              .sort((a, b) => a.position - b.position);
 
-          let insertIndex = targetColumnTasks.length;
-          if (!overId.startsWith("column-")) {
-            const overIndex = targetColumnTasks.findIndex((t) => t._id === overId);
-            if (overIndex !== -1) insertIndex = overIndex;
-          }
+            let insertIndex = targetColumnTasks.length;
+            if (!overId.startsWith("column-")) {
+              const overIndex = targetColumnTasks.findIndex((t) => t._id === overId);
+              if (overIndex !== -1) insertIndex = overIndex;
+            }
 
-          const newColumnTasks = [...targetColumnTasks];
-          newColumnTasks.splice(insertIndex, 0, { ...movedTask, columnId: overColumnId });
+            const newColumnTasks = [...targetColumnTasks];
+            newColumnTasks.splice(insertIndex, 0, { ...movedTask, columnId: overColumnId });
 
-          pendingUpdatesRef.current = newColumnTasks.map((t, i) => ({
-            taskId: t._id,
-            columnId: overColumnId!,
-            position: i,
-          }));
+            pendingUpdatesRef.current = newColumnTasks.map((t, i) => ({
+              taskId: t._id,
+              columnId: overColumnId!,
+              position: i,
+            }));
 
-          const otherTasks = prev.filter(
-            (t) => t.columnId !== overColumnId && t._id !== activeTaskId
-          );
-          return [...otherTasks, ...newColumnTasks.map((t, i) => ({ ...t, columnId: overColumnId!, position: i }))];
+            const otherTasks = prev.filter(
+              (t) => t.columnId !== overColumnId && t._id !== activeTaskId
+            );
+            return [...otherTasks, ...newColumnTasks.map((t, i) => ({ ...t, columnId: overColumnId!, position: i }))];
+          });
         });
       }
 

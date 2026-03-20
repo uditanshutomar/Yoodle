@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import * as Dialog from "@radix-ui/react-dialog";
 import { motion, AnimatePresence } from "framer-motion";
 import { useRouter } from "next/navigation";
@@ -48,12 +48,12 @@ const CATEGORY_META: Record<
   tasks: {
     label: "Tasks",
     icon: CheckSquare,
-    getHref: () => `/board`,
+    getHref: (item) => `/board?task=${item._id}`,
   },
   people: {
     label: "People",
     icon: User,
-    getHref: () => `/messages`,
+    getHref: (item) => `/messages?user=${item._id}`,
   },
 };
 
@@ -97,15 +97,24 @@ export default function CommandPalette() {
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const listRef = useRef<HTMLDivElement>(null);
 
-  // Build flat list of navigable items
-  const flatItems: { category: Category; item: SearchResultItem }[] = [];
-  if (results) {
+  // Build flat list of navigable items (memoized to avoid render-time mutation)
+  const flatItems = useMemo(() => {
+    if (!results) return [];
+    const items: { category: Category; item: SearchResultItem }[] = [];
     for (const cat of CATEGORIES) {
       for (const item of results[cat]) {
-        flatItems.push({ category: cat, item });
+        items.push({ category: cat, item });
       }
     }
-  }
+    return items;
+  }, [results]);
+
+  // Build a lookup map from item _id to flat index (replaces render-time globalIndex mutation)
+  const flatIndexMap = useMemo(() => {
+    const map = new Map<string, number>();
+    flatItems.forEach((entry, idx) => map.set(entry.item._id, idx));
+    return map;
+  }, [flatItems]);
 
   const hasResults = flatItems.length > 0;
   const hasQuery = query.trim().length > 0;
@@ -139,15 +148,15 @@ export default function CommandPalette() {
     if (debounceRef.current) clearTimeout(debounceRef.current);
 
     const trimmed = query.trim();
-    if (!trimmed) {
+    if (!trimmed || trimmed.length < 2) {
       setResults(null);
       setLoading(false);
       setSelectedIndex(0);
       return;
     }
 
-    setLoading(true);
     debounceRef.current = setTimeout(async () => {
+      setLoading(true);
       try {
         const res = await fetch(`/api/search?q=${encodeURIComponent(trimmed)}`);
         if (!res.ok) throw new Error("Search failed");
@@ -177,28 +186,39 @@ export default function CommandPalette() {
     [router],
   );
 
+  // Use refs to avoid stale closures in keyboard callbacks
+  const flatItemsRef = useRef(flatItems);
+  flatItemsRef.current = flatItems;
+  const selectedIndexRef = useRef(selectedIndex);
+  selectedIndexRef.current = selectedIndex;
+  const queryRef = useRef(query);
+  queryRef.current = query;
+
   const handleSelect = useCallback(() => {
-    if (!hasResults || selectedIndex >= flatItems.length) return;
-    const { category, item } = flatItems[selectedIndex];
+    const items = flatItemsRef.current;
+    const idx = selectedIndexRef.current;
+    if (items.length === 0 || idx >= items.length) return;
+    const { category, item } = items[idx];
     const href = CATEGORY_META[category].getHref(item);
-    navigate(href, query.trim());
-  }, [flatItems, hasResults, navigate, query, selectedIndex]);
+    navigate(href, queryRef.current.trim());
+  }, [navigate]);
 
   // Keyboard navigation inside dialog
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
+      const len = flatItemsRef.current.length;
       if (e.key === "ArrowDown") {
         e.preventDefault();
-        setSelectedIndex((i) => (flatItems.length ? (i + 1) % flatItems.length : 0));
+        setSelectedIndex((i) => (len ? (i + 1) % len : 0));
       } else if (e.key === "ArrowUp") {
         e.preventDefault();
-        setSelectedIndex((i) => (flatItems.length ? (i - 1 + flatItems.length) % flatItems.length : 0));
+        setSelectedIndex((i) => (len ? (i - 1 + len) % len : 0));
       } else if (e.key === "Enter") {
         e.preventDefault();
         handleSelect();
       }
     },
-    [flatItems.length, handleSelect],
+    [handleSelect],
   );
 
   // Scroll selected item into view
@@ -207,8 +227,6 @@ export default function CommandPalette() {
     const el = listRef.current.querySelector(`[data-index="${selectedIndex}"]`);
     if (el) el.scrollIntoView({ block: "nearest" });
   }, [selectedIndex]);
-
-  let globalIndex = -1;
 
   return (
     <Dialog.Root open={open} onOpenChange={setOpen}>
@@ -224,7 +242,7 @@ export default function CommandPalette() {
                 transition={{ duration: 0.15 }}
               />
             </Dialog.Overlay>
-            <Dialog.Content asChild onOpenAutoFocus={(e) => e.preventDefault()}>
+            <Dialog.Content asChild aria-label="Search across Yoodle" onOpenAutoFocus={(e) => e.preventDefault()}>
               <motion.div
                 className="fixed left-1/2 top-[15%] z-[201] w-full max-w-lg -translate-x-1/2 rounded-2xl border-2 border-[var(--border-strong)] bg-[var(--surface)] shadow-[4px_4px_0_var(--border-strong)] outline-none"
                 initial={{ opacity: 0, y: -10, scale: 0.97 }}
@@ -345,8 +363,7 @@ export default function CommandPalette() {
                             {label}
                           </p>
                           {items.map((item) => {
-                            globalIndex++;
-                            const idx = globalIndex;
+                            const idx = flatIndexMap.get(item._id) ?? -1;
                             const isSelected = idx === selectedIndex;
                             return (
                               <button

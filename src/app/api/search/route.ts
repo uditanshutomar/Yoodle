@@ -47,13 +47,28 @@ export const GET = withHandler(async (req: NextRequest) => {
 
   const [peopleResult, meetingsResult, messagesResult, tasksResult] =
     await Promise.allSettled([
-      // ── People ──
-      User.find({
-        $or: [{ name: regex }, { displayName: regex }],
-      })
-        .select("name displayName avatarUrl status mode")
-        .limit(MAX_PER_CATEGORY)
-        .lean(),
+      // ── People (scoped to users the requester has conversations with) ──
+      (async () => {
+        const convos = await Conversation.find({ "participants.userId": userOid })
+          .select("participants.userId")
+          .lean();
+        const contactIds = new Set<string>();
+        for (const c of convos) {
+          for (const p of c.participants) {
+            const pid = p.userId.toString();
+            if (pid !== userId) contactIds.add(pid);
+          }
+        }
+        if (contactIds.size === 0) return [];
+        const contactOids = [...contactIds].map((id) => new mongoose.Types.ObjectId(id));
+        return User.find({
+          _id: { $in: contactOids },
+          $or: [{ name: regex }, { displayName: regex }],
+        })
+          .select("name displayName avatarUrl status mode")
+          .limit(MAX_PER_CATEGORY)
+          .lean();
+      })(),
 
       // ── Meetings ──
       Meeting.find({
@@ -70,6 +85,8 @@ export const GET = withHandler(async (req: NextRequest) => {
           "participants.userId": userOid,
         })
           .select("_id")
+          .sort({ lastMessageAt: -1 })
+          .limit(100) // Cap to prevent massive $in queries
           .lean();
         const convoIds = convos.map((c) => c._id);
         if (convoIds.length === 0) return [];

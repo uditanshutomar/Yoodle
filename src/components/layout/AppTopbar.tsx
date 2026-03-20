@@ -51,7 +51,7 @@ export default function AppTopbar({ onMenuToggle, menuOpen }: AppTopbarProps) {
                 src={user?.avatar}
                 name={user?.name || "User"}
                 size="sm"
-                status="online"
+                status={user?.mode === "lockin" ? "dnd" : user?.mode === "invisible" ? "offline" : "online"}
               />
               <span
                 className="hidden text-sm font-bold text-[var(--text-primary)] sm:block"

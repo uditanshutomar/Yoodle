@@ -184,7 +184,16 @@ export default function SettingsClient() {
                 return (
                   <button
                     key={opt.value}
-                    onClick={() => setTheme(opt.value)}
+                    onClick={() => {
+                      setTheme(opt.value);
+                      // Auto-persist theme change so it's not lost on navigation
+                      fetch("/api/users/me", {
+                        method: "PATCH",
+                        headers: { "Content-Type": "application/json" },
+                        credentials: "include",
+                        body: JSON.stringify({ preferences: { theme: opt.value } }),
+                      }).catch(() => {});
+                    }}
                     className={`flex items-center gap-2 px-4 py-2.5 rounded-xl border-2 text-sm font-bold transition-all ${
                       isActive
                         ? "border-[#FFE600] bg-[#FFE600]/10 text-[var(--text-primary)]"

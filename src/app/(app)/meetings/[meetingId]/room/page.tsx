@@ -936,7 +936,7 @@ export default function MeetingRoomPage() {
                   isVideoEnabled: p.isVideoEnabled,
                   isAudioEnabled: p.isAudioEnabled,
                   isScreenSharing: p.isScreenSharing,
-                  isHost: p.id === (roomSession?.hostUserId || localUser.id),
+                  isHost: p.id === (currentHostId || roomSession?.hostUserId || localUser.id),
                   isHandRaised: p.isHandRaised,
                 }))}
                 speakingPeers={speakingPeers}
