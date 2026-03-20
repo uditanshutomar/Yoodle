@@ -10,6 +10,7 @@ import GoogleMapView from "@/components/map/GoogleMapView";
 import UserPin from "@/components/map/UserPin";
 import HoverCard from "@/components/map/HoverCard";
 import ModeSwitcher from "@/components/map/ModeSwitcher";
+import MapEmptyState from "@/components/map/MapEmptyState";
 import { MASCOT_BY_MODE } from "@/components/ai/constants";
 
 export default function MapClient() {
@@ -98,6 +99,11 @@ export default function MapClient() {
               />
             ))}
           </GoogleMapView>
+        )}
+
+        {/* Empty state when no nearby users */}
+        {hasLocation && users.length === 0 && mode !== "invisible" && (
+          <MapEmptyState mode={mode} />
         )}
 
         {/* Selected user hover card */}
