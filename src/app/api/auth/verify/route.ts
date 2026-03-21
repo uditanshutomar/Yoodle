@@ -55,7 +55,8 @@ export const GET = withHandler(async (req: NextRequest) => {
     });
 
     // Redirect to dashboard with cookies set
-    const dashboardUrl = new URL("/dashboard", req.url);
+    const appBase = process.env.NEXT_PUBLIC_APP_URL || new URL(req.url).origin;
+    const dashboardUrl = new URL("/dashboard", appBase);
     const response = NextResponse.redirect(dashboardUrl);
 
     // Set access token cookie (httpOnly for security)

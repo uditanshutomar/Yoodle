@@ -198,11 +198,13 @@ export const GET = withHandler(async (req: NextRequest) => {
     const refreshTokenHash = await bcrypt.hash(refreshToken, 10);
     await User.findByIdAndUpdate(user._id, { refreshTokenHash });
 
-    const redirectUrl = new URL(redirectTo, req.url);
+    // Use NEXT_PUBLIC_APP_URL as base so redirects work behind reverse proxies
+    // (req.url may be http://127.0.0.1:3000 behind Nginx)
+    const appBase = process.env.NEXT_PUBLIC_APP_URL || new URL(req.url).origin;
+    const redirectUrl = new URL(redirectTo, appBase);
     // Extra safety: ensure the redirect stays on the same origin
-    const reqOrigin = new URL(req.url).origin;
-    if (redirectUrl.origin !== reqOrigin) {
-      redirectUrl.href = new URL("/dashboard", req.url).href;
+    if (redirectUrl.origin !== new URL(appBase).origin) {
+      redirectUrl.href = new URL("/dashboard", appBase).href;
     }
     const response = NextResponse.redirect(redirectUrl);
 

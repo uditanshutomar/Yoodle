@@ -20,6 +20,10 @@ export const metadata: Metadata = {
   title: "Yoodle — Meetings for the New Workforce",
   description:
     "Video calls, AI notes, shared workspaces. Built for how you actually work.",
+  icons: {
+    icon: "/yoodle-logo.png",
+    apple: "/yoodle-logo.png",
+  },
 };
 
 export default function RootLayout({
