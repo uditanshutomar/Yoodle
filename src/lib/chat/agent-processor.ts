@@ -1,4 +1,4 @@
-import { getClient, getModelName } from "@/lib/ai/gemini";
+import { getClient, getModelName, getUserGeminiKey } from "@/lib/ai/gemini";
 import {
   buildAnalyzeAndDecidePrompt,
   buildRespondPrompt,
@@ -110,6 +110,9 @@ async function processOneAgent(
 
   const userName = user.displayName || user.name || "User";
 
+  // Resolve BYOK Gemini key for this user
+  const userApiKey = await getUserGeminiKey(agentUserId);
+
   // DND auto-reply — skip the full pipeline, but debounce to avoid spam
   if (user.status === "dnd") {
     const recentDndReply = await DirectMessage.findOne({
@@ -210,7 +213,7 @@ async function processOneAgent(
       userMemories
     );
 
-    const adRaw = await callGemini(analyzeAndDecidePrompt);
+    const adRaw = await callGemini(analyzeAndDecidePrompt, userApiKey);
     const adResult = safeParseJson(adRaw);
     if (!adResult) {
       log.warn({ agentUserId, conversationId }, "ANALYZE+DECIDE stage returned invalid JSON");
@@ -232,7 +235,7 @@ async function processOneAgent(
     if (decision.decision === "SILENT" || decision.decision === "UPDATE_MEMORY_ONLY") {
       await publishThinkingDone(redis, conversationId, agentUserId);
       // Still run REFLECT to update memory even when not responding
-      await runReflect(conversationId, conversationCtx, recentMessages);
+      await runReflect(conversationId, conversationCtx, recentMessages, undefined, userApiKey);
       return;
     }
 
@@ -264,7 +267,7 @@ async function processOneAgent(
       userMemories
     );
 
-    const response = await callGemini(respondPrompt);
+    const response = await callGemini(respondPrompt, userApiKey);
 
     if (response?.trim()) {
       await saveAndPublishAgentMessage(
@@ -283,7 +286,7 @@ async function processOneAgent(
       ...recentMessages.map((m) => formatOneMessage(m)),
       ...(response?.trim() ? [`[${userName}'s Yoodler]: ${response.trim()}`] : []),
     ];
-    await runReflect(conversationId, conversationCtx, null, allMessages);
+    await runReflect(conversationId, conversationCtx, null, allMessages, userApiKey);
   } catch (error) {
     log.error({ error, agentUserId, conversationId }, "Agent pipeline failed");
     try {
@@ -312,7 +315,8 @@ async function runReflect(
   conversationId: string,
   currentCtx: ConversationContextSnapshot,
   recentMessages?: unknown[] | null,
-  formattedMessages?: string[]
+  formattedMessages?: string[],
+  userApiKey?: string
 ) {
   try {
     const messages =
@@ -342,7 +346,7 @@ async function runReflect(
       messages.slice(-30).join("\n")
     );
 
-    const reflectRaw = await callGemini(reflectPrompt);
+    const reflectRaw = await callGemini(reflectPrompt, userApiKey);
     const reflectData = safeParseJson(reflectRaw);
     if (!reflectData) return;
 
@@ -548,8 +552,8 @@ function formatAnalysisForRespond(analysis: AnalysisResult, decision: DecisionRe
   return parts.join("\n");
 }
 
-async function callGemini(prompt: string): Promise<string> {
-  const ai = getClient();
+async function callGemini(prompt: string, userApiKey?: string): Promise<string> {
+  const ai = getClient(userApiKey);
   const model = getModelName();
   const result = await Promise.race([
     ai.models.generateContent({

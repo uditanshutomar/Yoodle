@@ -709,7 +709,7 @@ export default function MeetingRoomPage() {
   // includes Origin header for CSRF validation (sendBeacon does not).
   useEffect(() => {
     const leaveUrl = `/api/meetings/${meetingId}/leave`;
-    const onPageHide = () => {
+    const fireLeave = () => {
       try {
         fetch(leaveUrl, {
           method: "POST",
@@ -720,9 +720,24 @@ export default function MeetingRoomPage() {
         // fetch may throw synchronously if page is already tearing down
       }
     };
-    window.addEventListener("pagehide", onPageHide);
-    return () => window.removeEventListener("pagehide", onPageHide);
-  }, [meetingId]);
+
+    // Handle tab close / navigation away
+    window.addEventListener("pagehide", fireLeave);
+
+    // Handle browser back/forward — intercept popstate and clean up properly
+    const onPopState = () => {
+      screenStreamRef.current?.getTracks().forEach((t) => t.stop());
+      stopMedia();
+      clearRoomJoinSession(meetingId);
+      fireLeave();
+    };
+    window.addEventListener("popstate", onPopState);
+
+    return () => {
+      window.removeEventListener("pagehide", fireLeave);
+      window.removeEventListener("popstate", onPopState);
+    };
+  }, [meetingId, stopMedia]);
 
   const handleStartRecordingClick = useCallback(() => {
     if (!canRecord) {
@@ -857,10 +872,6 @@ export default function MeetingRoomPage() {
           </div>
           <span className={`text-sm font-mono ${meetingTimer.isOvertime ? "text-[#FF6B6B]" : meetingTimer.isWarningZone ? "text-[#FFB800]" : "text-[var(--text-muted)]"}`}>
             {meetingTimer.elapsedFormatted}
-          </span>
-          {/* Transport mode indicator */}
-          <span className="hidden sm:inline text-xs px-2 py-0.5 rounded-full border-2 border-[var(--border-strong)] bg-[#FFE600]">
-            SFU
           </span>
           {!isLivekitConnected && livekitConnectionState !== "disconnected" && (
             <span className="flex items-center gap-1 text-xs text-[#FF6B6B]">
@@ -998,6 +1009,8 @@ export default function MeetingRoomPage() {
                 onMuteParticipant={handleMuteParticipant}
                 onKickParticipant={handleKickParticipant}
                 onTransferHost={handleTransferHost}
+                meetingId={meetingId}
+                meetingCode={meetingCode ?? undefined}
               />
             </motion.div>
           )}

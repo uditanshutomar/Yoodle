@@ -11,6 +11,8 @@ class SharedSubscriber {
   private subscriber: Redis | null = null;
   private listeners = new Map<string, Set<MessageHandler>>();
   private refCount = new Map<string, number>();
+  /** Pending subscribe promises to prevent duplicate subscriptions under concurrency */
+  private pendingSubscribes = new Map<string, Promise<void>>();
 
   private ensureSubscriber(): Redis {
     if (!this.subscriber) {
@@ -43,7 +45,16 @@ class SharedSubscriber {
     if (!this.listeners.has(channel)) {
       this.listeners.set(channel, new Set());
       this.refCount.set(channel, 0);
-      await sub.subscribe(channel);
+      // Guard against concurrent subscribe calls for the same channel
+      if (!this.pendingSubscribes.has(channel)) {
+        const p = sub.subscribe(channel).then(() => {
+          this.pendingSubscribes.delete(channel);
+        });
+        this.pendingSubscribes.set(channel, p);
+        await p;
+      } else {
+        await this.pendingSubscribes.get(channel);
+      }
     }
 
     this.listeners.get(channel)!.add(handler);

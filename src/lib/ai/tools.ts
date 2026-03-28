@@ -2559,8 +2559,9 @@ export async function executeWorkspaceTool(
       }
 
       case "translate_message": {
-        const { getClient, getModelName } = await import("@/lib/ai/gemini");
-        const ai = getClient();
+        const { getClient, getModelName, getUserGeminiKey } = await import("@/lib/ai/gemini");
+        const userKey = await getUserGeminiKey(userId);
+        const ai = getClient(userKey);
         const text = args.text as string;
         const targetLang = args.targetLanguage as string;
 

@@ -5,7 +5,7 @@ import { checkRateLimit } from "@/lib/infra/api/rate-limit";
 import { getUserIdFromRequest } from "@/lib/infra/auth/middleware";
 import connectDB from "@/lib/infra/db/client";
 import AIMemory from "@/lib/infra/db/models/ai-memory";
-import { streamChatWithAssistant } from "@/lib/ai/gemini";
+import { streamChatWithAssistant, getUserGeminiKey } from "@/lib/ai/gemini";
 import { createStreamingResponse } from "@/lib/ai/streaming";
 import { buildWorkspaceContext } from "@/lib/google/workspace-context";
 import { hasGoogleAccess } from "@/lib/google/client";
@@ -119,10 +119,14 @@ export const POST = withHandler(async (req: NextRequest) => {
     workspaceContext: workspaceContext.contextString || undefined,
   };
 
+  // Resolve user's BYOK Gemini key (falls back to platform key)
+  const userApiKey = await getUserGeminiKey(userId);
+
   // Stream the response — enable Google Workspace tools if user has access
   const generator = streamChatWithAssistant(messages, userContext, {
     userId,
     enableTools: googleAccess,
+    userApiKey,
   });
   return createStreamingResponse(generator);
 });

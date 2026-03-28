@@ -16,7 +16,6 @@ import {
   X,
   Hand,
   LayoutGrid,
-  Sparkles,
 } from "lucide-react";
 import { useState } from "react";
 
@@ -277,13 +276,6 @@ export default function MeetingControls({
             className={isParticipantsOpen ? "text-[#06B6D4]" : ""}
           />
         </ControlButton>
-
-        {/* Yoodler Live toggle */}
-        {onToggleCopilot && (
-          <ControlButton onClick={onToggleCopilot} active={isCopilotOpen} label="Yoodler Live" badge={!isCopilotOpen && (unreadCopilotCount ?? 0) > 0}>
-            <Sparkles size={18} className={isCopilotOpen ? "text-[#A855F7]" : ""} />
-          </ControlButton>
-        )}
 
         {/* Layout toggle */}
         {onToggleLayout && (

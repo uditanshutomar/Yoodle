@@ -46,6 +46,10 @@ export const GET = withHandler(async (req: NextRequest) => {
     status: user.status,
     location: user.location,
     preferences: user.preferences,
+    apiKeys: {
+      gemini: !!user.apiKeys?.gemini,
+      deepgram: !!user.apiKeys?.deepgram,
+    },
     lastSeenAt: user.lastSeenAt,
     createdAt: user.createdAt,
     updatedAt: user.updatedAt,

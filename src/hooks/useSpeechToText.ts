@@ -88,7 +88,7 @@ export function useSpeechToText(): UseSpeechToTextReturn {
       apiKey = (json.data?.key || "").trim();
       if (!apiKey) throw new Error("No key returned");
     } catch {
-      toast.error("Could not connect to speech service");
+      toast.error("Voice input is not available. Check Deepgram configuration.");
       cleanup();
       return;
     }

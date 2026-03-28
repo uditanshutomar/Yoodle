@@ -5,10 +5,8 @@ import {
   Rocket,
   StickyNote,
   Sparkles,
-  Activity,
   MessageCircle,
   Play,
-  Rss,
   type LucideIcon,
 } from "lucide-react";
 
@@ -64,16 +62,6 @@ export const WIDGET_REGISTRY: Record<string, WidgetMeta> = {
     defaultH: 2,
     description: "AI-powered nudges and suggestions",
   },
-  "pulse-check": {
-    id: "pulse-check",
-    title: "Pulse Check",
-    icon: Activity,
-    minW: 3,
-    minH: 2,
-    defaultW: 4,
-    defaultH: 2,
-    description: "Mini trends for your meetings",
-  },
   buzz: {
     id: "buzz",
     title: "Buzz",
@@ -93,16 +81,6 @@ export const WIDGET_REGISTRY: Record<string, WidgetMeta> = {
     defaultW: 6,
     defaultH: 2,
     description: "Recent past meetings",
-  },
-  "the-feed": {
-    id: "the-feed",
-    title: "The Feed",
-    icon: Rss,
-    minW: 3,
-    minH: 2,
-    defaultW: 4,
-    defaultH: 2,
-    description: "Workspace activity stream",
   },
   "my-calendar": {
     id: "my-calendar",
@@ -143,8 +121,6 @@ export const DEFAULT_LAYOUT: LayoutItem[] = [
   { i: "launchpad", x: 8, y: 0, w: 4, h: 2, minW: 3, minH: 2 },
   { i: "yoodler-says", x: 8, y: 2, w: 4, h: 2, minW: 3, minH: 2 },
   { i: "sticky-board", x: 0, y: 3, w: 4, h: 3, minW: 3, minH: 2 },
-  { i: "pulse-check", x: 4, y: 3, w: 4, h: 2, minW: 3, minH: 2 },
-  { i: "buzz", x: 0, y: 6, w: 6, h: 2, minW: 3, minH: 2 },
-  { i: "replays", x: 6, y: 6, w: 6, h: 2, minW: 3, minH: 2 },
-  { i: "the-feed", x: 8, y: 4, w: 4, h: 2, minW: 3, minH: 2 },
+  { i: "buzz", x: 4, y: 3, w: 6, h: 2, minW: 3, minH: 2 },
+  { i: "replays", x: 0, y: 5, w: 6, h: 2, minW: 3, minH: 2 },
 ];

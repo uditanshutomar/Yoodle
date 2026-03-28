@@ -21,7 +21,8 @@ export default function ScreenShareView({
     onStopSharing,
     screenStream,
 }: ScreenShareViewProps) {
-    const [showParticipants, setShowParticipants] = useState(false);
+    const isPresenter = presenter.id === selfId;
+    const [showParticipants, setShowParticipants] = useState(isPresenter);
     const constraintsRef = useRef<HTMLDivElement>(null);
     const screenVideoRef = useRef<HTMLVideoElement>(null);
     const presenterVideoRef = useRef<HTMLVideoElement>(null);

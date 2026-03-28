@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { motion } from "framer-motion";
-import { FileText, ChevronDown, Loader2, ExternalLink, PlayCircle, ClipboardList, BarChart3, CalendarCheck, CheckCircle2, ListTodo } from "lucide-react";
+import { FileText, ChevronDown, Loader2, ExternalLink, PlayCircle, ClipboardList, BarChart3, CalendarCheck, CheckCircle2, ListTodo, UserPlus, Send, Check, X } from "lucide-react";
 import PreJoinLobby from "@/components/meeting/PreJoinLobby";
 import LoadingSpinner from "@/components/ui/LoadingSpinner";
 import { useAuth } from "@/hooks/useAuth";
@@ -391,6 +391,11 @@ export default function MeetingLobbyPage() {
         </div>
       )}
 
+      {/* Invite Attendees Section */}
+      {meeting.status !== "ended" && meeting.status !== "cancelled" && (
+        <InviteSection meetingId={meetingId} meetingCode={meeting.code} meetingTitle={meeting.title} />
+      )}
+
       <PreJoinLobby
         meetingId={meetingId}
         meetingTitle={meeting.title}
@@ -523,6 +528,115 @@ export default function MeetingLobbyPage() {
           )}
         </motion.div>
       )}
+    </div>
+  );
+}
+
+function InviteSection({ meetingId, meetingCode, meetingTitle }: { meetingId: string; meetingCode: string; meetingTitle: string }) {
+  const [showInvite, setShowInvite] = useState(false);
+  const [email, setEmail] = useState("");
+  const [status, setStatus] = useState<"idle" | "sending" | "sent" | "error">("idle");
+  const [linkCopied, setLinkCopied] = useState(false);
+  const [errorMsg, setErrorMsg] = useState("");
+
+  const handleInvite = async () => {
+    const trimmed = email.trim();
+    if (!trimmed || !trimmed.includes("@")) return;
+    setStatus("sending");
+    setErrorMsg("");
+    try {
+      const res = await fetch(`/api/meetings/${meetingId}/invite`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ email: trimmed }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setStatus("sent");
+        setEmail("");
+        setTimeout(() => setStatus("idle"), 2000);
+      } else {
+        setErrorMsg(data.error?.message || "Failed to send invite");
+        setStatus("error");
+        setTimeout(() => setStatus("idle"), 3000);
+      }
+    } catch {
+      setErrorMsg("Failed to send invite");
+      setStatus("error");
+      setTimeout(() => setStatus("idle"), 3000);
+    }
+  };
+
+  const copyLink = async () => {
+    const link = `${window.location.origin}/meetings/join?code=${meetingCode}`;
+    try {
+      await navigator.clipboard.writeText(link);
+      setLinkCopied(true);
+      setTimeout(() => setLinkCopied(false), 2000);
+    } catch { /* ignore */ }
+  };
+
+  return (
+    <div className="rounded-2xl border-2 border-[var(--border-strong)] bg-[var(--surface)] shadow-[4px_4px_0_var(--border-strong)] overflow-hidden mb-4">
+      <div className="px-5 py-4">
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-2">
+            <UserPlus size={16} className="text-[#FFE600]" />
+            <h3 className="text-sm font-bold text-[var(--text-primary)] font-heading">
+              Invite People
+            </h3>
+          </div>
+          <button
+            onClick={copyLink}
+            className="flex items-center gap-1.5 text-xs font-bold text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors font-heading"
+          >
+            {linkCopied ? <Check size={12} className="text-green-500" /> : <Send size={12} />}
+            {linkCopied ? "Copied!" : "Copy Link"}
+          </button>
+        </div>
+
+        {!showInvite ? (
+          <button
+            onClick={() => setShowInvite(true)}
+            className="w-full flex items-center justify-center gap-2 rounded-xl border-2 border-dashed border-[var(--border)] bg-[var(--background)] px-4 py-3 text-sm font-bold text-[var(--text-muted)] hover:border-[#FFE600] hover:text-[var(--text-primary)] transition-colors font-heading"
+          >
+            <UserPlus size={16} /> Add attendees by email
+          </button>
+        ) : (
+          <div className="space-y-2">
+            <div className="flex gap-2">
+              <input
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && handleInvite()}
+                placeholder="Enter email address"
+                className="flex-1 rounded-xl border-2 border-[var(--border)] bg-[var(--background)] px-3 py-2 text-sm text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:border-[var(--border-strong)] focus:outline-none font-body"
+              />
+              <button
+                onClick={handleInvite}
+                disabled={status === "sending" || !email.trim()}
+                className="rounded-xl bg-[#FFE600] px-4 py-2 text-sm font-bold text-[#0A0A0A] border-2 border-[var(--border-strong)] shadow-[2px_2px_0_var(--border-strong)] hover:shadow-none hover:translate-x-[2px] hover:translate-y-[2px] transition-all disabled:opacity-40 font-heading"
+              >
+                {status === "sending" ? <Loader2 size={14} className="animate-spin" /> : status === "sent" ? <Check size={14} /> : "Invite"}
+              </button>
+            </div>
+            {status === "error" && errorMsg && (
+              <p className="text-xs text-[#FF6B6B] font-body">{errorMsg}</p>
+            )}
+            {status === "sent" && (
+              <p className="text-xs text-green-500 font-body">Invite sent!</p>
+            )}
+            <button
+              onClick={() => { setShowInvite(false); setEmail(""); setStatus("idle"); setErrorMsg(""); }}
+              className="text-xs text-[var(--text-muted)] hover:text-[var(--text-primary)] font-heading"
+            >
+              <X size={10} className="inline mr-1" />Cancel
+            </button>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

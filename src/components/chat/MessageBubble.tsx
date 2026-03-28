@@ -183,7 +183,7 @@ export default function MessageBubble({
           ) : (
             <>
               <div
-                className="prose prose-sm prose-invert max-w-none font-heading"
+                className="prose prose-sm dark:prose-invert max-w-none font-heading"
                 style={{ color: "var(--text-primary)" }}
               >
                 <SafeMarkdown>{displayContent}</SafeMarkdown>

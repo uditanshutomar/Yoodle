@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
-import { Rocket, StickyNote } from "lucide-react";
+import { Rocket } from "lucide-react";
 
 export default function LaunchpadWidget() {
   const router = useRouter();
@@ -29,36 +29,25 @@ export default function LaunchpadWidget() {
       </motion.button>
 
       {/* Join code input */}
-      <div className="flex items-center gap-1 rounded-xl border-2 border-[var(--border)] overflow-hidden">
+      <div className="flex items-center gap-1 rounded-xl border-2 border-[var(--border-strong)] overflow-hidden">
         <input
           type="text"
           value={joinCode}
           onChange={(e) => setJoinCode(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && handleJoin()}
-          placeholder="Room code"
+          placeholder="Enter room code"
           aria-label="Enter room code"
-          className="flex-1 bg-transparent px-3 py-1.5 text-xs text-[var(--text-primary)] outline-none placeholder:text-[var(--text-muted)] font-body"
+          className="flex-1 bg-transparent px-3 py-2.5 text-sm text-[var(--text-primary)] outline-none placeholder:text-[var(--text-muted)] font-body"
         />
         <motion.button
           whileHover={{ scale: 1.05 }}
           whileTap={{ scale: 0.95 }}
           onClick={handleJoin}
-          className="bg-[var(--foreground)] px-3 py-1.5 text-xs font-bold text-[var(--background)] border-l-2 border-[var(--border)] font-heading"
+          className="bg-[var(--foreground)] px-4 py-2.5 text-sm font-bold text-[var(--background)] border-l-2 border-[var(--border-strong)] font-heading"
         >
           Join
         </motion.button>
       </div>
-
-      {/* New Sticky */}
-      <motion.button
-        whileHover={{ scale: 1.02 }}
-        whileTap={{ scale: 0.97 }}
-        onClick={() => router.push("/board")}
-        className="flex items-center gap-2 rounded-xl border-2 border-[var(--border)] px-3 py-2 text-xs font-bold text-[var(--text-secondary)] hover:border-[#A855F7] hover:text-[#A855F7] transition-colors font-heading"
-      >
-        <StickyNote size={14} aria-hidden="true" />
-        New Sticky
-      </motion.button>
     </div>
   );
 }

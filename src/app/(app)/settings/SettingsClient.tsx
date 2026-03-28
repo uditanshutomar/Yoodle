@@ -2,11 +2,12 @@
 
 import { useState, useEffect, useRef } from "react";
 import { motion } from "framer-motion";
-import { Settings, User, Bell, Palette, Shield, Save, Sun, Moon, Monitor, Link2, ExternalLink } from "lucide-react";
+import { Settings, User, Bell, Palette, Save, Sun, Moon, Monitor, Link2, ExternalLink, Key, Trash2, Eye, EyeOff } from "lucide-react";
+import { toast } from "sonner";
 import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
 import Input from "@/components/ui/Input";
-import WorkspaceSection from "@/components/settings/WorkspaceSection";
+
 import { useAuth } from "@/hooks/useAuth";
 import { useTheme, type Theme } from "@/providers/ThemeProvider";
 
@@ -200,6 +201,19 @@ export default function SettingsClient() {
         </Card>
       </motion.div>
 
+      {/* API Keys (BYOK) */}
+      <motion.div variants={itemVariants}>
+        <Card className="!p-6">
+          <h2 className="flex items-center gap-2 text-base font-bold text-[var(--text-primary)] mb-1 font-heading">
+            <Key size={16} /> API Keys
+          </h2>
+          <p className="text-xs text-[var(--text-secondary)] mb-4 font-body">
+            Add your own API keys for AI and speech features. Your keys are encrypted at rest and never shared.
+          </p>
+          <ApiKeySection />
+        </Card>
+      </motion.div>
+
       {/* Connected Accounts */}
       <motion.div variants={itemVariants}>
         <Card className="!p-6">
@@ -241,23 +255,6 @@ export default function SettingsClient() {
         </Card>
       </motion.div>
 
-      {/* Security */}
-      <motion.div variants={itemVariants}>
-        <Card className="!p-6">
-          <h2 className="flex items-center gap-2 text-base font-bold text-[var(--text-primary)] mb-4 font-heading">
-            <Shield size={16} /> Security
-          </h2>
-          <p className="text-xs text-[var(--text-secondary)] font-body">
-            Your account uses passwordless magic link authentication. No password to manage.
-          </p>
-        </Card>
-      </motion.div>
-
-      {/* Workspaces */}
-      <motion.div variants={itemVariants}>
-        <WorkspaceSection />
-      </motion.div>
-
       {/* Save button */}
       <motion.div variants={itemVariants} className="flex items-center gap-3">
         <Button variant="primary" size="md" icon={Save} onClick={handleSave} disabled={saving}>
@@ -275,6 +272,175 @@ export default function SettingsClient() {
         )}
       </motion.div>
     </motion.div>
+  );
+}
+
+const API_KEY_PROVIDERS = [
+  {
+    id: "gemini" as const,
+    name: "Gemini (AI)",
+    description: "Powers Yoodler AI chat, meeting copilot, and auto-summaries",
+    link: "https://aistudio.google.com/apikey",
+    linkLabel: "Get free key at Google AI Studio",
+    placeholder: "AIza...",
+  },
+  {
+    id: "deepgram" as const,
+    name: "Deepgram (Speech-to-Text)",
+    description: "Powers live transcription and voice input",
+    link: "https://console.deepgram.com/signup",
+    linkLabel: "Sign up for $200 free credit",
+    placeholder: "b7d9dc94...",
+  },
+];
+
+function ApiKeySection() {
+  const [keys, setKeys] = useState<Record<string, { configured: boolean; preview?: string }>>({});
+  const [inputs, setInputs] = useState<Record<string, string>>({});
+  const [showInputs, setShowInputs] = useState<Record<string, boolean>>({});
+  const [saving, setSaving] = useState<Record<string, boolean>>({});
+
+  useEffect(() => {
+    async function loadKeys() {
+      try {
+        const res = await fetch("/api/users/me/api-keys", { credentials: "include" });
+        if (res.ok) {
+          const json = await res.json();
+          setKeys(json.data?.keys || {});
+        }
+      } catch {
+        // Non-critical
+      }
+    }
+    loadKeys();
+  }, []);
+
+  const handleSave = async (provider: string) => {
+    const value = inputs[provider]?.trim();
+    if (!value) return;
+
+    setSaving((s) => ({ ...s, [provider]: true }));
+    try {
+      const res = await fetch("/api/users/me/api-keys", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ [provider]: value }),
+      });
+      if (res.ok) {
+        const json = await res.json();
+        setKeys(json.data?.keys || {});
+        setInputs((s) => ({ ...s, [provider]: "" }));
+        setShowInputs((s) => ({ ...s, [provider]: false }));
+        toast.success(`${provider === "gemini" ? "Gemini" : "Deepgram"} key saved`);
+      } else {
+        toast.error("Failed to save key");
+      }
+    } catch {
+      toast.error("Failed to save key");
+    } finally {
+      setSaving((s) => ({ ...s, [provider]: false }));
+    }
+  };
+
+  const handleRemove = async (provider: string) => {
+    try {
+      const res = await fetch("/api/users/me/api-keys", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ provider }),
+      });
+      if (res.ok) {
+        setKeys((k) => ({ ...k, [provider]: { configured: false } }));
+        toast.success("Key removed");
+      }
+    } catch {
+      toast.error("Failed to remove key");
+    }
+  };
+
+  return (
+    <div className="space-y-4">
+      {API_KEY_PROVIDERS.map((provider) => {
+        const keyStatus = keys[provider.id];
+        const isConfigured = keyStatus?.configured;
+        const isEditing = showInputs[provider.id];
+
+        return (
+          <div key={provider.id} className="rounded-xl border border-[var(--border)] p-4">
+            <div className="flex items-start justify-between mb-1">
+              <div>
+                <p className="text-sm font-bold text-[var(--text-primary)] font-heading">
+                  {provider.name}
+                </p>
+                <p className="text-xs text-[var(--text-secondary)] font-body">
+                  {provider.description}
+                </p>
+              </div>
+              {isConfigured && (
+                <span className="text-xs font-bold text-[#22C55E] bg-[#22C55E]/10 border border-[#22C55E]/30 rounded-full px-2.5 py-0.5 font-heading whitespace-nowrap">
+                  {keyStatus.preview || "Configured"}
+                </span>
+              )}
+            </div>
+
+            {isConfigured && !isEditing ? (
+              <div className="flex items-center gap-2 mt-3">
+                <button
+                  onClick={() => setShowInputs((s) => ({ ...s, [provider.id]: true }))}
+                  className="text-xs font-bold text-[#3B82F6] hover:text-[#2563EB] font-heading"
+                >
+                  Update key
+                </button>
+                <button
+                  onClick={() => handleRemove(provider.id)}
+                  className="flex items-center gap-1 text-xs font-bold text-[#EF4444] hover:text-[#DC2626] font-heading"
+                >
+                  <Trash2 size={10} /> Remove
+                </button>
+              </div>
+            ) : (
+              <div className="mt-3 space-y-2">
+                <div className="flex gap-2">
+                  <input
+                    type="password"
+                    value={inputs[provider.id] || ""}
+                    onChange={(e) => setInputs((s) => ({ ...s, [provider.id]: e.target.value }))}
+                    placeholder={provider.placeholder}
+                    className="flex-1 px-3 py-2 text-sm rounded-lg border border-[var(--border)] bg-[var(--surface)] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:ring-2 focus:ring-[#FFE600] font-body"
+                  />
+                  <button
+                    onClick={() => handleSave(provider.id)}
+                    disabled={saving[provider.id] || !inputs[provider.id]?.trim()}
+                    className="px-3 py-2 text-xs font-bold rounded-lg bg-[var(--foreground)] text-[var(--background)] hover:opacity-90 disabled:opacity-40 font-heading"
+                  >
+                    {saving[provider.id] ? "Saving…" : "Save"}
+                  </button>
+                  {isConfigured && (
+                    <button
+                      onClick={() => setShowInputs((s) => ({ ...s, [provider.id]: false }))}
+                      className="px-3 py-2 text-xs font-bold rounded-lg border border-[var(--border)] text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] font-heading"
+                    >
+                      Cancel
+                    </button>
+                  )}
+                </div>
+                <a
+                  href={provider.link}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1 text-xs text-[#3B82F6] hover:underline font-body"
+                >
+                  <ExternalLink size={10} />
+                  {provider.linkLabel}
+                </a>
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </div>
   );
 }
 

@@ -30,7 +30,7 @@ export default function AppTopbar({ onMenuToggle, menuOpen }: AppTopbarProps) {
         </button>
         <CommandPalette />
         <button
-          onClick={() => document.dispatchEvent(new KeyboardEvent("keydown", { key: "k", metaKey: true }))}
+          onClick={() => document.dispatchEvent(new KeyboardEvent("keydown", { key: "k", metaKey: true, ctrlKey: true, bubbles: true, cancelable: true }))}
           className="flex items-center gap-2 rounded-xl border-2 border-[var(--border)] bg-[var(--surface)] py-2 px-3 text-[var(--text-muted)] cursor-pointer hover:bg-[var(--surface-hover)] focus-visible:ring-2 focus-visible:ring-[#FFE600] focus-visible:outline-none transition-colors"
           aria-label="Open search (⌘K)"
         >

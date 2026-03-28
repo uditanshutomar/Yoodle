@@ -32,6 +32,13 @@ export interface IGoogleTokens {
   scope: string;
 }
 
+export interface IUserApiKeys {
+  /** Encrypted Gemini API key (AES-256-GCM) */
+  gemini?: string;
+  /** Encrypted Deepgram API key (AES-256-GCM) */
+  deepgram?: string;
+}
+
 export interface IUser {
   email: string;
   name: string;
@@ -43,6 +50,8 @@ export interface IUser {
   timezone?: string; // IANA timezone (e.g., "America/New_York")
   location?: IUserLocation;
   preferences: IUserPreferences;
+  /** User-provided API keys (BYOK), encrypted at rest */
+  apiKeys?: IUserApiKeys;
   googleId?: string;
   googleTokens?: IGoogleTokens;
   /** @deprecated Use Google OAuth instead. Kept for legacy data compatibility. */
@@ -166,6 +175,15 @@ const userSchema = new Schema<IUserDocument>(
         ghostModeDefault: false,
         theme: "auto",
       }),
+    },
+    apiKeys: {
+      type: new Schema(
+        {
+          gemini: { type: String },
+          deepgram: { type: String },
+        },
+        { _id: false }
+      ),
     },
     googleId: {
       type: String,

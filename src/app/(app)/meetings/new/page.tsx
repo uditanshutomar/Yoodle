@@ -45,6 +45,8 @@ function NewMeetingPageInner() {
     waitingRoom: false,
     muteOnJoin: false,
   });
+  const [inviteEmails, setInviteEmails] = useState<string[]>([]);
+  const [inviteInput, setInviteInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [startingNow, setStartingNow] = useState(false);
   const [error, setError] = useState("");
@@ -120,6 +122,10 @@ function NewMeetingPageInner() {
       if (recurrenceDays.length > 0) {
         body.recurrenceDays = recurrenceDays;
       }
+    }
+
+    if (inviteEmails.length > 0) {
+      body.inviteEmails = inviteEmails;
     }
 
     let res = await fetch("/api/meetings", {
@@ -446,6 +452,65 @@ function NewMeetingPageInner() {
             </div>
           )}
 
+          {/* Invite Attendees */}
+          <div>
+            <label className="text-sm font-bold text-[var(--text-primary)] mb-2 block font-heading">
+              Invite Attendees <span className="text-[var(--text-muted)] font-normal">(optional)</span>
+            </label>
+            <div className="flex gap-2">
+              <input
+                type="email"
+                value={inviteInput}
+                onChange={(e) => setInviteInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    const email = inviteInput.trim();
+                    if (email && email.includes("@") && !inviteEmails.includes(email)) {
+                      setInviteEmails((prev) => [...prev, email]);
+                      setInviteInput("");
+                    }
+                  }
+                }}
+                placeholder="Enter email and press Enter"
+                className="flex-1 rounded-xl border-2 border-[var(--border)] bg-[var(--surface)] py-2.5 px-4 text-sm text-[var(--text-primary)] focus:border-[var(--border-strong)] focus:outline-none font-body placeholder:text-[var(--text-muted)]"
+              />
+              <button
+                type="button"
+                onClick={() => {
+                  const email = inviteInput.trim();
+                  if (email && email.includes("@") && !inviteEmails.includes(email)) {
+                    setInviteEmails((prev) => [...prev, email]);
+                    setInviteInput("");
+                  }
+                }}
+                className="px-4 py-2.5 rounded-xl border-2 border-[var(--border-strong)] bg-[var(--surface)] text-sm font-bold text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] transition-colors font-heading"
+              >
+                Add
+              </button>
+            </div>
+            {inviteEmails.length > 0 && (
+              <div className="flex flex-wrap gap-2 mt-2">
+                {inviteEmails.map((email) => (
+                  <span
+                    key={email}
+                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-[#FFE600]/15 border border-[#FFE600]/30 text-xs font-bold text-[var(--text-primary)] font-heading"
+                  >
+                    {email}
+                    <button
+                      type="button"
+                      onClick={() => setInviteEmails((prev) => prev.filter((e) => e !== email))}
+                      className="ml-0.5 hover:text-[#FF6B6B] transition-colors"
+                      aria-label={`Remove ${email}`}
+                    >
+                      <X size={12} />
+                    </button>
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
+
           {/* Schedule toggle */}
           <div>
             <label className="text-sm font-bold text-[var(--text-primary)] mb-2 block font-heading">
@@ -476,7 +541,7 @@ function NewMeetingPageInner() {
             </div>
 
             {scheduleMode === "later" && (
-              <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} className="mt-3 space-y-3">
+              <div className="mt-3 space-y-3">
                 <input
                   type="datetime-local"
                   aria-label="Schedule date and time"
@@ -545,7 +610,7 @@ function NewMeetingPageInner() {
                     </div>
                   )}
                 </div>
-              </motion.div>
+              </div>
             )}
           </div>
         </div>

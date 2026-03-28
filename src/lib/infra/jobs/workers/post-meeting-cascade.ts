@@ -10,7 +10,7 @@ import Conversation from "@/lib/infra/db/models/conversation";
 import DirectMessage from "@/lib/infra/db/models/direct-message";
 import { getRedisClient } from "@/lib/infra/redis/client";
 import { updateEvent } from "@/lib/google/calendar";
-import { getClient, getModelName } from "@/lib/ai/gemini";
+import { getClient, getModelName, getUserGeminiKey } from "@/lib/ai/gemini";
 import { geminiBreaker } from "@/lib/infra/circuit-breaker";
 import { getPersonalBoard } from "@/lib/board/tools";
 import { createLogger } from "@/lib/infra/logger";
@@ -210,7 +210,8 @@ export async function processPostMeetingCascade(
             .map((s) => `[${s.speakerName}]: ${s.text}`)
             .join("\n");
 
-          const ai = getClient();
+          const userKey = await getUserGeminiKey(hostId);
+          const ai = getClient(userKey);
           const model = getModelName();
 
           const prompt = `You are analyzing a meeting transcript. Generate structured minutes of meeting (MOM).

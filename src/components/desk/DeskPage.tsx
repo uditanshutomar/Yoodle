@@ -95,7 +95,7 @@ export default function DeskPage() {
               className="flex items-center gap-1.5 rounded-xl border-2 border-[var(--border-strong)] bg-[var(--surface)] px-3 py-2 text-xs font-bold text-[var(--text-secondary)] shadow-[3px_3px_0_var(--border-strong)] hover:shadow-[1px_1px_0_var(--border-strong)] hover:translate-x-[2px] hover:translate-y-[2px] transition-all font-heading"
             >
               <Pencil size={14} aria-hidden="true" />
-              Make it yours
+              Design my desk
             </button>
           )}
         </div>

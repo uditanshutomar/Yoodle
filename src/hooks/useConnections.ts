@@ -73,6 +73,14 @@ export function useConnections(): UseConnectionsReturn {
 
   useEffect(() => {
     refresh();
+
+    // Poll for new connection requests every 10 seconds
+    const intervalId = setInterval(() => {
+      if (document.visibilityState === "hidden") return;
+      refresh();
+    }, 10_000);
+
+    return () => clearInterval(intervalId);
   }, [refresh]);
 
   const sendRequest = useCallback(

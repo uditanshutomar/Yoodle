@@ -457,7 +457,7 @@ function DayEventCard({
     >
       <div className="border-l-4 border-[#FFE600] px-3 py-2.5 h-full">
         <div className="flex items-start justify-between gap-2">
-          <h3 className="text-sm font-bold text-[var(--text-primary)] font-heading leading-tight">
+          <h3 className="text-sm font-bold text-[var(--text-primary)] font-heading leading-tight line-clamp-2">
             {event.title}
           </h3>
           {event.htmlLink && (

@@ -495,19 +495,12 @@ export default function MeetingsClient() {
   const upcoming = meetings.filter((m) => {
     if (m.recurrence && m.recurrence !== "none") return false; // recurring has its own tab
     if (m.status === "live") return true;
-    if (m.status === "scheduled") {
-      const dateStr = m.scheduledAt || m.createdAt;
-      return new Date(dateStr).getTime() + ONE_HOUR > now;
-    }
+    if (m.status === "scheduled") return true; // All scheduled meetings are upcoming
     return false;
   });
   const past = meetings.filter((m) => {
     if (m.recurrence && m.recurrence !== "none") return false; // recurring has its own tab
     if (m.status === "ended" || m.status === "cancelled") return true;
-    if (m.status === "scheduled") {
-      const dateStr = m.scheduledAt || m.createdAt;
-      return new Date(dateStr).getTime() + ONE_HOUR <= now;
-    }
     return false;
   });
   const recurring = meetings.filter((m) => m.recurrence && m.recurrence !== "none");

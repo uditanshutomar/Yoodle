@@ -8,7 +8,7 @@ import Recording from "@/lib/infra/db/models/recording";
 import Transcript from "@/lib/infra/db/models/transcript";
 import { getGoogleServices } from "@/lib/google/client";
 import { withGoogleRetry } from "@/lib/google/retry-wrapper";
-import { getClient, getModelName } from "@/lib/ai/gemini";
+import { getClient, getModelName, getUserGeminiKey } from "@/lib/ai/gemini";
 import { geminiBreaker } from "@/lib/infra/circuit-breaker";
 import { createLogger } from "@/lib/infra/logger";
 
@@ -227,7 +227,8 @@ export async function processRecording(
         { $set: { "aiMinutes.status": "processing" } },
       );
 
-      const ai = getClient();
+      const userKey = await getUserGeminiKey(userId);
+      const ai = getClient(userKey);
       const model = getModelName();
 
       const prompt = `You are analyzing a meeting transcript. Generate structured minutes of meeting (MOM).

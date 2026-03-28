@@ -324,7 +324,7 @@ function ChatBubble({ id, role, content, timestamp, isStreaming, toolCalls, card
               Morning Briefing
             </span>
           </div>
-          <div className="text-xs leading-relaxed text-[var(--text-primary)] prose prose-sm prose-invert max-w-none prose-headings:text-[var(--text-primary)] prose-headings:text-xs prose-headings:font-bold prose-headings:mt-2 prose-headings:mb-1 prose-p:my-1 prose-ul:my-1 prose-li:my-0 prose-strong:text-[var(--text-primary)]">
+          <div className="text-xs leading-relaxed text-[var(--text-primary)] prose prose-sm dark:prose-invert max-w-none prose-headings:text-[var(--text-primary)] prose-headings:text-xs prose-headings:font-bold prose-headings:mt-2 prose-headings:mb-1 prose-p:my-1 prose-ul:my-1 prose-li:my-0 prose-strong:text-[var(--text-primary)]">
             <SafeMarkdown>{content}</SafeMarkdown>
           </div>
           {timestamp && (
@@ -396,7 +396,7 @@ function ChatBubble({ id, role, content, timestamp, isStreaming, toolCalls, card
           } font-body`}
         >
           {content ? (
-            <div className="prose prose-sm prose-invert max-w-none prose-headings:text-sm prose-headings:font-bold prose-headings:mt-3 prose-headings:mb-1 prose-p:my-1.5 prose-ul:my-1.5 prose-ol:my-1.5 prose-li:my-0.5 prose-strong:text-[var(--text-primary)] prose-a:text-[#FFE600] prose-a:no-underline hover:prose-a:underline [&>*:first-child]:mt-0">
+            <div className="prose prose-sm dark:prose-invert max-w-none prose-headings:text-sm prose-headings:font-bold prose-headings:mt-3 prose-headings:mb-1 prose-p:my-1.5 prose-ul:my-1.5 prose-ol:my-1.5 prose-li:my-0.5 prose-strong:text-[var(--text-primary)] prose-a:text-[#FFE600] prose-a:no-underline hover:prose-a:underline [&>*:first-child]:mt-0">
               <SafeMarkdown>{content}</SafeMarkdown>
             </div>
           ) : isStreaming ? (

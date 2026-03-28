@@ -54,6 +54,7 @@ const createMeetingSchema = z.object({
   templateId: z.string().optional(),
   recurrence: z.enum(["none", "daily", "weekly", "biweekly", "monthly"]).optional(),
   recurrenceDays: z.array(z.enum(["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"])).max(7).optional(),
+  inviteEmails: z.array(z.string().email()).max(50).optional(),
 });
 
 // ── GET /api/meetings ───────────────────────────────────────────────
@@ -209,6 +210,7 @@ export const POST = withHandler(async (req: NextRequest) => {
         description: `Join Yoodle meeting: ${yoodleLink}`,
         location: yoodleLink,
         addMeetLink: false,
+        attendees: body.inviteEmails,
       });
 
       if (calEvent?.id) {
@@ -219,8 +221,35 @@ export const POST = withHandler(async (req: NextRequest) => {
     }
   }
 
-  // Notify invited participants when they join (handled in the join route).
-  // At creation time, only the host is in participants[], so we skip fan-out here.
+  // Send invite notifications to attendees (fire-and-forget)
+  if (body.inviteEmails && body.inviteEmails.length > 0) {
+    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000";
+    const meetingLink = `${baseUrl}/meetings/join?code=${code}`;
+    const User = (await import("@/lib/infra/db/models/user")).default;
+    const { publishNotification } = await import("@/lib/notifications/publish");
+
+    Promise.resolve().then(async () => {
+      for (const email of body.inviteEmails!) {
+        try {
+          // Find user by email and send in-app notification
+          const invitedUser = await User.findOne({ email }).select("_id").lean();
+          if (invitedUser) {
+            await publishNotification({
+              userId: invitedUser._id.toString(),
+              type: "meeting_invite",
+              title: `You're invited: ${meeting.title}`,
+              body: `Join with code ${code} or use the meeting link`,
+              sourceType: "meeting",
+              sourceId: meeting._id.toString(),
+              priority: "urgent",
+            });
+          }
+        } catch (err) {
+          log.warn({ err, email }, "failed to notify invited attendee");
+        }
+      }
+    });
+  }
 
   // Populate host info before returning
   await meeting.populate("hostId", "name displayName avatarUrl");

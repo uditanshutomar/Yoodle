@@ -1,5 +1,9 @@
 # Production override — use with:
 #   docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+#
+# For self-hosted LiveKit + local MongoDB:
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml \
+#     --profile local-db --profile local-livekit up -d
 
 services:
   # ── Yoodle App (production overrides) ──────────────────────────────
@@ -8,21 +12,12 @@ services:
     environment:
       - NODE_ENV=production
       - YOODLE_EDITION=${YOODLE_EDITION:-community}
-      - LIVEKIT_URL=ws://livekit:7880
-      - TURN_SERVER_URL=turn://coturn:3478
     healthcheck:
       test: ["CMD", "wget", "-q", "--spider", "http://localhost:3000/api/health"]
       interval: 30s
       timeout: 10s
       retries: 3
       start_period: 40s
-    depends_on:
-      mongo:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-      livekit:
-        condition: service_started
 
   # ── MongoDB (no exposed ports in prod) ─────────────────────────────
   mongo:
@@ -48,7 +43,7 @@ services:
   # ── LiveKit (production — no --dev flag) ───────────────────────────
   livekit:
     environment:
-      - LIVEKIT_KEYS=${LIVEKIT_API_KEY}: ${LIVEKIT_API_SECRET}
+      - "LIVEKIT_KEYS=${LIVEKIT_API_KEY}:${LIVEKIT_API_SECRET}"
     command: --bind 0.0.0.0
     healthcheck:
       test: ["CMD", "wget", "-q", "--spider", "http://localhost:7880"]
@@ -60,6 +55,7 @@ services:
   # ── coturn TURN Server (WebRTC NAT traversal) ─────────────────────
   coturn:
     image: coturn/coturn:latest
+    profiles: ["local-livekit"]
     ports:
       - "3478:3478"
       - "3478:3478/udp"
@@ -88,6 +84,7 @@ services:
   # ── Nginx Reverse Proxy (SSL termination) ──────────────────────────
   nginx:
     image: nginx:alpine
+    profiles: ["nginx"]
     ports:
       - "80:80"
       - "443:443"

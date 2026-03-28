@@ -36,6 +36,20 @@ export async function GET(req: NextRequest) {
             }
           }, 15000);
 
+          // On Vercel (serverless), close after 50s before the 60s timeout.
+          // On VM/self-hosted, keep alive for 10 minutes to reduce reconnects.
+          const SSE_LIFETIME_MS = process.env.VERCEL ? 50_000 : 600_000;
+          const maxLifetime = setTimeout(() => {
+            clearInterval(heartbeat);
+            enqueueMessage = null;
+            unsubscribe?.().catch(() => {});
+            try {
+              controller.close();
+            } catch {
+              // Already closed
+            }
+          }, SSE_LIFETIME_MS);
+
           // Wire up the message handler now that the controller is available
           enqueueMessage = (_channel: string, message: string) => {
             try {
@@ -58,6 +72,7 @@ export async function GET(req: NextRequest) {
 
           // Clean up when the client disconnects
           req.signal.addEventListener("abort", () => {
+            clearTimeout(maxLifetime);
             clearInterval(heartbeat);
             enqueueMessage = null;
             unsubscribe?.().catch(() => {});

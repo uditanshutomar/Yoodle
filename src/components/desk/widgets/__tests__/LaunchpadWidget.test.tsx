@@ -46,20 +46,9 @@ describe("LaunchpadWidget", () => {
     expect(screen.getByLabelText("Enter room code")).toBeDefined();
   });
 
-  it('renders "New Sticky" button', () => {
-    render(<LaunchpadWidget />);
-    expect(screen.getByText("New Sticky")).toBeDefined();
-  });
-
   it("Start a Room navigates to /meetings/new on click", () => {
     render(<LaunchpadWidget />);
     fireEvent.click(screen.getByText("Start a Room"));
     expect(mockPush).toHaveBeenCalledWith("/meetings/new");
-  });
-
-  it("New Sticky navigates to /board on click", () => {
-    render(<LaunchpadWidget />);
-    fireEvent.click(screen.getByText("New Sticky"));
-    expect(mockPush).toHaveBeenCalledWith("/board");
   });
 });

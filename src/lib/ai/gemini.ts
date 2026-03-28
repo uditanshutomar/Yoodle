@@ -7,7 +7,7 @@ import { geminiBreaker } from "@/lib/infra/circuit-breaker";
 
 const log = createLogger("ai:gemini");
 
-// ── Singleton Gemini client ─────────────────────────────────────────
+// ── Gemini client (singleton for platform key, per-user for BYOK) ───
 
 let genAI: GoogleGenAI | null = null;
 
@@ -20,9 +20,47 @@ function initClient(): GoogleGenAI {
   return genAI;
 }
 
-/** Returns the singleton GoogleGenAI client instance */
-export function getClient(): GoogleGenAI {
+/**
+ * Returns a GoogleGenAI client.
+ * - If `userApiKey` is provided → creates a new per-user instance (BYOK).
+ * - Otherwise → returns the platform singleton from GEMINI_API_KEY env var.
+ * - If neither exists → throws.
+ */
+export function getClient(userApiKey?: string): GoogleGenAI {
+  if (userApiKey) {
+    return new GoogleGenAI({ apiKey: userApiKey });
+  }
+
+  // Fall back to platform key
+  const platformKey = process.env.GEMINI_API_KEY;
+  if (!platformKey) {
+    throw new Error(
+      "No API key available. Add your Gemini API key in Settings → API Keys."
+    );
+  }
   return initClient();
+}
+
+/**
+ * Resolve the Gemini API key for a user.
+ * Checks user's stored BYOK key first, falls back to platform key.
+ * Returns undefined if no key is available.
+ */
+export async function getUserGeminiKey(userId: string): Promise<string | undefined> {
+  try {
+    const { default: connectDB } = await import("@/lib/infra/db/client");
+    const { default: User } = await import("@/lib/infra/db/models/user");
+    const { decrypt } = await import("@/lib/infra/crypto/encryption");
+
+    await connectDB();
+    const user = await User.findById(userId).select("apiKeys.gemini").lean();
+    if (user?.apiKeys?.gemini) {
+      return decrypt(user.apiKeys.gemini);
+    }
+  } catch (err) {
+    log.warn({ err, userId }, "Failed to resolve user Gemini key, falling back to platform key");
+  }
+  return undefined;
 }
 
 /** Returns the configured model name string */
@@ -81,6 +119,7 @@ export type StreamEvent =
 interface StreamOptions {
   userId?: string;
   enableTools?: boolean;
+  userApiKey?: string;
 }
 
 export async function* streamChatWithAssistant(
@@ -88,7 +127,7 @@ export async function* streamChatWithAssistant(
   userContext?: AssistantUserContext,
   options?: StreamOptions
 ): AsyncGenerator<StreamEvent> {
-  const ai = getClient();
+  const ai = getClient(options?.userApiKey);
   const model = getModelName();
   const systemInstruction = buildSystemInstruction(userContext);
   const enableTools = options?.enableTools && options?.userId;

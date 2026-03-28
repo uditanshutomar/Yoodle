@@ -9,17 +9,15 @@ const EXPECTED_WIDGET_IDS = [
   "launchpad",
   "sticky-board",
   "yoodler-says",
-  "pulse-check",
   "buzz",
   "replays",
-  "the-feed",
   "my-calendar",
   "map",
 ];
 
 describe("WIDGET_REGISTRY", () => {
-  it("has exactly 9 entries", () => {
-    expect(Object.keys(WIDGET_REGISTRY)).toHaveLength(10);
+  it("has exactly 8 entries", () => {
+    expect(Object.keys(WIDGET_REGISTRY)).toHaveLength(8);
   });
 
   it("contains all expected widget IDs", () => {
@@ -87,8 +85,8 @@ describe("ALL_WIDGET_IDS", () => {
     expect(ALL_WIDGET_IDS).toEqual(Object.keys(WIDGET_REGISTRY));
   });
 
-  it("contains exactly 9 IDs", () => {
-    expect(ALL_WIDGET_IDS).toHaveLength(10);
+  it("contains exactly 8 IDs", () => {
+    expect(ALL_WIDGET_IDS).toHaveLength(8);
   });
 
   it("has no duplicate IDs", () => {
@@ -98,8 +96,8 @@ describe("ALL_WIDGET_IDS", () => {
 });
 
 describe("DEFAULT_LAYOUT", () => {
-  it("has exactly 8 items", () => {
-    expect(DEFAULT_LAYOUT).toHaveLength(8);
+  it("has exactly 6 items", () => {
+    expect(DEFAULT_LAYOUT).toHaveLength(6);
   });
 
   it("every layout item references a valid widget from the registry", () => {

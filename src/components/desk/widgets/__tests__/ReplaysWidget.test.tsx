@@ -104,8 +104,8 @@ describe("ReplaysWidget", () => {
 
     // Links should point to meeting detail pages
     const links = screen.getAllByRole("link");
-    expect(links[0].getAttribute("href")).toBe("/meetings/m1");
-    expect(links[1].getAttribute("href")).toBe("/meetings/m2");
+    expect(links[0].getAttribute("href")).toBe("/meetings/m1/recording");
+    expect(links[1].getAttribute("href")).toBe("/meetings/m2/recording");
   });
 
   it("parses nested data.meetings response format", async () => {

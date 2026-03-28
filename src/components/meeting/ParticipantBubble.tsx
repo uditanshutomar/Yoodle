@@ -143,7 +143,7 @@ export default function ParticipantBubble({
                 {/* Hand raised indicator */}
                 {isHandRaised && (
                     <motion.div
-                        className="absolute top-0 right-0 flex h-7 w-7 items-center justify-center rounded-full border-2 border-[var(--doodle)] bg-[#FFE600] shadow-[2px_2px_0_var(--doodle)] z-10"
+                        className="absolute -top-1 -right-1 flex h-7 w-7 items-center justify-center rounded-full border-2 border-[var(--doodle)] bg-[#FFE600] shadow-[2px_2px_0_var(--doodle)] z-10"
                         role="img"
                         aria-label={`${name} has raised their hand`}
                         initial={{ scale: 0, y: 10 }}
@@ -187,13 +187,13 @@ export default function ParticipantBubble({
 
             {/* Name badge — scribbly card style */}
             <motion.div
-                className="name-badge mt-2 rounded-full px-3 py-1 text-center"
+                className="name-badge mt-2 rounded-full px-3 py-1 text-center max-w-full overflow-hidden"
                 layout
                 animate={{ scale: isSpeaking ? 1 : 0.9 }}
                 transition={{ type: "spring", stiffness: 200, damping: 25 }}
             >
                 <span
-                    className="text-xs font-bold tracking-wide whitespace-nowrap"
+                    className="text-xs font-bold tracking-wide truncate max-w-full block"
                     style={{
                         fontSize: isSpeaking ? "0.75rem" : "0.65rem",
                         color: "var(--text-primary)",

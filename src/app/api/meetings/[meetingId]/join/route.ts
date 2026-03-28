@@ -428,6 +428,33 @@ export const POST = withHandler(async (req: NextRequest, context) => {
     }).catch(() => {});
   }
 
+  // Sync attendee to Google Calendar event (fire-and-forget)
+  if (populated.calendarEventId && hostId) {
+    (async () => {
+      try {
+        // Collect emails of all joined participants
+        const participantUserIds = populated.participants
+          .filter((p: { status: string }) => p.status === "joined")
+          .map((p: { userId?: { _id?: { toString(): string }; toString(): string } }) =>
+            (p.userId?._id || p.userId)?.toString()
+          )
+          .filter((id): id is string => Boolean(id));
+
+        const users = await User.find({ _id: { $in: participantUserIds } })
+          .select("email")
+          .lean();
+        const emails = users.map((u) => u.email).filter(Boolean) as string[];
+
+        if (emails.length > 0) {
+          const { updateEvent } = await import("@/lib/google/calendar");
+          await updateEvent(hostId, populated.calendarEventId!, { attendees: emails });
+        }
+      } catch (err) {
+        chatLog.warn({ err, meetingId: populated._id.toString() }, "failed to sync attendee to calendar event");
+      }
+    })();
+  }
+
   return successResponse({
     meeting: populated,
     roomSession: buildRoomSession(

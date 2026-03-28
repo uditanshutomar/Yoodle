@@ -47,27 +47,6 @@ export default function ConnectionIndicator({
         ))}
       </div>
 
-      {/* Tooltip on hover */}
-      <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:block group-focus-within:block z-50">
-        <div className="rounded-lg border-2 border-[var(--border-strong)] bg-[var(--surface)] px-3 py-2 shadow-[2px_2px_0_var(--border-strong)] whitespace-nowrap">
-          <p
-            className="text-xs font-bold mb-1 font-heading"
-            style={{ color: config.color }}
-          >
-            {config.label} Connection
-          </p>
-          {rtt !== null && (
-            <p className="text-[10px] text-[var(--text-muted)]">
-              Latency: {rtt}ms
-            </p>
-          )}
-          {packetLoss !== null && (
-            <p className="text-[10px] text-[var(--text-muted)]">
-              Packet loss: {packetLoss}%
-            </p>
-          )}
-        </div>
-      </div>
     </motion.div>
   );
 }

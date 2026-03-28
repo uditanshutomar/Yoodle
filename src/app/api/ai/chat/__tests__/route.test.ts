@@ -74,6 +74,7 @@ const mockStreamChatWithAssistant = vi.fn();
 
 vi.mock("@/lib/ai/gemini", () => ({
   streamChatWithAssistant: (...args: unknown[]) => mockStreamChatWithAssistant(...args),
+  getUserGeminiKey: vi.fn().mockResolvedValue(undefined),
 }));
 
 // Mock createStreamingResponse to return a simple Response

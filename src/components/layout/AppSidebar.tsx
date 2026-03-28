@@ -11,7 +11,6 @@ import {
   MapPin,
   Calendar,
   MessageCircle,
-  Activity,
   Ghost,
   Users,
   Settings,
@@ -32,7 +31,6 @@ const navItems = [
   { label: "Calendar", href: "/calendar", icon: Calendar },
   { label: "Chatter", href: "/messages", icon: MessageCircle },
   { label: "Ghost Rooms", href: "/ghost-rooms", icon: Ghost },
-  { label: "Pulse", href: "/analytics", icon: Activity },
 ];
 
 const bottomNavItems = [

@@ -1,7 +1,8 @@
 "use client";
 
+import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { X, Mic, MicOff, Video, VideoOff, Crown, Monitor, Hand, UserX, ShieldCheck } from "lucide-react";
+import { X, Mic, MicOff, Video, VideoOff, Crown, Monitor, Hand, UserX, ShieldCheck, UserPlus, Send, Check, Loader2 } from "lucide-react";
 import Avatar from "@/components/ui/Avatar";
 
 interface ParticipantInfo {
@@ -27,6 +28,10 @@ interface ParticipantListProps {
   onMuteParticipant?: (userId: string) => void;
   onKickParticipant?: (userId: string) => void;
   onTransferHost?: (userId: string) => void;
+  /** Meeting ID for invite functionality */
+  meetingId?: string;
+  /** Meeting code for sharing */
+  meetingCode?: string;
 }
 
 export default function ParticipantList({
@@ -39,7 +44,48 @@ export default function ParticipantList({
   onMuteParticipant,
   onKickParticipant,
   onTransferHost,
+  meetingId,
+  meetingCode,
 }: ParticipantListProps) {
+  const [showInvite, setShowInvite] = useState(false);
+  const [inviteEmail, setInviteEmail] = useState("");
+  const [inviteStatus, setInviteStatus] = useState<"idle" | "sending" | "sent" | "error">("idle");
+  const [linkCopied, setLinkCopied] = useState(false);
+
+  const handleInvite = async () => {
+    const email = inviteEmail.trim();
+    if (!email || !email.includes("@") || !meetingId) return;
+    setInviteStatus("sending");
+    try {
+      const res = await fetch(`/api/meetings/${meetingId}/invite`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ email }),
+      });
+      if (res.ok) {
+        setInviteStatus("sent");
+        setInviteEmail("");
+        setTimeout(() => setInviteStatus("idle"), 2000);
+      } else {
+        setInviteStatus("error");
+        setTimeout(() => setInviteStatus("idle"), 2000);
+      }
+    } catch {
+      setInviteStatus("error");
+      setTimeout(() => setInviteStatus("idle"), 2000);
+    }
+  };
+
+  const handleCopyLink = async () => {
+    if (!meetingCode) return;
+    const link = `${window.location.origin}/meetings/join?code=${meetingCode}`;
+    try {
+      await navigator.clipboard.writeText(link);
+      setLinkCopied(true);
+      setTimeout(() => setLinkCopied(false), 2000);
+    } catch { /* ignore */ }
+  };
   // Sort: host first, then hand raised, then rest
   const sortedParticipants = [...participants].sort((a, b) => {
     if (a.isHost && !b.isHost) return -1;
@@ -241,6 +287,58 @@ export default function ParticipantList({
                 </motion.div>
               );
             })}
+          </div>
+
+          {/* Invite section */}
+          <div className="border-t-2 border-[var(--border-strong)]/10 px-4 py-3 space-y-2">
+            {!showInvite ? (
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setShowInvite(true)}
+                  className="flex-1 flex items-center justify-center gap-1.5 rounded-xl border-2 border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-xs font-bold text-[var(--text-secondary)] hover:border-[#FFE600] transition-colors font-heading"
+                >
+                  <UserPlus size={14} /> Invite
+                </button>
+                {meetingCode && (
+                  <button
+                    onClick={handleCopyLink}
+                    className="flex items-center justify-center gap-1.5 rounded-xl border-2 border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-xs font-bold text-[var(--text-secondary)] hover:border-[#FFE600] transition-colors font-heading"
+                  >
+                    {linkCopied ? <Check size={14} className="text-green-500" /> : <Send size={14} />}
+                    {linkCopied ? "Copied!" : "Copy Link"}
+                  </button>
+                )}
+              </div>
+            ) : (
+              <div className="space-y-2">
+                <div className="flex gap-1.5">
+                  <input
+                    type="email"
+                    value={inviteEmail}
+                    onChange={(e) => setInviteEmail(e.target.value)}
+                    onKeyDown={(e) => e.key === "Enter" && handleInvite()}
+                    placeholder="Enter email"
+                    className="flex-1 rounded-lg border-2 border-[var(--border)] bg-[var(--surface)] px-3 py-1.5 text-xs text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:border-[var(--border-strong)] focus:outline-none font-body"
+                  />
+                  <button
+                    onClick={handleInvite}
+                    disabled={inviteStatus === "sending" || !inviteEmail.trim()}
+                    className="rounded-lg bg-[#FFE600] px-3 py-1.5 text-xs font-bold text-[#0A0A0A] border-2 border-[var(--border-strong)] disabled:opacity-40 font-heading"
+                  >
+                    {inviteStatus === "sending" ? <Loader2 size={12} className="animate-spin" /> : inviteStatus === "sent" ? <Check size={12} /> : "Send"}
+                  </button>
+                </div>
+                {inviteStatus === "error" && (
+                  <p className="text-[10px] text-[#FF6B6B] font-body">Failed to send invite</p>
+                )}
+                <button
+                  onClick={() => { setShowInvite(false); setInviteEmail(""); setInviteStatus("idle"); }}
+                  className="text-[10px] text-[var(--text-muted)] hover:text-[var(--text-primary)] font-heading"
+                >
+                  Cancel
+                </button>
+              </div>
+            )}
           </div>
         </motion.div>
       )}

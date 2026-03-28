@@ -48,9 +48,11 @@ async function connectDB(): Promise<typeof mongoose> {
     cached.promise = mongoose.connect(MONGODB_URI as string, {
       dbName: "yoodle",
       bufferCommands: false,
-      // Use smaller pool in serverless to avoid connection exhaustion
-      maxPoolSize: isServerless ? 1 : 10,
-      minPoolSize: isServerless ? 0 : 2,
+      // Serverless needs enough connections for sequential queries in
+      // complex routes (e.g. join route does 5+ queries). Too low causes
+      // queued queries to timeout under concurrent users.
+      maxPoolSize: isServerless ? 5 : 25,
+      minPoolSize: isServerless ? 0 : 5,
       serverSelectionTimeoutMS: 10000, // 10s — more resilient to transient failures
       socketTimeoutMS: 45000,
       heartbeatFrequencyMS: 10000,

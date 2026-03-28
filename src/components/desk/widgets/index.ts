@@ -20,19 +20,11 @@ export const WIDGET_COMPONENTS: Record<string, ComponentType> = {
     ssr: false,
     loading: stub,
   }),
-  "pulse-check": dynamic(() => import("./PulseCheckWidget"), {
-    ssr: false,
-    loading: stub,
-  }),
   buzz: dynamic(() => import("./BuzzWidget"), {
     ssr: false,
     loading: stub,
   }),
   replays: dynamic(() => import("./ReplaysWidget"), {
-    ssr: false,
-    loading: stub,
-  }),
-  "the-feed": dynamic(() => import("./TheFeedWidget"), {
     ssr: false,
     loading: stub,
   }),

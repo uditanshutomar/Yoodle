@@ -307,8 +307,33 @@ export function useMessages(conversationId: string | null) {
     es.onopen = () => {
       setConnected(true);
       if (sseRetriesRef.current > 0) {
-        // Reconnected after a disconnect — fetch latest messages to fill the gap
-        fetchMessages();
+        // Reconnected after a disconnect — fetch latest messages to fill the gap.
+        // Merge with existing messages to avoid losing scroll position or loaded history.
+        (async () => {
+          try {
+            const res = await fetch(
+              `/api/conversations/${conversationId}/messages?limit=30`,
+              { credentials: "include" },
+            );
+            if (!res.ok || !isMountedRef.current) return;
+            const json = await res.json();
+            if (!json.success) return;
+            const fetched: ChatMsg[] = json.data.messages;
+            setMessages((prev) => {
+              // Merge: keep existing messages, add any new ones from fetch
+              const existingIds = new Set(prev.map((m) => m._id));
+              const newMsgs = fetched.filter((m) => !existingIds.has(m._id));
+              if (newMsgs.length === 0) return prev;
+              // Combine and sort by creation time
+              const merged = [...prev, ...newMsgs].sort(
+                (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
+              );
+              return merged;
+            });
+          } catch {
+            // Non-critical — messages will be fetched on next interaction
+          }
+        })();
       }
       sseRetriesRef.current = 0;
     };

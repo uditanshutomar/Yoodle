@@ -260,7 +260,8 @@ export function useRecording(
               const errData = await uploadRes.json();
               errMsg = errData.error?.message || errMsg;
             } catch { /* ignore parse error */ }
-            setError(`${errMsg} Recording saved locally instead.`);
+            console.warn("[useRecording] Upload failed:", errMsg);
+            setError(`${errMsg} Recording downloaded locally instead. Connect Google Drive in Settings to save to Drive.`);
             downloadRecording(blob, meetingTitle);
           }
         } catch {

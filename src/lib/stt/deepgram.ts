@@ -4,11 +4,11 @@ import { withRetry, isTransientError } from "@/lib/utils/retry";
 
 const DEEPGRAM_BASE_URL = "https://api.deepgram.com/v1";
 
-function getApiKey(): string {
-  const apiKey = process.env.DEEPGRAM_API_KEY;
+function getApiKey(overrideKey?: string): string {
+  const apiKey = overrideKey || process.env.DEEPGRAM_API_KEY;
   if (!apiKey) {
     throw new Error(
-      "Deepgram not configured. Set DEEPGRAM_API_KEY."
+      "No Deepgram API key available. Add your key in Settings → API Keys."
     );
   }
   return apiKey;
@@ -54,10 +54,10 @@ export class DeepgramSTTProvider implements STTProvider {
 
   async transcribe(
     audio: Buffer | ArrayBuffer,
-    options?: { language?: string },
+    options?: { language?: string; apiKey?: string },
   ): Promise<TranscriptResult> {
     const buffer = toBuffer(audio);
-    const apiKey = getApiKey();
+    const apiKey = getApiKey(options?.apiKey);
 
     const params = new URLSearchParams({
       model: "nova-2",

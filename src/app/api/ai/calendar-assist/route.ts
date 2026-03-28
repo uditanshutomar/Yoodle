@@ -8,7 +8,7 @@ import { getUserIdFromRequest } from "@/lib/infra/auth/middleware";
 import { BadRequestError } from "@/lib/infra/api/errors";
 import connectDB from "@/lib/infra/db/client";
 import { createLogger } from "@/lib/infra/logger";
-import { getClient, getModelName } from "@/lib/ai/gemini";
+import { getClient, getModelName, getUserGeminiKey } from "@/lib/ai/gemini";
 import { geminiBreaker } from "@/lib/infra/circuit-breaker";
 import { listEvents } from "@/lib/google/calendar";
 import { searchContacts } from "@/lib/google/contacts";
@@ -133,7 +133,8 @@ async function suggestTitles(userId: string, input: z.infer<typeof titlesSchema>
 
   // Ask Gemini for title completions
   try {
-    const ai = getClient();
+    const userApiKey = await getUserGeminiKey(userId);
+    const ai = getClient(userApiKey);
     const model = getModelName();
 
     const prompt = `You are an assistant that suggests meeting titles. The user is typing a meeting title and needs completions.
@@ -355,7 +356,8 @@ async function suggestAgenda(userId: string, input: z.infer<typeof agendaSchema>
 
   // Ask Gemini for agenda suggestions
   try {
-    const ai = getClient();
+    const userApiKey = await getUserGeminiKey(userId);
+    const ai = getClient(userApiKey);
     const model = getModelName();
 
     const prompt = `You are an assistant that suggests meeting agenda items. Based on the meeting title, recent tasks, past meetings, and related documents, suggest relevant agenda items.
@@ -417,7 +419,8 @@ async function suggestReferences(userId: string, input: z.infer<typeof reference
 
   // Ask Gemini to rank the most relevant files
   try {
-    const ai = getClient();
+    const userApiKey = await getUserGeminiKey(userId);
+    const ai = getClient(userApiKey);
     const model = getModelName();
 
     const fileList = files

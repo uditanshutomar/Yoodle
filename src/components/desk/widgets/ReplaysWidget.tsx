@@ -120,7 +120,7 @@ export default function ReplaysWidget() {
         return (
           <Link
             key={m._id}
-            href={`/meetings/${m._id}`}
+            href={`/meetings/${m._id}/recording`}
             className="group flex items-center gap-2 rounded-xl border border-[var(--border)] px-3 py-2 hover:border-[#FFE600] transition-colors"
           >
             <Play

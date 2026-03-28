@@ -131,30 +131,59 @@ export const POST = withHandler(async (req: NextRequest, context) => {
     }
 
     } // end else (endResult.modifiedCount > 0)
-  } else if (isHost && remainingParticipants.length > 0) {
-    // Host left but others remain — transfer host to the earliest-joined participant
-    const newHost = remainingParticipants.sort(
-      (a, b) => (a.joinedAt?.getTime() ?? 0) - (b.joinedAt?.getTime() ?? 0),
-    )[0];
+  } else if (remainingParticipants.length > 0) {
+    // Someone left and others remain — check if host transfer is needed
+    if (isHost) {
+      // Host left — transfer to the earliest-joined remaining participant
+      const newHost = remainingParticipants.sort(
+        (a, b) => (a.joinedAt?.getTime() ?? 0) - (b.joinedAt?.getTime() ?? 0),
+      )[0];
 
-    if (newHost) {
-      await Meeting.updateOne(
-        { _id: result._id },
-        {
-          $set: {
-            hostId: newHost.userId,
-            "participants.$[newHostFilter].role": "host",
+      if (newHost) {
+        await Meeting.updateOne(
+          { _id: result._id },
+          {
+            $set: {
+              hostId: newHost.userId,
+              "participants.$[newHostFilter].role": "host",
+            },
           },
-        },
-        {
-          arrayFilters: [{ "newHostFilter.userId": newHost.userId }],
-        },
+          {
+            arrayFilters: [{ "newHostFilter.userId": newHost.userId }],
+          },
+        );
+
+        log.info(
+          { meetingId: result._id.toString(), newHostId: newHost.userId.toString() },
+          "host transferred after original host left",
+        );
+      }
+    } else if (remainingParticipants.length === 1) {
+      // Non-host left and only one participant remains — promote them to host
+      const soleParticipant = remainingParticipants[0];
+      const currentHostStillJoined = remainingParticipants.some(
+        (p) => p.userId.toString() === result.hostId.toString(),
       );
 
-      log.info(
-        { meetingId: result._id.toString(), newHostId: newHost.userId.toString() },
-        "host transferred after original host left",
-      );
+      if (!currentHostStillJoined) {
+        await Meeting.updateOne(
+          { _id: result._id },
+          {
+            $set: {
+              hostId: soleParticipant.userId,
+              "participants.$[promoteFilter].role": "host",
+            },
+          },
+          {
+            arrayFilters: [{ "promoteFilter.userId": soleParticipant.userId }],
+          },
+        );
+
+        log.info(
+          { meetingId: result._id.toString(), newHostId: soleParticipant.userId.toString() },
+          "sole remaining participant promoted to host",
+        );
+      }
     }
   }
 

@@ -8,13 +8,20 @@ export async function register() {
     const { validateEnvOnStartup } = await import("@/lib/infra/env");
     validateEnvOnStartup();
 
-    // Start BullMQ workers for durable job processing
-    try {
-      const { startWorkers } = await import("@/lib/infra/jobs/start-workers");
-      startWorkers();
-    } catch (err) {
-      // Workers require Redis — log and continue if unavailable
-      console.warn("[instrumentation] Failed to start BullMQ workers:", err);
+    // Start BullMQ workers for durable job processing.
+    // On Vercel serverless, skip workers — they create Redis connections on
+    // every cold start and compete across instances. Run workers only in
+    // long-lived environments (self-hosted, Docker, or dedicated worker process).
+    const isVercel = !!process.env.VERCEL;
+    const forceWorkers = process.env.ENABLE_BULLMQ_WORKERS === "true";
+    if (!isVercel || forceWorkers) {
+      try {
+        const { startWorkers } = await import("@/lib/infra/jobs/start-workers");
+        startWorkers();
+      } catch (err) {
+        // Workers require Redis — log and continue if unavailable
+        console.warn("[instrumentation] Failed to start BullMQ workers:", err);
+      }
     }
   }
 

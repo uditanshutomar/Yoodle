@@ -21,6 +21,10 @@ export function getRedisClient(): Redis {
       return err.message.includes("READONLY");
     },
     lazyConnect: true,
+    // On serverless: fail fast instead of queueing commands when disconnected
+    // to prevent command pile-up across concurrent instances.
+    // On VM: keep queue enabled so transient disconnects don't drop commands.
+    enableOfflineQueue: !(process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME),
   });
 
   redis.on("error", (err) => {

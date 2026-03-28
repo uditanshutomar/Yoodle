@@ -1,3 +1,13 @@
+# =====================================================================
+# Yoodle Docker Compose
+# =====================================================================
+# By default, uses external services (MongoDB Atlas, LiveKit Cloud, etc.)
+# configured via .env.local. Only the Next.js app + Redis run locally.
+#
+# To add local MongoDB/LiveKit for development, use:
+#   docker compose --profile local-db --profile local-livekit up
+# =====================================================================
+
 services:
   # ── Yoodle Next.js App ─────────────────────────────────────────────
   yoodle:
@@ -10,48 +20,53 @@ services:
     environment:
       - NODE_ENV=production
       - YOODLE_EDITION=${YOODLE_EDITION:-community}
-      - MONGODB_URI=mongodb://mongo:27017/yoodle
-      - REDIS_URL=redis://redis:6379
-      - LIVEKIT_URL=ws://livekit:7880
-      - LIVEKIT_API_KEY=${LIVEKIT_API_KEY:-devkey}
-      - LIVEKIT_API_SECRET=${LIVEKIT_API_SECRET:-devsecret}
     depends_on:
-      mongo:
-        condition: service_started
       redis:
-        condition: service_started
-      livekit:
-        condition: service_started
+        condition: service_healthy
     restart: unless-stopped
 
-  # ── MongoDB ────────────────────────────────────────────────────────
-  mongo:
-    image: mongo:7
-    volumes:
-      - mongo_data:/data/db
-    ports:
-      - "27017:27017"
-    restart: unless-stopped
-
-  # ── Redis ──────────────────────────────────────────────────────────
+  # ── Redis (always needed for cache, pub/sub, rate limiting) ────────
   redis:
     image: redis:7-alpine
     volumes:
       - redis_data:/data
     ports:
       - "6379:6379"
-    command: redis-server --appendonly yes
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
     restart: unless-stopped
 
-  # ── LiveKit (dev mode) ─────────────────────────────────────────────
+  # ── MongoDB (optional — use profile "local-db" for local dev) ──────
+  mongo:
+    image: mongo:7
+    profiles: ["local-db"]
+    volumes:
+      - mongo_data:/data/db
+    ports:
+      - "27017:27017"
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+
+  # ── LiveKit (optional — use profile "local-livekit" for self-hosted)
   livekit:
     image: livekit/livekit-server:latest
+    profiles: ["local-livekit"]
     ports:
       - "7880:7880"
       - "7881:7881"
       - "7882:7882/udp"
     environment:
-      - LIVEKIT_KEYS=${LIVEKIT_API_KEY:-devkey}: ${LIVEKIT_API_SECRET:-devsecret}
+      - LIVEKIT_KEYS=${LIVEKIT_API_KEY:-devkey}:${LIVEKIT_API_SECRET:-devsecret}
     command: --dev --bind 0.0.0.0
     restart: unless-stopped
 
